@@ -59,6 +59,12 @@ const SILENCIO_PARA_CORTAR: Duration = Duration::from_millis(1200);
 // Si en todo este tiempo no dijiste nada, Remi deja de esperar (en diálogo
 // no hay cuadro para escribir: sin esto quedaba grabando para siempre).
 const SIN_VOZ_MAXIMO: Duration = Duration::from_secs(10);
+// ffmpeg con avfoundation tarda hasta un segundo en abrir el wav de salida.
+// El vigilante arranca antes: si en su primera mirada el archivo no está,
+// no es que la grabación terminó, es que todavía no empezó a escribirse.
+// El 29/09 a las 17:29 y 17:38 se iba a los 250 ms creyendo eso — cuatro
+// minutos mudos. Hasta aquí espera a que aparezca.
+const ESPERA_WAV_MAXIMA: Duration = Duration::from_secs(5);
 
 // La ventanita escucha este evento para cortar sola la grabación.
 pub const EVENTO_SILENCIO: &str = "voz://silencio";
@@ -212,6 +218,8 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
         let mut hubo_voz = false;
         let mut callado = Duration::ZERO;
         let mut transcurrido = Duration::ZERO;
+        // «No existe» solo quiere decir «terminó» si alguna vez existió.
+        let mut wav_visto = false;
 
         // Hallazgo 3 de Grok: el pico solo quedaba al cruzar el umbral y al
         // cortar, nunca el piso mientras callás. Sin ese dato no se puede
@@ -230,12 +238,27 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
             }
             transcurrido += PASO_VIGILANCIA;
 
+            if !wav_visto && ruta_wav.exists() {
+                wav_visto = true;
+                log::info!("[voz] el wav apareció a los {} ms", transcurrido.as_millis());
+            }
+
             let pico = match pico_reciente_o_motivo(&ruta_wav) {
                 Ok(pico) => pico,
                 Err(motivo) => {
                     if !ruta_wav.exists() {
-                        log::info!("[voz] vigilancia termina: el wav ya no está");
-                        return;
+                        if wav_visto {
+                            log::info!("[voz] vigilancia termina: el wav ya no está");
+                            return;
+                        }
+                        if transcurrido >= ESPERA_WAV_MAXIMA {
+                            log::warn!(
+                                "[voz] vigilancia termina: el wav no apareció en {} s",
+                                ESPERA_WAV_MAXIMA.as_secs()
+                            );
+                            return;
+                        }
+                        continue;
                     }
                     // Una vez por segundo, no cuatro: pero nunca en silencio.
                     pasos_desde_el_ultimo_aviso += 1;
