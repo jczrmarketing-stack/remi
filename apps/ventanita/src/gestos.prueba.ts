@@ -47,6 +47,7 @@ function crearVentanita(inicial: Partial<Entrada> = {}) {
           break;
         case "pasarADialogo":
           estado.modo = "dialogo";
+          estado.grabacionDesde = ahora;
           break;
         case "pararGrabacion":
           estado.grabando = false;
@@ -110,16 +111,17 @@ describe("el periodo de gracia", () => {
     expect(v.estado.grabando).toBe(false);
   });
 
-  it("en diálogo ningún click para la grabación, ni pasada la gracia", () => {
+  it("en diálogo, dentro de la gracia un click no para; pasada, sí", () => {
     const v = crearVentanita();
     v.click(0);
     v.click(167);
     v.click(366);
     expect(v.estado.modo).toBe("dialogo");
-    for (const t of [366 + MS_GRACIA + 100, 4000, 9000]) {
-      expect(v.click(t).tipo).toBe("nada");
-      expect(v.estado.grabando).toBe(true);
-    }
+    expect(v.click(366 + 500).tipo).toBe("nada");
+    expect(v.estado.grabando).toBe(true);
+    // Una racha nueva (más de MS_RACHA después), ya fuera de la gracia.
+    expect(v.click(366 + 500 + MS_RACHA + MS_GRACIA).tipo).toBe("pararGrabacion");
+    expect(v.estado.grabando).toBe(false);
   });
 });
 
@@ -255,5 +257,38 @@ describe("la secuencia real del log de las 16:18: el cuadro aparece bajo el mous
     expect(v.click(0, true).tipo).toBe("nada");
     expect(v.click(150, true).tipo).toBe("nada");
     expect(v.estado.grabando).toBe(false);
+  });
+});
+
+describe("la secuencia real del log de las 16:43: doble click para parar", () => {
+  it("un 3.º click accidental entra en diálogo, y un doble click 50 s después para sin cancelar", () => {
+    const v = crearVentanita();
+    expect(v.click(0).tipo).toBe("abrirTexto");
+    expect(v.click(672, false, true).tipo).toBe("grabarVoz");
+    // El dedo cayó una vez más, 411 ms después: diálogo sin querer.
+    expect(v.click(1083, false, true).tipo).toBe("pasarADialogo");
+    expect(v.estado.modo).toBe("dialogo");
+
+    // 50 s hablando. Después, un doble click para parar: el 1.º para…
+    expect(v.click(50000).tipo).toBe("pararGrabacion");
+    expect(v.estado.estado).toBe("pensando");
+    // …y el 2.º, 158 ms después, no cancela la transcripción.
+    expect(v.click(50158).tipo).toBe("nada");
+    expect(v.estado.estado).toBe("pensando");
+  });
+
+  it("en dictado también: el 2.º click del doble que paró no cancela", () => {
+    const v = crearVentanita();
+    v.click(0);
+    v.click(600, false, true);
+    expect(v.estado.modo).toBe("voz");
+    expect(v.click(600 + MS_GRACIA + 200).tipo).toBe("pararGrabacion");
+    expect(v.click(600 + MS_GRACIA + 360).tipo).toBe("nada");
+    expect(v.estado.estado).toBe("pensando");
+  });
+
+  it("un click suelto mientras transcribe sigue siendo la salida", () => {
+    const v = crearVentanita({ estado: "pensando" });
+    expect(v.click(9000).tipo).toBe("volverAReposo");
   });
 });

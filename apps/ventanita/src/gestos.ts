@@ -14,10 +14,12 @@ import type { Estado, Modo } from "./tipos";
 // aparece bajo el mouse; el 2.º de la prueba real de las 16:18 llegó a
 // 584 ms. Un doble click humano sobre algo que se mueve no entra en 550.
 export const MS_RACHA = 700;
-// Desde que arranca (o se re-arma) una grabación, ningún click la para. Es
-// el resto de la racha del usuario: los dedos siguen cayendo después del
-// gesto, y no tienen por qué cortar lo que el gesto acaba de abrir.
-export const MS_GRACIA = 900;
+// Desde que arranca (o se re-arma, o pasa a diálogo) una grabación, ningún
+// click la para. Es el resto de la racha del usuario: los dedos siguen
+// cayendo después del gesto, y no tienen por qué cortar lo que el gesto
+// acaba de abrir. 1000 y no 900: el 4.º click de la secuencia de las 15:31
+// cayó a 934 ms del 3.º.
+export const MS_GRACIA = 1000;
 
 export interface Racha {
   /** Cuántos clicks seguidos van. 0 = no hay racha en curso. */
@@ -135,13 +137,21 @@ export function decidir(entrada: Entrada): Decision {
       const desde = Math.round(ahora - (grabacionDesde ?? ahora));
       return { accion: { tipo: "nada", razon: `gracia (${desde} ms)` }, racha };
     }
-    // El diálogo lo corta el silencio, o Escape, o el atajo: nunca un click.
-    // Si un click lo cortara, cada dedo tardío mataría la escucha recién
-    // re-armada, que es exactamente lo que pasaba.
-    if (modo === "dialogo") {
-      return { accion: { tipo: "nada", razon: "en diálogo corta el silencio" }, racha };
-    }
+    // Pasada la gracia, un click para la grabación, en dictado y en
+    // diálogo. Antes en diálogo no paraba nunca («lo corta el silencio») y
+    // el 29/09 a las 16:44 eso dejó a Juan Camilo trabado 50 segundos
+    // dando dobles clicks a una escucha que no cortaba. En diálogo, parar
+    // manda lo dicho igual que el silencio; para terminar el diálogo,
+    // Escape o la palanca.
     return { accion: { tipo: "pararGrabacion" }, racha };
+  }
+
+  // — Transcribiendo —
+  // Un doble click para parar es dos clicks: el 1.º para, el 2.º cae con
+  // la grabación ya cerrada y Remi transcribiendo. Ese 2.º no puede
+  // cancelar. Un click suelto en pensando (n=1) sigue siendo la salida.
+  if (estado === "pensando" && racha.n >= 2) {
+    return { accion: { tipo: "nada", razon: `2.º click del que paró (n=${racha.n})` }, racha };
   }
 
   // — Sin grabación —
