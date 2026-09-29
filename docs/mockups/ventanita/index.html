@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="es" data-tema="noche">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remi — Mockups ventanita (Fase 1a)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Tokens — copiados literales de design/tokens.json, tema Noche.
+     Ningún hex fuera de este bloque: todo lo demás usa var(--token). */
+  :root {
+    --ground: #151112;
+    --surface: #1d1718;
+    --surface-2: #26201f;
+    --line: #3a302d;
+    --ink: #f3ebdd;
+    --ink-muted: #a89d8f;
+    --ink-faint: #6b6058;
+    --luz: #fff2c9;
+    --on-luz: #1a1200;
+    --dinero: #ffb020;
+    --on-dinero: #1a1200;
+    --brasa: #ff8a3d;
+    --on-brasa: #1a0a00;
+    --alerta: #ff4d6d;
+    --pensar: #c9a0ff;
+    --baja: #6f6660;
+    --dormido: #3a302d;
+    --focus-ring: #ffd27a;
+
+    --glow-luz: 0 0 12px rgba(255, 242, 201, 0.55);
+    --glow-brasa: 0 0 14px rgba(255, 138, 61, 0.45);
+    --glow-pensar: 0 0 10px rgba(201, 160, 255, 0.5);
+
+    --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+    --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+
+    --radius-sm: 8px;
+    --radius-md: 20px;
+    --radius-lg: 24px;
+    --radius-pill: 999px;
+
+    /* Duraciones de movimiento: dadas en la ley (CLAUDE.md / skill remi),
+       no viven en tokens.json porque no es un token de diseño visual. */
+    --curva: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --dur-estado: 150ms;
+    --dur-aparecer: 250ms;
+    --dur-celebracion: 900ms;
+    /* Período del pulso del LED: la ley solo dice "pulsa en escuchando",
+       sin cifra. Elegido a mano, avisar si Milo prefiere otro. */
+    --dur-pulso: 1100ms;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* — Tipografía canónica (design/tokens.json → type.groups) — */
+  .display-md { font-family: var(--font-display); font-size: 26px; line-height: 27px; font-weight: 400; letter-spacing: -0.01em; margin: 0; }
+  .display-it { font-family: var(--font-display); font-size: 24px; line-height: 26px; font-weight: 400; font-style: italic; margin: 0; }
+  .body-sm { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; margin: 0; }
+  .label { font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; margin: 0; }
+  .num { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; margin: 0; }
+  .code { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; font-variant-numeric: tabular-nums; margin: 0; }
+
+  /* — Página envolvente (no es la ventanita: solo el mostrador de mockups) — */
+  .pagina-header {
+    padding: var(--space-8) var(--space-8) var(--space-6);
+  }
+  .pagina-header .label { color: var(--ink-muted); }
+  .pagina-header .display-md { margin-top: var(--space-2); }
+  .pagina-header .body-sm { color: var(--ink-muted); margin-top: var(--space-2); max-width: 640px; }
+
+  .grid-variantes {
+    display: flex;
+    gap: var(--space-8);
+    padding: 0 var(--space-8) var(--space-12);
+    overflow-x: auto;
+    align-items: flex-start;
+  }
+
+  .variante {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    flex: 0 0 auto;
+  }
+
+  .variante-header { text-align: center; max-width: 300px; }
+  .variante-header .label { color: var(--ink-muted); }
+  .variante-header .display-md { margin-top: var(--space-1); }
+  .variante-decision { color: var(--ink-muted); margin-top: var(--space-2); }
+
+  /* — StatusDot: único portador de glow-* y del único pulso permitido — */
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-pill);
+    background: var(--dormido);
+    transition: background var(--dur-estado) var(--curva), box-shadow var(--dur-estado) var(--curva);
+  }
+  [data-estado="escuchando"] .status-dot {
+    background: var(--luz);
+    box-shadow: var(--glow-luz);
+    animation: pulso-led var(--dur-pulso) var(--curva) infinite alternate;
+  }
+  [data-estado="respondiendo"] .status-dot {
+    background: var(--brasa);
+    box-shadow: var(--glow-brasa);
+  }
+  @keyframes pulso-led {
+    from { opacity: 1; }
+    to { opacity: 0.45; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .status-dot { animation: none !important; }
+  }
+
+  /* — Ventanita: la ventana en sí, tres estados, un tamaño por estado — */
+  .ventanita {
+    position: relative;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: width var(--dur-aparecer) var(--curva), height var(--dur-aparecer) var(--curva);
+  }
+  .ventanita[data-estado="reposo"],
+  .ventanita[data-estado="escuchando"] {
+    width: 320px;
+    height: 180px;
+  }
+  .ventanita[data-estado="respondiendo"] {
+    width: 420px;
+    height: 520px;
+  }
+
+  /* — PromptTerminal: siempre un nivel de superficie sobre la ventanita — */
+  .prompt-terminal {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    color: var(--ink-muted);
+  }
+  .prompt-terminal .code { color: var(--ink); }
+
+  /* — Voz de Remi: display-it, aparece solo al responder — */
+  .voz { color: var(--ink); }
+
+  /* ============ Variante A — Reloj piel instrumento, protagonista ============ */
+  .ventanita--a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  .ventanita--a .status-dot { position: absolute; top: var(--space-3); left: var(--space-3); }
+  .reloj--instrumento { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+  .dial { width: 96px; height: 96px; }
+  .dial-pista { fill: none; stroke: var(--line); stroke-width: 6; }
+  .dial-arco {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-dasharray: 220 400;
+    transform: rotate(-90deg);
+    transform-origin: 60px 60px;
+    transition: stroke var(--dur-estado) var(--curva);
+  }
+  [data-estado="escuchando"] .dial-arco { stroke: var(--luz); }
+  [data-estado="respondiendo"] .dial-arco { stroke: var(--brasa); }
+  .dial-lectura { color: var(--ink-muted); }
+  .ventanita--a .prompt-terminal { display: none; margin-top: var(--space-4); width: 100%; }
+  .ventanita--a .voz { display: none; text-align: center; margin-top: var(--space-2); }
+  .ventanita--a[data-estado="respondiendo"] .prompt-terminal,
+  .ventanita--a[data-estado="respondiendo"] .voz { display: block; }
+
+  /* ============ Variante B — Reloj piel terminal, texto primero ============ */
+  .ventanita--b {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    height: 100%;
+  }
+  .ventanita--b .cabecera { display: flex; align-items: center; gap: var(--space-2); }
+  .ventanita--b .cabecera .label { color: var(--ink-muted); }
+  .reloj--terminal { color: var(--ink-muted); margin-left: auto; }
+  .ventanita--b .prompt-terminal { flex: 1; display: flex; flex-direction: column; gap: var(--space-2); overflow: hidden; }
+  .ventanita--b .prompt-terminal .code { color: var(--ink-muted); }
+  .ventanita--b .voz { display: none; margin-top: var(--space-2); }
+  .ventanita--b[data-estado="respondiendo"] .voz { display: block; }
+  .ventanita--b[data-estado="respondiendo"] .prompt-terminal .code:last-child { color: var(--ink); }
+
+  /* ============ Variante C — Reloj piel brasa, mínima ============ */
+  .ventanita--c {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    text-align: center;
+  }
+  .reloj--brasa {
+    width: 100%;
+    max-width: 220px;
+    height: 6px;
+    background: var(--line);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+    display: none;
+  }
+  .reloj--brasa .relleno { width: 55%; height: 100%; background: var(--brasa); }
+  .ventanita--c[data-estado="respondiendo"] .reloj--brasa { display: block; }
+  .ventanita--c .voz { display: none; }
+  .ventanita--c[data-estado="respondiendo"] .voz { display: block; }
+  .ventanita--c .prompt-terminal {
+    display: none;
+    width: 100%;
+    max-width: 260px;
+    padding: var(--space-2) var(--space-3);
+  }
+  .ventanita--c[data-estado="respondiendo"] .prompt-terminal { display: block; }
+
+  /* — Controles del mockup (no son parte de la ventanita real) — */
+  .controles { display: flex; gap: var(--space-2); }
+  .controles button {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: var(--surface-2);
+    color: var(--ink-muted);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    padding: var(--space-1) var(--space-3);
+    cursor: pointer;
+  }
+  .controles button[aria-pressed="true"] {
+    background: var(--surface);
+    color: var(--ink);
+    border-color: var(--ink-muted);
+  }
+</style>
+</head>
+<body>
+
+<header class="pagina-header">
+  <p class="label">Remi · Fase 1a</p>
+  <h1 class="display-md">Mockups A/B/C — ventanita</h1>
+  <p class="body-sm">Solo diseño, sin Tauri ni React. Reposo (320×180) → escuchando → respondiendo (hasta 420×520 con PromptTerminal). Tema Noche. Componentes: StatusDot, Reloj, PromptTerminal.</p>
+</header>
+
+<main class="grid-variantes">
+
+  <section class="variante">
+    <div class="variante-header">
+      <p class="label">A · Instrumento</p>
+      <p class="display-md">Reloj instrumento</p>
+      <p class="variante-decision body-sm">Decisión: el dial (Reloj piel instrumento) es el protagonista del reposo; el texto solo aparece al responder.</p>
+    </div>
+
+    <div class="ventanita ventanita--a" id="vent-a" data-estado="reposo">
+      <div class="status-dot"></div>
+      <div class="reloj--instrumento">
+        <svg class="dial" viewBox="0 0 120 120">
+          <circle class="dial-pista" cx="60" cy="60" r="52"></circle>
+          <circle class="dial-arco" cx="60" cy="60" r="52"></circle>
+        </svg>
+        <p class="num dial-lectura">42'</p>
+      </div>
+      <p class="display-it voz">Ya guardé eso. Sigamos con la tarjeta.</p>
+      <div class="prompt-terminal">
+        <p class="code">&gt; Llamar al banco</p>
+      </div>
+    </div>
+
+    <div class="controles">
+      <button type="button" data-estado="reposo" aria-pressed="true" onclick="cambiarEstado('vent-a','reposo')">Reposo</button>
+      <button type="button" data-estado="escuchando" aria-pressed="false" onclick="cambiarEstado('vent-a','escuchando')">Escuchando</button>
+      <button type="button" data-estado="respondiendo" aria-pressed="false" onclick="cambiarEstado('vent-a','respondiendo')">Respondiendo</button>
+    </div>
+  </section>
+
+  <section class="variante">
+    <div class="variante-header">
+      <p class="label">B · Terminal</p>
+      <p class="display-md">Reloj terminal</p>
+      <p class="variante-decision body-sm">Decisión: texto primero. El PromptTerminal está siempre visible, incluso vacío en reposo; el Reloj es una lectura mono en la cabecera, no un dial.</p>
+    </div>
+
+    <div class="ventanita ventanita--b" id="vent-b" data-estado="reposo">
+      <div class="cabecera">
+        <div class="status-dot"></div>
+        <p class="label">Remi</p>
+        <p class="num reloj--terminal">42' · 3/6</p>
+      </div>
+      <div class="prompt-terminal">
+        <p class="code">· · ·</p>
+        <p class="code">&gt; Llamar al banco</p>
+      </div>
+      <p class="display-it voz">Ya guardé eso. Sigamos con la tarjeta.</p>
+    </div>
+
+    <div class="controles">
+      <button type="button" data-estado="reposo" aria-pressed="true" onclick="cambiarEstado('vent-b','reposo')">Reposo</button>
+      <button type="button" data-estado="escuchando" aria-pressed="false" onclick="cambiarEstado('vent-b','escuchando')">Escuchando</button>
+      <button type="button" data-estado="respondiendo" aria-pressed="false" onclick="cambiarEstado('vent-b','respondiendo')">Respondiendo</button>
+    </div>
+  </section>
+
+  <section class="variante">
+    <div class="variante-header">
+      <p class="label">C · Brasa mínima</p>
+      <p class="display-md">Reloj brasa</p>
+      <p class="variante-decision body-sm">Decisión: mínima locura posible. En reposo y escuchando solo hay un StatusDot; el Reloj es una barra fina que aparece únicamente al responder.</p>
+    </div>
+
+    <div class="ventanita ventanita--c" id="vent-c" data-estado="reposo">
+      <div class="status-dot"></div>
+      <p class="display-it voz">Ya guardé eso. Sigamos con la tarjeta.</p>
+      <div class="reloj--brasa"><div class="relleno"></div></div>
+      <div class="prompt-terminal">
+        <p class="code">&gt; Llamar al banco</p>
+      </div>
+    </div>
+
+    <div class="controles">
+      <button type="button" data-estado="reposo" aria-pressed="true" onclick="cambiarEstado('vent-c','reposo')">Reposo</button>
+      <button type="button" data-estado="escuchando" aria-pressed="false" onclick="cambiarEstado('vent-c','escuchando')">Escuchando</button>
+      <button type="button" data-estado="respondiendo" aria-pressed="false" onclick="cambiarEstado('vent-c','respondiendo')">Respondiendo</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  function cambiarEstado(id, estado) {
+    var ventanita = document.getElementById(id);
+    ventanita.dataset.estado = estado;
+    var botones = ventanita.parentElement.querySelectorAll('.controles button');
+    botones.forEach(function (boton) {
+      boton.setAttribute('aria-pressed', boton.dataset.estado === estado ? 'true' : 'false');
+    });
+  }
+</script>
+
+</body>
+</html>
