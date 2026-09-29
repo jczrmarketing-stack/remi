@@ -161,9 +161,11 @@ describe("un click suelto", () => {
     expect(v.click(5000).tipo).toBe("mandarTexto");
   });
 
-  it("mientras Remi habla, vuelve a reposo", () => {
+  it("mientras Remi habla, un click no la cancela", () => {
     const v = crearVentanita({ estado: "hablando" });
-    expect(v.click(5000).tipo).toBe("volverAReposo");
+    expect(v.click(5000)).toMatchObject({ tipo: "nada" });
+    expect(v.click(5200)).toMatchObject({ tipo: "nada" });
+    expect(v.estado.estado).toBe("hablando");
   });
 
   it("dos clicks lejanos son dos clicks sueltos, no un doble", () => {

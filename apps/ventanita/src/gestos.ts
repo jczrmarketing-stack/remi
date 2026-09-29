@@ -177,6 +177,13 @@ export function decidir(entrada: Entrada): Decision {
 
   // — Sin grabación —
 
+  // Mientras Remi habla, un click no la calla ni la manda a reposo: el
+  // 29/09 a las 17:43 una respuesta que iba bien se canceló por tocar la
+  // ventana. Para cortarla está Escape; si no, termina sola.
+  if (estado === "hablando") {
+    return { accion: { tipo: "nada", razon: "Remi está hablando (Escape para cortar)" }, racha };
+  }
+
   if (estado === "escuchando" && !textoVacio) {
     return { accion: { tipo: "mandarTexto" }, racha };
   }
