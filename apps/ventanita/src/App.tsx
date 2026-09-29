@@ -61,6 +61,12 @@ export default function App() {
   const accionesRef = useRef({ grabando, modo, estado, silenciado });
   accionesRef.current = { grabando, modo, estado, silenciado };
 
+  // Cada vez que se vuelve a reposo a mano (click o Escape), esto sube:
+  // si un fetch/invoke que ya estaba en vuelo resuelve DESPUÉS, se nota
+  // que quedó viejo y no pisa el estado — si no, una respuesta tardía
+  // podía saltar a "hablando" de la nada después de haber cancelado.
+  const generacionRef = useRef(0);
+
   const expandido = estado !== "reposo";
   const expandidoAnteriorRef = useRef(expandido);
 
@@ -81,6 +87,7 @@ export default function App() {
   }, [expandido]);
 
   const volverAReposo = useCallback(() => {
+    generacionRef.current += 1;
     setEstado("reposo");
     setModo("texto");
     setGrabando(false);
@@ -100,21 +107,28 @@ export default function App() {
       if (accionesRef.current.estado === "pensando" || accionesRef.current.estado === "hablando") {
         return;
       }
+      const miGeneracion = generacionRef.current;
       setEstado("pensando");
       try {
         const respuesta = await enviarMensaje(limpio);
+        if (generacionRef.current !== miGeneracion) return; // cancelado mientras esperaba
         setVoz(respuesta.voz);
         setSesionInicio(respuesta.sesion.inicio);
         // Si esto falla, el Reloj simplemente no se renderiza — no es
         // motivo para no poder contestar (ley 3, sin culpa).
         obtenerUltimaVezMin(respuesta.tarea.id)
-          .then(setUltimaVezMin)
-          .catch(() => setUltimaVezMin(null));
+          .then((valor) => {
+            if (generacionRef.current === miGeneracion) setUltimaVezMin(valor);
+          })
+          .catch(() => {
+            if (generacionRef.current === miGeneracion) setUltimaVezMin(null);
+          });
       } catch (error) {
+        if (generacionRef.current !== miGeneracion) return;
         console.error("no se pudo mandar el mensaje:", error);
         setVoz(fraseDeFallo());
       } finally {
-        setEstado("hablando");
+        if (generacionRef.current === miGeneracion) setEstado("hablando");
       }
     },
     [],
@@ -147,10 +161,12 @@ export default function App() {
   const detenerYTranscribir = useCallback(async () => {
     if (!accionesRef.current.grabando) return;
     const enDialogo = accionesRef.current.modo === "dialogo";
+    const miGeneracion = generacionRef.current;
     setGrabando(false);
     setEstado("pensando");
     try {
       const transcripcion = await detenerEscuchaYTranscribir();
+      if (generacionRef.current !== miGeneracion) return; // cancelado mientras transcribía
       setTexto(transcripcion);
       if (enDialogo) {
         // En diálogo no se edita: lo dicho se manda solo.
@@ -159,6 +175,7 @@ export default function App() {
       }
       setEstado("escuchando");
     } catch (error) {
+      if (generacionRef.current !== miGeneracion) return;
       // No escuchó nada (o no se entendió): sin culpa (ley 3).
       console.error("no se pudo transcribir:", error);
       if (enDialogo) {
@@ -256,11 +273,12 @@ export default function App() {
         return;
       }
 
-      // Un click en "hablando" cierra ahí mismo: el techo de duracionHablando
-      // es un máximo, no una espera obligada.
-      if (estado === "hablando") {
-        volverAReposo();
-      }
+      // Cualquier otro estado no-reposo (escuchando sin grabar mientras
+      // escribís, pensando, hablando): un click fuera del cuadro vuelve a
+      // reposo. Ningún estado se queda sin salida — en "pensando" además
+      // cancela lo que estuviera esperando (generacionRef en
+      // volverAReposo): si esa respuesta llega después, no revive el estado.
+      volverAReposo();
     },
     [estado, grabando, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
   );
