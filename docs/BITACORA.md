@@ -20,6 +20,23 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.11 Whisper large-v3-turbo · construido · 36bc1d6
+
+- **Qué cambió:** `config/ventanita.json` apunta a `ggml-large-v3-turbo.bin` (ya estaba en
+  la carpeta de Handy) en vez de `ggml-small.bin`. Rust lee la config en cada transcripción:
+  entra sin recompilar ni reinstalar. **Medido** con 7,3 s de español limpio y Metal: small
+  0,79 s · medium-q4 1,96 s · large-v3-turbo 2,19 s. Con audio limpio los tres transcriben
+  idéntico; la diferencia es con voz real, ruido y acento.
+- **Decisiones que tomé sin preguntar:** turbo y no medium: casi el mismo tiempo, mejor modelo.
+- **Dudas abiertas:**
+  1. **No puedo probar la mejora de comprensión sin el micrófono de Juan Camilo**; el audio
+     sintético no la muestra. Se ve en uso.
+  2. Cada frase cuesta ~1,4 s más de transcripción. Si en uso se siente lento, el punto medio
+     es `whisper-medium-q4_1.bin` (1,96 s), también ya bajado.
+  3. Sigue pendiente: texto + Enter contesta «Guardada» en vez de pensar (diseño; con Ollama
+     gratis, pensar por defecto ya no cuesta).
+- **Cómo probarlo a mano:** dictar una frase larga y rápida, la que antes entendía mal.
+
 ## 2026-09-29 · 2i.10 Ollama, el motor local y gratis · construido · 2a304f2
 
 - **Qué cambió:** medí antes de construir lo que había propuesto (estante persistente) y la
