@@ -20,6 +20,34 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.6 el diálogo manda, y el motor se elige a conciencia · construido · d5e168e
+
+- **Qué cambió:** (1) `44aad7b`: **el diálogo nunca mandaba.** Del log de las 17:22:
+  transcribió 28 caracteres y nada durante 12 s. La guarda anti-doble-envío de `enviar()`
+  miraba «pensando», y el diálogo pone pensando mientras transcribe: al ir a mandar lo
+  transcrito, se frenaba en silencio. Ahora mira si hay un POST en vuelo, y cuando rechaza
+  lo escribe. (2) `329b751`: `POST /mensaje` acepta `motor: claude|venice`, que gana sobre
+  el `.env`; `GET /pensar/motores` lista los dos con qué le falta a cada uno. (3) `d5e168e`:
+  dropdown «pensar con [Claude (Max) ▾]» en el pie del cuadro, guardado con las
+  preferencias, y un recordatorio cada media hora en reposo: «pensás con X» bajo el punto,
+  un movimiento de 250 ms, se va a los 4 s. 138 pruebas núcleo, 35 ventanita. Instalada.
+- **Decisiones que tomé sin preguntar:**
+  1. **El recordatorio contra «nada respira».** Juan Camilo pidió que el dropdown «vibre
+     cada media hora, sutil». El DS prohíbe animación permanente. Lo hice como UN movimiento
+     de 250 ms con la curva del sistema, solo en reposo, sin sonido, en el renglón del «hace
+     N min» (no agranda la píldora), y con `prefers-reduced-motion` solo cambia el color. Se
+     apaga con una constante en `recordatorio.ts`.
+  2. El recordatorio se mide desde el último recordatorio, no desde el último uso: usar
+     Remi seguido no lo posterga para siempre.
+  3. El `.env` queda como valor por defecto, no como la única forma de elegir motor.
+  4. Los dobles de `pensar()` en los tests viejos pasaron a aceptar el motor.
+- **Dudas abiertas:** el «zumbidito» lo leí visual, no sonoro. Si era sonido, es otra
+  conversación: la voz de Remi ya usa los parlantes y un sonido de aviso choca con
+  «cuerpo primero» si suena mientras trabajás.
+- **Cómo probarlo a mano:** tres clicks, decir una frase, callarse 2 s → corta, manda y Remi
+  contesta en voz. Un click, abrir el cuadro: el dropdown está junto a «pensar con». A los
+  30 min en reposo, la etiqueta aparece y se mueve una vez.
+
 ## 2026-09-29 · 2i.5 el diálogo corta y contesta · construido · b37f24c
 
 - **Qué cambió:** tres cosas, tres commits, del log de las 17:09. (1) **Umbral adaptativo**:
