@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "memoria": {
+      "command": "uv",
+      "args": ["run", "--directory", "nucleo", "python", "memoria_mcp.py"]
+    }
+  }
+}
