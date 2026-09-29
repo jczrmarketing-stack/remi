@@ -11,12 +11,24 @@
 set -euo pipefail
 
 ETIQUETA="com.remi.nucleo"
+ETIQUETA_APP="com.remi.ventanita"
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NUCLEO="$RAIZ/nucleo"
 PLIST="$HOME/Library/LaunchAgents/$ETIQUETA.plist"
+PLIST_APP="$HOME/Library/LaunchAgents/$ETIQUETA_APP.plist"
 LOGS="$HOME/Library/Logs/Remi"
 
-echo "Remi · instalando el núcleo como servicio"
+# Remi se abre sola al iniciar sesión. --sin-inicio-automatico deja el
+# núcleo instalado igual, pero la ventanita la abrís vos.
+INICIO_AUTOMATICO=1
+for argumento in "$@"; do
+  case "$argumento" in
+    --sin-inicio-automatico) INICIO_AUTOMATICO=0 ;;
+    *) echo "No conozco la opción $argumento" >&2; exit 1 ;;
+  esac
+done
+
+echo "Remi · instalando"
 echo "  repo:  $RAIZ"
 
 # — El puerto sale de config/nucleo.json, que es la única fuente —
@@ -51,22 +63,32 @@ fi
 
 mkdir -p "$LOGS" "$HOME/Library/LaunchAgents"
 
-# — Si ya estaba corriendo, se baja antes de reemplazarlo —
+# — Bajar un agente y esperar a que se vaya de verdad —
 # `bootout` vuelve antes de que el servicio termine de irse: si cargamos el
-# nuevo enseguida, launchd lo rechaza y el núcleo queda abajo sin que nadie
-# se entere. Por eso se espera a que desaparezca de verdad.
-if launchctl list | grep -q "$ETIQUETA"; then
-  echo "  (ya estaba cargado: lo bajo para reemplazarlo)"
-  launchctl bootout "gui/$UID/$ETIQUETA" 2>/dev/null || launchctl unload "$PLIST" 2>/dev/null || true
+# nuevo enseguida, launchd lo rechaza y el agente queda abajo sin que nadie
+# se entere.
+# `launchctl list <label>` acierta el agente exacto. Con `| grep` no: cuando
+# Remi está abierta, LaunchServices registra un
+# `application.com.remi.ventanita.NNN` que también matchea, y el script creía
+# que el agente seguía cargado.
+esta_cargado() {
+  launchctl list "$1" > /dev/null 2>&1
+}
+
+bajar_agente() {
+  local etiqueta="$1" plist="$2"
+  esta_cargado "$etiqueta" || return 0
+  launchctl bootout "gui/$UID/$etiqueta" 2>/dev/null \
+    || launchctl unload "$plist" 2>/dev/null || true
   for _ in $(seq 1 50); do
-    launchctl list | grep -q "$ETIQUETA" || break
+    esta_cargado "$etiqueta" || return 0
     sleep 0.2
   done
-  if launchctl list | grep -q "$ETIQUETA"; then
-    echo "  No se termina de bajar. Probá a mano: launchctl bootout gui/$UID/$ETIQUETA" >&2
-    exit 1
-  fi
-fi
+  echo "  $etiqueta no se termina de bajar. A mano: launchctl bootout gui/$UID/$etiqueta" >&2
+  return 1
+}
+
+bajar_agente "$ETIQUETA" "$PLIST"
 
 cat > "$PLIST" <<PLISTEOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -109,9 +131,46 @@ PLISTEOF
 
 plutil -lint "$PLIST" > /dev/null
 launchctl bootstrap "gui/$UID" "$PLIST" 2>/dev/null || launchctl load "$PLIST"
+echo "  núcleo: instalado"
+
+# — Segundo agente: abrir Remi al iniciar sesión —
+# Sin KeepAlive a propósito: si cerrás la ventanita, se queda cerrada hasta
+# el próximo inicio de sesión. El núcleo sí se relevanta; la app es tuya.
+bajar_agente "$ETIQUETA_APP" "$PLIST_APP" || true
+
+if [[ "$INICIO_AUTOMATICO" -eq 1 ]]; then
+  cat > "$PLIST_APP" <<PLISTAPPEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$ETIQUETA_APP</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/open</string>
+		<string>-a</string>
+		<string>Remi</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>$LOGS/ventanita.log</string>
+	<key>StandardErrorPath</key>
+	<string>$LOGS/ventanita.log</string>
+</dict>
+</plist>
+PLISTAPPEOF
+  plutil -lint "$PLIST_APP" > /dev/null
+  launchctl bootstrap "gui/$UID" "$PLIST_APP" 2>/dev/null || launchctl load "$PLIST_APP"
+  echo "  app:    abre sola al iniciar sesión"
+else
+  rm -f "$PLIST_APP"
+  echo "  app:    la abrís vos (--sin-inicio-automatico)"
+fi
 
 echo
-echo "Listo. El núcleo arranca con el Mac y se levanta solo si se cae."
-echo "  log:      $LOGS/nucleo.log"
-echo "  bajarlo:  launchctl bootout gui/$UID/$ETIQUETA"
-echo "  estado:   launchctl list | grep $ETIQUETA"
+echo "Listo."
+echo "  logs:     $LOGS/"
+echo "  estado:   launchctl list | grep remi"
+echo "  bajarlos: ./scripts/desinstalar.sh"
