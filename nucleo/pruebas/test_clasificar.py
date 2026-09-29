@@ -71,6 +71,25 @@ def test_una_frase_larga_no_cierra_por_mencionar_listo():
     assert clasificar("cuando esté listo el informe te aviso") == "idea"
 
 
+@pytest.mark.parametrize(
+    "frase, esperado",
+    [
+        # Niegan: no cierran nada, siguen el flujo normal.
+        ("no me quedó listo", "idea"),
+        ("todavía no termino", "idea"),
+        ("nunca lo terminé", "idea"),
+        ("tampoco está listo", "idea"),
+        ("hoy no termino esto", "hoy"),
+        # Sin negación, siguen cerrando.
+        ("listo", "hecha"),
+        ("ya terminé", "hecha"),
+        ("listo la tarjeta", "hecha"),
+    ],
+)
+def test_una_negacion_impide_el_cierre(frase, esperado):
+    assert clasificar(frase) == esperado
+
+
 def test_hecha_gana_sobre_hoy():
     """«listo por hoy» cierra: primero se mira si cierra, después si abre."""
     assert clasificar("listo por hoy") == "hecha"

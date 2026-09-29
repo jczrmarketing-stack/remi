@@ -23,6 +23,12 @@ CIERRES = frozenset({"listo", "hecha", "termine", "paro", "pare"})
 # Una frase larga que menciona «listo» de paso no cierra nada.
 MAX_PALABRAS_CIERRE = 4
 
+# Con cualquiera de estas, un cierre no cierra: «no me quedó listo» y
+# «todavía no termino» hablan de algo que sigue abierto. Cerrar ahí pondría
+# en el historial un bloque que no terminó, y la ley 1 se apoya en ese
+# historial para decir «la última vez esto te tomó 1 h 40».
+NEGACIONES = frozenset({"no", "nunca", "tampoco", "todavia"})
+
 # Abren un bloque ahora. «voy a» y «vamos con» son la frase entera, no dos
 # palabras sueltas que podrían aparecer en cualquier lado.
 ARRANQUES = (
@@ -54,7 +60,12 @@ def clasificar(texto: str) -> TipoMensaje:
         return "idea"
 
     palabras = limpio.split()
-    if len(palabras) <= MAX_PALABRAS_CIERRE and any(p in CIERRES for p in palabras):
+    niega = any(p in NEGACIONES for p in palabras)
+    if (
+        not niega
+        and len(palabras) <= MAX_PALABRAS_CIERRE
+        and any(p in CIERRES for p in palabras)
+    ):
         return "hecha"
 
     if any(arranque.search(limpio) for arranque in ARRANQUES):
