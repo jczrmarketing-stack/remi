@@ -20,6 +20,23 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2d · auditoría · Grok
+1. [bug] apps/ventanita/src/servidor.ts:22 — el fetch de /mensaje se corta a los 8 s.
+   nucleo/pensar.py:42-45 dice que guardar puede tardar 10 s y la CLI espera 20 s, y el
+   núcleo sigue igual. App.tsx:69 y App.tsx:217 dicen «No pude guardarlo» aunque puede
+   haberse guardado; si lo repetís, queda duplicado — ley 3 — costo chico
+2. [bug] apps/ventanita/src-tauri/src/voz.rs:233 — es_solo_ruido solo descarta 12
+   etiquetas exactas (música, silencio, …). Cualquier otra alucinación de Whisper, frase
+   entera, entra como si la hubieras dicho — ley 2 — costo chico
+3. [opinión] apps/ventanita/src/App.tsx:403 — el comentario de arriba describe
+   Option+click; el de la línea 408 y el código (429, 440) cuentan 1/2/3 por tiempo, que
+   es el gesto elegido — ninguna ley — costo chico
+4. [opinión] apps/ventanita/src/App.tsx:424 — el comentario dice «< 400 ms» y la racha
+   usa 550 — ninguna ley — costo chico
+Cambio propuesto: en servidor.ts:22, subir TIMEOUT_NUCLEO_MS por encima de los 20 s de
+pensar.py:45 (25 s alcanzan), para que «No pude guardarlo» salga solo cuando el núcleo de
+verdad no contestó.
+
 ## 2026-09-29 · 2g app instalada · construido · b464770
 
 - **Qué cambió:** Remi es una app de verdad. Ícono propio (la brasa) en
