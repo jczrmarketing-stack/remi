@@ -8,6 +8,7 @@ import {
   MS_ANTES_DE_REARMAR,
   MS_GRACIA,
   MS_RACHA,
+  MS_TRIPLE,
   RACHA_VACIA,
   type Entrada,
   type Racha,
@@ -290,5 +291,39 @@ describe("la secuencia real del log de las 16:43: doble click para parar", () =>
   it("un click suelto mientras transcribe sigue siendo la salida", () => {
     const v = crearVentanita({ estado: "pensando" });
     expect(v.click(9000).tipo).toBe("volverAReposo");
+  });
+});
+
+describe("tres clicks en menos de dos segundos", () => {
+  it("a ritmo tranquilo (0, 700, 1600) entra en diálogo en vez de parar", () => {
+    const v = crearVentanita();
+    expect(v.click(0).tipo).toBe("abrirTexto");
+    expect(v.click(650, false, true).tipo).toBe("grabarVoz");
+    // 950 ms después del 2.º: fuera de MS_RACHA y fuera de la gracia. Antes
+    // esto PARABA la grabación. Está a 1600 del 1.º: es el 3.º.
+    expect(v.click(1600, false, true).tipo).toBe("pasarADialogo");
+    expect(v.estado.modo).toBe("dialogo");
+    expect(v.estado.grabando).toBe(true);
+  });
+
+  it("el 3.º justo antes de los 2 s cuenta; justo después, no", () => {
+    const a = crearVentanita();
+    a.click(0);
+    a.click(600, false, true);
+    expect(a.click(MS_TRIPLE - 50).tipo).toBe("pasarADialogo");
+
+    const b = crearVentanita();
+    b.click(0);
+    b.click(600, false, true);
+    // Racha nueva, fuera de la gracia: es un click para parar.
+    expect(b.click(MS_TRIPLE + 50).tipo).toBe("pararGrabacion");
+  });
+
+  it("el doble click sigue estricto: el 2.º tiene que venir pegado al 1.º", () => {
+    const v = crearVentanita();
+    v.click(0);
+    // A 1,5 s del 1.º no hay racha de dos: la ventana ancha es solo para el 3.º.
+    expect(v.click(1500, false, true).tipo).not.toBe("grabarVoz");
+    expect(v.estado.grabando).toBe(false);
   });
 });

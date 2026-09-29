@@ -32,8 +32,8 @@ import {
   decidir,
   decidirPalanca,
   decidirTrasVacia,
-  MS_RACHA,
   RACHA_VACIA,
+  rachaSigueViva,
   type Accion,
   type Racha,
 } from "./gestos";
@@ -626,9 +626,7 @@ export default function App() {
       if (evento.button !== 0) return;
       const { dentroDelCuadro } = clasificarObjetivo(evento.target);
       if (!dentroDelCuadro) return;
-      const racha = rachaRef.current;
-      const rachaViva = racha.n > 0 && performance.now() - racha.ultimo < MS_RACHA;
-      if (accionesRef.current.textoVacio && rachaViva) {
+      if (accionesRef.current.textoVacio && rachaSigueViva(rachaRef.current, performance.now())) {
         evento.preventDefault();
         registrar("mousedown", { rama: "gesto sobre el cuadro vacío: sin foco ni caret" });
       }

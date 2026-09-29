@@ -14,6 +14,11 @@ import type { Estado, Modo } from "./tipos";
 // aparece bajo el mouse; el 2.º de la prueba real de las 16:18 llegó a
 // 584 ms. Un doble click humano sobre algo que se mueve no entra en 550.
 export const MS_RACHA = 700;
+// El triple click se mide desde el PRIMER click: tres clicks en menos de
+// dos segundos son un triple, aunque el 3.º venga lento. Con 700 ms entre
+// cada uno, un ritmo tranquilo (0, 700, 1600) dejaba al 3.º fuera de la
+// racha y, ya fuera de la gracia, PARABA la grabación (16:51:35).
+export const MS_TRIPLE = 2000;
 // Desde que arranca (o se re-arma, o pasa a diálogo) una grabación, ningún
 // click la para. Es el resto de la racha del usuario: los dedos siguen
 // cayendo después del gesto, y no tienen por qué cortar lo que el gesto
@@ -24,11 +29,25 @@ export const MS_GRACIA = 1000;
 export interface Racha {
   /** Cuántos clicks seguidos van. 0 = no hay racha en curso. */
   n: number;
+  /** Cuándo cayó el primero de esta racha. */
+  primero: number;
   /** Cuándo cayó el último, en ms del mismo reloj que `ahora`. */
   ultimo: number;
 }
 
-export const RACHA_VACIA: Racha = { n: 0, ultimo: 0 };
+export const RACHA_VACIA: Racha = { n: 0, primero: 0, ultimo: 0 };
+
+/**
+ * Si un click ahora seguiría la racha. El 2.º tiene que venir pegado al
+ * 1.º (MS_RACHA); del 3.º en adelante alcanza con estar dentro de los
+ * MS_TRIPLE del primero. Lo usa también el mousedown de App, para no darle
+ * el foco al cuadro en un click que va a ser gesto.
+ */
+export function rachaSigueViva(racha: Racha, ahora: number): boolean {
+  if (racha.n === 0) return false;
+  if (ahora - racha.ultimo < MS_RACHA) return true;
+  return racha.n >= 2 && ahora - racha.primero < MS_TRIPLE;
+}
 
 export interface Entrada {
   estado: Estado;
@@ -73,8 +92,10 @@ export interface Decision {
 function siguienteRacha(racha: Racha, ahora: number): Racha {
   // `n > 0` y no `ultimo !== 0`: el reloj puede empezar en 0 (en las
   // pruebas empieza ahí), y un 0 no puede querer decir «nunca».
-  const seguida = racha.n > 0 && ahora - racha.ultimo < MS_RACHA;
-  return { n: seguida ? racha.n + 1 : 1, ultimo: ahora };
+  if (rachaSigueViva(racha, ahora)) {
+    return { n: racha.n + 1, primero: racha.primero, ultimo: ahora };
+  }
+  return { n: 1, primero: ahora, ultimo: ahora };
 }
 
 export function decidir(entrada: Entrada): Decision {
