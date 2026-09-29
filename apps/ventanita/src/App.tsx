@@ -17,11 +17,11 @@ const TAMANO_EXPANDIDO = { width: 420, height: 520 };
 const DURACION_APARECER = 250;
 // Tiempo propio de "hablando": no depende de si la locución existe o
 // termina antes/después (puede estar silenciada) — pero si depende del
-// largo del texto: 4s fijos no alcanzan para leer una frase de 20
-// palabras. ~2.3 palabras/seg (leer + que la voz la diga), con piso y techo.
-const MS_POR_PALABRA_HABLANDO = 430;
-const DURACION_HABLANDO_MINIMA = 3200;
-const DURACION_HABLANDO_MAXIMA = 11000;
+// largo del texto. Es un techo, no una espera obligada: un click la
+// cierra antes en cualquier momento.
+const MS_POR_PALABRA_HABLANDO = 260;
+const DURACION_HABLANDO_MINIMA = 2500;
+const DURACION_HABLANDO_MAXIMA = 7000;
 const MAX_PALABRAS_VOZ = 20;
 
 function duracionHablando(frase: string): number {
@@ -58,8 +58,8 @@ export default function App() {
   const esperaClicsRef = useRef<number | undefined>(undefined);
   const clicsRef = useRef(0);
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
-  const accionesRef = useRef({ grabando, modo, estado });
-  accionesRef.current = { grabando, modo, estado };
+  const accionesRef = useRef({ grabando, modo, estado, silenciado });
+  accionesRef.current = { grabando, modo, estado, silenciado };
 
   const expandido = estado !== "reposo";
   const expandidoAnteriorRef = useRef(expandido);
@@ -94,6 +94,11 @@ export default function App() {
     async (mensaje: string) => {
       const limpio = mensaje.trim();
       if (!limpio) return;
+      // Un doble Cmd+Enter (u onEnviar disparado dos veces) no manda dos
+      // tareas: si ya está pensando o hablando, este envío no cuenta.
+      if (accionesRef.current.estado === "pensando" || accionesRef.current.estado === "hablando") {
+        return;
+      }
       setEstado("pensando");
       try {
         const respuesta = await enviarMensaje(limpio);
@@ -191,13 +196,15 @@ export default function App() {
     return () => window.removeEventListener("keydown", alTeclado);
   }, [volverAReposo]);
 
-  // Remi habla solo si ESTE mensaje llegó por voz y no está silenciada.
-  // "hablando" dura lo mismo la diga en voz alta o no; en diálogo, al
-  // terminar vuelve a escucharte sola.
+  // Remi habla solo si ESTE mensaje llegó por voz y no está silenciada —
+  // mirado una sola vez al entrar; si silenciás a mitad de la locución
+  // no hay que reiniciar el temporizador de "hablando" por eso. Dura lo
+  // mismo la diga en voz alta o no; en diálogo, al terminar vuelve a
+  // escucharte sola. Un click la cierra antes (ver alClick).
   useEffect(() => {
     if (estado !== "hablando") return;
 
-    if (origenMensaje === "voz" && !silenciado) {
+    if (origenMensaje === "voz" && !accionesRef.current.silenciado) {
       void hablar(voz);
     }
 
@@ -215,7 +222,7 @@ export default function App() {
       window.clearTimeout(id);
       callarse();
     };
-  }, [estado, voz, origenMensaje, silenciado, empezarAEscuchar, volverAReposo]);
+  }, [estado, voz, origenMensaje, empezarAEscuchar, volverAReposo]);
 
   // 1 click escribís (al toque, sin esperar) · 2 clicks te escucha (como
   // Handy) · 3 clicks dialogan. La acción más común (escribir) no paga la
@@ -250,9 +257,16 @@ export default function App() {
 
       if (estado === "escuchando" && grabando) {
         void detenerYTranscribir();
+        return;
+      }
+
+      // Un click en "hablando" cierra ahí mismo: el techo de duracionHablando
+      // es un máximo, no una espera obligada.
+      if (estado === "hablando") {
+        volverAReposo();
       }
     },
-    [estado, grabando, empezarATipear, empezarAEscuchar, detenerYTranscribir],
+    [estado, grabando, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
   );
 
   // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
@@ -295,9 +309,10 @@ export default function App() {
       {estado === "hablando" && <p className="display-it voz">{recortarPalabras(voz)}</p>}
       {estado === "hablando" && <Reloj />}
 
-      {/* Mientras el micrófono está abierto no hay cuadro: se ve que escucha,
-          no que esperás para escribir. Al cortar, aparece con lo transcripto. */}
-      {expandido && !grabando && modo !== "dialogo" && (
+      {/* Mientras el micrófono está abierto, o mientras Remi habla, no hay
+          cuadro — una sola locura por pantalla (ley 4): se ve que escucha o
+          que contesta, no un textarea deshabilitado de fondo. */}
+      {expandido && !grabando && estado !== "hablando" && modo !== "dialogo" && (
         <PromptTerminal
           valor={texto}
           deshabilitado={estado !== "escuchando"}
