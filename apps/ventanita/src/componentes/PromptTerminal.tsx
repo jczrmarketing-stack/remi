@@ -20,13 +20,14 @@ export function PromptTerminal({ valor, deshabilitado, enfocar, onCambio, onEnvi
 
   return (
     <div className="prompt-terminal">
-      <textarea
+      <div className="prompt-terminal__cuadro">
+        <textarea
         ref={campoRef}
         className="code prompt-terminal__campo"
         aria-label="Escribile a Remi"
         value={valor}
         disabled={deshabilitado}
-        placeholder="Cmd+Enter para enviar"
+        placeholder="Contame."
         onChange={(evento) => onCambio(evento.target.value)}
         onKeyDown={(evento) => {
           if (evento.key === "Enter" && (evento.metaKey || evento.ctrlKey)) {
@@ -34,7 +35,12 @@ export function PromptTerminal({ valor, deshabilitado, enfocar, onCambio, onEnvi
             onEnviar();
           }
         }}
-      />
+        />
+      </div>
+      <div className="prompt-terminal__atajos" aria-hidden="true">
+        <span>⌘↵ enviar</span>
+        <span>esc cancelar</span>
+      </div>
     </div>
   );
 }
