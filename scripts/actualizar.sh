@@ -15,6 +15,7 @@ CONSTRUIDA="$VENTANITA/src-tauri/target/release/bundle/macos/Remi.app"
 INSTALADA="/Applications/Remi.app"
 ETIQUETA="com.remi.nucleo"
 ETIQUETA_APP="com.remi.ventanita"
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 echo "Remi · actualizando"
 echo "  commit: $(git -C "$RAIZ" log --oneline -1)"
@@ -37,20 +38,28 @@ echo
 echo "Reemplazando la instalada…"
 launchctl bootout "gui/$UID/$ETIQUETA_APP" 2>/dev/null || true
 osascript -e 'quit app "Remi"' 2>/dev/null || true
+# Puede estar corriendo la instalada o la del build: las dos se llaman Remi.
 for _ in $(seq 1 25); do
-  pgrep -f "$INSTALADA/Contents/MacOS" > /dev/null || break
+  pgrep -f "Remi.app/Contents/MacOS" > /dev/null || break
   sleep 0.2
 done
-pkill -f "$INSTALADA/Contents/MacOS" 2>/dev/null || true
+pkill -f "Remi.app/Contents/MacOS" 2>/dev/null || true
 
 rm -rf "$INSTALADA"
 cp -R "$CONSTRUIDA" "$INSTALADA"
+
+# La copia de target/ también se llama Remi.app, y mientras LaunchServices
+# la conozca, `open -a Remi` y Launchpad pueden elegirla a ella. Se la saca
+# del registro y se deja solo la instalada.
+"$LSREGISTER" -u "$CONSTRUIDA" 2>/dev/null || true
+"$LSREGISTER" -f "$INSTALADA" 2>/dev/null || true
 
 echo "Recargando los agentes…"
 "$RAIZ/scripts/instalar.sh" > /dev/null
 echo
 
 echo "Instalada la de: $(git -C "$RAIZ" log --oneline -1)"
+echo "«Remi» resuelve a: $(osascript -e 'POSIX path of (path to application "Remi")' 2>/dev/null || echo '?')"
 launchctl list | grep -E "com\.remi\.(nucleo|ventanita)" | grep -v application || true
 LIBRE="$(df -H /System/Volumes/Data | tail -1 | awk '{print $4}')"
 echo "Espacio libre: $LIBRE"

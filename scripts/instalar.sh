@@ -18,6 +18,11 @@ PLIST="$HOME/Library/LaunchAgents/$ETIQUETA.plist"
 PLIST_APP="$HOME/Library/LaunchAgents/$ETIQUETA_APP.plist"
 LOGS="$HOME/Library/Logs/Remi"
 
+# Por RUTA, nunca por nombre: en el repo queda una copia construida en
+# target/, y `open -a Remi` abría ESA. Las dos se llaman igual y
+# LaunchServices elegía la del build.
+APP="/Applications/Remi.app"
+
 # Remi se abre sola al iniciar sesión. --sin-inicio-automatico deja el
 # núcleo instalado igual, pero la ventanita la abrís vos.
 INICIO_AUTOMATICO=1
@@ -150,7 +155,7 @@ if [[ "$INICIO_AUTOMATICO" -eq 1 ]]; then
 	<array>
 		<string>/usr/bin/open</string>
 		<string>-a</string>
-		<string>Remi</string>
+		<string>/Applications/Remi.app</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>

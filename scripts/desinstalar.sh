@@ -35,9 +35,20 @@ for etiqueta in "$ETIQUETA_APP" "$ETIQUETA"; do
 done
 
 osascript -e 'quit app "Remi"' 2>/dev/null || true
+pkill -f "Remi.app/Contents/MacOS" 2>/dev/null || true
+
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 if [[ -d /Applications/Remi.app ]]; then
+  "$LSREGISTER" -u /Applications/Remi.app 2>/dev/null || true
   rm -rf /Applications/Remi.app
   echo "  borrada: /Applications/Remi.app"
+fi
+# La copia construida en target/ también se llama Remi.app: sin sacarla del
+# registro, `open -a Remi` la seguiría abriendo después de desinstalar.
+CONSTRUIDA="$RAIZ/apps/ventanita/src-tauri/target/release/bundle/macos/Remi.app"
+if [[ -d "$CONSTRUIDA" ]]; then
+  "$LSREGISTER" -u "$CONSTRUIDA" 2>/dev/null || true
+  echo "  desregistrada la copia de target/ (el .app construido queda en el repo)"
 fi
 
 echo
