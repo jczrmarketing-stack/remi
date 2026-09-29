@@ -6,13 +6,21 @@
   background: var(--dormido);
   transition:
     background var(--dur-estado) var(--curva),
-    box-shadow var(--dur-estado) var(--curva);
+    box-shadow var(--dur-estado) var(--curva),
+    width var(--dur-aparecer) var(--curva),
+    height var(--dur-aparecer) var(--curva);
 }
 
 .status-dot[data-estado="escuchando"] {
   background: var(--luz);
   box-shadow: var(--glow-luz);
   animation: pulso-led var(--dur-pulso) var(--curva) infinite alternate;
+}
+
+/* Con el micrófono abierto el punto crece: la señal de "te escucho". */
+.status-dot[data-estado="escuchando"][data-voz="si"] {
+  width: 22px;
+  height: 22px;
 }
 
 .status-dot[data-estado="pensando"] {

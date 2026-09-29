@@ -2,19 +2,34 @@
 //! transcribe con whisper.cpp (Homebrew), reusando un modelo que Handy
 //! ya tenía descargado. Nada de esto sale del Mac.
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStderr, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
+
+use serde::Deserialize;
+use tauri::{AppHandle, Emitter};
 
 // Si ffmpeg muere antes de esto, fue un fallo real (permiso de
 // micrófono negado, dispositivo inválido, etc.) — no lo tomamos como
 // "ya está grabando".
 const ESPERA_CONFIRMAR_ARRANQUE: Duration = Duration::from_millis(400);
 
-use serde::Deserialize;
+// El wav que graba ffmpeg: 16 kHz, mono, 16 bits.
+const BYTES_POR_SEGUNDO: u64 = 16_000 * 2;
+// Cada cuánto miramos cómo viene el audio.
+const PASO_VIGILANCIA: Duration = Duration::from_millis(250);
+// Ventana que miramos en cada paso.
+const VENTANA_SEGUNDOS: f64 = 0.4;
+// Por encima de esto hay voz (sobre 1.0 = máximo del micrófono).
+const UMBRAL_VOZ: f32 = 0.02;
+// Cuánto silencio seguido, después de hablar, cuenta como "ya terminaste".
+const SILENCIO_PARA_CORTAR: Duration = Duration::from_millis(1200);
+
+// La ventanita escucha este evento para cortar sola la grabación.
+pub const EVENTO_SILENCIO: &str = "voz://silencio";
 
 #[derive(Deserialize, Clone)]
 struct ConfigVoz {
@@ -53,6 +68,74 @@ fn leer_config_voz() -> Result<ConfigVoz, String> {
 
 fn ruta_temporal(sufijo: &str) -> PathBuf {
     std::env::temp_dir().join(format!("remi-voz-{}{}", std::process::id(), sufijo))
+}
+
+// ffmpeg escribe MUCHO por stderr: si nadie lo lee, se llena el pipe y se
+// traba. Este hilo solo lo drena.
+fn drenar_stderr(stderr: ChildStderr) {
+    thread::spawn(move || {
+        for _ in BufReader::new(stderr).lines().map_while(Result::ok) {}
+    });
+}
+
+// Pico de la última ventana del wav, entre 0.0 y 1.0. El filtro
+// silencedetect de ffmpeg no imprime nada en esta versión, así que
+// medimos el audio nosotros leyendo el archivo mientras crece.
+fn pico_reciente(ruta_wav: &Path) -> Option<f32> {
+    let mut archivo = fs::File::open(ruta_wav).ok()?;
+    let largo = archivo.metadata().ok()?.len();
+    let ventana = (BYTES_POR_SEGUNDO as f64 * VENTANA_SEGUNDOS) as u64;
+    if largo < ventana + 44 {
+        return None;
+    }
+
+    use std::io::{Seek, SeekFrom};
+    archivo.seek(SeekFrom::Start(largo - ventana)).ok()?;
+    let mut crudo = vec![0u8; ventana as usize];
+    archivo.read_exact(&mut crudo).ok()?;
+
+    let pico = crudo
+        .chunks_exact(2)
+        .map(|par| i16::from_le_bytes([par[0], par[1]]).unsigned_abs())
+        .max()
+        .unwrap_or(0);
+    Some(pico as f32 / i16::MAX as f32)
+}
+
+// Avisa a la ventanita cuando dejaste de hablar, para cortar sola.
+fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle) {
+    thread::spawn(move || {
+        let mut hubo_voz = false;
+        let mut callado = Duration::ZERO;
+
+        loop {
+            thread::sleep(PASO_VIGILANCIA);
+            let Some(pico) = pico_reciente(&ruta_wav) else {
+                // El archivo dejó de crecer: la grabación ya terminó.
+                if !ruta_wav.exists() {
+                    return;
+                }
+                continue;
+            };
+
+            if pico >= UMBRAL_VOZ {
+                hubo_voz = true;
+                callado = Duration::ZERO;
+                continue;
+            }
+
+            if !hubo_voz {
+                continue;
+            }
+
+            callado += PASO_VIGILANCIA;
+            if callado >= SILENCIO_PARA_CORTAR {
+                eprintln!("[voz] dejaste de hablar (pico {pico:.3}) → corto sola");
+                let _ = app.emit(EVENTO_SILENCIO, ());
+                return;
+            }
+        }
+    });
 }
 
 // Whisper alucina etiquetas cuando el audio es silencio o ruido: si eso
@@ -99,7 +182,11 @@ fn ultima_linea_util(salida: &str) -> String {
 }
 
 #[tauri::command]
-pub fn iniciar_escucha(estado: tauri::State<EstadoGrabacion>) -> Result<(), String> {
+pub fn iniciar_escucha(
+    app: AppHandle,
+    estado: tauri::State<EstadoGrabacion>,
+    cortar_solo: bool,
+) -> Result<(), String> {
     let config = leer_config_voz()?;
     let mut guarda = estado.0.lock().map_err(|e| e.to_string())?;
     if guarda.is_some() {
@@ -108,12 +195,13 @@ pub fn iniciar_escucha(estado: tauri::State<EstadoGrabacion>) -> Result<(), Stri
 
     let ruta_wav = ruta_temporal(".wav");
     eprintln!(
-        "[voz] grabando: {} -f avfoundation -i :{} → {}",
+        "[voz] grabando: {} -f avfoundation -i :{} → {} (corte solo: {cortar_solo})",
         config.ffmpeg_bin,
         config.dispositivo_audio,
         ruta_wav.display()
     );
-    let mut hijo = Command::new(&config.ffmpeg_bin)
+    let mut comando = Command::new(&config.ffmpeg_bin);
+    comando
         .args([
             "-y",
             "-f",
@@ -125,10 +213,13 @@ pub fn iniciar_escucha(estado: tauri::State<EstadoGrabacion>) -> Result<(), Stri
             "-ac",
             "1",
         ])
-        .arg(&ruta_wav)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    comando.arg(&ruta_wav);
+
+    let mut hijo = comando
         .spawn()
         .map_err(|e| format!("no pude arrancar ffmpeg: {e}"))?;
 
@@ -148,6 +239,13 @@ pub fn iniciar_escucha(estado: tauri::State<EstadoGrabacion>) -> Result<(), Stri
         eprintln!("[voz] {detalle}");
         eprintln!("[voz] stderr completo:\n{error}");
         return Err(detalle);
+    }
+
+    if let Some(stderr) = hijo.stderr.take() {
+        drenar_stderr(stderr);
+    }
+    if cortar_solo {
+        vigilar_silencio(ruta_wav.clone(), app.clone());
     }
 
     *guarda = Some((hijo, ruta_wav));

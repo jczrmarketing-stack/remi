@@ -7,8 +7,8 @@ import { enviarMensaje } from "./servidor";
 import { animarTamano } from "./movimiento";
 import { callarse, hablar } from "./voz";
 import { alternarSilencio, estaSilenciado } from "./silencio";
-import { detenerEscuchaYTranscribir, iniciarEscucha } from "./microfono";
-import type { Estado, OrigenMensaje } from "./tipos";
+import { alDetectarSilencio, detenerEscuchaYTranscribir, iniciarEscucha } from "./microfono";
+import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
 import "./App.css";
 
@@ -19,8 +19,8 @@ const DURACION_APARECER = 250;
 // (que puede no existir, si el mensaje fue escrito o está silenciado).
 const DURACION_HABLANDO = 4000;
 const MAX_PALABRAS_VOZ = 20;
-// Ventana clásica para distinguir un click de un doble click.
-const ESPERA_DOBLE_CLICK = 250;
+// Ventana para contar 1, 2 o 3 clicks antes de decidir qué hacer.
+const ESPERA_CLICS = 350;
 
 function recortarPalabras(frase: string): string {
   const palabras = frase.trim().split(/\s+/);
@@ -36,12 +36,18 @@ function fraseDeFallo(): string {
 
 export default function App() {
   const [estado, setEstado] = useState<Estado>("reposo");
+  const [modo, setModo] = useState<Modo>("texto");
   const [texto, setTexto] = useState("");
   const [voz, setVoz] = useState("");
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
   const [grabando, setGrabando] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
-  const esperaClickRef = useRef<number | undefined>(undefined);
+
+  const esperaClicsRef = useRef<number | undefined>(undefined);
+  const clicsRef = useRef(0);
+  // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
+  const accionesRef = useRef({ grabando, modo, estado });
+  accionesRef.current = { grabando, modo, estado };
 
   const expandido = estado !== "reposo";
   const expandidoAnteriorRef = useRef(expandido);
@@ -57,28 +63,119 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      if (esperaClickRef.current !== undefined) {
-        window.clearTimeout(esperaClickRef.current);
+      if (esperaClicsRef.current !== undefined) {
+        window.clearTimeout(esperaClicsRef.current);
       }
     };
   }, []);
 
+  const volverAReposo = useCallback(() => {
+    setEstado("reposo");
+    setModo("texto");
+    setGrabando(false);
+    setTexto("");
+    setVoz("");
+    callarse();
+  }, []);
+
+  const enviar = useCallback(
+    async (mensaje: string) => {
+      const limpio = mensaje.trim();
+      if (!limpio) return;
+      setEstado("pensando");
+      try {
+        const respuesta = await enviarMensaje(limpio);
+        setVoz(respuesta.voz);
+      } catch (error) {
+        console.error("no se pudo mandar el mensaje:", error);
+        setVoz(fraseDeFallo());
+      } finally {
+        setEstado("hablando");
+      }
+    },
+    [],
+  );
+
+  const empezarATipear = useCallback(() => {
+    setModo("texto");
+    setOrigenMensaje("texto");
+    setEstado("escuchando");
+  }, []);
+
+  const empezarAEscuchar = useCallback(async (modoNuevo: Modo) => {
+    setModo(modoNuevo);
+    setOrigenMensaje("voz");
+    setEstado("escuchando");
+    setGrabando(true);
+    try {
+      // En diálogo corta sola cuando dejás de hablar; en modo voz,
+      // como Handy: vos la cortás con otro click.
+      await iniciarEscucha(modoNuevo === "dialogo");
+    } catch (error) {
+      // Sin micrófono disponible: cae a escritura manual, sin culpa (ley 3).
+      console.error("no se pudo prender el micrófono:", error);
+      setGrabando(false);
+      setModo("texto");
+      setOrigenMensaje("texto");
+    }
+  }, []);
+
+  const detenerYTranscribir = useCallback(async () => {
+    if (!accionesRef.current.grabando) return;
+    const enDialogo = accionesRef.current.modo === "dialogo";
+    setGrabando(false);
+    setEstado("pensando");
+    try {
+      const transcripcion = await detenerEscuchaYTranscribir();
+      setTexto(transcripcion);
+      if (enDialogo) {
+        // En diálogo no se edita: lo dicho se manda solo.
+        await enviar(transcripcion);
+        return;
+      }
+      setEstado("escuchando");
+    } catch (error) {
+      // No escuchó nada (o no se entendió): se escribe a mano, sin culpa.
+      console.error("no se pudo transcribir:", error);
+      setEstado("escuchando");
+    }
+  }, [enviar]);
+
+  // El núcleo avisa cuando dejaste de hablar (solo en modo diálogo).
+  useEffect(() => {
+    const suscripcion = alDetectarSilencio(() => {
+      void detenerYTranscribir();
+    });
+    return () => {
+      void suscripcion.then((desuscribir) => desuscribir());
+    };
+  }, [detenerYTranscribir]);
+
   // Mute local a la ventana (no global de sistema): Cmd+Shift+M funciona
   // aunque estés escribiendo, porque los navegadores/webviews no meten
-  // combos con Cmd en el campo de texto.
+  // combos con Cmd en el campo de texto. Escape cancela todo.
   useEffect(() => {
     function alTeclado(evento: KeyboardEvent) {
-      if (evento.key.toLowerCase() !== "m" || !evento.metaKey || !evento.shiftKey) return;
-      evento.preventDefault();
-      setSilenciado(alternarSilencio());
+      if (evento.key === "Escape") {
+        evento.preventDefault();
+        if (accionesRef.current.grabando) {
+          void detenerEscuchaYTranscribir().catch(() => undefined);
+        }
+        volverAReposo();
+        return;
+      }
+      if (evento.key.toLowerCase() === "m" && evento.metaKey && evento.shiftKey) {
+        evento.preventDefault();
+        setSilenciado(alternarSilencio());
+      }
     }
     window.addEventListener("keydown", alTeclado);
     return () => window.removeEventListener("keydown", alTeclado);
-  }, []);
+  }, [volverAReposo]);
 
-  // Ley 3/4 aparte: Remi habla solo si ESTE mensaje llegó por voz (mic
-  // activado y no silenciada). Si lo escribiste a mano, contesta en
-  // silencio. "hablando" dura lo mismo la diga en voz alta o no.
+  // Remi habla solo si ESTE mensaje llegó por voz y no está silenciada.
+  // "hablando" dura lo mismo la diga en voz alta o no; en diálogo, al
+  // terminar vuelve a escucharte sola.
   useEffect(() => {
     if (estado !== "hablando") return;
 
@@ -87,125 +184,78 @@ export default function App() {
     }
 
     const id = window.setTimeout(() => {
-      setEstado("reposo");
-      setTexto("");
-      setVoz("");
+      if (accionesRef.current.modo === "dialogo") {
+        setTexto("");
+        setVoz("");
+        void empezarAEscuchar("dialogo");
+        return;
+      }
+      volverAReposo();
     }, DURACION_HABLANDO);
 
     return () => {
       window.clearTimeout(id);
       callarse();
     };
-  }, [estado, voz, origenMensaje, silenciado]);
+  }, [estado, voz, origenMensaje, silenciado, empezarAEscuchar, volverAReposo]);
 
-  // Un click abre el cuadro para escribir a mano. Doble click prende el
-  // micrófono (reemplaza a Handy). Un click más, ya escuchando, lo apaga
-  // y transcribe — el texto queda editable, nunca se envía a ciegas.
-  const empezarATipear = useCallback(() => {
-    setOrigenMensaje("texto");
-    setEstado("escuchando");
-  }, []);
-
-  const empezarAEscuchar = useCallback(async () => {
-    setOrigenMensaje("voz");
-    setEstado("escuchando");
-    setGrabando(true);
-    try {
-      await iniciarEscucha();
-    } catch (error) {
-      // Sin micrófono disponible: cae a escritura manual, sin culpa (ley 3).
-      // El detalle técnico va a la consola, no a la voz de Remi.
-      console.error("no se pudo prender el micrófono:", error);
-      setGrabando(false);
-      setOrigenMensaje("texto");
-    }
-  }, []);
-
-  const detenerYTranscribir = useCallback(async () => {
-    setGrabando(false);
-    setEstado("pensando");
-    try {
-      const transcripcion = await detenerEscuchaYTranscribir();
-      setTexto(transcripcion);
-    } catch (error) {
-      // No se pudo transcribir: el cuadro queda vacío, se escribe a mano.
-      console.error("no se pudo transcribir:", error);
-    } finally {
-      setEstado("escuchando");
-    }
-  }, []);
-
+  // 1 click escribís · 2 clicks te escucha (como Handy) · 3 clicks dialogan.
   const alClick = useCallback(() => {
     if (estado === "reposo") {
-      // Puede ser el primer click de un doble click: esperamos un toque.
-      if (esperaClickRef.current !== undefined) {
-        window.clearTimeout(esperaClickRef.current);
+      clicsRef.current += 1;
+      if (esperaClicsRef.current !== undefined) {
+        window.clearTimeout(esperaClicsRef.current);
       }
-      esperaClickRef.current = window.setTimeout(() => {
-        esperaClickRef.current = undefined;
-        empezarATipear();
-      }, ESPERA_DOBLE_CLICK);
+      esperaClicsRef.current = window.setTimeout(() => {
+        const clics = clicsRef.current;
+        clicsRef.current = 0;
+        esperaClicsRef.current = undefined;
+        if (clics <= 1) {
+          empezarATipear();
+        } else if (clics === 2) {
+          void empezarAEscuchar("voz");
+        } else {
+          void empezarAEscuchar("dialogo");
+        }
+      }, ESPERA_CLICS);
       return;
     }
 
     if (estado === "escuchando" && grabando) {
       void detenerYTranscribir();
     }
-  }, [estado, grabando, empezarATipear, detenerYTranscribir]);
-
-  const alDobleClick = useCallback(() => {
-    if (esperaClickRef.current !== undefined) {
-      window.clearTimeout(esperaClickRef.current);
-      esperaClickRef.current = undefined;
-    }
-    if (estado !== "reposo") return;
-    void empezarAEscuchar();
-  }, [estado, empezarAEscuchar]);
+  }, [estado, grabando, empezarATipear, empezarAEscuchar, detenerYTranscribir]);
 
   // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
   // salvo dentro del PromptTerminal (ahí hay que poder hacer click y
   // seleccionar texto, no mover la ventana). Un click sin arrastre
-  // igual dispara alClick/alDobleClick: startDragging no lo bloquea.
+  // igual dispara alClick: startDragging no lo bloquea.
   const alPresionar = useCallback((evento: React.MouseEvent<HTMLDivElement>) => {
     if (evento.button !== 0) return;
     if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
     void getCurrentWindow().startDragging();
   }, []);
 
-  const alEnviar = useCallback(async () => {
-    const mensaje = texto.trim();
-    if (!mensaje || estado !== "escuchando") return;
-    // origenMensaje ya quedó decidido al activar (o no) el micrófono.
-    setEstado("pensando");
-    try {
-      const respuesta = await enviarMensaje(mensaje);
-      setVoz(respuesta.voz);
-    } catch {
-      setVoz(fraseDeFallo());
-    } finally {
-      setEstado("hablando");
-    }
-  }, [texto, estado]);
-
   return (
     <div
       className={`ventanita ventanita--${estado}`}
       onClick={alClick}
-      onDoubleClick={alDobleClick}
       onMouseDown={alPresionar}
     >
-      <StatusDot estado={estado} />
+      <StatusDot estado={estado} escuchandoVoz={grabando} />
 
       {estado === "hablando" && <p className="display-it voz">{recortarPalabras(voz)}</p>}
       {estado === "hablando" && <Reloj />}
 
-      {expandido && (
+      {/* Mientras el micrófono está abierto no hay cuadro: se ve que escucha,
+          no que esperás para escribir. Al cortar, aparece con lo transcripto. */}
+      {expandido && !grabando && modo !== "dialogo" && (
         <PromptTerminal
           valor={texto}
           deshabilitado={estado !== "escuchando"}
-          enfocar={estado === "escuchando"}
+          enfocar={estado === "escuchando" && !grabando}
           onCambio={setTexto}
-          onEnviar={() => void alEnviar()}
+          onEnviar={() => void enviar(texto)}
         />
       )}
     </div>

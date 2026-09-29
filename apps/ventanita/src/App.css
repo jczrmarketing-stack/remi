@@ -25,3 +25,29 @@
 .voz {
   color: var(--ink);
 }
+
+/* Aparecer: 250 ms con la curva del sistema (ley de movimiento). */
+.voz,
+.prompt-terminal,
+.reloj--brasa {
+  animation: aparecer var(--dur-aparecer) var(--curva) both;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voz,
+  .prompt-terminal,
+  .reloj--brasa {
+    animation: none;
+  }
+}
