@@ -20,6 +20,40 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2h ver antes de arreglar · construido · b41f594
+
+- **Qué cambió:** luz, no arreglos. Los gestos no se tocaron. `nucleo/clasificar.py` tiene la
+  guarda de negación. El test flaky del MCP espera 180 s. `nucleo/limpiar_pruebas.py` lista
+  las tareas de prueba y solo borra con `--borrar`. La app escribe a
+  `~/Library/Logs/Remi/ventanita.log` con `tauri-plugin-log` (los `log::` de Rust y, por
+  `src/registro.ts`, todo lo que va a `console.*`), con hora en milisegundos, tope de 5 MB y
+  rotación de uno. `App.tsx` y `voz.rs` registran cada click con su rama, el temporizador de
+  la racha, el prendido del micrófono, cada parada con su origen, cada cambio de estado y de
+  tamaño; el núcleo, una línea por `/mensaje` con tipo, ms y si pensó.
+- **Decisiones que tomé sin preguntar:**
+  1. El origen de la parada **viaja hasta Rust**: `detener_escucha_y_transcribir` ahora recibe
+     «click», «silencio:fin», «silencio:sin_voz» o «escape». Antes Rust no sabía por qué lo
+     mandaban a cerrar, y el log quedaba a medias entre los dos lados.
+  2. Los `eprintln!` de `voz.rs` pasaron a `log::`: es lo único que llega al archivo.
+  3. El 520 del temporizador salió a `MS_ESPERA_RACHA`, al lado de `MS_RACHA`. Los dos
+     números del gesto, juntos y con nombre, porque la diferencia entre ellos es justo lo que
+     hay que mirar.
+  4. `registrar()` no puede romper la app: si el reenvío falla, la línea igual queda en la
+     consola. Y no se engancha `attachConsole`, que haría un bucle.
+- **Dudas abiertas:**
+  1. **Los gestos no están arreglados, a propósito.** Ya hay una pista fuerte en el log de
+     los clicks reales de Juan Camilo, y está en el reporte, pero la tabla formal va cuando
+     él diga «listo» tras las cuatro pruebas en orden.
+  2. Quedan las 12 tareas de prueba; la lista numerada está en el reporte y la elección es
+     suya.
+  3. `es_solo_ruido` (hallazgo 2 de Grok) sigue esperando encargo, y ya se lo vio actuar:
+     Whisper devolvió «[MÚSICA]» y lo descartó bien.
+- **Cómo probarlo a mano:**
+  1. `tail -f ~/Library/Logs/Remi/ventanita.log` y hacer un click: aparece una línea
+     `[gesto] click …` con la rama que tomó.
+  2. Las cuatro pruebas del reporte, en orden, con 5 segundos entre cada una.
+  3. `cd nucleo && uv run python limpiar_pruebas.py` para ver las tareas de prueba.
+
 ## 2026-09-29 · 2f la Bandeja · construido · 7f810b9
 
 - **Qué cambió:** `/mensaje` dejó de convertir cada frase en una tarea. `nucleo/clasificar.py`
