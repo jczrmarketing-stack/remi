@@ -59,6 +59,9 @@ function duracionHablando(frase: string): number {
 }
 // Por debajo de esto es un click; por encima, arrastrás la ventana.
 const UMBRAL_ARRASTRE_PX = 4;
+// Dos clicks cuentan como racha si entran en esta ventana. Antes el número
+// estaba suelto en el código y el comentario decía otro.
+const MS_RACHA = 550;
 
 function recortarPalabras(frase: string): string {
   const palabras = frase.trim().split(/\s+/);
@@ -433,11 +436,6 @@ export default function App() {
     volverAReposo,
   ]);
 
-  // Click: escribís · Option+click: te escucha una vez (como Handy) ·
-  // Option+Shift+click: dialogan. Nada de contar clicks rápidos — eso
-  // dependía de una ventana de tiempo y de dónde caía cada click, y
-  // encontramos dos bugs distintos ahí. Un modificador se lee en el
-  // mismo evento, sin ambigüedad posible.
   // Click: escribís · doble click: te escucha (micrófono) · triple
   // click: dialogan (voz a voz). Contamos nosotros, por tiempo: el
   // evento.detail del navegador se reinicia si cambia lo que hay bajo el
@@ -454,12 +452,12 @@ export default function App() {
       const racha = rachaRef.current;
       const { estado: estadoActual, grabando: grabandoActual } = accionesRef.current;
 
-      // Racha de clicks: cuenta si vienen seguidos (< 400 ms) y la ventana
-      // está en reposo o recién abierta en texto sin nada escrito.
+      // Racha de clicks: cuenta si vienen seguidos (menos de MS_RACHA) y la
+      // ventana está en reposo o recién abierta en texto sin nada escrito.
       const encadenable =
         estadoActual === "reposo" ||
         (estadoActual === "escuchando" && !grabandoActual && texto === "");
-      if (encadenable && ahora - racha.t < 550) {
+      if (encadenable && ahora - racha.t < MS_RACHA) {
         racha.n += 1;
       } else {
         racha.n = 1;
