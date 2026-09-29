@@ -20,6 +20,28 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.3 tres clicks en menos de dos segundos · construido · 97857e0
+
+- **Qué cambió:** una sola cosa. El triple click ya entraba en diálogo si venía pegado
+  (16:51:33, gaps de 672 y 405 ms); a ritmo tranquilo no, porque cada click tenía que caer a
+  menos de 700 ms del anterior, y el 3.º, ya fuera de la gracia, **paraba** la grabación
+  (16:51:35, a 1609 ms). Ahora la racha guarda cuándo cayó el primero y, del 3.º en
+  adelante, alcanza con estar a menos de 2 s de ese primero (`apps/ventanita/src/gestos.ts`,
+  `MS_TRIPLE`). El doble click sigue igual de estricto. 32 pruebas. Instalada.
+- **Decisiones que tomé sin preguntar:**
+  1. La ventana ancha es **solo para el 3.º en adelante**. Si el 2.º también pudiera venir a
+     2 s del 1.º, un click suelto en el cuadro vacío después de abrir texto arrancaría a
+     grabar sin querer.
+  2. `rachaSigueViva()` es una sola función para contar y para el mousedown que no le da el
+     foco al cuadro: no hay dos definiciones de «racha viva» que se puedan separar.
+- **Dudas abiertas:**
+  1. **`43adc9e` entró en rojo.** Encadené el commit y la instalación al estado de salida de
+     `grep`, no al de `npm test`, y dos pruebas viejas fallaban (ponían el click «para parar»
+     a 1,2 s del primero, que con la regla nueva es un 3.º). El código era el correcto; las
+     pruebas no. `97857e0` lo deja en verde. No vuelvo a encadenar sobre un `grep`.
+  2. Sigue abierto lo del silencio que no corta en diálogo (2i.2).
+- **Cómo probarlo a mano:** tres clicks tranquilos, repartidos en menos de 2 s, y hablar.
+
 ## 2026-09-29 · 2i.2 doble click para parar · construido · d64e97f
 
 - **Qué cambió:** una sola cosa, del log de las 16:43. El doble click para empezar **ya
