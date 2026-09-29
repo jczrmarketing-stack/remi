@@ -61,6 +61,9 @@ struct ConfigVentanitaConVoz {
 pub struct Grabacion {
     hijo: Child,
     ruta_wav: PathBuf,
+    // Si ya hay un hilo vigilando el silencio. El 3.er click pasa a diálogo
+    // sobre la grabación viva, y no puede armar dos vigilantes.
+    vigilando: bool,
     // El hilo que vigila el silencio mira esto en cada paso: al detener la
     // grabación se prende y el hilo muere sin emitir nada. Antes seguía
     // vivo sobre el archivo ya cerrado y podía avisar un silencio viejo
@@ -334,8 +337,36 @@ pub fn iniciar_escucha(
     *guarda = Some(Grabacion {
         hijo,
         ruta_wav,
+        vigilando: cortar_solo,
         cancelar_vigilancia,
     });
+    Ok(())
+}
+
+/// El 3.er click: la grabación sigue tal cual y se le prende el corte por
+/// silencio. Reiniciarla perdería lo que ya dijiste mientras hacías el
+/// gesto. Llamarlo dos veces no arma dos vigilantes.
+#[tauri::command]
+pub fn activar_corte_por_silencio(
+    app: AppHandle,
+    estado: tauri::State<EstadoGrabacion>,
+) -> Result<(), String> {
+    let mut guarda = estado.0.lock().map_err(|e| e.to_string())?;
+    let Some(grabacion) = guarda.as_mut() else {
+        log::warn!("[voz] pidieron corte por silencio sin grabación activa");
+        return Err("no había ninguna grabación activa".to_string());
+    };
+    if grabacion.vigilando {
+        log::info!("[voz] el corte por silencio ya estaba activo");
+        return Ok(());
+    }
+    grabacion.vigilando = true;
+    vigilar_silencio(
+        grabacion.ruta_wav.clone(),
+        app,
+        grabacion.cancelar_vigilancia.clone(),
+    );
+    log::info!("[voz] corte por silencio activado sobre la grabación viva");
     Ok(())
 }
 

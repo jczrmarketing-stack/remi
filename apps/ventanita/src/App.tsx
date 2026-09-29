@@ -20,11 +20,13 @@ import {
   type Velocidad,
 } from "./preferencias";
 import {
+  activarCortePorSilencio,
   alDetectarSilencio,
   detenerEscuchaYTranscribir,
   iniciarEscucha,
   type OrigenParada,
 } from "./microfono";
+import { decidir, RACHA_VACIA, type Racha } from "./gestos";
 import { enchufarConsola, registrar } from "./registro";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
@@ -65,11 +67,13 @@ function duracionHablando(frase: string): number {
 }
 // Por debajo de esto es un click; por encima, arrastrás la ventana.
 const UMBRAL_ARRASTRE_PX = 4;
-// Dos clicks cuentan como racha si entran en esta ventana. Antes el número
-// estaba suelto en el código y el comentario decía otro.
-const MS_RACHA = 550;
-// Cuánto se espera tras el 2do click por si viene un 3ro.
-const MS_ESPERA_RACHA = 520;
+// En diálogo, si no se entendió nada, cuánto esperar antes de volver a
+// escuchar. Re-armar en el acto hacía que un dedo tardío cayera sobre la
+// escucha nueva y la matara, cinco veces seguidas.
+const MS_ANTES_DE_REARMAR = 1200;
+// Tras esta cantidad de escuchas vacías seguidas en diálogo, Remi se va a
+// reposo sin decir nada: no era el momento.
+const MAX_VACIAS_SEGUIDAS = 2;
 
 function recortarPalabras(frase: string): string {
   const palabras = frase.trim().split(/\s+/);
@@ -132,6 +136,13 @@ export default function App() {
   // que quedó viejo y no pisa el estado — si no, una respuesta tardía
   // podía saltar a "hablando" de la nada después de haber cancelado.
   const generacionRef = useRef(0);
+  // Cuándo arrancó —o se re-armó— la grabación viva (reloj de
+  // performance.now). Es lo que mide el periodo de gracia de los gestos.
+  const grabacionDesdeRef = useRef<number | null>(null);
+  // En diálogo: escuchas vacías seguidas. No es un contador de fallos del
+  // usuario (ley 3): es Remi dándose cuenta de que no era el momento.
+  const vaciasSeguidasRef = useRef(0);
+  const rearmeRef = useRef(0);
 
   // Cada cambio de estado queda escrito: es la columna vertebral del log.
   useEffect(() => {
@@ -223,6 +234,9 @@ export default function App() {
     setSesionInicio(null);
     setUltimaVezMin(null);
     setPensarConClaude(false);
+    window.clearTimeout(rearmeRef.current);
+    vaciasSeguidasRef.current = 0;
+    grabacionDesdeRef.current = null;
     setLecturas(0);
     setCopiado(false);
     setSostenido(false);
@@ -300,6 +314,7 @@ export default function App() {
     setEstado("escuchando");
     setGrabando(true);
     const cortarSolo = modoNuevo === "dialogo";
+    grabacionDesdeRef.current = performance.now();
     registrar("iniciarEscucha", { modo: modoNuevo, cortarSolo });
     try {
       // En diálogo corta sola cuando dejás de hablar; en modo voz,
@@ -309,6 +324,7 @@ export default function App() {
       // Sin micrófono disponible: cae a escritura manual, sin culpa (ley 3).
       console.error("no se pudo prender el micrófono:", error);
       registrar("iniciarEscucha:falló", { modo: modoNuevo });
+      grabacionDesdeRef.current = null;
       setGrabando(false);
       setModo("texto");
       setOrigenMensaje("texto");
@@ -323,6 +339,7 @@ export default function App() {
     const enDialogo = accionesRef.current.modo === "dialogo";
     const miGeneracion = generacionRef.current;
     registrar("parada", { origen, modo: accionesRef.current.modo });
+    grabacionDesdeRef.current = null;
     setGrabando(false);
     setTranscribiendo(true);
     setEstado("pensando");
@@ -331,6 +348,7 @@ export default function App() {
       if (generacionRef.current !== miGeneracion) return; // cancelado mientras transcribía
       setTranscribiendo(false);
       registrar("transcrito", { origen, caracteres: transcripcion.length });
+      vaciasSeguidasRef.current = 0;
       setTexto(transcripcion);
       if (enDialogo) {
         // En diálogo no se edita: lo dicho se manda solo.
@@ -344,15 +362,28 @@ export default function App() {
       registrar("sinTranscripcion", { origen, enDialogo });
       // No escuchó nada (o no se entendió): sin culpa (ley 3).
       console.error("no se pudo transcribir:", error);
-      if (enDialogo) {
-        // En diálogo no hay cuadro para escribir: si no la dejamos
-        // escuchando de nuevo, queda muda y trabada.
-        void empezarAEscuchar("dialogo");
-      } else {
+      if (!enDialogo) {
         setEstado("escuchando");
+        return;
       }
+      // En diálogo no hay cuadro para escribir: si no la dejamos escuchando
+      // de nuevo, queda muda. Pero no en el acto —un dedo tardío caía sobre
+      // la escucha nueva y la mataba— y no para siempre: dos vacías
+      // seguidas quieren decir que no era el momento, y Remi se va callada.
+      vaciasSeguidasRef.current += 1;
+      if (vaciasSeguidasRef.current >= MAX_VACIAS_SEGUIDAS) {
+        registrar("dialogo:meVoy", { vacias: vaciasSeguidasRef.current });
+        volverAReposo();
+        return;
+      }
+      registrar("dialogo:rearmo", { vacias: vaciasSeguidasRef.current, enMs: MS_ANTES_DE_REARMAR });
+      window.clearTimeout(rearmeRef.current);
+      rearmeRef.current = window.setTimeout(() => {
+        if (generacionRef.current !== miGeneracion) return;
+        void empezarAEscuchar("dialogo");
+      }, MS_ANTES_DE_REARMAR);
     }
-  }, [enviar, empezarAEscuchar]);
+  }, [enviar, empezarAEscuchar, volverAReposo]);
 
   // El micrófono avisa cuando dejaste de hablar (solo en modo diálogo).
   // Si en 10 s no dijiste nada, Remi deja de esperar y vuelve a reposo —
@@ -478,89 +509,71 @@ export default function App() {
     volverAReposo,
   ]);
 
-  // Click: escribís · doble click: te escucha (micrófono) · triple
-  // click: dialogan (voz a voz). Contamos nosotros, por tiempo: el
-  // evento.detail del navegador se reinicia si cambia lo que hay bajo el
-  // cursor, y justo después del 1er click la ventana crece y aparece el
-  // cuadro — por eso el doble era intermitente y el triple casi nunca.
-  // El 1er click abre texto AL INSTANTE (la acción más común no espera);
-  // el 2do arma un temporizador corto por si viene el 3ro, y recién ahí
-  // arranca voz o diálogo. Leemos el estado por ref, no por closure.
-  const rachaRef = useRef({ n: 0, t: 0, timer: 0 as number });
+  // Click: escribís · doble click: te escucha · triple click: dialogan.
+  // Las reglas viven en gestos.ts.
+  const rachaRef = useRef<Racha>(RACHA_VACIA);
 
+  // Cada click pasa por gestos.ts, que decide sin mirar el DOM ni el reloj
+  // de verdad: acá solo se junta la entrada y se ejecuta la acción. Lo que
+  // decide está probado con la secuencia real del log.
   const alClick = useCallback(
     (evento: React.MouseEvent<HTMLDivElement>) => {
       const ahora = performance.now();
-      const racha = rachaRef.current;
-      const { estado: estadoActual, grabando: grabandoActual } = accionesRef.current;
+      const { estado: estadoActual, grabando: grabandoActual, modo: modoActual } = accionesRef.current;
+      const rachaAnterior = rachaRef.current;
 
-      // Racha de clicks: cuenta si vienen seguidos (menos de MS_RACHA) y la
-      // ventana está en reposo o recién abierta en texto sin nada escrito.
-      const encadenable =
-        estadoActual === "reposo" ||
-        (estadoActual === "escuchando" && !grabandoActual && texto === "");
-      const desdeElAnterior = racha.t === 0 ? -1 : Math.round(ahora - racha.t);
-      if (encadenable && ahora - racha.t < MS_RACHA) {
-        racha.n += 1;
-      } else {
-        racha.n = 1;
-      }
-      racha.t = ahora;
+      const { accion, racha } = decidir({
+        estado: estadoActual,
+        modo: modoActual,
+        grabando: grabandoActual,
+        textoVacio: texto.trim() === "",
+        dentroDeControl: Boolean(
+          (evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz"),
+        ),
+        grabacionDesde: grabacionDesdeRef.current,
+        ahora,
+        racha: rachaAnterior,
+      });
+      rachaRef.current = racha;
 
-      // Una línea por click, ANTES de decidir: el n con el que entró, en qué
-      // estado, si encadenaba y cuánto pasó desde el click anterior.
-      const comun = {
+      registrar("click", {
         n: racha.n,
         estado: estadoActual,
+        modo: modoActual,
         grabando: grabandoActual,
-        encadenable,
-        msDesdeAnterior: desdeElAnterior,
-      };
+        msDesdeAnterior: rachaAnterior.n === 0 ? -1 : Math.round(ahora - rachaAnterior.ultimo),
+        accion: accion.tipo,
+        ...(accion.tipo === "nada" ? { razon: accion.razon } : {}),
+      });
 
-      if (racha.n >= 2 && encadenable) {
-        // 2do o 3er click: decidir voz vs diálogo cuando pare la racha.
-        registrar("click", { ...comun, rama: "arma temporizador" });
-        window.clearTimeout(racha.timer);
-        racha.timer = window.setTimeout(() => {
-          const nFinal = rachaRef.current.n;
-          const modoNuevo: Modo = nFinal >= 3 ? "dialogo" : "voz";
-          registrar("temporizador", { n: nFinal, modo: modoNuevo });
-          rachaRef.current.n = 0;
-          void empezarAEscuchar(modoNuevo);
-        }, MS_ESPERA_RACHA);
-        return;
+      switch (accion.tipo) {
+        case "nada":
+          return;
+        case "abrirTexto":
+          empezarATipear();
+          return;
+        case "grabarVoz":
+          void empezarAEscuchar("voz");
+          return;
+        case "pasarADialogo":
+          // La grabación sigue: solo cambia el modo y se prende el corte.
+          setModo("dialogo");
+          grabacionDesdeRef.current = ahora;
+          registrar("pasarADialogo");
+          void activarCortePorSilencio().catch((error) => {
+            console.error("no pude activar el corte por silencio:", error);
+          });
+          return;
+        case "pararGrabacion":
+          void detenerYTranscribir("click");
+          return;
+        case "mandarTexto":
+          void enviar(texto);
+          return;
+        case "volverAReposo":
+          volverAReposo();
+          return;
       }
-
-      if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz")) {
-        registrar("click", { ...comun, rama: "dentro de un control" });
-        return;
-      }
-
-      if (estadoActual === "reposo") {
-        registrar("click", { ...comun, rama: "abre texto" });
-        empezarATipear();
-        return;
-      }
-
-      if (estadoActual === "escuchando" && grabandoActual) {
-        registrar("click", { ...comun, rama: "corta la grabación" });
-        void detenerYTranscribir("click");
-        return;
-      }
-
-      // Con texto escrito o dictado, un click fuera del cuadro lo MANDA —
-      // antes borraba todo y volvía a reposo, que perdía el dictado.
-      if (estadoActual === "escuchando" && texto.trim() !== "") {
-        registrar("click", { ...comun, rama: "manda el texto" });
-        void enviar(texto);
-        return;
-      }
-
-      registrar("click", { ...comun, rama: "vuelve a reposo" });
-
-      // Cualquier otro estado no-reposo: un click fuera del cuadro vuelve
-      // a reposo. Ningún estado se queda sin salida.
-      volverAReposo();
     },
     [texto, enviar, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
   );

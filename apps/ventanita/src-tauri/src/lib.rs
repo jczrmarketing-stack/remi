@@ -78,6 +78,7 @@ pub fn run() {
         .manage(EstadoGrabacion::default())
         .invoke_handler(tauri::generate_handler![
             voz::iniciar_escucha,
+            voz::activar_corte_por_silencio,
             voz::detener_escucha_y_transcribir
         ])
         // Todo a un archivo: los `log::info!` de Rust y, desde el otro

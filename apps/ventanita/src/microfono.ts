@@ -12,6 +12,11 @@ export function iniciarEscucha(cortarSolo: boolean): Promise<void> {
 // eso el log no alcanza para entender un gesto que salió mal.
 export type OrigenParada = "click" | "silencio:fin" | "silencio:sin_voz" | "escape" | "timeout";
 
+// El 3.er click: la grabación sigue, solo se le prende el corte por silencio.
+export function activarCortePorSilencio(): Promise<void> {
+  return invoke("activar_corte_por_silencio");
+}
+
 export function detenerEscuchaYTranscribir(origen: OrigenParada): Promise<string> {
   return invoke("detener_escucha_y_transcribir", { origen });
 }
