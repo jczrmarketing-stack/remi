@@ -7,16 +7,28 @@ export interface RespuestaMensaje {
   voz: string;
 }
 
+// Si el núcleo no responde, no nos quedamos esperando para siempre en
+// "pensando" — a los 8s el fetch se cancela solo y enviar() lo trata
+// como cualquier otro fallo (ley 3: Remi lo dice sin culpa, no revienta).
+const TIMEOUT_NUCLEO_MS = 8000;
+
 export async function enviarMensaje(texto: string): Promise<RespuestaMensaje> {
-  const respuesta = await fetch(`${URL_NUCLEO}/mensaje`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ texto }),
-  });
-  if (!respuesta.ok) {
-    throw new Error(`El núcleo respondió ${respuesta.status}`);
+  const controlador = new AbortController();
+  const limite = setTimeout(() => controlador.abort(), TIMEOUT_NUCLEO_MS);
+  try {
+    const respuesta = await fetch(`${URL_NUCLEO}/mensaje`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto }),
+      signal: controlador.signal,
+    });
+    if (!respuesta.ok) {
+      throw new Error(`El núcleo respondió ${respuesta.status}`);
+    }
+    return (await respuesta.json()) as RespuestaMensaje;
+  } finally {
+    clearTimeout(limite);
   }
-  return (await respuesta.json()) as RespuestaMensaje;
 }
 
 interface TareaConHistorial {
