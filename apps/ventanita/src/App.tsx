@@ -15,10 +15,20 @@ import "./App.css";
 const TAMANO_REPOSO = { width: 320, height: 180 };
 const TAMANO_EXPANDIDO = { width: 420, height: 520 };
 const DURACION_APARECER = 250;
-// Tiempo propio de "hablando": no depende de cuánto tarde la locución
-// (que puede no existir, si el mensaje fue escrito o está silenciado).
-const DURACION_HABLANDO = 4000;
+// Tiempo propio de "hablando": no depende de si la locución existe o
+// termina antes/después (puede estar silenciada) — pero si depende del
+// largo del texto: 4s fijos no alcanzan para leer una frase de 20
+// palabras. ~2.3 palabras/seg (leer + que la voz la diga), con piso y techo.
+const MS_POR_PALABRA_HABLANDO = 430;
+const DURACION_HABLANDO_MINIMA = 3200;
+const DURACION_HABLANDO_MAXIMA = 11000;
 const MAX_PALABRAS_VOZ = 20;
+
+function duracionHablando(frase: string): number {
+  const palabras = frase.trim() ? frase.trim().split(/\s+/).length : 0;
+  const calculada = DURACION_HABLANDO_MINIMA + palabras * MS_POR_PALABRA_HABLANDO;
+  return Math.min(DURACION_HABLANDO_MAXIMA, calculada);
+}
 // Ventana para contar 1, 2 o 3 clicks antes de decidir qué hacer.
 const ESPERA_CLICS = 350;
 
@@ -197,7 +207,7 @@ export default function App() {
         return;
       }
       volverAReposo();
-    }, DURACION_HABLANDO);
+    }, duracionHablando(voz));
 
     return () => {
       window.clearTimeout(id);
