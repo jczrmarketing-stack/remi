@@ -20,6 +20,37 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2h gestos · auditoría · Grok
+1. [bug] apps/ventanita/src/voz.ts:209 — hablar() llama a callarse() y después espera el wav. Otra llamada que arranca durante esa espera no cancela la primera cuando el audio por fin llega, así que la misma frase suena varias veces en la única instancia. El punto 8 no está en el código: App.tsx:454 anota «hablando» con la cantidad de palabras, sin id y sin ended ni cancelado — ley 4 — costo chico
+2. [bug] apps/ventanita/src/componentes/PromptTerminal.tsx:44 — solo ⌘Enter o Ctrl+Enter envían. El Enter solo no hace nada y no queda en el log. Achicarse es otro camino: App.tsx:451 al terminar de hablar, o el click con rama «vuelve a reposo» en App.tsx:559. El punto 9 no está escrito — ninguna ley — costo chico
+3. [bug] apps/ventanita/src-tauri/src/voz.rs:189 — el pico se anota al cruzar 0.02 y al cortar (voz.rs:210), no el piso del RODE mientras callás. (a) el click tardío que para, (b) el segundo click a más de 550 ms y (c) diálogo en vez de voz ya los separa el log de App.tsx:512 (n, msDesdeAnterior, rama, temporizador). Para (d) falta el pico en silencio, y solo si el modo es diálogo: en voz el detector ni corre — ley 1 — costo chico
+4. [opinión] Los puntos 1 a 6 y la prueba de 4 pasos no vinieron en el mensaje. Una sesión de «uso Remi un rato» mezcla las cuatro causas. La corta, en este orden, con las manos quietas entre medio: dos clicks rápidos y 5 s sin tocar; dos clicks separados por 1 s; tres clicks rápidos y 3 s callado; una palabra, Enter solo, y después ⌘Enter — ninguna ley — costo chico
+5. [bug] apps/ventanita/src/registro.ts:39 — el log no se espera, así que no mueve los 550 ms. Lo que sí altera la prueba es el tauri build que está corriendo: borra ventanita.log y reemplaza la app — ninguna ley — costo chico
+
+Cambio propuesto: en este encargo solo dos líneas de log, el id de hablar() al empezar y al terminar (ended o cancelado), y en el onKeyDown si el Enter traía ⌘ y si envió. El gesto no se toca hasta leer una sesión hecha con la prueba de arriba.
+
+## 2026-09-29 · 2f clasificar · auditoría · Grok
+Corrí clasificar() tal como está. «no me quedo listo» y «todavia no termino» ya dan idea: esa guarda existe. Estas diez, no.
+
+1. [bug] nucleo/clasificar.py:64 — con 4 palabras o menos, cualquier «listo», «pare», «hecha» cierra el bloque abierto y lo marca hecho. Ley 1, porque el historial se queda con un cierre que no hiciste — costo chico
+   • «pare un segundo» — esperado idea — da hecha
+   • «la dejo hecha manana» — esperado idea — da hecha
+   • «quedo listo» — esperado idea — da hecha
+   • «¿listo?» — esperado idea — da hecha
+   • «listo el contrato» — esperado idea — da hecha
+2. [bug] nucleo/clasificar.py:71 — la negación no frena el arranque. «hoy» o «voy a» adentro de una idea abre un bloque. Ley 6 — costo chico
+   • «hoy no puedo» — esperado idea — da hoy
+   • «se me ocurrio q hoy armo un curso» — esperado idea — da hoy
+   • «voy a ver si armo el curso» — esperado idea — da hoy
+3. [bug] nucleo/clasificar.py:34 — arrancar solo reconoce empiezo y arranco, no cómo lo decís. El reloj no se abre. Ley 1 — costo medio
+   • «me pongo con la propuesta» — esperado hoy — da idea
+   • «arranque con alfonso» — esperado hoy — da idea
+   • «sigo con la factura» — esperado hoy — da idea
+4. [bug] nucleo/clasificar.py:21 — «ya esta» y «hasta aca» no cierran. El bloque queda abierto para siempre. Ley 1 — costo chico
+   • «ya esta» — esperado hecha — da idea
+
+Cambio propuesto: hecha solo si la frase normalizada es exactamente listo, hecha, termine, paro o pare, sin palabras de más. Eso para los cierres falsos. Los arranques que faltan van en otro encargo.
+
 ## 2026-09-29 · 2f.2 clasificador · construido · 2a3e8b9
 
 - **Qué cambió:** `nucleo/clasificar.py` reemplaza «hasta 3 palabras más» y los arranques
