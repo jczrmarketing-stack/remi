@@ -64,8 +64,12 @@ export function PromptTerminal({
           <span className="prompt-terminal__pensar-punto" aria-hidden="true" />
           pensar con Claude
         </button>
+        {/* Los gestos también se cuentan acá: dos clicks = hablar, tres =
+            dialogar. Antes había que adivinarlos. */}
         <div className="prompt-terminal__atajos" aria-hidden="true">
           <span>⌘↵ enviar</span>
+          <span>·· hablar</span>
+          <span>··· dialogar</span>
           <span>esc cancelar</span>
         </div>
       </div>

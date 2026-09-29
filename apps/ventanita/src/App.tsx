@@ -73,6 +73,9 @@ export default function App() {
   const [voz, setVoz] = useState("");
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
   const [grabando, setGrabando] = useState(false);
+  // Entre cortar la grabación y ver el texto: Remi transcribe (whisper
+  // local). Antes ese hueco era mudo; ahora se ve, en `pensar`.
+  const [transcribiendo, setTranscribiendo] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
   const [velocidad, setVelocidad] = useState<Velocidad>(() => obtenerVelocidad());
   // Pensar con Claude: opt-in POR MENSAJE. Nace apagado y se apaga solo
@@ -155,6 +158,7 @@ export default function App() {
     setEstado("reposo");
     setModo("texto");
     setGrabando(false);
+    setTranscribiendo(false);
     setTexto("");
     setVoz("");
     setSesionInicio(null);
@@ -242,10 +246,12 @@ export default function App() {
     const enDialogo = accionesRef.current.modo === "dialogo";
     const miGeneracion = generacionRef.current;
     setGrabando(false);
+    setTranscribiendo(true);
     setEstado("pensando");
     try {
       const transcripcion = await detenerEscuchaYTranscribir();
       if (generacionRef.current !== miGeneracion) return; // cancelado mientras transcribía
+      setTranscribiendo(false);
       setTexto(transcripcion);
       if (enDialogo) {
         // En diálogo no se edita: lo dicho se manda solo.
@@ -255,6 +261,7 @@ export default function App() {
       setEstado("escuchando");
     } catch (error) {
       if (generacionRef.current !== miGeneracion) return;
+      setTranscribiendo(false);
       // No escuchó nada (o no se entendió): sin culpa (ley 3).
       console.error("no se pudo transcribir:", error);
       if (enDialogo) {
@@ -467,6 +474,12 @@ export default function App() {
       {/* Ley 1 en reposo: relativo, en ink-faint, sin reloj. */}
       {estado === "reposo" && ultimaInteraccionMs !== null && (
         <p className="num hace">{formatearHace(ultimaInteraccionMs, ahoraMs)}</p>
+      )}
+
+      {/* Estado visible mientras whisper trabaja: el punto ya está en
+          `pensar`; esta línea lo nombra para que no sea un hueco mudo. */}
+      {estado === "pensando" && transcribiendo && (
+        <p className="num trabajando">transcribiendo</p>
       )}
 
       {estado === "hablando" && <p className="display-it voz">{recortarPalabras(voz)}</p>}
