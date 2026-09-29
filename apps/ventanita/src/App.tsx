@@ -8,6 +8,7 @@ import { enviarMensaje, obtenerUltimaVezMin } from "./servidor";
 import { animarTamano } from "./movimiento";
 import { callarse, hablar } from "./voz";
 import { copiarAlPortapapeles } from "./portapapeles";
+import { formatearHace, registrarInteraccion, ultimaInteraccion } from "./tiempo";
 import {
   alternarSilencio,
   estaSilenciado,
@@ -20,8 +21,19 @@ import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
 import "./App.css";
 
-const TAMANO_REPOSO = { width: 120, height: 44 };
+// Reposo es una píldora. Sin historia (primer uso), 120×44: solo el punto.
+// Con una última interacción que mostrar («hace 6 min», ley 1), crece a
+// 120×64 para que la línea quepa debajo del punto.
+const TAMANO_REPOSO_MINIMO = { width: 120, height: 44 };
+const TAMANO_REPOSO_CON_HACE = { width: 120, height: 64 };
 const TAMANO_EXPANDIDO = { width: 420, height: 520 };
+// Cada cuánto se refresca el «hace N min» en reposo. Es relativo y en
+// minutos: medio minuto sobra y nada parpadea.
+const REFRESCO_HACE_MS = 30000;
+
+function tamanoReposo(hayHace: boolean) {
+  return hayHace ? TAMANO_REPOSO_CON_HACE : TAMANO_REPOSO_MINIMO;
+}
 const DURACION_APARECER = 250;
 // Tiempo de "hablando" cuando Remi NO dice la frase en voz alta (mensaje
 // escrito, o voz silenciada): depende del largo del texto, para leerla.
@@ -77,6 +89,11 @@ export default function App() {
   // real, y se queda null si no lo hay (nunca un número inventado).
   const [sesionInicio, setSesionInicio] = useState<string | null>(null);
   const [ultimaVezMin, setUltimaVezMin] = useState<number | null>(null);
+  // Ley 1 en reposo: cuándo fue la última interacción (null = nunca).
+  const [ultimaInteraccionMs, setUltimaInteraccionMs] = useState<number | null>(() =>
+    ultimaInteraccion(),
+  );
+  const [ahoraMs, setAhoraMs] = useState(() => Date.now());
 
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
   const accionesRef = useRef({ grabando, modo, estado, silenciado, pensarConClaude });
@@ -90,19 +107,24 @@ export default function App() {
 
   const expandido = estado !== "reposo";
   const expandidoAnteriorRef = useRef(expandido);
+  const hayHace = ultimaInteraccionMs !== null;
+  const hayHaceRef = useRef(hayHace);
+  hayHaceRef.current = hayHace;
 
   // macOS restaura el tamaño de la última sesión (la app siempre arranca
   // en reposo, la ventana no debería): forzar el tamaño real al montar.
   useEffect(() => {
     const ventana = getCurrentWindow();
-    const { width, height } = TAMANO_REPOSO;
+    const { width, height } = tamanoReposo(hayHaceRef.current);
     // Los límites min/max vienen compilados desde tauri.conf.json, y un
     // binario que no se recompiló trae los viejos (320×180): macOS clampea
     // el setSize a ese mínimo y la ventana no encoge. Fijarlos en tiempo de
     // ejecución ANTES de pedir el tamaño hace que el reposo real entre por
     // hot reload sin depender de que Rust se vuelva a construir.
     void (async () => {
-      await ventana.setMinSize(new LogicalSize(width, height));
+      await ventana.setMinSize(
+        new LogicalSize(TAMANO_REPOSO_MINIMO.width, TAMANO_REPOSO_MINIMO.height),
+      );
       await ventana.setMaxSize(
         new LogicalSize(TAMANO_EXPANDIDO.width, TAMANO_EXPANDIDO.height),
       );
@@ -114,10 +136,19 @@ export default function App() {
     if (expandidoAnteriorRef.current === expandido) return;
     expandidoAnteriorRef.current = expandido;
     const ventana = getCurrentWindow();
-    const desde = expandido ? TAMANO_REPOSO : TAMANO_EXPANDIDO;
-    const hasta = expandido ? TAMANO_EXPANDIDO : TAMANO_REPOSO;
+    const reposo = tamanoReposo(hayHaceRef.current);
+    const desde = expandido ? reposo : TAMANO_EXPANDIDO;
+    const hasta = expandido ? TAMANO_EXPANDIDO : reposo;
     void animarTamano(ventana, desde, hasta, DURACION_APARECER);
   }, [expandido]);
+
+  // En reposo, el «hace N min» se refresca solo, despacio.
+  useEffect(() => {
+    if (expandido || !hayHace) return;
+    setAhoraMs(Date.now());
+    const id = window.setInterval(() => setAhoraMs(Date.now()), REFRESCO_HACE_MS);
+    return () => window.clearInterval(id);
+  }, [expandido, hayHace]);
 
   const volverAReposo = useCallback(() => {
     generacionRef.current += 1;
@@ -151,6 +182,9 @@ export default function App() {
       try {
         const respuesta = await enviarMensaje(limpio, think);
         if (generacionRef.current !== miGeneracion) return; // cancelado mientras esperaba
+        const ahora = Date.now();
+        registrarInteraccion(ahora);
+        setUltimaInteraccionMs(ahora);
         if (respuesta.tokens) {
           const { modelo, entrada, salida } = respuesta.tokens;
           console.info(`[claude] ${modelo} · tokens entrada=${entrada} salida=${salida}`);
@@ -429,6 +463,11 @@ export default function App() {
       onMouseDown={alPresionar}
     >
       <StatusDot estado={estado} escuchandoVoz={grabando} />
+
+      {/* Ley 1 en reposo: relativo, en ink-faint, sin reloj. */}
+      {estado === "reposo" && ultimaInteraccionMs !== null && (
+        <p className="num hace">{formatearHace(ultimaInteraccionMs, ahoraMs)}</p>
+      )}
 
       {estado === "hablando" && <p className="display-it voz">{recortarPalabras(voz)}</p>}
       {estado === "hablando" && (

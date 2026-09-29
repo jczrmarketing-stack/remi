@@ -39,6 +39,16 @@
    que un radio de 22px a mano, sin inventar un número fuera de escala. */
 .ventanita--reposo {
   border-radius: var(--radius-pill);
+  /* En 120×64 el punto y el «hace N min» van pegados: space-1. */
+  gap: var(--space-1);
+}
+
+/* «hace 6 min»: ink-faint a pedido (por debajo de los 24 px que el DS
+   marca para ink-faint — es un susurro, no información que haya que leer
+   con esfuerzo). */
+.hace {
+  color: var(--ink-faint);
+  white-space: nowrap;
 }
 
 .voz {
