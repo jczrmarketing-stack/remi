@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException
@@ -58,6 +59,10 @@ class TareaConHistorial(BaseModel):
     sesiones: list[Sesion]
 
 
+class EstadoNuevo(BaseModel):
+    estado: Literal["hoy", "camino", "hecha"]
+
+
 @app.post("/mensaje", response_model=RespuestaMensaje)
 def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     tarea = Tarea(
@@ -104,6 +109,22 @@ def cerrar_sesion(sesion_id: UUID) -> Sesion:
         if sesion is None:
             raise HTTPException(status_code=404, detail="no hay sesión abierta con ese id")
         return sesion
+    finally:
+        conexion.close()
+
+
+@app.post("/tarea/{tarea_id}/estado", response_model=Tarea)
+def actualizar_estado(tarea_id: UUID, cuerpo: EstadoNuevo) -> Tarea:
+    conexion = db.conectar()
+    try:
+        tarea = db.actualizar_estado_tarea(conexion, tarea_id, cuerpo.estado)
+        if tarea is None:
+            raise HTTPException(status_code=404, detail="no existe esa tarea")
+        if cuerpo.estado == "hecha":
+            abierta = db.sesion_abierta_de_tarea(conexion, tarea_id)
+            if abierta is not None:
+                db.cerrar_sesion(conexion, abierta)
+        return tarea
     finally:
         conexion.close()
 

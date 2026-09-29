@@ -102,6 +102,17 @@ def _fila_a_tarea(fila: sqlite3.Row) -> Tarea:
     )
 
 
+def actualizar_estado_tarea(
+    conexion: sqlite3.Connection, tarea_id: UUID, estado: str
+) -> Tarea | None:
+    """None si no existe esa tarea. El estado ya viene validado contra el
+    contrato por Pydantic antes de llegar acá (Literal en el endpoint)."""
+    conexion.execute("UPDATE tareas SET estado = ? WHERE id = ?", (estado, str(tarea_id)))
+    conexion.commit()
+    fila = conexion.execute("SELECT * FROM tareas WHERE id = ?", (str(tarea_id),)).fetchone()
+    return _fila_a_tarea(fila) if fila else None
+
+
 def listar_tareas_hoy(conexion: sqlite3.Connection) -> list[Tarea]:
     filas = conexion.execute(
         "SELECT * FROM tareas WHERE estado = 'hoy' ORDER BY rowid"
