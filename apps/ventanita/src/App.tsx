@@ -237,14 +237,18 @@ export default function App() {
   // clicks de más, dentro de la ventana, solo suben de modo.
   const alClick = useCallback(
     (evento: React.MouseEvent<HTMLDivElement>) => {
-      if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
-
       // Un click más mientras ya estamos en la ventana de espera: cuenta
-      // para subir de modo, no abre nada de nuevo.
+      // para subir de modo, no abre nada de nuevo — SIEMPRE, así caiga
+      // arriba del cuadro que el primer click recién abrió (el segundo
+      // y tercer click de un multi-click suelen caer en el mismo lugar
+      // que el primero). El filtro de .prompt-terminal es solo para
+      // cuando ya no se está decidiendo el modo.
       if (esperaClicsRef.current !== undefined) {
         clicsRef.current += 1;
         return;
       }
+
+      if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
 
       if (estado === "reposo") {
         empezarATipear();
