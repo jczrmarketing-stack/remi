@@ -19,9 +19,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 import db
 
 BINARIO = "claude"
+# Las claves viven en nucleo/.env (fuera del repo). Se leen a un dict y NUNCA
+# se exportan al entorno: la CLI de Claude no tiene por qué ver la de Venice.
+RUTA_ENV = Path(__file__).resolve().parent / ".env"
+# Motor: "claude" (la membresía Max, por la CLI, con acceso al estante) o
+# "venice" (OpenAI-compatible, pago por token, sin herramientas: el índice
+# viaja en el system prompt pero no puede bajar nada del estante).
+MOTOR_POR_DEFECTO = "claude"
+VENICE_URL = "https://api.venice.ai/api/v1/chat/completions"
+VENICE_MODELO_POR_DEFECTO = "venice-uncensored"
+VENICE_TIMEOUT_SEGUNDOS = 20.0
 SERVIDOR_MEMORIA = Path(__file__).resolve().parent / "memoria_mcp.py"
 # Las únicas dos cosas que la CLI puede hacer además de contestar. El
 # prefijo `mcp__memoria__` lo arma Claude Code con el nombre del servidor.
@@ -107,8 +119,40 @@ class Pensado:
     leyo_memoria: bool = False
 
 
+def _leer_env(ruta: Path | None = None) -> dict[str, str]:
+    """KEY=VALOR por línea; # comenta; comillas alrededor del valor se quitan.
+
+    La ruta se resuelve al llamar, no al definir: un default `= RUTA_ENV`
+    quedaba atado al arrancar y las pruebas leían el .env de verdad — una
+    llamó a Venice con la clave real."""
+    ruta = RUTA_ENV if ruta is None else ruta
+    valores: dict[str, str] = {}
+    if not ruta.exists():
+        return valores
+    for linea in ruta.read_text().splitlines():
+        linea = linea.strip()
+        if not linea or linea.startswith("#") or "=" not in linea:
+            continue
+        clave, valor = linea.split("=", 1)
+        valores[clave.strip()] = valor.strip().strip("\"'")
+    return valores
+
+
+def _ajuste(clave: str, por_defecto: str) -> str:
+    """La variable de entorno gana sobre el .env, para poder probar sin tocarlo."""
+    return os.environ.get(clave) or _leer_env().get(clave) or por_defecto
+
+
 def modelo() -> str:
-    return os.environ.get("REMI_CLAUDE_MODELO") or MODELO_POR_DEFECTO
+    return _ajuste("REMI_CLAUDE_MODELO", MODELO_POR_DEFECTO)
+
+
+def motor() -> str:
+    elegido = _ajuste("REMI_PENSADOR", MOTOR_POR_DEFECTO).lower()
+    if elegido not in ("claude", "venice"):
+        print(f"[pensar] motor desconocido {elegido!r}: uso {MOTOR_POR_DEFECTO}", file=sys.stderr)
+        return MOTOR_POR_DEFECTO
+    return elegido
 
 
 def _entorno() -> dict[str, str]:
@@ -209,12 +253,92 @@ def _modelo_real(datos: dict[str, Any], pedido: str) -> str:
 
 
 def pensar(frase: str) -> Pensado | None:
-    """El paso mínimo que Claude ordena para `frase`. None si la CLI no está,
-    si falla o si no devolvió texto: el que llama sigue por el camino sin IA
-    — nunca se rompe la respuesta por esto."""
-    nombre_modelo = modelo()
+    """Lo que el motor elegido contesta a `frase`. None si el motor no está,
+    falla o no devolvió texto: el que llama sigue por el camino sin IA —
+    nunca se rompe la respuesta por esto."""
     indice = _indice()
     instrucciones = instrucciones_con_indice(indice)
+    if motor() == "venice":
+        return _pensar_con_venice(frase, instrucciones, len(indice))
+    return _pensar_con_claude(frase, instrucciones, indice)
+
+
+# — Venice —
+
+
+def _llamar_venice(clave: str, nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
+    respuesta = httpx.post(
+        VENICE_URL,
+        headers={"Authorization": f"Bearer {clave}", "Content-Type": "application/json"},
+        json={
+            "model": nombre_modelo,
+            "messages": [
+                {"role": "system", "content": instrucciones},
+                {"role": "user", "content": frase},
+            ],
+            "max_tokens": 200,
+        },
+        timeout=VENICE_TIMEOUT_SEGUNDOS,
+    )
+    respuesta.raise_for_status()
+    datos: dict[str, Any] = respuesta.json()
+    return datos
+
+
+def _leer_respuesta_venice(datos: dict[str, Any], nombre_modelo: str, entradas: int) -> Pensado | None:
+    """Del JSON OpenAI-compatible al Pensado. None si no hay texto."""
+    try:
+        contenido = datos["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        return None
+    if not isinstance(contenido, str) or not contenido.strip():
+        return None
+    uso = datos.get("usage") if isinstance(datos.get("usage"), dict) else {}
+    entrada = uso.get("prompt_tokens", 0) if isinstance(uso, dict) else 0
+    salida = uso.get("completion_tokens", 0) if isinstance(uso, dict) else 0
+    modelo_real = datos.get("model") if isinstance(datos.get("model"), str) else nombre_modelo
+    return Pensado(
+        paso_minimo=contenido.strip(),
+        tokens_entrada=int(entrada) if isinstance(entrada, int) else 0,
+        tokens_salida=int(salida) if isinstance(salida, int) else 0,
+        modelo=f"venice/{modelo_real}",
+        entradas_en_indice=entradas,
+        leyo_memoria=False,
+    )
+
+
+def _pensar_con_venice(frase: str, instrucciones: str, entradas: int) -> Pensado | None:
+    clave = _ajuste("VENICE_API_KEY", "")
+    if not clave:
+        print("[venice] sin VENICE_API_KEY en nucleo/.env: sigo sin IA", file=sys.stderr)
+        return None
+    nombre_modelo = _ajuste("REMI_VENICE_MODELO", VENICE_MODELO_POR_DEFECTO)
+    try:
+        datos = _llamar_venice(clave, nombre_modelo, instrucciones, frase)
+    except httpx.HTTPStatusError as error:
+        print(f"[venice] la API respondió {error.response.status_code}: sigo sin IA", file=sys.stderr)
+        return None
+    except httpx.HTTPError as error:
+        print(f"[venice] sin conexión ({type(error).__name__}): sigo sin IA", file=sys.stderr)
+        return None
+
+    pensado = _leer_respuesta_venice(datos, nombre_modelo, entradas)
+    if pensado is None:
+        print("[venice] respuesta vacía: sigo sin IA", file=sys.stderr)
+        return None
+    print(
+        f"[venice] modelo={pensado.modelo} tokens entrada={pensado.tokens_entrada} "
+        f"salida={pensado.tokens_salida} memoria={entradas} leyó=no (sin herramientas)",
+        file=sys.stderr,
+    )
+    return pensado
+
+
+# — Claude (la membresía Max, por la CLI) —
+
+
+def _pensar_con_claude(frase: str, instrucciones: str, indice: list[db.EntradaIndice]) -> Pensado | None:
+    nombre_modelo = modelo()
     try:
         # cwd neutral: dentro del repo la CLI cargaría CLAUDE.md y contexto
         # que acá no pinta nada.

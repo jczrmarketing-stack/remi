@@ -222,3 +222,79 @@ def test_codigo_de_salida_distinto_de_cero_sigue_sin_ia(monkeypatch):
     fallo = subprocess.CompletedProcess(args=["claude"], returncode=1, stdout="", stderr="boom")
     monkeypatch.setattr(pensar.subprocess, "run", lambda *a, **k: fallo)
     assert pensar.pensar("algo") is None
+
+
+# — El motor de Venice —
+
+
+def test_el_motor_por_defecto_es_claude(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.delenv("REMI_PENSADOR", raising=False)
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    assert pensar.motor() == "claude"
+
+
+def test_un_motor_desconocido_cae_a_claude(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("REMI_PENSADOR", "gpt-lo-que-sea")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    assert pensar.motor() == "claude"
+
+
+def test_venice_sin_clave_sigue_sin_ia(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("REMI_PENSADOR", "venice")
+    monkeypatch.delenv("VENICE_API_KEY", raising=False)
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    assert pensar.pensar("algo") is None
+
+
+def test_venice_lee_el_texto_y_los_tokens(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("REMI_PENSADOR", "venice")
+    monkeypatch.setenv("VENICE_API_KEY", "clave-de-prueba")
+    monkeypatch.setenv("REMI_VENICE_MODELO", "modelo-x")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    visto = {}
+
+    def falsa_llamada(clave, nombre_modelo, instrucciones, frase):
+        visto.update(clave=clave, modelo=nombre_modelo, instrucciones=instrucciones, frase=frase)
+        return {
+            "model": "modelo-x-1-2",
+            "choices": [{"message": {"content": "  Abrí el correo y respondé el primero.  "}}],
+            "usage": {"prompt_tokens": 1578, "completion_tokens": 9},
+        }
+
+    monkeypatch.setattr(pensar, "_llamar_venice", falsa_llamada)
+    pensado = pensar.pensar("tengo el correo lleno")
+    assert pensado is not None
+    assert pensado.paso_minimo == "Abrí el correo y respondé el primero."
+    assert (pensado.tokens_entrada, pensado.tokens_salida) == (1578, 9)
+    assert pensado.modelo == "venice/modelo-x-1-2"
+    assert pensado.leyo_memoria is False
+    assert visto["clave"] == "clave-de-prueba" and visto["modelo"] == "modelo-x"
+    assert visto["frase"] == "tengo el correo lleno"
+    assert visto["instrucciones"].startswith(pensar.INSTRUCCIONES[:40])
+
+
+def test_venice_con_respuesta_vacia_sigue_sin_ia(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("REMI_PENSADOR", "venice")
+    monkeypatch.setenv("VENICE_API_KEY", "clave")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    monkeypatch.setattr(pensar, "_llamar_venice", lambda *a: {"choices": []})
+    assert pensar.pensar("algo") is None
+
+
+def test_la_clave_de_venice_no_se_exporta_a_la_cli_de_claude(monkeypatch, tmp_path):
+    """La clave se lee del .env a un dict; el subproceso de Claude no la ve."""
+    pensar = _importar_pensar()
+    ruta = tmp_path / ".env"
+    ruta.write_text("VENICE_API_KEY=secreta\nREMI_PENSADOR=claude\n")
+    monkeypatch.setattr(pensar, "RUTA_ENV", ruta)
+    monkeypatch.delenv("VENICE_API_KEY", raising=False)
+    assert pensar._ajuste("VENICE_API_KEY", "") == "secreta"
+    assert "VENICE_API_KEY" not in pensar._entorno()
