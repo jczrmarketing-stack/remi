@@ -18,6 +18,8 @@ import tempfile
 from dataclasses import dataclass
 from typing import Any
 
+import db
+
 BINARIO = "claude"
 # Ordenar un paso mínimo no necesita más. REMI_CLAUDE_MODELO lo cambia
 # (en 2e.1 se comparan); vale cualquier alias que acepte la CLI.
@@ -37,6 +39,42 @@ INSTRUCCIONES = (
     "saludos. Si la frase es vaga, elegí igual un primer paso razonable: nunca "
     "pidas más detalles. Respondé solo con esa frase y nada más."
 )
+
+# La mente: el índice entero viaja en el system prompt, siempre. Es texto,
+# no una herramienta — mirarlo no cuesta un turno ni una llamada. El cuerpo
+# de cada entrada NO está acá: eso vive en el estante.
+ENCABEZADO_INDICE = (
+    "\n\nEsto es lo que ya sabés. Cada línea es algo que te contaron antes: "
+    "[id] fecha · tema · título — con qué te quedaste.\n"
+)
+
+
+def _linea_indice(entrada: db.EntradaIndice) -> str:
+    corto = str(entrada.id)[:8]
+    fecha = entrada.fecha.date().isoformat()
+    return f"[{corto}] {fecha} · {entrada.tema} · {entrada.titulo} — {entrada.resumen}"
+
+
+def instrucciones_con_indice(indice: list[db.EntradaIndice]) -> str:
+    """Las instrucciones más lo que Remi tiene presente. Sin entradas no se
+    anexa nada: un encabezado solo, sin líneas, invitaría a inventar."""
+    if not indice:
+        return INSTRUCCIONES
+    lineas = "\n".join(_linea_indice(entrada) for entrada in indice)
+    return INSTRUCCIONES + ENCABEZADO_INDICE + lineas
+
+
+def _indice() -> list[db.EntradaIndice]:
+    """Si la base no está, Remi piensa sin memoria: mejor eso que no pensar."""
+    try:
+        conexion = db.conectar()
+    except Exception as error:
+        print(f"[claude] no pude leer la memoria ({type(error).__name__}): pienso sin ella", file=sys.stderr)
+        return []
+    try:
+        return db.indice_memoria(conexion)
+    finally:
+        conexion.close()
 
 
 @dataclass(frozen=True)
@@ -64,7 +102,7 @@ def _entorno() -> dict[str, str]:
     return entorno
 
 
-def _comando(nombre_modelo: str) -> list[str]:
+def _comando(nombre_modelo: str, instrucciones: str) -> list[str]:
     return [
         BINARIO,
         "-p",
@@ -73,7 +111,7 @@ def _comando(nombre_modelo: str) -> list[str]:
         "--output-format",
         "json",
         "--system-prompt",
-        INSTRUCCIONES,
+        instrucciones,
         # Remi solo quiere una frase: nada de herramientas, ni MCP, ni
         # settings del usuario, ni sesión guardada en disco.
         "--tools",
@@ -118,12 +156,14 @@ def pensar(frase: str) -> Pensado | None:
     si falla o si no devolvió texto: el que llama sigue por el camino sin IA
     — nunca se rompe la respuesta por esto."""
     nombre_modelo = modelo()
+    indice = _indice()
+    instrucciones = instrucciones_con_indice(indice)
     try:
         # cwd neutral: dentro del repo la CLI cargaría CLAUDE.md y contexto
         # que acá no pinta nada.
         with tempfile.TemporaryDirectory(prefix="remi-pensar-") as vacio:
             terminado = subprocess.run(
-                _comando(nombre_modelo),
+                _comando(nombre_modelo, instrucciones),
                 input=frase,
                 capture_output=True,
                 text=True,
@@ -161,7 +201,8 @@ def pensar(frase: str) -> Pensado | None:
     modelo_real = _modelo_real(datos, nombre_modelo)
     # La cuenta va a consola, no a la pantalla: es dato de operación.
     print(
-        f"[claude] modelo={modelo_real} tokens entrada={tokens_entrada} salida={tokens_salida}",
+        f"[claude] modelo={modelo_real} tokens entrada={tokens_entrada} "
+        f"salida={tokens_salida} memoria={len(indice)}",
         file=sys.stderr,
     )
 
