@@ -29,8 +29,6 @@ function duracionHablando(frase: string): number {
   const calculada = DURACION_HABLANDO_MINIMA + palabras * MS_POR_PALABRA_HABLANDO;
   return Math.min(DURACION_HABLANDO_MAXIMA, calculada);
 }
-// Ventana para contar 1, 2 o 3 clicks antes de decidir qué hacer.
-const ESPERA_CLICS = 350;
 // Por debajo de esto es un click; por encima, arrastrás la ventana.
 const UMBRAL_ARRASTRE_PX = 4;
 
@@ -55,8 +53,6 @@ export default function App() {
   const [grabando, setGrabando] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
 
-  const esperaClicsRef = useRef<number | undefined>(undefined);
-  const clicsRef = useRef(0);
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
   const accionesRef = useRef({ grabando, modo, estado, silenciado });
   accionesRef.current = { grabando, modo, estado, silenciado };
@@ -79,14 +75,6 @@ export default function App() {
     const hasta = expandido ? TAMANO_EXPANDIDO : TAMANO_REPOSO;
     void animarTamano(ventana, desde, hasta, DURACION_APARECER);
   }, [expandido]);
-
-  useEffect(() => {
-    return () => {
-      if (esperaClicsRef.current !== undefined) {
-        window.clearTimeout(esperaClicsRef.current);
-      }
-    };
-  }, []);
 
   const volverAReposo = useCallback(() => {
     setEstado("reposo");
@@ -231,38 +219,23 @@ export default function App() {
     };
   }, [estado, voz, origenMensaje, empezarAEscuchar, volverAReposo]);
 
-  // 1 click escribís (al toque, sin esperar) · 2 clicks te escucha (como
-  // Handy) · 3 clicks dialogan. La acción más común (escribir) no paga la
-  // espera de las menos comunes: el primer click ya abrió el cuadro: los
-  // clicks de más, dentro de la ventana, solo suben de modo.
+  // Click: escribís · Option+click: te escucha una vez (como Handy) ·
+  // Option+Shift+click: dialogan. Nada de contar clicks rápidos — eso
+  // dependía de una ventana de tiempo y de dónde caía cada click, y
+  // encontramos dos bugs distintos ahí. Un modificador se lee en el
+  // mismo evento, sin ambigüedad posible.
   const alClick = useCallback(
     (evento: React.MouseEvent<HTMLDivElement>) => {
-      // Un click más mientras ya estamos en la ventana de espera: cuenta
-      // para subir de modo, no abre nada de nuevo — SIEMPRE, así caiga
-      // arriba del cuadro que el primer click recién abrió (el segundo
-      // y tercer click de un multi-click suelen caer en el mismo lugar
-      // que el primero). El filtro de .prompt-terminal es solo para
-      // cuando ya no se está decidiendo el modo.
-      if (esperaClicsRef.current !== undefined) {
-        clicsRef.current += 1;
-        return;
-      }
-
       if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
 
       if (estado === "reposo") {
-        empezarATipear();
-        clicsRef.current = 1;
-        esperaClicsRef.current = window.setTimeout(() => {
-          const clics = clicsRef.current;
-          clicsRef.current = 0;
-          esperaClicsRef.current = undefined;
-          if (clics === 2) {
-            void empezarAEscuchar("voz");
-          } else if (clics >= 3) {
-            void empezarAEscuchar("dialogo");
-          }
-        }, ESPERA_CLICS);
+        if (evento.altKey && evento.shiftKey) {
+          void empezarAEscuchar("dialogo");
+        } else if (evento.altKey) {
+          void empezarAEscuchar("voz");
+        } else {
+          empezarATipear();
+        }
         return;
       }
 
