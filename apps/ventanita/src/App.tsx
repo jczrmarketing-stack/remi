@@ -5,17 +5,18 @@ import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
 import { enviarMensaje } from "./servidor";
 import { animarTamano } from "./movimiento";
-import { callarse, hablar, haySoporteDeVoz } from "./voz";
-import type { Estado } from "./tipos";
+import { callarse, hablar } from "./voz";
+import { alternarSilencio, estaSilenciado } from "./silencio";
+import type { Estado, OrigenMensaje } from "./tipos";
 import "./estilos.css";
 import "./App.css";
 
 const TAMANO_REPOSO = { width: 320, height: 180 };
 const TAMANO_EXPANDIDO = { width: 420, height: 520 };
 const DURACION_APARECER = 250;
-// Piso mínimo para leer la frase cuando el webview no tiene voces instaladas.
-const DURACION_VOZ_SIN_SONIDO = 4000;
-const PAUSA_TRAS_HABLAR = 700;
+// Tiempo propio de "hablando": no depende de cuánto tarde la locución
+// (que puede no existir, si el mensaje fue escrito o está silenciado).
+const DURACION_HABLANDO = 4000;
 const MAX_PALABRAS_VOZ = 20;
 
 function recortarPalabras(frase: string): string {
@@ -34,6 +35,8 @@ export default function App() {
   const [estado, setEstado] = useState<Estado>("reposo");
   const [texto, setTexto] = useState("");
   const [voz, setVoz] = useState("");
+  const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
+  const [silenciado, setSilenciado] = useState(() => estaSilenciado());
 
   const expandido = estado !== "reposo";
   const expandidoAnteriorRef = useRef(expandido);
@@ -47,31 +50,40 @@ export default function App() {
     void animarTamano(ventana, desde, hasta, DURACION_APARECER);
   }, [expandido]);
 
+  // Mute local a la ventana (no global de sistema): Cmd+Shift+M funciona
+  // aunque estés escribiendo, porque los navegadores/webviews no meten
+  // combos con Cmd en el campo de texto.
+  useEffect(() => {
+    function alTeclado(evento: KeyboardEvent) {
+      if (evento.key.toLowerCase() !== "m" || !evento.metaKey || !evento.shiftKey) return;
+      evento.preventDefault();
+      setSilenciado(alternarSilencio());
+    }
+    window.addEventListener("keydown", alTeclado);
+    return () => window.removeEventListener("keydown", alTeclado);
+  }, []);
+
+  // Ley 3/4 aparte: Remi habla solo si ESTE mensaje llegó por voz (hoy
+  // nunca, porque el único camino es el PromptTerminal) y no está
+  // silenciada. "hablando" dura lo mismo la diga en voz alta o no.
   useEffect(() => {
     if (estado !== "hablando") return;
 
-    let cancelado = false;
-    const volverAReposo = () => {
-      if (cancelado) return;
+    if (origenMensaje === "voz" && !silenciado) {
+      void hablar(voz);
+    }
+
+    const id = window.setTimeout(() => {
       setEstado("reposo");
       setTexto("");
       setVoz("");
-    };
-
-    if (haySoporteDeVoz()) {
-      void hablar(voz).then(() => {
-        if (cancelado) return;
-        window.setTimeout(volverAReposo, PAUSA_TRAS_HABLAR);
-      });
-    } else {
-      window.setTimeout(volverAReposo, DURACION_VOZ_SIN_SONIDO);
-    }
+    }, DURACION_HABLANDO);
 
     return () => {
-      cancelado = true;
+      window.clearTimeout(id);
       callarse();
     };
-  }, [estado, voz]);
+  }, [estado, voz, origenMensaje, silenciado]);
 
   const alTocarVentanita = useCallback(() => {
     if (estado !== "reposo") return;
@@ -91,6 +103,9 @@ export default function App() {
   const alEnviar = useCallback(async () => {
     const mensaje = texto.trim();
     if (!mensaje || estado !== "escuchando") return;
+    // Único camino de entrada hoy es el PromptTerminal: origen "texto".
+    // El día que exista el micrófono, ese camino setea "voz" acá.
+    setOrigenMensaje("texto");
     setEstado("pensando");
     try {
       const respuesta = await enviarMensaje(mensaje);
