@@ -18,3 +18,26 @@ Asistente personal para TDAH de Juan Camilo. Una persona, un Mac, cero culpa.
 | `docs/` | vision.md y notas | — |
 
 El estado de fases vive en la **Biblia de Remi** (artefacto), no aquí.
+
+## Instalar en el Mac
+
+```bash
+# 1. El núcleo, como servicio que arranca con el Mac
+./scripts/instalar.sh
+
+# 2. La app
+cd apps/ventanita && npm run tauri -- build --bundles app
+cp -R src-tauri/target/release/bundle/macos/Remi.app /Applications/
+```
+
+Después, Remi se abre desde Launchpad o Spotlight y la terminal puede estar cerrada.
+Abrirla estando abierta no crea otra ventana: trae la que hay.
+
+**El repo no se puede mover.** Las rutas de `config/` se resuelven con `CARGO_MANIFEST_DIR`,
+que queda escrito dentro del binario al compilar: hoy,
+`/Users/juancamilo/proyectos/remi`. Si el repo cambia de lugar, la app deja de encontrar
+`config/ventanita.json` (el micrófono y whisper) y hay que recompilarla. Es una app para una
+persona y un Mac, así que está bien; conviene saberlo antes de mover carpetas.
+
+El núcleo escribe en `~/Library/Logs/Remi/nucleo.log`. Ahí se ve si Remi pudo pensar
+(`[claude] modelo=…`) y si la voz quedó lista (`[tts] cargando…`).
