@@ -7,6 +7,7 @@ import { enviarMensaje } from "./servidor";
 import { animarTamano } from "./movimiento";
 import { callarse, hablar } from "./voz";
 import { alternarSilencio, estaSilenciado } from "./silencio";
+import { detenerEscuchaYTranscribir, iniciarEscucha } from "./microfono";
 import type { Estado, OrigenMensaje } from "./tipos";
 import "./estilos.css";
 import "./App.css";
@@ -36,6 +37,7 @@ export default function App() {
   const [texto, setTexto] = useState("");
   const [voz, setVoz] = useState("");
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
+  const [grabando, setGrabando] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
 
   const expandido = estado !== "reposo";
@@ -63,9 +65,9 @@ export default function App() {
     return () => window.removeEventListener("keydown", alTeclado);
   }, []);
 
-  // Ley 3/4 aparte: Remi habla solo si ESTE mensaje llegó por voz (hoy
-  // nunca, porque el único camino es el PromptTerminal) y no está
-  // silenciada. "hablando" dura lo mismo la diga en voz alta o no.
+  // Ley 3/4 aparte: Remi habla solo si ESTE mensaje llegó por voz (mic
+  // activado y no silenciada). Si lo escribiste a mano, contesta en
+  // silencio. "hablando" dura lo mismo la diga en voz alta o no.
   useEffect(() => {
     if (estado !== "hablando") return;
 
@@ -85,10 +87,37 @@ export default function App() {
     };
   }, [estado, voz, origenMensaje, silenciado]);
 
-  const alTocarVentanita = useCallback(() => {
-    if (estado !== "reposo") return;
-    setEstado("escuchando");
-  }, [estado]);
+  // Reemplaza a Handy: primer click prende el micrófono (reposo→escuchando),
+  // segundo click lo apaga y transcribe. El texto queda editable en el
+  // PromptTerminal antes de mandarlo — nunca se envía a ciegas.
+  const alTocarVentanita = useCallback(async () => {
+    if (estado === "reposo") {
+      setOrigenMensaje("voz");
+      setEstado("escuchando");
+      setGrabando(true);
+      try {
+        await iniciarEscucha();
+      } catch {
+        // Sin micrófono disponible: cae a escritura manual, sin culpa (ley 3).
+        setGrabando(false);
+        setOrigenMensaje("texto");
+      }
+      return;
+    }
+
+    if (estado === "escuchando" && grabando) {
+      setGrabando(false);
+      setEstado("pensando");
+      try {
+        const transcripcion = await detenerEscuchaYTranscribir();
+        setTexto(transcripcion);
+      } catch {
+        // No se pudo transcribir: el cuadro queda vacío, se escribe a mano.
+      } finally {
+        setEstado("escuchando");
+      }
+    }
+  }, [estado, grabando]);
 
   // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
   // salvo dentro del PromptTerminal (ahí hay que poder hacer click y
@@ -103,9 +132,7 @@ export default function App() {
   const alEnviar = useCallback(async () => {
     const mensaje = texto.trim();
     if (!mensaje || estado !== "escuchando") return;
-    // Único camino de entrada hoy es el PromptTerminal: origen "texto".
-    // El día que exista el micrófono, ese camino setea "voz" acá.
-    setOrigenMensaje("texto");
+    // origenMensaje ya quedó decidido al activar (o no) el micrófono.
     setEstado("pensando");
     try {
       const respuesta = await enviarMensaje(mensaje);

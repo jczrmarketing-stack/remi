@@ -1,4 +1,12 @@
 {
-  "$comment": "Atajo global para ocultar/mostrar la ventanita. Se puede cambiar acá sin recompilar (src-tauri lo lee al arrancar); solo hace falta relanzar la app. Formato: sintaxis de tauri-plugin-global-shortcut (Shortcut::from_str).",
-  "atajo_mostrar_ocultar": "CmdOrCtrl+Alt+Shift+L"
+  "$comment": "src-tauri lee esto al arrancar; cambiar un valor no pide recompilar, solo relanzar la app.",
+  "atajo_mostrar_ocultar": "CmdOrCtrl+Alt+Shift+L",
+  "voz": {
+    "$comment": "Reusa whisper.cpp (Homebrew) y un modelo que ya tenía descargado Handy — cero descargas nuevas. Cambiar dispositivo_audio si ffmpeg -f avfoundation -list_devices true -i \"\" lista otro índice para tu micrófono.",
+    "ffmpeg_bin": "/opt/homebrew/bin/ffmpeg",
+    "whisper_cli_bin": "/opt/homebrew/bin/whisper-cli",
+    "modelo": "/Users/juancamilo/Library/Application Support/com.pais.handy/models/ggml-small.bin",
+    "idioma": "es",
+    "dispositivo_audio": "2"
+  }
 }

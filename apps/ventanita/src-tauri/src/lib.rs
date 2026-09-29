@@ -5,6 +5,9 @@ use serde::Deserialize;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
+mod voz;
+use voz::EstadoGrabacion;
+
 // Cmd+Shift+R colisiona con "recargar ignorando caché" del navegador y,
 // siendo un atajo GLOBAL, lo captura en todo el sistema. Este es el
 // respaldo si config/ventanita.json falta o no se puede leer.
@@ -48,6 +51,11 @@ pub fn run() {
     let atajo_configurado = leer_atajo();
 
     tauri::Builder::default()
+        .manage(EstadoGrabacion::default())
+        .invoke_handler(tauri::generate_handler![
+            voz::iniciar_escucha,
+            voz::detener_escucha_y_transcribir
+        ])
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
