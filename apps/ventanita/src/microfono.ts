@@ -12,6 +12,14 @@ export function detenerEscuchaYTranscribir(): Promise<string> {
   return invoke("detener_escucha_y_transcribir");
 }
 
-export function alDetectarSilencio(accion: () => void): Promise<() => void> {
-  return listen(EVENTO_SILENCIO, accion);
+// "fin": hablaste y te callaste → se transcribe. "sin_voz": pasaron 10 s
+// sin que dijeras nada → Remi deja de esperar.
+export type MotivoSilencio = "fin" | "sin_voz";
+
+interface AvisoSilencio {
+  motivo: MotivoSilencio;
+}
+
+export function alDetectarSilencio(accion: (motivo: MotivoSilencio) => void): Promise<() => void> {
+  return listen<AvisoSilencio>(EVENTO_SILENCIO, (evento) => accion(evento.payload.motivo));
 }

@@ -274,15 +274,23 @@ export default function App() {
     }
   }, [enviar, empezarAEscuchar]);
 
-  // El núcleo avisa cuando dejaste de hablar (solo en modo diálogo).
+  // El micrófono avisa cuando dejaste de hablar (solo en modo diálogo).
+  // Si en 10 s no dijiste nada, Remi deja de esperar y vuelve a reposo —
+  // sin frase, sin culpa (ley 3): simplemente no era el momento.
   useEffect(() => {
-    const suscripcion = alDetectarSilencio(() => {
+    const suscripcion = alDetectarSilencio((motivo) => {
+      if (!accionesRef.current.grabando) return;
+      if (motivo === "sin_voz") {
+        void detenerEscuchaYTranscribir().catch(() => undefined);
+        volverAReposo();
+        return;
+      }
       void detenerYTranscribir();
     });
     return () => {
       void suscripcion.then((desuscribir) => desuscribir());
     };
-  }, [detenerYTranscribir]);
+  }, [detenerYTranscribir, volverAReposo]);
 
   // Mute local a la ventana (no global de sistema): Cmd+Shift+M funciona
   // aunque estés escribiendo, porque los navegadores/webviews no meten

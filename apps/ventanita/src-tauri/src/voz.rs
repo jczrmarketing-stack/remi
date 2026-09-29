@@ -5,12 +5,12 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
 // Si ffmpeg muere antes de esto, fue un fallo real (permiso de
@@ -20,6 +20,8 @@ const ESPERA_CONFIRMAR_ARRANQUE: Duration = Duration::from_millis(400);
 
 // El wav que graba ffmpeg: 16 kHz, mono, 16 bits.
 const BYTES_POR_SEGUNDO: u64 = 16_000 * 2;
+// Cabecera estándar de un wav PCM: los datos empiezan después.
+const LARGO_CABECERA_WAV: u64 = 44;
 // Cada cuánto miramos cómo viene el audio.
 const PASO_VIGILANCIA: Duration = Duration::from_millis(250);
 // Ventana que miramos en cada paso.
@@ -28,9 +30,19 @@ const VENTANA_SEGUNDOS: f64 = 0.4;
 const UMBRAL_VOZ: f32 = 0.02;
 // Cuánto silencio seguido, después de hablar, cuenta como "ya terminaste".
 const SILENCIO_PARA_CORTAR: Duration = Duration::from_millis(1200);
+// Si en todo este tiempo no dijiste nada, Remi deja de esperar (en diálogo
+// no hay cuadro para escribir: sin esto quedaba grabando para siempre).
+const SIN_VOZ_MAXIMO: Duration = Duration::from_secs(10);
 
 // La ventanita escucha este evento para cortar sola la grabación.
 pub const EVENTO_SILENCIO: &str = "voz://silencio";
+
+// Por qué se cortó: "fin" = hablaste y te callaste; "sin_voz" = no dijiste
+// nada en SIN_VOZ_MAXIMO. La ventanita decide distinto en cada caso.
+#[derive(Serialize, Clone)]
+pub struct AvisoSilencio {
+    pub motivo: &'static str,
+}
 
 #[derive(Deserialize, Clone)]
 struct ConfigVoz {
@@ -46,8 +58,31 @@ struct ConfigVentanitaConVoz {
     voz: ConfigVoz,
 }
 
+pub struct Grabacion {
+    hijo: Child,
+    ruta_wav: PathBuf,
+    // El hilo que vigila el silencio mira esto en cada paso: al detener la
+    // grabación se prende y el hilo muere sin emitir nada. Antes seguía
+    // vivo sobre el archivo ya cerrado y podía avisar un silencio viejo
+    // encima de la grabación siguiente.
+    cancelar_vigilancia: Arc<AtomicBool>,
+}
+
+impl Grabacion {
+    fn detener(mut self) -> PathBuf {
+        self.cancelar_vigilancia.store(true, Ordering::Relaxed);
+        // ffmpeg cierra el archivo prolijo si le mandamos 'q' por stdin,
+        // en vez de matarlo (eso deja el wav a medio escribir).
+        if let Some(mut entrada) = self.hijo.stdin.take() {
+            let _ = entrada.write_all(b"q");
+        }
+        let _ = self.hijo.wait();
+        self.ruta_wav
+    }
+}
+
 #[derive(Default)]
-pub struct EstadoGrabacion(Mutex<Option<(Child, PathBuf)>>);
+pub struct EstadoGrabacion(Mutex<Option<Grabacion>>);
 
 impl EstadoGrabacion {
     // Si la app se cierra (o se reinicia en dev) con una grabación activa,
@@ -55,11 +90,12 @@ impl EstadoGrabacion {
     // ya pasó una vez. Se llama al salir.
     pub fn matar_si_hay_grabacion(&self) {
         if let Ok(mut guarda) = self.0.lock() {
-            if let Some((mut hijo, ruta_wav)) = guarda.take() {
+            if let Some(mut grabacion) = guarda.take() {
                 eprintln!("[voz] la app cierra con una grabación activa: matando ffmpeg");
-                let _ = hijo.kill();
-                let _ = hijo.wait();
-                let _ = fs::remove_file(&ruta_wav);
+                grabacion.cancelar_vigilancia.store(true, Ordering::Relaxed);
+                let _ = grabacion.hijo.kill();
+                let _ = grabacion.hijo.wait();
+                let _ = fs::remove_file(&grabacion.ruta_wav);
             }
         }
     }
@@ -108,7 +144,7 @@ fn pico_reciente(ruta_wav: &Path) -> Option<f32> {
     let mut archivo = fs::File::open(ruta_wav).ok()?;
     let largo = archivo.metadata().ok()?.len();
     let ventana = (BYTES_POR_SEGUNDO as f64 * VENTANA_SEGUNDOS) as u64;
-    if largo < ventana + 44 {
+    if largo < ventana + LARGO_CABECERA_WAV {
         return None;
     }
 
@@ -125,16 +161,23 @@ fn pico_reciente(ruta_wav: &Path) -> Option<f32> {
     Some(pico as f32 / i16::MAX as f32)
 }
 
-// Avisa a la ventanita cuando dejaste de hablar, para cortar sola.
-fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle) {
+// Avisa a la ventanita cuando dejaste de hablar, para cortar sola — o
+// cuando pasó SIN_VOZ_MAXIMO sin que dijeras nada.
+fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool>) {
     thread::spawn(move || {
         let mut hubo_voz = false;
         let mut callado = Duration::ZERO;
+        let mut transcurrido = Duration::ZERO;
 
         loop {
             thread::sleep(PASO_VIGILANCIA);
+            if cancelado.load(Ordering::Relaxed) {
+                return;
+            }
+            transcurrido += PASO_VIGILANCIA;
+
             let Some(pico) = pico_reciente(&ruta_wav) else {
-                // El archivo dejó de crecer: la grabación ya terminó.
+                // Todavía no hay una ventana entera (o el archivo ya no está).
                 if !ruta_wav.exists() {
                     return;
                 }
@@ -142,19 +185,30 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle) {
             };
 
             if pico >= UMBRAL_VOZ {
+                if !hubo_voz {
+                    eprintln!("[voz] te escucho (pico {pico:.3})");
+                }
                 hubo_voz = true;
                 callado = Duration::ZERO;
                 continue;
             }
 
             if !hubo_voz {
+                if transcurrido >= SIN_VOZ_MAXIMO {
+                    eprintln!(
+                        "[voz] {}s sin voz (pico {pico:.3}) → dejo de esperar",
+                        SIN_VOZ_MAXIMO.as_secs()
+                    );
+                    let _ = app.emit(EVENTO_SILENCIO, AvisoSilencio { motivo: "sin_voz" });
+                    return;
+                }
                 continue;
             }
 
             callado += PASO_VIGILANCIA;
             if callado >= SILENCIO_PARA_CORTAR {
                 eprintln!("[voz] dejaste de hablar (pico {pico:.3}) → corto sola");
-                let _ = app.emit(EVENTO_SILENCIO, ());
+                let _ = app.emit(EVENTO_SILENCIO, AvisoSilencio { motivo: "fin" });
                 return;
             }
         }
@@ -235,6 +289,11 @@ pub fn iniciar_escucha(
             "16000",
             "-ac",
             "1",
+            // Sin esto ffmpeg guarda ~32 KB (≈1 s de audio) antes de
+            // escribir al disco: el vigilante veía el audio con un segundo
+            // de atraso y el corte por silencio llegaba tarde o no llegaba.
+            "-flush_packets",
+            "1",
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
@@ -267,30 +326,29 @@ pub fn iniciar_escucha(
     if let Some(stderr) = hijo.stderr.take() {
         drenar_stderr(stderr);
     }
+    let cancelar_vigilancia = Arc::new(AtomicBool::new(false));
     if cortar_solo {
-        vigilar_silencio(ruta_wav.clone(), app.clone());
+        vigilar_silencio(ruta_wav.clone(), app.clone(), cancelar_vigilancia.clone());
     }
 
-    *guarda = Some((hijo, ruta_wav));
+    *guarda = Some(Grabacion {
+        hijo,
+        ruta_wav,
+        cancelar_vigilancia,
+    });
     Ok(())
 }
 
 #[tauri::command]
 pub fn detener_escucha_y_transcribir(estado: tauri::State<EstadoGrabacion>) -> Result<String, String> {
-    let (mut hijo, ruta_wav) = estado
+    let grabacion = estado
         .0
         .lock()
         .map_err(|e| e.to_string())?
         .take()
         .ok_or_else(|| "no había ninguna grabación activa".to_string())?;
 
-    // ffmpeg cierra el archivo prolijo si le mandamos 'q' por stdin,
-    // en vez de matarlo (eso deja el wav a medio escribir).
-    if let Some(mut entrada) = hijo.stdin.take() {
-        let _ = entrada.write_all(b"q");
-    }
-    let _ = hijo.wait();
-
+    let ruta_wav = grabacion.detener();
     let resultado = transcribir(&ruta_wav);
     let _ = fs::remove_file(&ruta_wav);
     resultado
@@ -366,4 +424,75 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
         return Err("no se entendió nada de lo grabado".to_string());
     }
     Ok(texto)
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    // Un wav mínimo: cabecera de 44 bytes (el contenido de la cabecera no
+    // importa para pico_reciente, que solo lee la cola) + muestras i16 LE.
+    fn escribir_wav(nombre: &str, muestras: &[i16]) -> PathBuf {
+        let ruta = std::env::temp_dir().join(format!("remi-prueba-{}-{nombre}.wav", std::process::id()));
+        let mut bytes = vec![0u8; LARGO_CABECERA_WAV as usize];
+        for m in muestras {
+            bytes.extend_from_slice(&m.to_le_bytes());
+        }
+        fs::write(&ruta, bytes).unwrap();
+        ruta
+    }
+
+    fn muestras_por_ventana() -> usize {
+        (16_000.0 * VENTANA_SEGUNDOS) as usize
+    }
+
+    #[test]
+    fn sin_una_ventana_entera_no_hay_pico() {
+        let ruta = escribir_wav("corto", &vec![0i16; muestras_por_ventana() / 2]);
+        assert_eq!(pico_reciente(&ruta), None);
+        let _ = fs::remove_file(ruta);
+    }
+
+    #[test]
+    fn silencio_queda_bajo_el_umbral() {
+        let ruta = escribir_wav("silencio", &vec![0i16; muestras_por_ventana() * 2]);
+        let pico = pico_reciente(&ruta).unwrap();
+        assert!(pico < UMBRAL_VOZ, "pico {pico}");
+        let _ = fs::remove_file(ruta);
+    }
+
+    #[test]
+    fn voz_al_final_pasa_el_umbral_aunque_antes_hubiera_silencio() {
+        let n = muestras_por_ventana();
+        let mut muestras = vec![0i16; n * 3];
+        // Última ventana: una onda a ~10 % del máximo (una voz normal pica más).
+        for (i, m) in muestras[n * 2..].iter_mut().enumerate() {
+            *m = if i % 2 == 0 { 3300 } else { -3300 };
+        }
+        let ruta = escribir_wav("voz", &muestras);
+        let pico = pico_reciente(&ruta).unwrap();
+        assert!(pico >= UMBRAL_VOZ, "pico {pico}");
+        let _ = fs::remove_file(ruta);
+    }
+
+    #[test]
+    fn silencio_al_final_tras_voz_queda_bajo_el_umbral() {
+        let n = muestras_por_ventana();
+        let mut muestras = vec![3300i16; n * 2];
+        for m in muestras[n..].iter_mut() {
+            *m = 0;
+        }
+        let ruta = escribir_wav("voz-luego-silencio", &muestras);
+        let pico = pico_reciente(&ruta).unwrap();
+        assert!(pico < UMBRAL_VOZ, "pico {pico}");
+        let _ = fs::remove_file(ruta);
+    }
+
+    #[test]
+    fn whisper_solo_ruido_se_detecta() {
+        assert!(es_solo_ruido("[Música]"));
+        assert!(es_solo_ruido(" (silencio). "));
+        assert!(es_solo_ruido(""));
+        assert!(!es_solo_ruido("Llamar al banco"));
+    }
 }
