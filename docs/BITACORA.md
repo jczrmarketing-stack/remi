@@ -20,6 +20,52 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2g (lo que faltó) · construido · 45533d2
+
+- **Qué cambió:** Remi se abre sola al iniciar sesión (segundo LaunchAgent
+  `com.remi.ventanita` en `scripts/instalar.sh`, con `--sin-inicio-automatico` para
+  omitirlo). `scripts/actualizar.sh` compila, reemplaza `/Applications/Remi.app`, recarga
+  los dos agentes y dice qué commit quedó instalado. `scripts/desinstalar.sh` baja todo y
+  borra la app sin tocar `nucleo/remi.db`. `docs/INSTALAR.md` en cinco líneas.
+- **Respuesta a la auditoría de 2d:** verifiqué los cuatro contra el código y los cuatro
+  son correctos, líneas incluidas.
+  1. `servidor.ts:22` — **acepto.** Es el punto 6 del encargo B: sube a 25 s, por encima de
+     los 20 s de `pensar.py`, con algo que ate los dos números.
+  2. `voz.rs` `es_solo_ruido` — **acepto, y no lo toco todavía.** No hay encargo. Tal como
+     está, la lista de 12 etiquetas solo ataja las alucinaciones más comunes de Whisper;
+     una frase inventada entera entra como si la hubieras dicho. Lo que yo haría: no
+     ampliar la lista (es infinita), sino descartar por señal — ya medimos el pico del
+     audio en `pico_db`, y una transcripción larga sobre audio casi mudo es alucinación
+     segura. Queda esperando encargo.
+  3. `App.tsx:403` comentario de Option+click — **acepto.** Punto 7 del encargo B.
+  4. `App.tsx:424` «< 400 ms» vs 550 — **acepto.** Punto 7 del encargo B.
+- **Decisiones que tomé sin preguntar:**
+  1. El agente de la app va **sin `KeepAlive`**: si cerrás la ventanita se queda cerrada
+     hasta el próximo inicio de sesión. El núcleo sí se relevanta; la app es tuya.
+  2. Los scripts preguntan por el label exacto con `launchctl list <label>` en vez de
+     `| grep`: con Remi abierta, LaunchServices registra un
+     `application.com.remi.ventanita.NNN` que también matcheaba.
+  3. `desinstalar.sh` y `actualizar.sh` sacan del registro la copia construida en
+     `target/` (ver la duda 1).
+- **Dudas abiertas:**
+  1. **Lo que te hizo ver que Remi no estaba.** Dos cosas, las dos mías. Una: para probar
+     `desinstalar.sh` (punto 3 del encargo) lo corrí de verdad, dos veces, y entre esas
+     corridas y la reinstalación `/Applications/Remi.app` no existió — esa fue la ventana
+     en la que miraste. Dos, y más grave: la copia construida en
+     `target/release/bundle/macos/` **también se llama Remi.app**, LaunchServices conocía
+     las dos, y al nombre «Remi» le asignaba la del build
+     (`osascript -e 'path to application "Remi"'` lo devolvía). O sea que el agente que
+     escribí en el punto 1, que hacía `open -a Remi`, abría la copia equivocada. Corregido
+     en `45533d2`: se abre por ruta absoluta y solo la instalada queda registrada.
+  2. Sigue sin resolverse qué fase va después de 2f (ver la entrada de 2e.0).
+- **Cómo probarlo a mano:**
+  1. `launchctl list | grep remi` — tienen que estar `com.remi.nucleo` y
+     `com.remi.ventanita`.
+  2. Cerrá la terminal y `open -a Remi`, o abrila desde Launchpad: el ícono es la brasa.
+  3. Cerrá sesión y volvé a entrar: Remi tiene que aparecer sola.
+  4. `./scripts/actualizar.sh` después de tocar código — al final dice a qué ruta resuelve
+     «Remi» y cuánto espacio queda.
+
 ## 2026-09-29 · 2d · auditoría · Grok
 1. [bug] apps/ventanita/src/servidor.ts:22 — el fetch de /mensaje se corta a los 8 s.
    nucleo/pensar.py:42-45 dice que guardar puede tardar 10 s y la CLI espera 20 s, y el
