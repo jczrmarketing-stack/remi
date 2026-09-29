@@ -12,7 +12,7 @@ import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
 import "./App.css";
 
-const TAMANO_REPOSO = { width: 320, height: 180 };
+const TAMANO_REPOSO = { width: 120, height: 44 };
 const TAMANO_EXPANDIDO = { width: 420, height: 520 };
 const DURACION_APARECER = 250;
 // Tiempo propio de "hablando": no depende de si la locución existe o

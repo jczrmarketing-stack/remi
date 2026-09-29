@@ -14,10 +14,10 @@
     "windows": [
       {
         "title": "Remi",
-        "width": 320,
-        "height": 180,
-        "minWidth": 320,
-        "minHeight": 180,
+        "width": 120,
+        "height": 44,
+        "minWidth": 120,
+        "minHeight": 44,
         "maxWidth": 420,
         "maxHeight": 520,
         "resizable": false,
