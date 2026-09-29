@@ -4,11 +4,11 @@ import { StatusDot } from "./componentes/StatusDot";
 import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
 import { ControlesVoz } from "./componentes/ControlesVoz";
-import { enviarMensaje, obtenerUltimaVezMin } from "./servidor";
+import { enviarMensaje, obtenerUltimaVezDeHoy, obtenerUltimaVezMin } from "./servidor";
 import { animarTamano } from "./movimiento";
 import { callarse, hablar, obtenerVoces, type VozDisponible } from "./voz";
 import { copiarAlPortapapeles } from "./portapapeles";
-import { formatearHace, registrarInteraccion, ultimaInteraccion } from "./tiempo";
+import { formatearDuracion, formatearHace, registrarInteraccion, ultimaInteraccion } from "./tiempo";
 import {
   alternarSilencio,
   estaSilenciado,
@@ -25,16 +25,19 @@ import "./estilos.css";
 import "./App.css";
 
 // Reposo es una píldora. Sin historia (primer uso), 120×44: solo el punto.
-// Con una última interacción que mostrar («hace 6 min», ley 1), crece a
-// 120×64 para que la línea quepa debajo del punto.
+// Con «hace 6 min» debajo, 120×64. Y con el dato medido de la ley 1 («la
+// última vez: 1 h 40») hace falta ancho: la línea es del doble de largo y
+// no se parte, se lee entera o no se muestra.
 const TAMANO_REPOSO_MINIMO = { width: 120, height: 44 };
 const TAMANO_REPOSO_CON_HACE = { width: 120, height: 64 };
+const TAMANO_REPOSO_ULTIMA_VEZ = { width: 210, height: 64 };
 const TAMANO_EXPANDIDO = { width: 420, height: 520 };
 // Cada cuánto se refresca el «hace N min» en reposo. Es relativo y en
 // minutos: medio minuto sobra y nada parpadea.
 const REFRESCO_HACE_MS = 30000;
 
-function tamanoReposo(hayHace: boolean) {
+function tamanoReposo(hayHace: boolean, hayUltimaVez: boolean) {
+  if (hayUltimaVez) return TAMANO_REPOSO_ULTIMA_VEZ;
   return hayHace ? TAMANO_REPOSO_CON_HACE : TAMANO_REPOSO_MINIMO;
 }
 const DURACION_APARECER = 250;
@@ -102,6 +105,9 @@ export default function App() {
     ultimaInteraccion(),
   );
   const [ahoraMs, setAhoraMs] = useState(() => Date.now());
+  // Ley 1 en reposo, medida y no de reloj: si lo que está en curso ya se
+  // hizo antes, vale más decir cuánto tomó que cuánto hace que no lo tocás.
+  const [ultimaVezDeHoy, setUltimaVezDeHoy] = useState<number | null>(null);
 
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
   const accionesRef = useRef({ grabando, modo, estado, silenciado, pensarConClaude });
@@ -116,14 +122,18 @@ export default function App() {
   const expandido = estado !== "reposo";
   const expandidoAnteriorRef = useRef(expandido);
   const hayHace = ultimaInteraccionMs !== null;
-  const hayHaceRef = useRef(hayHace);
-  hayHaceRef.current = hayHace;
+  const hayUltimaVez = ultimaVezDeHoy !== null;
+  const reposoRef = useRef({ hayHace, hayUltimaVez });
+  reposoRef.current = { hayHace, hayUltimaVez };
 
   // macOS restaura el tamaño de la última sesión (la app siempre arranca
   // en reposo, la ventana no debería): forzar el tamaño real al montar.
   useEffect(() => {
     const ventana = getCurrentWindow();
-    const { width, height } = tamanoReposo(hayHaceRef.current);
+    const { width, height } = tamanoReposo(
+      reposoRef.current.hayHace,
+      reposoRef.current.hayUltimaVez,
+    );
     // Los límites min/max vienen compilados desde tauri.conf.json, y un
     // binario que no se recompiló trae los viejos (320×180): macOS clampea
     // el setSize a ese mínimo y la ventana no encoge. Fijarlos en tiempo de
@@ -144,11 +154,20 @@ export default function App() {
     if (expandidoAnteriorRef.current === expandido) return;
     expandidoAnteriorRef.current = expandido;
     const ventana = getCurrentWindow();
-    const reposo = tamanoReposo(hayHaceRef.current);
+    const reposo = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
     const desde = expandido ? reposo : TAMANO_EXPANDIDO;
     const hasta = expandido ? TAMANO_EXPANDIDO : reposo;
     void animarTamano(ventana, desde, hasta, DURACION_APARECER);
   }, [expandido]);
+
+  // El dato de la ley 1 llega después de volver a reposo (hay que
+  // preguntárselo al núcleo): cuando llega, la píldora se ensancha para
+  // que la línea entre entera.
+  useEffect(() => {
+    if (expandido) return;
+    const { width, height } = tamanoReposo(hayHace, hayUltimaVez);
+    void getCurrentWindow().setSize(new LogicalSize(width, height));
+  }, [expandido, hayHace, hayUltimaVez]);
 
   // En reposo, el «hace N min» se refresca solo, despacio.
   useEffect(() => {
@@ -157,6 +176,15 @@ export default function App() {
     const id = window.setInterval(() => setAhoraMs(Date.now()), REFRESCO_HACE_MS);
     return () => window.clearInterval(id);
   }, [expandido, hayHace]);
+
+  // Al volver a reposo se pregunta si hay algo de hoy con historial. Si el
+  // núcleo no contesta, queda el «hace N min» y listo: nada que avisar.
+  useEffect(() => {
+    if (expandido) return;
+    obtenerUltimaVezDeHoy()
+      .then(setUltimaVezDeHoy)
+      .catch(() => setUltimaVezDeHoy(null));
+  }, [expandido, ultimaInteraccionMs]);
 
   const volverAReposo = useCallback(() => {
     generacionRef.current += 1;
@@ -512,8 +540,12 @@ export default function App() {
     >
       <StatusDot estado={estado} escuchandoVoz={grabando} />
 
-      {/* Ley 1 en reposo: relativo, en ink-muted, sin reloj. */}
-      {estado === "reposo" && ultimaInteraccionMs !== null && (
+      {/* Ley 1 en reposo. Si hay algo de hoy que ya hiciste antes, el dato
+          medido gana sobre el reloj: sirve más para decidir. */}
+      {estado === "reposo" && ultimaVezDeHoy !== null && (
+        <p className="num hace">la última vez: {formatearDuracion(ultimaVezDeHoy)}</p>
+      )}
+      {estado === "reposo" && ultimaVezDeHoy === null && ultimaInteraccionMs !== null && (
         <p className="num hace">{formatearHace(ultimaInteraccionMs, ahoraMs)}</p>
       )}
 

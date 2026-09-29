@@ -54,15 +54,27 @@ interface TareaConHistorial {
   ultima_vez_min: number | null;
 }
 
-// Ley 1 hecha dato: cuánto tardó la última vez, para comparar contra
-// la sesión en curso. null si la tarea nunca tuvo una sesión cerrada
-// — no hay de dónde sacarlo, y no se inventa.
-export async function obtenerUltimaVezMin(tareaId: string): Promise<number | null> {
+async function obtenerHoy(): Promise<TareaConHistorial[]> {
   const respuesta = await fetch(`${URL_NUCLEO}/hoy`);
   if (!respuesta.ok) {
     throw new Error(`El núcleo respondió ${respuesta.status}`);
   }
-  const tareas = (await respuesta.json()) as TareaConHistorial[];
-  const encontrada = tareas.find((t) => t.tarea.id === tareaId);
+  return (await respuesta.json()) as TareaConHistorial[];
+}
+
+// Ley 1 hecha dato: cuánto tardó la última vez, para comparar contra
+// la sesión en curso. null si la tarea nunca tuvo una sesión cerrada
+// — no hay de dónde sacarlo, y no se inventa.
+export async function obtenerUltimaVezMin(tareaId: string): Promise<number | null> {
+  const encontrada = (await obtenerHoy()).find((t) => t.tarea.id === tareaId);
   return encontrada ? encontrada.ultima_vez_min : null;
+}
+
+// Para el reposo: de las tareas de hoy, la más reciente que ya se hizo
+// alguna vez. null si ninguna tiene historial — ahí no hay nada medido
+// que mostrar, y la ley 1 no inventa números.
+export async function obtenerUltimaVezDeHoy(): Promise<number | null> {
+  const conHistorial = (await obtenerHoy()).filter((t) => t.ultima_vez_min !== null);
+  const ultima = conHistorial[conHistorial.length - 1];
+  return ultima ? ultima.ultima_vez_min : null;
 }
