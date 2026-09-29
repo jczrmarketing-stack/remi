@@ -8,7 +8,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* Sin justify-content:center: el punto es el primer hijo y siempre
+     queda a la misma distancia del borde superior (padding fijo), sin
+     importar cuánto contenido aparezca debajo. Nunca salta del medio
+     al tope al expandirse — está arriba siempre. */
   gap: var(--space-3);
   padding: var(--space-4);
   text-align: center;
