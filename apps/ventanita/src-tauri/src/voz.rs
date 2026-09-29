@@ -26,8 +26,29 @@ const LARGO_CABECERA_WAV: u64 = 44;
 const PASO_VIGILANCIA: Duration = Duration::from_millis(250);
 // Ventana que miramos en cada paso.
 const VENTANA_SEGUNDOS: f64 = 0.4;
-// Por encima de esto hay voz (sobre 1.0 = máximo del micrófono).
+// Por debajo de esto nunca hay voz (sobre 1.0 = máximo del micrófono). Es
+// un piso, no el umbral: el umbral real se adapta al ruido de fondo.
 const UMBRAL_VOZ: f32 = 0.02;
+// Hay voz cuando el pico supera el piso del micrófono por este factor. Del
+// log del 29/09 17:09: el RODE en silencio da 0.030–0.080 y hablando
+// 0.24–0.68. Con el umbral fijo en 0.020 «callado» nunca subía y el
+// diálogo no cortaba jamás. Con ×2.5 sobre un piso de 0.05 el umbral queda
+// en 0.125: por encima del ruido, por debajo de la voz.
+const FACTOR_SOBRE_PISO: f32 = 2.5;
+// Cuántas ventanas recientes se miran para estimar el piso (12 × 0.4 s ≈ 3 s
+// con pasos de 250 ms). Entre palabra y palabra hay huecos: el mínimo de
+// tres segundos es el fondo aunque estés hablando.
+const VENTANAS_PARA_EL_PISO: usize = 12;
+
+/// El piso: lo más bajo que se oyó en las últimas ventanas. None sin datos.
+fn piso_de(recientes: &[f32]) -> Option<f32> {
+    recientes.iter().copied().reduce(f32::min)
+}
+
+/// Umbral de voz para un piso dado: nunca por debajo de UMBRAL_VOZ.
+fn umbral_para(piso: f32) -> f32 {
+    (piso * FACTOR_SOBRE_PISO).max(UMBRAL_VOZ)
+}
 // Cuánto silencio seguido, después de hablar, cuenta como "ya terminaste".
 const SILENCIO_PARA_CORTAR: Duration = Duration::from_millis(1200);
 // Si en todo este tiempo no dijiste nada, Remi deja de esperar (en diálogo
@@ -179,6 +200,8 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
         // línea por segundo, no cuatro.
         let mut pasos_desde_el_ultimo_aviso = 0u32;
         const PASOS_POR_AVISO: u32 = 4; // 4 × 250 ms = 1 s
+        let mut recientes: std::collections::VecDeque<f32> =
+            std::collections::VecDeque::with_capacity(VENTANAS_PARA_EL_PISO);
 
         loop {
             thread::sleep(PASO_VIGILANCIA);
@@ -195,17 +218,24 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
                 continue;
             };
 
+            if recientes.len() == VENTANAS_PARA_EL_PISO {
+                recientes.pop_front();
+            }
+            recientes.push_back(pico);
+            let piso = piso_de(recientes.make_contiguous()).unwrap_or(pico);
+            let umbral = umbral_para(piso);
+
             pasos_desde_el_ultimo_aviso += 1;
             if pasos_desde_el_ultimo_aviso >= PASOS_POR_AVISO {
                 pasos_desde_el_ultimo_aviso = 0;
                 log::info!(
-                    "[voz] nivel {pico:.3} (umbral {UMBRAL_VOZ:.3}) · voz={} · callado={} ms",
+                    "[voz] nivel {pico:.3} · piso {piso:.3} · umbral {umbral:.3} · voz={} · callado={} ms",
                     if hubo_voz { "sí" } else { "no" },
                     callado.as_millis()
                 );
             }
 
-            if pico >= UMBRAL_VOZ {
+            if pico >= umbral {
                 if !hubo_voz {
                     log::info!("[voz] te escucho (pico {pico:.3})");
                 }
@@ -594,6 +624,25 @@ mod pruebas {
         assert!((duracion.as_millis() as i64 - 800).abs() <= 1, "{duracion:?}");
         assert!(duracion >= DURACION_MINIMA);
         let _ = fs::remove_file(ruta);
+    }
+
+    #[test]
+    fn el_umbral_se_adapta_al_piso_del_microfono() {
+        // El RODE del 29/09: en silencio 0.03–0.08, hablando 0.24–0.68.
+        let silencio = [0.045, 0.061, 0.038, 0.052, 0.080, 0.033, 0.049];
+        let piso = piso_de(&silencio).unwrap();
+        let umbral = umbral_para(piso);
+        assert!((piso - 0.033).abs() < 1e-6);
+        // Todo lo que fue silencio queda por debajo del umbral…
+        assert!(silencio.iter().all(|&p| p < umbral), "umbral {umbral}");
+        // …y la voz por encima.
+        assert!(0.24 >= umbral && 0.68 >= umbral, "umbral {umbral}");
+    }
+
+    #[test]
+    fn en_una_habitacion_callada_el_umbral_no_baja_del_piso_fijo() {
+        assert_eq!(umbral_para(0.004), UMBRAL_VOZ);
+        assert_eq!(piso_de(&[]), None);
     }
 
     #[test]
