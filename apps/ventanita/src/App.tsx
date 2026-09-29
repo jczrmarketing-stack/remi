@@ -3,10 +3,17 @@ import { LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
 import { StatusDot } from "./componentes/StatusDot";
 import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
+import { ControlesVoz } from "./componentes/ControlesVoz";
 import { enviarMensaje, obtenerUltimaVezMin } from "./servidor";
 import { animarTamano } from "./movimiento";
 import { callarse, hablar } from "./voz";
-import { alternarSilencio, estaSilenciado } from "./silencio";
+import {
+  alternarSilencio,
+  estaSilenciado,
+  fijarVelocidad,
+  obtenerVelocidad,
+  type Velocidad,
+} from "./preferencias";
 import { alDetectarSilencio, detenerEscuchaYTranscribir, iniciarEscucha } from "./microfono";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
@@ -15,13 +22,15 @@ import "./App.css";
 const TAMANO_REPOSO = { width: 120, height: 44 };
 const TAMANO_EXPANDIDO = { width: 420, height: 520 };
 const DURACION_APARECER = 250;
-// Tiempo propio de "hablando": no depende de si la locución existe o
-// termina antes/después (puede estar silenciada) — pero si depende del
-// largo del texto. Es un techo, no una espera obligada: un click la
-// cierra antes en cualquier momento.
+// Tiempo de "hablando" cuando Remi NO dice la frase en voz alta (mensaje
+// escrito, o voz silenciada): depende del largo del texto, para leerla.
+// Un click la cierra antes en cualquier momento. Cuando sí habla, dura lo
+// que dure la locución real (a la velocidad elegida), con un techo por si
+// el sintetizador nunca avisa que terminó.
 const MS_POR_PALABRA_HABLANDO = 260;
 const DURACION_HABLANDO_MINIMA = 2500;
 const DURACION_HABLANDO_MAXIMA = 7000;
+const TECHO_LOCUCION_MS = 15000;
 const MAX_PALABRAS_VOZ = 20;
 
 function duracionHablando(frase: string): number {
@@ -52,6 +61,7 @@ export default function App() {
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
   const [grabando, setGrabando] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
+  const [velocidad, setVelocidad] = useState<Velocidad>(() => obtenerVelocidad());
   // Ley 1 hecha visible en el Reloj: null hasta que sepamos si hay dato
   // real, y se queda null si no lo hay (nunca un número inventado).
   const [sesionInicio, setSesionInicio] = useState<string | null>(null);
@@ -232,19 +242,24 @@ export default function App() {
     return () => window.removeEventListener("keydown", alTeclado);
   }, [volverAReposo]);
 
+  const cambiarVelocidad = useCallback((nueva: Velocidad) => {
+    fijarVelocidad(nueva);
+    setVelocidad(nueva);
+  }, []);
+
   // Remi habla solo si ESTE mensaje llegó por voz y no está silenciada —
-  // mirado una sola vez al entrar; si silenciás a mitad de la locución
-  // no hay que reiniciar el temporizador de "hablando" por eso. Dura lo
-  // mismo la diga en voz alta o no; en diálogo, al terminar vuelve a
-  // escucharte sola. Un click la cierra antes (ver alClick).
+  // mirado una sola vez al entrar. Si habla, "hablando" dura hasta que la
+  // locución termina de verdad (cambiar la velocidad la reinicia a la
+  // nueva); si no, un tiempo proporcional al texto. Al terminar, en
+  // diálogo vuelve a escucharte sola; si no, reposo. Un click la cierra
+  // antes (ver alClick).
   useEffect(() => {
     if (estado !== "hablando") return;
 
-    if (origenMensaje === "voz" && !accionesRef.current.silenciado) {
-      void hablar(voz);
-    }
-
-    const id = window.setTimeout(() => {
+    let vigente = true;
+    const terminar = () => {
+      if (!vigente) return;
+      vigente = false;
       if (accionesRef.current.modo === "dialogo") {
         setTexto("");
         setVoz("");
@@ -252,13 +267,23 @@ export default function App() {
         return;
       }
       volverAReposo();
-    }, duracionHablando(voz));
+    };
+
+    const habla = origenMensaje === "voz" && !accionesRef.current.silenciado;
+    let techo: number;
+    if (habla) {
+      void hablar(voz, velocidad).then(terminar);
+      techo = window.setTimeout(terminar, TECHO_LOCUCION_MS);
+    } else {
+      techo = window.setTimeout(terminar, duracionHablando(voz));
+    }
 
     return () => {
-      window.clearTimeout(id);
+      vigente = false;
+      window.clearTimeout(techo);
       callarse();
     };
-  }, [estado, voz, origenMensaje, empezarAEscuchar, volverAReposo]);
+  }, [estado, voz, origenMensaje, velocidad, empezarAEscuchar, volverAReposo]);
 
   // Click: escribís · Option+click: te escucha una vez (como Handy) ·
   // Option+Shift+click: dialogan. Nada de contar clicks rápidos — eso
@@ -304,7 +329,7 @@ export default function App() {
         return;
       }
 
-      if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
+      if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz")) return;
 
       if (estadoActual === "reposo") {
         empezarATipear();
@@ -338,7 +363,7 @@ export default function App() {
   // es un click de verdad y llega a alClick.
   const alPresionar = useCallback((evento: React.MouseEvent<HTMLDivElement>) => {
     if (evento.button !== 0) return;
-    if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
+    if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz")) return;
 
     const inicio = { x: evento.clientX, y: evento.clientY };
 
@@ -368,6 +393,9 @@ export default function App() {
       <StatusDot estado={estado} escuchandoVoz={grabando} />
 
       {estado === "hablando" && <p className="display-it voz">{recortarPalabras(voz)}</p>}
+      {estado === "hablando" && (
+        <ControlesVoz velocidad={velocidad} onVelocidad={cambiarVelocidad} />
+      )}
       {estado === "hablando" && ultimaVezMin !== null && sesionInicio !== null && (
         <Reloj
           minutosTranscurridos={(Date.now() - new Date(sesionInicio).getTime()) / 60000}

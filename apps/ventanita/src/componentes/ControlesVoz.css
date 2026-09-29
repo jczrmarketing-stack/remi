@@ -1,0 +1,37 @@
+/* ControlesVoz: una fila baja debajo de la frase de Remi. Sin fondo, sin
+   borde: solo texto en ink-faint y el activo en ink-muted. Nada acá
+   compite con la voz (ley 4). */
+.controles-voz {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  cursor: default;
+}
+
+.controles-voz__velocidad {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.controles-voz__opcion {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    color var(--dur-estado) var(--curva),
+    background var(--dur-estado) var(--curva);
+}
+
+.controles-voz__opcion:hover {
+  color: var(--ink-muted);
+}
+
+.controles-voz__opcion[data-activa="si"] {
+  color: var(--ink);
+  background: var(--surface-2);
+}

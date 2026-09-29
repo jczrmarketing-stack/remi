@@ -48,6 +48,7 @@
 /* Aparecer: 250 ms con la curva del sistema (ley de movimiento). */
 .voz,
 .prompt-terminal,
+.controles-voz,
 .reloj--brasa {
   animation: aparecer var(--dur-aparecer) var(--curva) both;
 }
@@ -66,6 +67,7 @@
 @media (prefers-reduced-motion: reduce) {
   .voz,
   .prompt-terminal,
+  .controles-voz,
   .reloj--brasa {
     animation: none;
   }
