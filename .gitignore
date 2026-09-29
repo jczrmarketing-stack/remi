@@ -19,6 +19,7 @@ apps/ventanita/src-tauri/target/
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Sistema
 .DS_Store
