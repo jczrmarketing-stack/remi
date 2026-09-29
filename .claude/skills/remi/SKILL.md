@@ -29,6 +29,20 @@ Si este skill contradice a esas fuentes, ganan ellas.
 - **Movimiento**: 150 ms estados, 250 ms aparecer, 900 ms celebración; curva `cubic-bezier(0.2, 0.8, 0.2, 1)`. Nada respira; el LED pulsa solo en `escuchando`. `prefers-reduced-motion`: la celebración cae a cambio de color.
 - **Componentes canónicos**: `StatusDot`, `Reloj` (pieles `instrumento`|`brasa`|`terminal`), `Chip`, `FocusCard`, `ProgressBar`, `PromptTerminal`, `Nudge`, `ProjectPath`. Iconos Lucide 1.75px; Phosphor Duotone solo en los 4 héroes del panel.
 
+## Estados de la ventanita (mapa canónico: usarlo, no derivarlo)
+Cuatro estados, cada uno con su token de LED en `StatusDot`. El único que pulsa es `escuchando`.
+
+| Estado | LED | Qué se ve |
+|---|---|---|
+| `reposo` | `dormido` | Solo el StatusDot, 320×180. Sin reloj, sin terminal. |
+| `escuchando` | `luz` (pulsa) | Aparece `PromptTerminal`; la ventana crece hasta 420×520. |
+| `pensando` | `pensar` | Terminal visible mientras espera al núcleo. |
+| `hablando` | `brasa` | Respuesta en `display-it`; `Reloj` piel `brasa` solo si corre un bloque. |
+
+Volver a `reposo` cierra terminal y reloj. `brasa` es «el bloque en curso», jamás decoración.
+
+**Decidido en Fase 1a (variante C · Brasa mínima):** la ventanita es mínima en reposo. El `Reloj` piel `instrumento` (dial: anillo `line`, segmento actual `dinero`) vive en el panel, no en la ventanita.
+
 ## Voz de Remi
 `display-it`, primera persona, de tú, máximo 20 palabras, sin exclamaciones salvo la celebración. Lleva a un paso pequeño. SÍ: «Hoy solo esto: la tarjeta. Cinco minutos.» NUNCA: acusar, contar fallos, urgir, recordar cuánto importa algo.
 
