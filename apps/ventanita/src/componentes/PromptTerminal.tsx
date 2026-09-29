@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { registrar } from "../registro";
 import "./PromptTerminal.css";
 
 interface Props {
@@ -41,10 +42,17 @@ export function PromptTerminal({
         placeholder="Contame."
         onChange={(evento) => onCambio(evento.target.value)}
         onKeyDown={(evento) => {
-          if (evento.key === "Enter" && (evento.metaKey || evento.ctrlKey)) {
-            evento.preventDefault();
-            onEnviar();
+          if (evento.key !== "Enter") return;
+          // Shift+Enter: salto de línea, como en cualquier chat. Enter solo o
+          // con ⌘/Ctrl: envía. Los tres quedan en el log para ver cuál cayó.
+          if (evento.shiftKey) {
+            registrar("tecla", { tecla: "Shift+Enter", accion: "salto de línea" });
+            return;
           }
+          const combo = evento.metaKey ? "⌘↵" : evento.ctrlKey ? "Ctrl+Enter" : "Enter";
+          registrar("tecla", { tecla: combo, accion: "enviar" });
+          evento.preventDefault();
+          onEnviar();
         }}
         />
       </div>
@@ -67,7 +75,7 @@ export function PromptTerminal({
         {/* Los gestos también se cuentan acá: dos clicks = hablar, tres =
             dialogar. Antes había que adivinarlos. */}
         <div className="prompt-terminal__atajos" aria-hidden="true">
-          <span>⌘↵ enviar</span>
+          <span>↵ enviar</span>
           <span>·· hablar</span>
           <span>··· dialogar</span>
           <span>esc cancelar</span>
