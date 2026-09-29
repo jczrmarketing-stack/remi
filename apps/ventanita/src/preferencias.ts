@@ -4,6 +4,7 @@
 const CLAVE_SILENCIO = "remi.voz.silenciada";
 const CLAVE_VELOCIDAD = "remi.voz.velocidad";
 const CLAVE_VOZ = "remi.voz.elegida";
+const CLAVE_MOTOR = "remi.pensar.motor";
 
 export const VELOCIDADES = [1, 1.5, 2] as const;
 export type Velocidad = (typeof VELOCIDADES)[number];
@@ -59,4 +60,18 @@ export function obtenerVoz(): PreferenciaVoz {
 
 export function fijarVoz(voz: PreferenciaVoz): void {
   guardar(CLAVE_VOZ, voz);
+}
+
+// Con qué motor piensa Remi, elegido a conciencia en el dropdown. Se guarda
+// como string: si el núcleo cambia su lista, uno viejo cae al por defecto
+// del núcleo y no rompe nada.
+export type Motor = string;
+export const MOTOR_POR_DEFECTO: Motor = "claude";
+
+export function obtenerMotor(): Motor {
+  return leer(CLAVE_MOTOR) ?? MOTOR_POR_DEFECTO;
+}
+
+export function fijarMotor(motor: Motor): void {
+  guardar(CLAVE_MOTOR, motor);
 }

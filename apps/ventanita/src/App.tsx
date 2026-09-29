@@ -4,7 +4,14 @@ import { StatusDot } from "./componentes/StatusDot";
 import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
 import { ControlesVoz } from "./componentes/ControlesVoz";
-import { enviarMensaje, obtenerUltimaVezDeHoy, obtenerUltimaVezMin } from "./servidor";
+import {
+  enviarMensaje,
+  obtenerMotores,
+  obtenerUltimaVezDeHoy,
+  obtenerUltimaVezMin,
+  type MotorDePensar,
+} from "./servidor";
+import { MS_RECORDATORIO_VISIBLE, tocaRecordar } from "./recordatorio";
 import { animarTamano } from "./movimiento";
 import { callarse, hablar, obtenerVoces, type VozDisponible } from "./voz";
 import { copiarAlPortapapeles } from "./portapapeles";
@@ -12,8 +19,10 @@ import { formatearDuracion, formatearHace, registrarInteraccion, ultimaInteracci
 import {
   alternarSilencio,
   estaSilenciado,
+  fijarMotor,
   fijarVelocidad,
   fijarVoz,
+  obtenerMotor,
   obtenerVelocidad,
   obtenerVoz,
   type PreferenciaVoz,
@@ -123,6 +132,13 @@ export default function App() {
   // Pensar con Claude: opt-in POR MENSAJE. Nace apagado y se apaga solo
   // después de cada envío — nunca queda prendido de fondo gastando tokens.
   const [pensarConClaude, setPensarConClaude] = useState(false);
+  // Con qué motor, elegido a conciencia en el dropdown y guardado.
+  const [motor, setMotor] = useState(() => obtenerMotor());
+  const [motores, setMotores] = useState<MotorDePensar[]>([]);
+  // El recordatorio de cada media hora: una etiqueta bajo el punto, en el
+  // lugar del «hace N min», que aparece con un movimiento y se va.
+  const [recordatorio, setRecordatorio] = useState<string | null>(null);
+  const ultimoRecordatorioRef = useRef(Date.now());
   // Leer en voz alta a demanda: cada click suma uno y la locución
   // arranca (o se reinicia). Cero = nadie pidió leer.
   const [lecturas, setLecturas] = useState(0);
@@ -145,8 +161,8 @@ export default function App() {
 
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
   const textoVacio = texto.trim() === "";
-  const accionesRef = useRef({ grabando, modo, estado, silenciado, pensarConClaude, textoVacio });
-  accionesRef.current = { grabando, modo, estado, silenciado, pensarConClaude, textoVacio };
+  const accionesRef = useRef({ grabando, modo, estado, silenciado, pensarConClaude, textoVacio, motor });
+  accionesRef.current = { grabando, modo, estado, silenciado, pensarConClaude, textoVacio, motor };
 
   // Cada vez que se vuelve a reposo a mano (click o Escape), esto sube:
   // si un fetch/invoke que ya estaba en vuelo resuelve DESPUÉS, se nota
@@ -171,7 +187,7 @@ export default function App() {
 
   const expandido = estado !== "reposo";
   const expandidoAnteriorRef = useRef(expandido);
-  const hayHace = ultimaInteraccionMs !== null;
+  const hayHace = ultimaInteraccionMs !== null || recordatorio !== null;
   const hayUltimaVez = ultimaVezDeHoy !== null;
   const reposoRef = useRef({ hayHace, hayUltimaVez });
   reposoRef.current = { hayHace, hayUltimaVez };
@@ -289,9 +305,10 @@ export default function App() {
       setPensarConClaude(false);
       setEstado("pensando");
       const arranque = performance.now();
-      registrar("enviar", { palabras: limpio.split(/\s+/).length, think });
+      const motorElegido = accionesRef.current.motor;
+      registrar("enviar", { palabras: limpio.split(/\s+/).length, think, motor: think ? motorElegido : "-" });
       try {
-        const respuesta = await enviarMensaje(limpio, think);
+        const respuesta = await enviarMensaje(limpio, think, motorElegido);
         if (generacionRef.current !== miGeneracion) return; // cancelado mientras esperaba
         registrar("respuesta", {
           tipo: respuesta.tipo,
@@ -477,6 +494,36 @@ export default function App() {
     fijarVoz(nueva);
     setVozElegida(nueva);
   }, []);
+
+  const cambiarMotor = useCallback((nuevo: string) => {
+    fijarMotor(nuevo);
+    setMotor(nuevo);
+  }, []);
+
+  // Los motores los nombra el núcleo, con qué le falta a cada uno. Si no
+  // contesta, el dropdown muestra el guardado y listo.
+  useEffect(() => {
+    obtenerMotores()
+      .then(setMotores)
+      .catch(() => setMotores([]));
+  }, []);
+
+  // Cada media hora, en reposo: «pensás con X», con un solo movimiento, y
+  // se va a los 4 s. Se mide desde el último recordatorio, no desde el
+  // último uso, así que usar Remi seguido no lo posterga para siempre.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const ahora = Date.now();
+      if (!tocaRecordar(ultimoRecordatorioRef.current, ahora, accionesRef.current.estado === "reposo")) return;
+      ultimoRecordatorioRef.current = ahora;
+      const actual = accionesRef.current.motor;
+      const etiqueta = motores.find((m) => m.id === actual)?.label ?? actual;
+      registrar("recordatorio:motor", { motor: actual });
+      setRecordatorio(`pensás con ${etiqueta}`);
+      window.setTimeout(() => setRecordatorio(null), MS_RECORDATORIO_VISIBLE);
+    }, 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [motores]);
 
   // Las voces las nombra el núcleo. Si no contesta, el selector queda solo
   // con "Auto" y Remi habla con la voz del sistema: nada que avisar.
@@ -718,10 +765,15 @@ export default function App() {
 
       {/* Ley 1 en reposo. Si hay algo de hoy que ya hiciste antes, el dato
           medido gana sobre el reloj: sirve más para decidir. */}
-      {estado === "reposo" && ultimaVezDeHoy !== null && (
+      {/* El recordatorio del motor usa el mismo renglón que «hace N min»:
+          no agranda nada, solo lo reemplaza cuatro segundos. */}
+      {estado === "reposo" && recordatorio !== null && (
+        <p className="num hace recordatorio-motor">{recordatorio}</p>
+      )}
+      {estado === "reposo" && recordatorio === null && ultimaVezDeHoy !== null && (
         <p className="num hace">la última vez: {formatearDuracion(ultimaVezDeHoy)}</p>
       )}
-      {estado === "reposo" && ultimaVezDeHoy === null && ultimaInteraccionMs !== null && (
+      {estado === "reposo" && recordatorio === null && ultimaVezDeHoy === null && ultimaInteraccionMs !== null && (
         <p className="num hace">{formatearHace(ultimaInteraccionMs, ahoraMs)}</p>
       )}
 
@@ -772,6 +824,9 @@ export default function App() {
           onEnviar={() => void enviar(texto)}
           pensarConClaude={pensarConClaude}
           onAlternarPensar={() => setPensarConClaude((valor) => !valor)}
+          motores={motores}
+          motor={motor}
+          onMotor={cambiarMotor}
         />
       )}
     </div>

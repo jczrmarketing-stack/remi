@@ -51,6 +51,43 @@
   gap: var(--space-2);
 }
 
+/* Toggle + dropdown en una fila: «pensar con [Claude (Max) ▾]». */
+.prompt-terminal__pie > .prompt-terminal__pensar,
+.prompt-terminal__pie > .prompt-terminal__motor {
+  align-self: flex-start;
+}
+.prompt-terminal__pie {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
+  row-gap: var(--space-2);
+}
+.prompt-terminal__pie > .prompt-terminal__atajos {
+  flex-basis: 100%;
+}
+
+.prompt-terminal__motor {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  max-width: 160px;
+  transition: color var(--dur-estado) var(--curva);
+}
+.prompt-terminal__motor:hover:not(:disabled) {
+  color: var(--ink);
+}
+.prompt-terminal__motor:disabled {
+  cursor: default;
+}
+
 /* Toggle "pensar con Claude": mismo cuerpo que los atajos (mono 11px),
    sin caja. Apagado: ink-muted con punto en line. Prendido: el punto se
    enciende en `pensar` y el texto sube a ink — la lavanda es Remi

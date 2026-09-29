@@ -55,6 +55,28 @@
   color: var(--ink);
 }
 
+/* El recordatorio del motor: aparece con UN movimiento de 250 ms (la
+   curva del sistema) y se queda quieto. En `pensar`, la lavanda de Remi
+   trabajando, porque de eso habla. Con reduced-motion no se mueve: solo
+   el color lo distingue. */
+.recordatorio-motor {
+  color: var(--pensar);
+  animation: sacudida var(--dur-aparecer) var(--curva) 1;
+}
+
+@keyframes sacudida {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recordatorio-motor {
+    animation: none;
+  }
+}
+
 /* «diálogo» bajo el punto mientras escucha en ese modo: en `luz`, el color
    de escuchar, para que se lea como parte del mismo estado y no como otra
    locura (ley 4). */

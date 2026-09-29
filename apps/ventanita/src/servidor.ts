@@ -33,16 +33,34 @@ export interface RespuestaMensaje {
 // pruebas/test_timeouts.py ata los dos números para que no se separen.
 const TIMEOUT_NUCLEO_MS = 25000;
 
-// think: opt-in por mensaje a pensar con Claude. Apagado, el núcleo no
-// gasta un token.
-export async function enviarMensaje(texto: string, think = false): Promise<RespuestaMensaje> {
+export interface MotorDePensar {
+  id: string;
+  label: string;
+  disponible: boolean;
+  detalle: string;
+}
+
+// Lo que el dropdown puede elegir, y qué le falta a cada uno.
+export async function obtenerMotores(): Promise<MotorDePensar[]> {
+  const respuesta = await fetch(`${URL_NUCLEO}/pensar/motores`);
+  if (!respuesta.ok) throw new Error(`El núcleo respondió ${respuesta.status}`);
+  return (await respuesta.json()) as MotorDePensar[];
+}
+
+// think: opt-in por mensaje a pensar. Apagado, el núcleo no gasta un token.
+// motor: con cuál, elegido a conciencia en el dropdown.
+export async function enviarMensaje(
+  texto: string,
+  think = false,
+  motor: string | null = null,
+): Promise<RespuestaMensaje> {
   const controlador = new AbortController();
   const limite = setTimeout(() => controlador.abort(), TIMEOUT_NUCLEO_MS);
   try {
     const respuesta = await fetch(`${URL_NUCLEO}/mensaje`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texto, think }),
+      body: JSON.stringify({ texto, think, motor: think ? motor : null }),
       signal: controlador.signal,
     });
     if (!respuesta.ok) {
