@@ -1,6 +1,6 @@
 /* PromptTerminal: ocupa todo el alto disponible de la ventanita
    (flex: 1 en la columna); el cuadro crece con él y los atajos viven
-   debajo, en ink-faint — no dentro del placeholder, que desaparece al
+   debajo, en ink-muted — no dentro del placeholder, que desaparece al
    escribir. Tablero "Expandido" del refinamiento. */
 .prompt-terminal {
   width: 100%;
@@ -52,8 +52,9 @@
 }
 
 /* Toggle "pensar con Claude": mismo cuerpo que los atajos (mono 11px),
-   sin caja. Apagado: ink-faint con punto en line. Prendido: el texto sube
-   a ink-muted y el punto es `pensar` — la lavanda es Remi trabajando. */
+   sin caja. Apagado: ink-muted con punto en line. Prendido: el punto se
+   enciende en `pensar` y el texto sube a ink — la lavanda es Remi
+   trabajando. El DS reserva ink-faint para ≥24 px; esto son 11 px. */
 .prompt-terminal__pensar {
   appearance: none;
   border: none;
@@ -66,13 +67,13 @@
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 16px;
-  color: var(--ink-faint);
+  color: var(--ink-muted);
   cursor: pointer;
   transition: color var(--dur-estado) var(--curva);
 }
 
 .prompt-terminal__pensar:hover:not(:disabled) {
-  color: var(--ink-muted);
+  color: var(--ink);
 }
 
 .prompt-terminal__pensar:disabled {
@@ -90,7 +91,7 @@
 }
 
 .prompt-terminal__pensar[data-activo="si"] {
-  color: var(--ink-muted);
+  color: var(--ink);
 }
 
 .prompt-terminal__pensar[data-activo="si"] .prompt-terminal__pensar-punto {
@@ -104,6 +105,6 @@
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 16px;
-  color: var(--ink-faint);
+  color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
 }

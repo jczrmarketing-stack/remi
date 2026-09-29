@@ -479,7 +479,7 @@ export default function App() {
     >
       <StatusDot estado={estado} escuchandoVoz={grabando} />
 
-      {/* Ley 1 en reposo: relativo, en ink-faint, sin reloj. */}
+      {/* Ley 1 en reposo: relativo, en ink-muted, sin reloj. */}
       {estado === "reposo" && ultimaInteraccionMs !== null && (
         <p className="num hace">{formatearHace(ultimaInteraccionMs, ahoraMs)}</p>
       )}

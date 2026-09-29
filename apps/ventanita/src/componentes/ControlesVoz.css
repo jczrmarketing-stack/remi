@@ -1,6 +1,6 @@
 /* ControlesVoz: una fila baja debajo de la frase de Remi. Sin fondo, sin
-   borde: solo texto en ink-faint y el activo en ink-muted. Nada acá
-   compite con la voz (ley 4). */
+   borde: texto en ink-muted y el activo en ink. Nada acá compite con la
+   voz (ley 4). El DS reserva ink-faint para ≥24 px; esto son 12 px. */
 .controles-voz {
   display: flex;
   align-items: center;
@@ -20,7 +20,7 @@
   background: transparent;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
-  color: var(--ink-faint);
+  color: var(--ink-muted);
   cursor: pointer;
   transition:
     color var(--dur-estado) var(--curva),
@@ -28,7 +28,7 @@
 }
 
 .controles-voz__opcion:hover {
-  color: var(--ink-muted);
+  color: var(--ink);
 }
 
 .controles-voz__opcion[data-activa="si"] {
@@ -36,8 +36,8 @@
   background: var(--surface-2);
 }
 
-/* Botones de icono (Lucide 16px / 1.75): cuadrados, sin caja, ink-faint;
-   el "copiado" se confirma con el check en ink-muted, sin otro color. */
+/* Botones de icono (Lucide 16px / 1.75): cuadrados, sin caja, ink-muted;
+   el "copiado" se confirma con el check en ink, sin otro color. */
 .controles-voz__icono {
   appearance: none;
   border: none;
@@ -49,7 +49,7 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  color: var(--ink-faint);
+  color: var(--ink-muted);
   cursor: pointer;
   transition:
     color var(--dur-estado) var(--curva),
@@ -57,10 +57,10 @@
 }
 
 .controles-voz__icono:hover {
-  color: var(--ink-muted);
+  color: var(--ink);
   background: var(--surface-2);
 }
 
 .controles-voz__icono[data-hecho="si"] {
-  color: var(--ink-muted);
+  color: var(--ink);
 }

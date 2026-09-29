@@ -50,7 +50,7 @@ export function PromptTerminal({
       </div>
       <div className="prompt-terminal__pie">
         {/* El único control del cuadro: la lavanda `pensar` prendida es
-            Remi trabajando (con Claude). Apagado es texto en ink-faint. */}
+            Remi trabajando (con Claude). Apagado es texto en ink-muted. */}
         <button
           type="button"
           role="switch"

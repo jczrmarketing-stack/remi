@@ -1,35 +1,41 @@
 """Pensar con Claude, opt-in por mensaje (think=true). Por defecto Remi no
-gasta un token: este módulo solo corre si la ventanita lo pide explícito.
+gasta nada: este módulo solo corre si la ventanita lo pide explícito.
 
-La clave vive en nucleo/.env (ANTHROPIC_API_KEY=…), jamás en el repo — el
-.gitignore de la raíz ya excluye .env. Lo que sale de acá es la frase que
-dijiste y nada más: ni tareas viejas, ni sesiones, ni la base."""
+Va por la CLI de Claude Code (`claude -p`), que usa la sesión con la que
+Milo ya está logueado — NO la API con clave, que se factura aparte. Por eso
+acá no hay ANTHROPIC_API_KEY ni .env: la clave se BORRA del entorno del
+subproceso, para que ni existiendo en el shell se termine facturando.
+
+Lo que sale del Mac es la frase que dijiste y nada más: ni tareas viejas,
+ni sesiones, ni la base."""
 from __future__ import annotations
 
+import json
 import os
+import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from typing import Any
 
-import anthropic
-
-RUTA_ENV = Path(__file__).resolve().parent / ".env"
-
-# Un paso mínimo son ≤20 palabras: 200 tokens de salida sobran y acotan el
-# gasto si el modelo se va de tema.
-MAX_TOKENS_SALIDA = 200
-# La ventanita corta el fetch a los 8 s: si Claude tarda más, la respuesta
-# igual sale por el camino sin IA antes de ese límite.
+BINARIO = "claude"
+# Ordenar un paso mínimo no necesita más. REMI_CLAUDE_MODELO lo cambia
+# (en 2e.1 se comparan); vale cualquier alias que acepte la CLI.
+MODELO_POR_DEFECTO = "haiku"
+# Un paso mínimo son ≤20 palabras. El techo cuenta TODA la salida, y el
+# razonamiento del modelo entra ahí: sin apagarlo (MAX_THINKING_TOKENS=0)
+# 200 tokens no alcanzan ni para frases cortas y la CLI devuelve error.
+MAX_TOKENS_SALIDA = "200"
+# La ventanita corta el fetch a los 8 s; una llamada real tarda ~2 s.
 TIMEOUT_SEGUNDOS = 6.0
-MODELO_POR_DEFECTO = "claude-opus-5"
 
 INSTRUCCIONES = (
-    "Sos Remi, asistente para una persona con TDAH. Te dan una frase suelta "
-    "(una tarea, una idea, un pendiente). Respondé ÚNICAMENTE con el paso "
-    "mínimo para empezar: una sola acción concreta, tan chica que se pueda "
-    "hacer en cinco minutos. En español, hablándole de tú, en imperativo, "
-    "máximo 20 palabras, sin exclamaciones, sin explicar, sin lista, sin comillas. "
-    "Nunca urgir, nunca hablar de cuánto importa, nunca acusar."
+    "Te dan una frase suelta: una tarea, una idea o un pendiente. Respondé con UNA "
+    "sola acción concreta para empezarla, tan chica que se pueda hacer en cinco "
+    "minutos. En español, hablándole de tú, en imperativo, máximo 20 palabras. Sin "
+    "exclamaciones, sin explicar, sin preguntar, sin listas, sin comillas, sin "
+    "saludos. Si la frase es vaga, elegí igual un primer paso razonable: nunca "
+    "pidas más detalles. Respondé solo con esa frase y nada más."
 )
 
 
@@ -41,86 +47,138 @@ class Pensado:
     modelo: str
 
 
-def _leer_env(ruta: Path = RUTA_ENV) -> dict[str, str]:
-    """KEY=VALOR por línea; # comenta; comillas simples o dobles alrededor
-    del valor se quitan. Suficiente para una clave, sin otra dependencia."""
-    valores: dict[str, str] = {}
-    if not ruta.exists():
-        return valores
-    for linea in ruta.read_text().splitlines():
-        linea = linea.strip()
-        if not linea or linea.startswith("#") or "=" not in linea:
-            continue
-        clave, valor = linea.split("=", 1)
-        valores[clave.strip()] = valor.strip().strip("\"'")
-    return valores
-
-
-def clave_api() -> str | None:
-    """La variable de entorno gana sobre el .env, para poder probar sin tocarlo."""
-    return os.environ.get("ANTHROPIC_API_KEY") or _leer_env().get("ANTHROPIC_API_KEY")
-
-
 def modelo() -> str:
-    return os.environ.get("REMI_CLAUDE_MODELO") or _leer_env().get("REMI_CLAUDE_MODELO") or MODELO_POR_DEFECTO
+    return os.environ.get("REMI_CLAUDE_MODELO") or MODELO_POR_DEFECTO
 
 
-def _texto_de(respuesta: anthropic.types.Message) -> str:
-    return " ".join(
-        bloque.text.strip() for bloque in respuesta.content if bloque.type == "text"
-    ).strip()
+def _entorno() -> dict[str, str]:
+    """El entorno del subproceso, sin credenciales de API. Si Milo tiene una
+    clave exportada, la CLI la usaría y eso se factura por fuera del plan —
+    justo lo que hay que evitar."""
+    entorno = dict(os.environ)
+    for clave in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"):
+        entorno.pop(clave, None)
+    # El razonamiento cuenta contra el techo de salida: apagado, 200 alcanzan.
+    entorno["MAX_THINKING_TOKENS"] = "0"
+    entorno["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = MAX_TOKENS_SALIDA
+    return entorno
+
+
+def _comando(nombre_modelo: str) -> list[str]:
+    return [
+        BINARIO,
+        "-p",
+        "--model",
+        nombre_modelo,
+        "--output-format",
+        "json",
+        "--system-prompt",
+        INSTRUCCIONES,
+        # Remi solo quiere una frase: nada de herramientas, ni MCP, ni
+        # settings del usuario, ni sesión guardada en disco.
+        "--tools",
+        "",
+        "--restricted",
+        "--strict-mcp-config",
+        "--setting-sources",
+        "",
+        "--no-session-persistence",
+        "--max-turns",
+        "1",
+    ]
+
+
+def _tokens(uso: Any) -> tuple[int, int]:
+    if not isinstance(uso, dict):
+        return 0, 0
+    entrada = uso.get("input_tokens")
+    salida = uso.get("output_tokens")
+    return (
+        entrada if isinstance(entrada, int) else 0,
+        salida if isinstance(salida, int) else 0,
+    )
+
+
+def _modelo_real(datos: dict[str, Any], pedido: str) -> str:
+    """El id exacto que usó la CLI, si lo dice; si no, el alias que pedimos."""
+    uso_por_modelo = datos.get("modelUsage")
+    if isinstance(uso_por_modelo, dict):
+        for nombre, detalle in uso_por_modelo.items():
+            if isinstance(detalle, dict):
+                canonico = detalle.get("canonicalModel")
+                if isinstance(canonico, str) and canonico:
+                    return canonico
+            if isinstance(nombre, str) and nombre:
+                return nombre
+    return pedido
 
 
 def pensar(frase: str) -> Pensado | None:
-    """El paso mínimo que Claude ordena para `frase`. None si no hay clave,
-    si la API falla o si no devolvió texto: el que llama sigue por el
-    camino sin IA — nunca se rompe la respuesta por esto."""
-    clave = clave_api()
-    if not clave:
-        print("[claude] sin ANTHROPIC_API_KEY en nucleo/.env: sigo sin IA", file=sys.stderr)
-        return None
-
-    cliente = anthropic.Anthropic(api_key=clave, timeout=TIMEOUT_SEGUNDOS, max_retries=0)
+    """El paso mínimo que Claude ordena para `frase`. None si la CLI no está,
+    si falla o si no devolvió texto: el que llama sigue por el camino sin IA
+    — nunca se rompe la respuesta por esto."""
     nombre_modelo = modelo()
     try:
-        respuesta = cliente.messages.create(
-            model=nombre_modelo,
-            max_tokens=MAX_TOKENS_SALIDA,
-            system=INSTRUCCIONES,
-            output_config={"effort": "low"},
-            messages=[{"role": "user", "content": frase}],
-        )
-    except anthropic.AuthenticationError:
-        print("[claude] clave inválida: sigo sin IA", file=sys.stderr)
+        # cwd neutral: dentro del repo la CLI cargaría CLAUDE.md y contexto
+        # que acá no pinta nada.
+        with tempfile.TemporaryDirectory(prefix="remi-pensar-") as vacio:
+            terminado = subprocess.run(
+                _comando(nombre_modelo),
+                input=frase,
+                capture_output=True,
+                text=True,
+                timeout=TIMEOUT_SEGUNDOS,
+                env=_entorno(),
+                cwd=vacio,
+            )
+    except FileNotFoundError:
+        print(f"[claude] no encontré `{BINARIO}` en el PATH: sigo sin IA", file=sys.stderr)
         return None
-    except anthropic.RateLimitError:
-        print("[claude] límite de uso alcanzado: sigo sin IA", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print(f"[claude] tardó más de {TIMEOUT_SEGUNDOS:.0f} s: sigo sin IA", file=sys.stderr)
         return None
-    except anthropic.APIStatusError as error:
-        print(f"[claude] la API respondió {error.status_code}: sigo sin IA", file=sys.stderr)
-        return None
-    except (anthropic.APIConnectionError, anthropic.APITimeoutError) as error:
-        print(f"[claude] sin conexión ({type(error).__name__}): sigo sin IA", file=sys.stderr)
+    except OSError as error:
+        print(f"[claude] no pude correr la CLI ({error}): sigo sin IA", file=sys.stderr)
         return None
 
-    tokens_entrada = respuesta.usage.input_tokens
-    tokens_salida = respuesta.usage.output_tokens
+    if terminado.returncode != 0:
+        print(
+            f"[claude] la CLI terminó en {terminado.returncode}: sigo sin IA",
+            file=sys.stderr,
+        )
+        return None
+
+    try:
+        datos = json.loads(terminado.stdout)
+    except json.JSONDecodeError:
+        print("[claude] no entendí la respuesta de la CLI: sigo sin IA", file=sys.stderr)
+        return None
+    if not isinstance(datos, dict):
+        print("[claude] la CLI no devolvió un objeto: sigo sin IA", file=sys.stderr)
+        return None
+
+    tokens_entrada, tokens_salida = _tokens(datos.get("usage"))
+    modelo_real = _modelo_real(datos, nombre_modelo)
     # La cuenta va a consola, no a la pantalla: es dato de operación.
     print(
-        f"[claude] {nombre_modelo} · tokens entrada={tokens_entrada} salida={tokens_salida}",
+        f"[claude] modelo={modelo_real} tokens entrada={tokens_entrada} salida={tokens_salida}",
         file=sys.stderr,
     )
 
-    if respuesta.stop_reason == "refusal":
-        print("[claude] no quiso responder: sigo sin IA", file=sys.stderr)
+    # Con is_error, `result` trae el TEXTO DEL ERROR ("API Error: …"): eso
+    # jamás puede terminar siendo la voz de Remi.
+    if datos.get("is_error"):
+        print(f"[claude] la CLI avisó un error: {datos.get('result')!r}", file=sys.stderr)
         return None
 
-    paso = _texto_de(respuesta)
-    if not paso:
+    paso = datos.get("result")
+    if not isinstance(paso, str) or not paso.strip():
+        print("[claude] respuesta vacía: sigo sin IA", file=sys.stderr)
         return None
+
     return Pensado(
-        paso_minimo=paso,
+        paso_minimo=paso.strip(),
         tokens_entrada=tokens_entrada,
         tokens_salida=tokens_salida,
-        modelo=nombre_modelo,
+        modelo=modelo_real,
     )

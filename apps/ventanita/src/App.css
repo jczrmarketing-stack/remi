@@ -43,11 +43,11 @@
   gap: var(--space-1);
 }
 
-/* «hace 6 min»: ink-faint a pedido (por debajo de los 24 px que el DS
-   marca para ink-faint — es un susurro, no información que haya que leer
-   con esfuerzo). */
+/* «hace 6 min»: ink-muted. El DS reserva ink-faint para ≥24 px y esto
+   son 12 px — a ese tamaño ink-faint queda por debajo del contraste
+   legible. Calmo es ink-muted, no ilegible. */
 .hace {
-  color: var(--ink-faint);
+  color: var(--ink-muted);
   white-space: nowrap;
 }
 

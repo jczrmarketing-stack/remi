@@ -23,7 +23,7 @@ function etiqueta(velocidad: Velocidad): string {
 
 /**
  * Controles chicos debajo de la respuesta de Remi. Viven en `num`, en
- * ink-faint salvo el activo: la locura de la pantalla es la frase, no
+ * ink-muted salvo el activo: la locura de la pantalla es la frase, no
  * esto (ley 4). Los clicks acá no cierran la ventanita: el contenedor
  * lleva la clase `controles-voz` y App los deja pasar.
  */
