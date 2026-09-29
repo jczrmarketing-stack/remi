@@ -20,6 +20,12 @@ const TIMEOUT_TTS_MS = 5000;
 let audioActual: HTMLAudioElement | null = null;
 let urlActual: string | null = null;
 
+// Contador de generación. Cada hablar() y cada callarse() lo suben; una
+// llamada que vuelve de un await y ve que ya no es la generación vigente
+// no reproduce nada. Sin esto, dos hablar() seguidas sonaban las dos: la
+// primera volvía de pedir el audio cuando la segunda ya había arrancado.
+let generacion = 0;
+
 export function haySoporteDeVoz(): boolean {
   return "speechSynthesis" in window;
 }
@@ -69,9 +75,13 @@ function liberarAudio(): void {
   }
 }
 
+type FinDeReproduccion = "terminó" | "cancelada" | "falló";
+
 // Resuelve en el evento `ended`: App sale de "hablando" cuando la voz
-// termina de verdad, no cuando lo adivina un temporizador.
-function reproducir(audio: Blob, velocidad: Velocidad): Promise<boolean> {
+// termina de verdad, no cuando lo adivina un temporizador. `mia` es la
+// generación de quien llama: si otra la pisó, lo que pase con este audio
+// es una cancelación, no un fallo.
+function reproducir(audio: Blob, velocidad: Velocidad, mia: number): Promise<FinDeReproduccion> {
   return new Promise((resolve) => {
     liberarAudio();
     const url = URL.createObjectURL(audio);
@@ -84,25 +94,34 @@ function reproducir(audio: Blob, velocidad: Velocidad): Promise<boolean> {
     urlActual = url;
 
     let resuelto = false;
-    const terminar = (bien: boolean) => {
+    const terminar = (fin: FinDeReproduccion) => {
       if (resuelto) return;
       resuelto = true;
-      resolve(bien);
+      resolve(fin);
     };
+    const cancelada = () => generacion !== mia;
 
-    elemento.addEventListener("ended", () => terminar(true), { once: true });
+    elemento.addEventListener("ended", () => terminar("terminó"), { once: true });
     elemento.addEventListener(
       "error",
       () => {
-        console.info("[voz] no pude reproducir el audio del núcleo");
-        terminar(false);
+        // liberarAudio() pone src="" y eso dispara `error`: si fue por una
+        // cancelación, no es un fallo del reproductor.
+        if (cancelada()) return terminar("cancelada");
+        console.info(`[voz] #${mia} no pude reproducir el audio del núcleo`);
+        terminar("falló");
       },
       { once: true },
     );
 
-    void elemento.play().catch((error) => {
-      console.info("[voz] el reproductor no arrancó:", error);
-      terminar(false);
+    void elemento.play().catch((error: unknown) => {
+      // AbortError es lo que tira play() cuando lo interrumpe una pausa o
+      // un cambio de src: es una cancelación, nunca motivo para caer a la
+      // voz del sistema.
+      const nombre = error instanceof Error ? error.name : "";
+      if (cancelada() || nombre === "AbortError") return terminar("cancelada");
+      console.info(`[voz] #${mia} el reproductor no arrancó:`, error);
+      terminar("falló");
     });
   });
 }
@@ -200,23 +219,53 @@ function hablarConElSistema(texto: string, velocidad: Velocidad): Promise<void> 
 
 // — Lo que usa la ventanita —
 
-/** Resuelve cuando Remi terminó de hablar, por el camino que haya sido. */
+/**
+ * Resuelve cuando Remi terminó de hablar, por el camino que haya sido — o
+ * cuando la pisó otra llamada. Cada llamada tiene un id que queda en el log
+ * al empezar y al terminar, con cómo terminó.
+ */
 export async function hablar(
   texto: string,
   velocidad: Velocidad = 1,
   voz: PreferenciaVoz = VOZ_AUTOMATICA,
 ): Promise<void> {
-  callarse();
+  generacion += 1;
+  const mia = generacion;
+  const palabras = texto.trim() ? texto.trim().split(/\s+/).length : 0;
+  console.info(`[voz] #${mia} empieza: ${palabras} palabras, ${velocidad}×, voz=${voz}`);
+
+  liberarAudio();
+  if (haySoporteDeVoz()) window.speechSynthesis.cancel();
 
   const audio = await pedirAudio(texto, voz);
-  if (audio && (await reproducir(audio, velocidad))) return;
+  if (generacion !== mia) {
+    console.info(`[voz] #${mia} cancelada antes de reproducir`);
+    return;
+  }
 
-  // Sin núcleo, sin motor o sin poder reproducir: la voz del sistema, en
-  // silencio sobre el fallo.
+  if (audio) {
+    const fin = await reproducir(audio, velocidad, mia);
+    if (fin === "terminó" || fin === "cancelada") {
+      console.info(`[voz] #${mia} ${fin}`);
+      return;
+    }
+    // "falló": el audio llegó pero no se pudo reproducir. Eso sí es motivo
+    // para la voz del sistema.
+  }
+  if (generacion !== mia) {
+    console.info(`[voz] #${mia} cancelada`);
+    return;
+  }
+
+  // Sin audio del núcleo (no contestó, o el motor falló) o sin poder
+  // reproducirlo: la voz del sistema, en silencio sobre el fallo.
+  console.info(`[voz] #${mia} cae a la voz del sistema`);
   await hablarConElSistema(texto, velocidad);
+  console.info(`[voz] #${mia} ${generacion === mia ? "terminó (sistema)" : "cancelada (sistema)"}`);
 }
 
 export function callarse(): void {
+  generacion += 1;
   liberarAudio();
   if (haySoporteDeVoz()) {
     window.speechSynthesis.cancel();
