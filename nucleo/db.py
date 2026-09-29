@@ -164,6 +164,11 @@ def actualizar_estado_tarea(
     return _fila_a_tarea(fila) if fila else None
 
 
+def leer_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> Tarea | None:
+    fila = conexion.execute("SELECT * FROM tareas WHERE id = ?", (str(tarea_id),)).fetchone()
+    return _fila_a_tarea(fila) if fila else None
+
+
 def listar_tareas_hoy(conexion: sqlite3.Connection) -> list[Tarea]:
     filas = conexion.execute(
         "SELECT * FROM tareas WHERE estado = 'hoy' ORDER BY rowid"
@@ -272,6 +277,25 @@ def sesion_abierta_de_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> UUI
         (str(tarea_id),),
     ).fetchone()
     return UUID(fila["id"]) if fila else None
+
+
+def cerrar_sesion_en_cero(conexion: sqlite3.Connection, sesion_id: UUID) -> Sesion | None:
+    """Cierra una sesión vieja sin inventarle duración. Para las que
+    quedaron colgadas de otro día: nadie estuvo doce horas en eso, y un
+    número inventado envenena el historial en el que se apoya la ley 1."""
+    fila = conexion.execute(
+        "SELECT * FROM sesiones WHERE id = ?", (str(sesion_id),)
+    ).fetchone()
+    if fila is None or fila["fin"] is not None:
+        return None
+    conexion.execute(
+        "UPDATE sesiones SET fin = ?, real_min = 0 WHERE id = ?",
+        (fila["inicio"], str(sesion_id)),
+    )
+    conexion.commit()
+    return _fila_a_sesion(
+        conexion.execute("SELECT * FROM sesiones WHERE id = ?", (str(sesion_id),)).fetchone()
+    )
 
 
 def sesion_abierta_mas_reciente(conexion: sqlite3.Connection) -> UUID | None:
