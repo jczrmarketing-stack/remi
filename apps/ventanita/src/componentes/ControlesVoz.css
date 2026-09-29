@@ -14,6 +14,27 @@
   gap: var(--space-1);
 }
 
+/* Selector de voz: una sola pieza compacta, con las etiquetas tal cual
+   las da el núcleo. Sin flecha propia ni fondo de sistema — los tokens
+   mandan. */
+.controles-voz__voz {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-muted);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  max-width: 110px;
+  transition:
+    color var(--dur-estado) var(--curva),
+    border-color var(--dur-estado) var(--curva);
+}
+
+.controles-voz__voz:hover {
+  color: var(--ink);
+}
+
 .controles-voz__opcion {
   appearance: none;
   border: none;

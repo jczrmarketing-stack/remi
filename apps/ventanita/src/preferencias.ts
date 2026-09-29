@@ -3,9 +3,16 @@
 // la velocidad viven juntos acá: son las dos perillas de la misma voz.
 const CLAVE_SILENCIO = "remi.voz.silenciada";
 const CLAVE_VELOCIDAD = "remi.voz.velocidad";
+const CLAVE_VOZ = "remi.voz.elegida";
 
 export const VELOCIDADES = [1, 1.5, 2] as const;
 export type Velocidad = (typeof VELOCIDADES)[number];
+
+// "auto" deja que el núcleo elija por el texto; el resto es el id de una
+// voz concreta. Se guarda como string: si el núcleo cambia su lista, una
+// preferencia vieja simplemente deja de coincidir y vuelve a "auto".
+export type PreferenciaVoz = string;
+export const VOZ_AUTOMATICA = "auto";
 
 function leer(clave: string): string | null {
   try {
@@ -44,4 +51,12 @@ export function obtenerVelocidad(): Velocidad {
 
 export function fijarVelocidad(velocidad: Velocidad): void {
   guardar(CLAVE_VELOCIDAD, String(velocidad));
+}
+
+export function obtenerVoz(): PreferenciaVoz {
+  return leer(CLAVE_VOZ) ?? VOZ_AUTOMATICA;
+}
+
+export function fijarVoz(voz: PreferenciaVoz): void {
+  guardar(CLAVE_VOZ, voz);
 }

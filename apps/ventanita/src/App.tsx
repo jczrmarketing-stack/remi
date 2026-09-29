@@ -6,14 +6,17 @@ import { PromptTerminal } from "./componentes/PromptTerminal";
 import { ControlesVoz } from "./componentes/ControlesVoz";
 import { enviarMensaje, obtenerUltimaVezMin } from "./servidor";
 import { animarTamano } from "./movimiento";
-import { callarse, hablar } from "./voz";
+import { callarse, hablar, obtenerVoces, type VozDisponible } from "./voz";
 import { copiarAlPortapapeles } from "./portapapeles";
 import { formatearHace, registrarInteraccion, ultimaInteraccion } from "./tiempo";
 import {
   alternarSilencio,
   estaSilenciado,
   fijarVelocidad,
+  fijarVoz,
   obtenerVelocidad,
+  obtenerVoz,
+  type PreferenciaVoz,
   type Velocidad,
 } from "./preferencias";
 import { alDetectarSilencio, detenerEscuchaYTranscribir, iniciarEscucha } from "./microfono";
@@ -78,6 +81,8 @@ export default function App() {
   const [transcribiendo, setTranscribiendo] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
   const [velocidad, setVelocidad] = useState<Velocidad>(() => obtenerVelocidad());
+  const [vozElegida, setVozElegida] = useState<PreferenciaVoz>(() => obtenerVoz());
+  const [vocesDisponibles, setVocesDisponibles] = useState<VozDisponible[]>([]);
   // Pensar con Claude: opt-in POR MENSAJE. Nace apagado y se apaga solo
   // después de cada envío — nunca queda prendido de fondo gastando tokens.
   const [pensarConClaude, setPensarConClaude] = useState(false);
@@ -319,6 +324,19 @@ export default function App() {
     setVelocidad(nueva);
   }, []);
 
+  const cambiarVoz = useCallback((nueva: PreferenciaVoz) => {
+    fijarVoz(nueva);
+    setVozElegida(nueva);
+  }, []);
+
+  // Las voces las nombra el núcleo. Si no contesta, el selector queda solo
+  // con "Auto" y Remi habla con la voz del sistema: nada que avisar.
+  useEffect(() => {
+    obtenerVoces()
+      .then(setVocesDisponibles)
+      .catch(() => setVocesDisponibles([]));
+  }, []);
+
   const leerEnVozAlta = useCallback(() => {
     setLecturas((n) => n + 1);
   }, []);
@@ -359,7 +377,7 @@ export default function App() {
     const habla = lecturas > 0 || (origenMensaje === "voz" && !accionesRef.current.silenciado);
     let techo: number | undefined;
     if (habla) {
-      void hablar(voz, velocidad).then(terminar);
+      void hablar(voz, velocidad, vozElegida).then(terminar);
       techo = window.setTimeout(terminar, TECHO_LOCUCION_MS);
     } else if (!sostenido) {
       techo = window.setTimeout(terminar, duracionHablando(voz));
@@ -370,7 +388,17 @@ export default function App() {
       window.clearTimeout(techo);
       callarse();
     };
-  }, [estado, voz, origenMensaje, velocidad, lecturas, sostenido, empezarAEscuchar, volverAReposo]);
+  }, [
+    estado,
+    voz,
+    origenMensaje,
+    velocidad,
+    vozElegida,
+    lecturas,
+    sostenido,
+    empezarAEscuchar,
+    volverAReposo,
+  ]);
 
   // Click: escribís · Option+click: te escucha una vez (como Handy) ·
   // Option+Shift+click: dialogan. Nada de contar clicks rápidos — eso
@@ -500,6 +528,9 @@ export default function App() {
           onCopiar={() => void copiar()}
           copiado={copiado}
           onSostener={setSostenido}
+          voces={vocesDisponibles}
+          voz={vozElegida}
+          onVoz={cambiarVoz}
         />
       )}
       {estado === "hablando" && ultimaVezMin !== null && sesionInicio !== null && (

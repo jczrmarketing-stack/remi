@@ -9,12 +9,13 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID, uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import db
 import pensar
+import tts
 from modelos import Sesion, Tarea
 
 RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
@@ -93,6 +94,21 @@ class Historial(BaseModel):
 
 class PasoMinimoNuevo(BaseModel):
     paso_minimo: str
+
+
+class PedidoVoz(BaseModel):
+    text: str
+    # None o "auto": la elige el texto (español salvo que sea claro inglés).
+    voice: str | None = None
+    # El estirado de 1×/1.5×/2× lo hace el reproductor de la ventanita, que
+    # conserva el tono; acá se genera a 1.0.
+    speed: float = Field(default=tts.VELOCIDAD_GENERACION, gt=0.25, lt=4.0)
+
+
+class VozDisponible(BaseModel):
+    id: str
+    lang: str
+    label: str
 
 
 @app.post("/mensaje", response_model=RespuestaMensaje)
@@ -184,6 +200,41 @@ def actualizar_paso_minimo(tarea_id: UUID, cuerpo: PasoMinimoNuevo) -> Tarea:
         conexion.close()
 
 
+@app.get("/tts/voices", response_model=list[VozDisponible])
+def listar_voces() -> list[VozDisponible]:
+    return [VozDisponible(id=voz.id, lang=voz.lang, label=voz.label) for voz in tts.VOCES]
+
+
+@app.post(
+    "/tts",
+    responses={200: {"content": {"audio/wav": {}}}},
+    response_class=Response,
+)
+def decir(pedido: PedidoVoz) -> Response:
+    """El wav de lo que Remi dice. Si el motor falla, 503 sin cuerpo: la
+    ventanita cae a la voz del sistema en silencio. Remi jamás dice un
+    error en voz alta (ley 3)."""
+    texto = pedido.text.strip()
+    if not texto:
+        return Response(status_code=204)
+
+    voz_id = tts.resolver_voz(pedido.voice, texto)
+    if voz_id is None:
+        # Una voz que no existe es un error de programación, no algo que
+        # haya que contarle a nadie en voz alta.
+        raise HTTPException(status_code=400, detail="no conozco esa voz")
+
+    audio = tts.sintetizar(texto, voz_id, pedido.speed)
+    if audio is None:
+        return Response(status_code=503)
+
+    return Response(
+        content=audio,
+        media_type="audio/wav",
+        headers={"X-Remi-Voz": voz_id},
+    )
+
+
 @app.get("/hoy", response_model=list[TareaConHistorial])
 def listar_hoy() -> list[TareaConHistorial]:
     conexion = db.conectar()
@@ -214,6 +265,14 @@ def historial_tarea(tarea_id: UUID) -> Historial:
 
 
 if __name__ == "__main__":
+    import threading
+
     import uvicorn
+
+    # Cargar el modelo de voz tarda ~18 s la primera vez: si esperáramos a
+    # la primera frase, Remi se quedaría muda hasta que termine. Se carga
+    # en un hilo al arrancar y para cuando haga falta ya está listo. No se
+    # hace al importar: las pruebas no tienen por qué cargar 300 MB.
+    threading.Thread(target=tts.precalentar, daemon=True).start()
 
     uvicorn.run(app, host=HOST, port=PUERTO)

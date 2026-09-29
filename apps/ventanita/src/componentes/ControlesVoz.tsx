@@ -1,5 +1,6 @@
 import { Check, Copy, Volume2 } from "lucide-react";
-import { VELOCIDADES, type Velocidad } from "../preferencias";
+import { VELOCIDADES, VOZ_AUTOMATICA, type PreferenciaVoz, type Velocidad } from "../preferencias";
+import type { VozDisponible } from "../voz";
 import "./ControlesVoz.css";
 
 interface Props {
@@ -13,6 +14,11 @@ interface Props {
   copiado: boolean;
   // true mientras el puntero está encima: App no cierra la respuesta.
   onSostener: (sostenido: boolean) => void;
+  // Con quién habla Remi. Vacío mientras el núcleo no conteste: ahí solo
+  // queda "Auto", que es lo que hace igual.
+  voces: VozDisponible[];
+  voz: PreferenciaVoz;
+  onVoz: (voz: PreferenciaVoz) => void;
 }
 
 const ICONO = { size: 16, strokeWidth: 1.75 } as const;
@@ -35,6 +41,9 @@ export function ControlesVoz({
   onCopiar,
   copiado,
   onSostener,
+  voces,
+  voz,
+  onVoz,
 }: Props) {
   return (
     <div
@@ -64,6 +73,20 @@ export function ControlesVoz({
       >
         {copiado ? <Check {...ICONO} /> : <Copy {...ICONO} />}
       </button>
+      <select
+        className="num controles-voz__voz"
+        aria-label="Voz de Remi"
+        title="Voz de Remi"
+        value={voz}
+        onChange={(evento) => onVoz(evento.target.value)}
+      >
+        <option value={VOZ_AUTOMATICA}>Auto</option>
+        {voces.map((disponible) => (
+          <option key={disponible.id} value={disponible.id}>
+            {disponible.label}
+          </option>
+        ))}
+      </select>
       <div className="controles-voz__velocidad" role="radiogroup" aria-label="Velocidad de la voz">
         {VELOCIDADES.map((opcion) => (
           <button
