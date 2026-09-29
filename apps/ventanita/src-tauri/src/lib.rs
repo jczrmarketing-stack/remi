@@ -51,6 +51,17 @@ pub fn run() {
     let atajo_configurado = leer_atajo();
 
     tauri::Builder::default()
+        // Una sola Remi. Abrirla estando ya abierta no crea otra ventana:
+        // trae la que hay y le da el foco. Antes había que adivinar si
+        // estaba corriendo, y dos instancias se peleaban el micrófono.
+        .plugin(tauri_plugin_single_instance::init(|app, _argumentos, _carpeta| {
+            let Some(ventana) = app.get_webview_window("main") else {
+                return;
+            };
+            let _ = ventana.show();
+            let _ = ventana.unminimize();
+            let _ = ventana.set_focus();
+        }))
         .manage(EstadoGrabacion::default())
         .invoke_handler(tauri::generate_handler![
             voz::iniciar_escucha,
