@@ -62,14 +62,17 @@ export default function App() {
   const [grabando, setGrabando] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
   const [velocidad, setVelocidad] = useState<Velocidad>(() => obtenerVelocidad());
+  // Pensar con Claude: opt-in POR MENSAJE. Nace apagado y se apaga solo
+  // después de cada envío — nunca queda prendido de fondo gastando tokens.
+  const [pensarConClaude, setPensarConClaude] = useState(false);
   // Ley 1 hecha visible en el Reloj: null hasta que sepamos si hay dato
   // real, y se queda null si no lo hay (nunca un número inventado).
   const [sesionInicio, setSesionInicio] = useState<string | null>(null);
   const [ultimaVezMin, setUltimaVezMin] = useState<number | null>(null);
 
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
-  const accionesRef = useRef({ grabando, modo, estado, silenciado });
-  accionesRef.current = { grabando, modo, estado, silenciado };
+  const accionesRef = useRef({ grabando, modo, estado, silenciado, pensarConClaude });
+  accionesRef.current = { grabando, modo, estado, silenciado, pensarConClaude };
 
   // Cada vez que se vuelve a reposo a mano (click o Escape), esto sube:
   // si un fetch/invoke que ya estaba en vuelo resuelve DESPUÉS, se nota
@@ -117,6 +120,7 @@ export default function App() {
     setVoz("");
     setSesionInicio(null);
     setUltimaVezMin(null);
+    setPensarConClaude(false);
     callarse();
   }, []);
 
@@ -130,10 +134,18 @@ export default function App() {
         return;
       }
       const miGeneracion = generacionRef.current;
+      const think = accionesRef.current.pensarConClaude;
+      setPensarConClaude(false);
       setEstado("pensando");
       try {
-        const respuesta = await enviarMensaje(limpio);
+        const respuesta = await enviarMensaje(limpio, think);
         if (generacionRef.current !== miGeneracion) return; // cancelado mientras esperaba
+        if (respuesta.tokens) {
+          const { modelo, entrada, salida } = respuesta.tokens;
+          console.info(`[claude] ${modelo} · tokens entrada=${entrada} salida=${salida}`);
+        } else if (think) {
+          console.info("[claude] pidió pensar pero el núcleo siguió sin IA (¿falta la clave en nucleo/.env?)");
+        }
         setVoz(respuesta.voz);
         setSesionInicio(respuesta.sesion.inicio);
         // Si esto falla, el Reloj simplemente no se renderiza — no es
@@ -413,6 +425,8 @@ export default function App() {
           enfocar={estado === "escuchando" && !grabando}
           onCambio={setTexto}
           onEnviar={() => void enviar(texto)}
+          pensarConClaude={pensarConClaude}
+          onAlternarPensar={() => setPensarConClaude((valor) => !valor)}
         />
       )}
     </div>

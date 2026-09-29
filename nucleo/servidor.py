@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import db
+import pensar
 from modelos import Sesion, Tarea
 
 RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
@@ -41,23 +42,38 @@ MAX_PALABRAS_VOZ = 20
 PASO_MINIMO_INICIAL = "Cinco minutos en esto y paramos."
 
 
-def frase_remi(titulo: str) -> str:
-    """Voz de Remi: display-it, ≤20 palabras, sin exclamaciones, un paso pequeño (Ley 3, 4)."""
-    frase = f"Hoy solo esto: {titulo}."
+def recortar_voz(frase: str) -> str:
+    """La voz de Remi nunca pasa de 20 palabras, venga de donde venga."""
     palabras = frase.split()
     if len(palabras) > MAX_PALABRAS_VOZ:
         frase = " ".join(palabras[: MAX_PALABRAS_VOZ - 1]) + "…"
     return frase
 
 
+def frase_remi(titulo: str) -> str:
+    """Voz de Remi: display-it, ≤20 palabras, sin exclamaciones, un paso pequeño (Ley 3, 4)."""
+    return recortar_voz(f"Hoy solo esto: {titulo}.")
+
+
 class MensajeEntrante(BaseModel):
     texto: str
+    # Opt-in por mensaje: solo con think=true se gasta un token (ver pensar.py).
+    think: bool = False
+
+
+class TokensClaude(BaseModel):
+    entrada: int
+    salida: int
+    modelo: str
 
 
 class RespuestaMensaje(BaseModel):
     tarea: Tarea
     sesion: Sesion
     voz: str
+    # Solo cuando pensó con Claude. Dato de operación: la ventanita lo manda
+    # a su consola, nunca a la pantalla.
+    tokens: TokensClaude | None = None
 
 
 class TareaConHistorial(BaseModel):
@@ -81,12 +97,23 @@ class PasoMinimoNuevo(BaseModel):
 
 @app.post("/mensaje", response_model=RespuestaMensaje)
 def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
+    # Si pidió pensar, el paso mínimo lo ordena Claude y es lo que Remi
+    # dice. Si no pidió (o Claude no pudo), todo sigue como siempre, sin IA.
+    pensado = pensar.pensar(mensaje.texto) if mensaje.think else None
+    paso_minimo = recortar_voz(pensado.paso_minimo) if pensado else PASO_MINIMO_INICIAL
+    voz = paso_minimo if pensado else frase_remi(mensaje.texto)
+    tokens = (
+        TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo)
+        if pensado
+        else None
+    )
+
     tarea = Tarea(
         id=uuid4(),
         titulo=mensaje.texto,
         proyecto_id=None,
         estado="hoy",
-        paso_minimo=PASO_MINIMO_INICIAL,
+        paso_minimo=paso_minimo,
         estimado_min=None,
         real_min=None,
         compartible=False,
@@ -114,7 +141,7 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     finally:
         conexion.close()
 
-    return RespuestaMensaje(tarea=tarea, sesion=sesion, voz=frase_remi(tarea.titulo))
+    return RespuestaMensaje(tarea=tarea, sesion=sesion, voz=voz, tokens=tokens)
 
 
 @app.post("/sesion/{sesion_id}/cerrar", response_model=Sesion)

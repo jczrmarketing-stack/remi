@@ -45,6 +45,59 @@
   color: var(--ink-muted);
 }
 
+.prompt-terminal__pie {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Toggle "pensar con Claude": mismo cuerpo que los atajos (mono 11px),
+   sin caja. Apagado: ink-faint con punto en line. Prendido: el texto sube
+   a ink-muted y el punto es `pensar` — la lavanda es Remi trabajando. */
+.prompt-terminal__pensar {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color var(--dur-estado) var(--curva);
+}
+
+.prompt-terminal__pensar:hover:not(:disabled) {
+  color: var(--ink-muted);
+}
+
+.prompt-terminal__pensar:disabled {
+  cursor: default;
+}
+
+.prompt-terminal__pensar-punto {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  transition:
+    background var(--dur-estado) var(--curva),
+    box-shadow var(--dur-estado) var(--curva);
+}
+
+.prompt-terminal__pensar[data-activo="si"] {
+  color: var(--ink-muted);
+}
+
+.prompt-terminal__pensar[data-activo="si"] .prompt-terminal__pensar-punto {
+  background: var(--pensar);
+  box-shadow: var(--glow-pensar);
+}
+
 .prompt-terminal__atajos {
   display: flex;
   justify-content: space-between;
