@@ -27,7 +27,15 @@ import {
   iniciarEscucha,
   type OrigenParada,
 } from "./microfono";
-import { decidir, decidirPalanca, RACHA_VACIA, type Accion, type Racha } from "./gestos";
+import {
+  cortePorSilencioAplica,
+  decidir,
+  decidirPalanca,
+  decidirTrasVacia,
+  RACHA_VACIA,
+  type Accion,
+  type Racha,
+} from "./gestos";
 import { enchufarConsola, registrar } from "./registro";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
@@ -68,13 +76,6 @@ function duracionHablando(frase: string): number {
 }
 // Por debajo de esto es un click; por encima, arrastrás la ventana.
 const UMBRAL_ARRASTRE_PX = 4;
-// En diálogo, si no se entendió nada, cuánto esperar antes de volver a
-// escuchar. Re-armar en el acto hacía que un dedo tardío cayera sobre la
-// escucha nueva y la matara, cinco veces seguidas.
-const MS_ANTES_DE_REARMAR = 1200;
-// Tras esta cantidad de escuchas vacías seguidas en diálogo, Remi se va a
-// reposo sin decir nada: no era el momento.
-const MAX_VACIAS_SEGUIDAS = 2;
 
 function recortarPalabras(frase: string): string {
   const palabras = frase.trim().split(/\s+/);
@@ -372,17 +373,18 @@ export default function App() {
       // la escucha nueva y la mataba— y no para siempre: dos vacías
       // seguidas quieren decir que no era el momento, y Remi se va callada.
       vaciasSeguidasRef.current += 1;
-      if (vaciasSeguidasRef.current >= MAX_VACIAS_SEGUIDAS) {
+      const tras = decidirTrasVacia(vaciasSeguidasRef.current);
+      if (tras.tipo === "reposo") {
         registrar("dialogo:meVoy", { vacias: vaciasSeguidasRef.current });
         volverAReposo();
         return;
       }
-      registrar("dialogo:rearmo", { vacias: vaciasSeguidasRef.current, enMs: MS_ANTES_DE_REARMAR });
+      registrar("dialogo:rearmo", { vacias: vaciasSeguidasRef.current, enMs: tras.enMs });
       window.clearTimeout(rearmeRef.current);
       rearmeRef.current = window.setTimeout(() => {
         if (generacionRef.current !== miGeneracion) return;
         void empezarAEscuchar("dialogo");
-      }, MS_ANTES_DE_REARMAR);
+      }, tras.enMs);
     }
   }, [enviar, empezarAEscuchar, volverAReposo]);
 
@@ -391,8 +393,15 @@ export default function App() {
   // sin frase, sin culpa (ley 3): simplemente no era el momento.
   useEffect(() => {
     const suscripcion = alDetectarSilencio((motivo) => {
-      registrar("silencio", { motivo, grabando: accionesRef.current.grabando });
-      if (!accionesRef.current.grabando) return;
+      const { grabando: grabandoActual, modo: modoActual } = accionesRef.current;
+      registrar("silencio", { motivo, grabando: grabandoActual, modo: modoActual });
+      if (!grabandoActual) return;
+      // Rust solo vigila el silencio en diálogo, pero si un aviso viejo
+      // llegara durante un dictado, el dictado no se corta igual.
+      if (!cortePorSilencioAplica(modoActual)) {
+        registrar("silencio:ignorado", { motivo: "el dictado no corta por silencio" });
+        return;
+      }
       if (motivo === "sin_voz") {
         void detenerEscuchaYTranscribir("silencio:sin_voz").catch(() => undefined);
         volverAReposo();

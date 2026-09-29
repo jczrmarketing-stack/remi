@@ -144,3 +144,25 @@ export function decidirPalanca(entrada: Pick<Entrada, "estado" | "modo" | "graba
   }
   return { tipo: "grabarVoz" };
 }
+
+// — El corte por silencio —
+// Solo el diálogo se corta solo. El dictado lo cortás vos: podés callarte
+// cuatro segundos pensando la frase y no tiene por qué mandarse sola.
+export function cortePorSilencioAplica(modo: Modo): boolean {
+  return modo === "dialogo";
+}
+
+// — Escuchas vacías en diálogo —
+// Re-armar en el acto hacía que un dedo tardío cayera sobre la escucha
+// nueva y la matara. Y re-armar para siempre dejaba a Remi escuchando una
+// habitación vacía: dos vacías seguidas quieren decir que no era el
+// momento, y se va callada. No es un contador de fallos de nadie (ley 3).
+export const MS_ANTES_DE_REARMAR = 1200;
+export const MAX_VACIAS_SEGUIDAS = 2;
+
+export type TrasVacia = { tipo: "rearmar"; enMs: number } | { tipo: "reposo" };
+
+export function decidirTrasVacia(vaciasSeguidas: number): TrasVacia {
+  if (vaciasSeguidas >= MAX_VACIAS_SEGUIDAS) return { tipo: "reposo" };
+  return { tipo: "rearmar", enMs: MS_ANTES_DE_REARMAR };
+}

@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { decidir, decidirPalanca, MS_GRACIA, RACHA_VACIA, type Entrada, type Racha } from "./gestos";
+import {
+  cortePorSilencioAplica,
+  decidir,
+  decidirPalanca,
+  decidirTrasVacia,
+  MAX_VACIAS_SEGUIDAS,
+  MS_ANTES_DE_REARMAR,
+  MS_GRACIA,
+  RACHA_VACIA,
+  type Entrada,
+  type Racha,
+} from "./gestos";
 
 /** Un clicker: mantiene la racha y el estado como lo hace la ventanita. */
 function crearVentanita(inicial: Partial<Entrada> = {}) {
@@ -175,5 +186,28 @@ describe("la palanca (atajo global)", () => {
   it("mientras Remi piensa o habla, no hace nada", () => {
     expect(decidirPalanca({ estado: "pensando", modo: "voz", grabando: false }).tipo).toBe("nada");
     expect(decidirPalanca({ estado: "hablando", modo: "voz", grabando: false }).tipo).toBe("nada");
+  });
+});
+
+describe("el corte por silencio", () => {
+  it("el dictado NUNCA corta por silencio: cuatro segundos callado no mandan nada", () => {
+    expect(cortePorSilencioAplica("voz")).toBe(false);
+    expect(cortePorSilencioAplica("texto")).toBe(false);
+  });
+
+  it("solo el diálogo se corta solo", () => {
+    expect(cortePorSilencioAplica("dialogo")).toBe(true);
+  });
+});
+
+describe("escuchas vacías en diálogo", () => {
+  it("la primera vacía re-arma, pero no en el acto", () => {
+    expect(decidirTrasVacia(1)).toEqual({ tipo: "rearmar", enMs: MS_ANTES_DE_REARMAR });
+    expect(MS_ANTES_DE_REARMAR).toBeGreaterThanOrEqual(1000);
+  });
+
+  it("dos vacías seguidas → reposo, sin decir nada", () => {
+    expect(decidirTrasVacia(MAX_VACIAS_SEGUIDAS)).toEqual({ tipo: "reposo" });
+    expect(decidirTrasVacia(MAX_VACIAS_SEGUIDAS + 1)).toEqual({ tipo: "reposo" });
   });
 });
