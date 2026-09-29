@@ -107,7 +107,9 @@ describe("el periodo de gracia", () => {
     const v = crearVentanita();
     v.click(0);
     v.click(167);
-    const despues = v.click(167 + MS_GRACIA + 50);
+    // Fuera de la gracia Y fuera de la ventana del triple (2 s desde el
+    // 1.º): antes de eso, un click es el 3.º y pasa a diálogo.
+    const despues = v.click(MS_TRIPLE + 50);
     expect(despues.tipo).toBe("pararGrabacion");
     expect(v.estado.grabando).toBe(false);
   });
@@ -283,8 +285,9 @@ describe("la secuencia real del log de las 16:43: doble click para parar", () =>
     v.click(0);
     v.click(600, false, true);
     expect(v.estado.modo).toBe("voz");
-    expect(v.click(600 + MS_GRACIA + 200).tipo).toBe("pararGrabacion");
-    expect(v.click(600 + MS_GRACIA + 360).tipo).toBe("nada");
+    // Pasados los 2 s del triple, el click es para parar.
+    expect(v.click(MS_TRIPLE + 200).tipo).toBe("pararGrabacion");
+    expect(v.click(MS_TRIPLE + 360).tipo).toBe("nada");
     expect(v.estado.estado).toBe("pensando");
   });
 
