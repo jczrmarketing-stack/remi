@@ -1,12 +1,14 @@
 """Una frase no siempre es una tarea. Sin IA: idea, hoy o hecha.
 
 La ley 6 manda lo suelto a enfriar 48 h en la Bandeja, así que el default
-es `idea`: para que algo se vuelva tarea hay que decirlo. La ley 1 solo
-puede decir «la última vez esto te tomó 1 h 40» si alguien cerró el bloque,
-y por eso «listo» tiene que poder cerrarlo.
+es `idea`: para que algo se vuelva tarea hay que decirlo con una de las
+formas de arranque, y para cerrar hay que decirlo con una palabra exacta.
+La ley 1 solo puede decir «la última vez esto te tomó 1 h 40» si alguien
+cerró el bloque de verdad, y por eso un cierre no puede salir de una frase
+que solo menciona «listo» de paso.
 
-Esto es una función pura y sin IA a propósito. El tipo no lo elige el
-modelo: pensar solo reformula la voz, nunca decide qué es lo que dijiste.
+Función pura y sin IA a propósito. El tipo no lo elige el modelo: pensar
+solo reformula la voz, nunca decide qué es lo que dijiste.
 """
 from __future__ import annotations
 
@@ -16,28 +18,49 @@ from typing import Literal
 
 TipoMensaje = Literal["idea", "hoy", "hecha"]
 
-# Cierra el bloque. Van normalizadas (sin tildes): «terminé» entra como
-# «termine», «paré» como «pare».
-CIERRES = frozenset({"listo", "hecha", "termine", "paro", "pare"})
-# La palabra sola, o con hasta tres más: «listo», «listo la tarjeta».
-# Una frase larga que menciona «listo» de paso no cierra nada.
-MAX_PALABRAS_CIERRE = 4
+# Cierra el bloque SOLO si la frase normalizada es exactamente una de estas.
+# «listo el contrato» no cierra: menciona «listo», no lo dice. Van sin
+# tildes porque se comparan contra el texto normalizado.
+CIERRES_EXACTOS = frozenset(
+    {
+        "listo",
+        "hecha",
+        "hecho",
+        "termine",
+        "paro",
+        "pare",
+        "ya esta",
+        "ya termine",
+        "ya estuvo",
+        "hasta aca",
+        "cerrado",
+    }
+)
 
-# Con cualquiera de estas, un cierre no cierra: «no me quedó listo» y
-# «todavía no termino» hablan de algo que sigue abierto. Cerrar ahí pondría
-# en el historial un bloque que no terminó, y la ley 1 se apoya en ese
-# historial para decir «la última vez esto te tomó 1 h 40».
-NEGACIONES = frozenset({"no", "nunca", "tampoco", "todavia"})
-
-# Abren un bloque ahora. «voy a» y «vamos con» son la frase entera, no dos
-# palabras sueltas que podrían aparecer en cualquier lado.
+# Abren un bloque si la frase EMPIEZA con una de estas, después de un
+# «ahora», «hoy» o «ya» opcional. «hoy» o «ahora» sueltos ya no abren nada:
+# «hoy no puedo» no es una tarea.
+PREFIJOS_OPCIONALES = ("ahora", "hoy", "ya")
 ARRANQUES = (
-    re.compile(r"\bvoy a\b"),
-    re.compile(r"\bvamos con\b"),
-    re.compile(r"\bahora\b"),
-    re.compile(r"\bhoy\b"),
-    re.compile(r"\bempiezo\b"),
-    re.compile(r"\barranco\b"),
+    "voy a",
+    "vamos con",
+    "me pongo con",
+    "arranco",
+    "arranque",
+    "empiezo",
+    "empece",
+    "sigo con",
+)
+
+# Con cualquiera de estas, un arranque no abre: la frase duda, o es una
+# idea con forma de plan. «voy a ver si armo el curso» es una idea.
+NEGACIONES = frozenset({"no", "nunca", "tampoco"})
+FRENOS = ("ver si", "quizas", "a lo mejor", "se me ocurrio", "idea")
+
+_PATRON_FRENOS = re.compile(r"\b(?:" + "|".join(re.escape(f) for f in FRENOS) + r")\b")
+_PATRON_ARRANQUE = re.compile(
+    r"^(?:(?:" + "|".join(PREFIJOS_OPCIONALES) + r") )?"
+    r"(?:" + "|".join(re.escape(a) for a in ARRANQUES) + r")\b"
 )
 
 
@@ -59,16 +82,14 @@ def clasificar(texto: str) -> TipoMensaje:
     if not limpio:
         return "idea"
 
-    palabras = limpio.split()
-    niega = any(p in NEGACIONES for p in palabras)
-    if (
-        not niega
-        and len(palabras) <= MAX_PALABRAS_CIERRE
-        and any(p in CIERRES for p in palabras)
-    ):
+    # Una pregunta nunca cierra: «¿listo?» está preguntando, no avisando.
+    if "?" not in texto and limpio in CIERRES_EXACTOS:
         return "hecha"
 
-    if any(arranque.search(limpio) for arranque in ARRANQUES):
+    palabras = limpio.split()
+    niega = any(p in NEGACIONES for p in palabras)
+    frena = _PATRON_FRENOS.search(limpio) is not None
+    if not niega and not frena and _PATRON_ARRANQUE.match(limpio):
         return "hoy"
 
     return "idea"

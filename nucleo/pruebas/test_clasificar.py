@@ -3,24 +3,86 @@ import pytest
 
 from clasificar import clasificar, normalizar
 
+# — Las frases de la auditoría de Grok, tal cual —
+
 
 @pytest.mark.parametrize(
     "frase",
     [
-        "listo",
-        "Listo!",
-        "LISTO",
-        "terminé",
-        "termine",
-        "Terminé la tarjeta",
-        "hecha",
-        "paro",
-        "paré",
-        "listo por hoy",
+        "pare un segundo",
+        "la dejo hecha manana",
+        "quedo listo",
+        "¿listo?",
+        "listo el contrato",
+        "hoy no puedo",
+        "se me ocurrio q hoy armo un curso",
+        "voy a ver si armo el curso",
     ],
 )
-def test_cierra_el_bloque(frase):
+def test_grok_idea(frase):
+    assert clasificar(frase) == "idea"
+
+
+@pytest.mark.parametrize(
+    "frase",
+    ["me pongo con la propuesta", "arranque con alfonso", "sigo con la factura"],
+)
+def test_grok_hoy(frase):
+    assert clasificar(frase) == "hoy"
+
+
+@pytest.mark.parametrize("frase", ["ya esta", "listo", "Terminé!!"])
+def test_grok_hecha(frase):
     assert clasificar(frase) == "hecha"
+
+
+# — La guarda de negación de antes —
+
+
+@pytest.mark.parametrize(
+    "frase, esperado",
+    [
+        ("no me quedó listo", "idea"),
+        ("todavía no termino", "idea"),
+        ("nunca lo terminé", "idea"),
+        ("tampoco está listo", "idea"),
+        ("listo", "hecha"),
+        ("ya terminé", "hecha"),
+    ],
+)
+def test_guarda_de_negacion(frase, esperado):
+    assert clasificar(frase) == esperado
+
+
+# — Cierres: exactos o nada —
+
+
+@pytest.mark.parametrize(
+    "frase",
+    ["listo", "Listo!", "LISTO", "hecha", "hecho", "paro", "paré", "ya estuvo", "hasta acá", "cerrado", "ya está"],
+)
+def test_cierra_solo_con_la_palabra_exacta(frase):
+    assert clasificar(frase) == "hecha"
+
+
+@pytest.mark.parametrize(
+    "frase",
+    [
+        # Mencionan un cierre, no lo dicen. Antes cerraban por «≤3 palabras más».
+        "listo la tarjeta",
+        "Terminé la tarjeta",
+        "listo por hoy",
+        "cuando esté listo el informe te aviso",
+        # Preguntan.
+        "listo?",
+        "¿ya está?",
+    ],
+)
+def test_mencionar_un_cierre_no_cierra(frase):
+    assert clasificar(frase) == "idea"
+
+
+# — Arranques: al principio, con prefijo opcional —
 
 
 @pytest.mark.parametrize(
@@ -30,69 +92,41 @@ def test_cierra_el_bloque(frase):
         "voy a revisar el contrato",
         "arranco con la landing",
         "empiezo por el formulario",
+        "empecé con el informe",
         "vamos con las facturas",
-        "hoy toca el informe",
-        "ahora reviso los proxies",
-        # Español coloquial: sin tildes, con «q», en mayúsculas.
         "VOY A LLAMAR AL BANCO",
-        "hoy tengo q mandar el presupuesto",
-        "ahora si arranco con esto",
+        "ahora voy a revisar los proxies",
+        "hoy me pongo con el presupuesto",
+        "ya arranco con esto",
     ],
 )
-def test_abre_un_bloque_hoy(frase):
+def test_abre_un_bloque(frase):
     assert clasificar(frase) == "hoy"
 
 
 @pytest.mark.parametrize(
     "frase",
     [
+        # «hoy» y «ahora» sueltos ya no abren.
+        "hoy toca el informe",
+        "ahora reviso los proxies",
+        "hoy tengo q mandar el presupuesto",
+        # El arranque tiene que estar al principio.
+        "creo que voy a revisar el contrato",
+        # Frenos.
+        "voy a ver si llego",
+        "quizas arranco con esto",
+        "a lo mejor me pongo con la propuesta",
+        "arranco con la idea del curso",
+        # Lo suelto de siempre.
         "se me ocurrió vender plantillas",
-        "se me ocurrio una app de recetas",
         "y si hacemos un bot de whatsapp para la agencia",
-        "estaria bueno cobrar por suscripcion",
-        "podriamos migrar todo a kiplink",
-        "anotar q el dominio vence en octubre",
-        "una idea: newsletter semanal",
         "",
         "   ",
-        # Menciona «listo» pero es una frase larga: no cierra nada.
-        "todavia no esta listo el flujo de pagos de la tienda",
     ],
 )
 def test_lo_demas_enfria_como_idea(frase):
     assert clasificar(frase) == "idea"
-
-
-def test_una_frase_larga_no_cierra_por_mencionar_listo():
-    """La ley 1 depende de que «listo» cierre de verdad un bloque; si
-    cerrara con cualquier frase que lo mencione, el historial mentiría."""
-    assert clasificar("listo") == "hecha"
-    assert clasificar("listo el informe") == "hecha"
-    assert clasificar("cuando esté listo el informe te aviso") == "idea"
-
-
-@pytest.mark.parametrize(
-    "frase, esperado",
-    [
-        # Niegan: no cierran nada, siguen el flujo normal.
-        ("no me quedó listo", "idea"),
-        ("todavía no termino", "idea"),
-        ("nunca lo terminé", "idea"),
-        ("tampoco está listo", "idea"),
-        ("hoy no termino esto", "hoy"),
-        # Sin negación, siguen cerrando.
-        ("listo", "hecha"),
-        ("ya terminé", "hecha"),
-        ("listo la tarjeta", "hecha"),
-    ],
-)
-def test_una_negacion_impide_el_cierre(frase, esperado):
-    assert clasificar(frase) == esperado
-
-
-def test_hecha_gana_sobre_hoy():
-    """«listo por hoy» cierra: primero se mira si cierra, después si abre."""
-    assert clasificar("listo por hoy") == "hecha"
 
 
 def test_normalizar_saca_tildes_signos_y_mayusculas():
