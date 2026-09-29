@@ -83,6 +83,17 @@ pub fn run() {
             app.global_shortcut().register(atajo)?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, evento| {
+            // Si la app cierra con el micrófono grabando, no dejar a ffmpeg
+            // huérfano: ya pasó, se quedó grabando 50+ minutos y le ganaba
+            // el dispositivo a la siguiente grabación.
+            if matches!(
+                evento,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) {
+                app_handle.state::<EstadoGrabacion>().matar_si_hay_grabacion();
+            }
+        });
 }

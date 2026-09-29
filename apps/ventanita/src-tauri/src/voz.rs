@@ -49,6 +49,22 @@ struct ConfigVentanitaConVoz {
 #[derive(Default)]
 pub struct EstadoGrabacion(Mutex<Option<(Child, PathBuf)>>);
 
+impl EstadoGrabacion {
+    // Si la app se cierra (o se reinicia en dev) con una grabación activa,
+    // ffmpeg queda huérfano grabando para siempre y ocupa el micrófono —
+    // ya pasó una vez. Se llama al salir.
+    pub fn matar_si_hay_grabacion(&self) {
+        if let Ok(mut guarda) = self.0.lock() {
+            if let Some((mut hijo, ruta_wav)) = guarda.take() {
+                eprintln!("[voz] la app cierra con una grabación activa: matando ffmpeg");
+                let _ = hijo.kill();
+                let _ = hijo.wait();
+                let _ = fs::remove_file(&ruta_wav);
+            }
+        }
+    }
+}
+
 fn ruta_config() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
