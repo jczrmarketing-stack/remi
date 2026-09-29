@@ -55,6 +55,37 @@ fn ruta_temporal(sufijo: &str) -> PathBuf {
     std::env::temp_dir().join(format!("remi-voz-{}{}", std::process::id(), sufijo))
 }
 
+// Whisper alucina etiquetas cuando el audio es silencio o ruido: si eso
+// es TODO lo que devolvió, no escuchó nada.
+fn es_solo_ruido(texto: &str) -> bool {
+    let limpio = texto
+        .trim()
+        .trim_matches(|c: char| c == '"' || c == '.' || c == ',')
+        .trim()
+        .to_lowercase();
+    if limpio.is_empty() {
+        return true;
+    }
+    let sin_marcas = limpio
+        .trim_start_matches(['[', '(', '*'])
+        .trim_end_matches([']', ')', '*'])
+        .trim();
+    matches!(
+        sin_marcas,
+        "música"
+            | "musica"
+            | "music"
+            | "silencio"
+            | "silence"
+            | "blank_audio"
+            | "sonido"
+            | "aplausos"
+            | "risas"
+            | "ruido"
+            | "suspiro"
+    )
+}
+
 // ffmpeg imprime un banner enorme antes del error real; nos quedamos con
 // la última línea no vacía, que es la que importa.
 fn ultima_linea_util(salida: &str) -> String {
@@ -76,6 +107,12 @@ pub fn iniciar_escucha(estado: tauri::State<EstadoGrabacion>) -> Result<(), Stri
     }
 
     let ruta_wav = ruta_temporal(".wav");
+    eprintln!(
+        "[voz] grabando: {} -f avfoundation -i :{} → {}",
+        config.ffmpeg_bin,
+        config.dispositivo_audio,
+        ruta_wav.display()
+    );
     let mut hijo = Command::new(&config.ffmpeg_bin)
         .args([
             "-y",
@@ -104,10 +141,13 @@ pub fn iniciar_escucha(estado: tauri::State<EstadoGrabacion>) -> Result<(), Stri
         if let Some(mut stderr) = hijo.stderr.take() {
             let _ = stderr.read_to_string(&mut error);
         }
-        return Err(format!(
+        let detalle = format!(
             "ffmpeg terminó enseguida ({estado_salida}): {}",
             ultima_linea_util(&error)
-        ));
+        );
+        eprintln!("[voz] {detalle}");
+        eprintln!("[voz] stderr completo:\n{error}");
+        return Err(detalle);
     }
 
     *guarda = Some((hijo, ruta_wav));
@@ -135,8 +175,41 @@ pub fn detener_escucha_y_transcribir(estado: tauri::State<EstadoGrabacion>) -> R
     resultado
 }
 
+// Una voz normal pica bien por encima de esto; si no llega, el micrófono
+// no escuchó nada (silenciado, volumen de entrada bajo, o mal dispositivo).
+const PICO_MINIMO_DB: f32 = -42.0;
+
+fn pico_db(ffmpeg_bin: &str, ruta_wav: &Path) -> Option<f32> {
+    let salida = Command::new(ffmpeg_bin)
+        .arg("-i")
+        .arg(ruta_wav)
+        .args(["-af", "volumedetect", "-f", "null", "-"])
+        .output()
+        .ok()?;
+    let texto = String::from_utf8_lossy(&salida.stderr);
+    let linea = texto.lines().find(|l| l.contains("max_volume:"))?;
+    linea
+        .split("max_volume:")
+        .nth(1)?
+        .trim()
+        .trim_end_matches("dB")
+        .trim()
+        .parse()
+        .ok()
+}
+
 fn transcribir(ruta_wav: &Path) -> Result<String, String> {
     let config = leer_config_voz()?;
+
+    if let Some(pico) = pico_db(&config.ffmpeg_bin, ruta_wav) {
+        eprintln!("[voz] pico del audio: {pico} dB");
+        if pico < PICO_MINIMO_DB {
+            return Err(format!(
+                "no se escuchó nada (pico {pico:.1} dB): revisá el micrófono o el volumen de entrada"
+            ));
+        }
+    }
+
     let base_salida = ruta_temporal("");
 
     let salida = Command::new(&config.whisper_cli_bin)
@@ -165,5 +238,11 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
     let ruta_txt = base_salida.with_extension("txt");
     let texto = fs::read_to_string(&ruta_txt).unwrap_or_default();
     let _ = fs::remove_file(&ruta_txt);
-    Ok(texto.trim().to_string())
+
+    let texto = texto.trim().to_string();
+    if es_solo_ruido(&texto) {
+        eprintln!("[voz] whisper solo devolvió ruido: {texto:?}");
+        return Err("no se entendió nada de lo grabado".to_string());
+    }
+    Ok(texto)
 }
