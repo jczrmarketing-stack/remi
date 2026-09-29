@@ -34,10 +34,16 @@ app.add_middleware(
 
 MAX_PALABRAS_VOZ = 20
 
+# paso_minimo no se decide al crear la tarea (ahí no puede haber fricción):
+# nace con esto, universal, nunca vacío, con algo real a lo que la ley 3
+# pueda encoger desde el día uno. El verdadero se fija después —
+# POST /tarea/{id}/paso-minimo, o más adelante el nudge "encoger".
+PASO_MINIMO_INICIAL = "Cinco minutos en esto y paramos."
 
-def frase_remi(paso_minimo: str) -> str:
+
+def frase_remi(titulo: str) -> str:
     """Voz de Remi: display-it, ≤20 palabras, sin exclamaciones, un paso pequeño (Ley 3, 4)."""
-    frase = f"Hoy solo esto: {paso_minimo}."
+    frase = f"Hoy solo esto: {titulo}."
     palabras = frase.split()
     if len(palabras) > MAX_PALABRAS_VOZ:
         frase = " ".join(palabras[: MAX_PALABRAS_VOZ - 1]) + "…"
@@ -69,6 +75,10 @@ class Historial(BaseModel):
     total_min: int
 
 
+class PasoMinimoNuevo(BaseModel):
+    paso_minimo: str
+
+
 @app.post("/mensaje", response_model=RespuestaMensaje)
 def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     tarea = Tarea(
@@ -76,7 +86,7 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         titulo=mensaje.texto,
         proyecto_id=None,
         estado="hoy",
-        paso_minimo=mensaje.texto,
+        paso_minimo=PASO_MINIMO_INICIAL,
         estimado_min=None,
         real_min=None,
         compartible=False,
@@ -104,7 +114,7 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     finally:
         conexion.close()
 
-    return RespuestaMensaje(tarea=tarea, sesion=sesion, voz=frase_remi(tarea.paso_minimo))
+    return RespuestaMensaje(tarea=tarea, sesion=sesion, voz=frase_remi(tarea.titulo))
 
 
 @app.post("/sesion/{sesion_id}/cerrar", response_model=Sesion)
@@ -130,6 +140,18 @@ def actualizar_estado(tarea_id: UUID, cuerpo: EstadoNuevo) -> Tarea:
             abierta = db.sesion_abierta_de_tarea(conexion, tarea_id)
             if abierta is not None:
                 db.cerrar_sesion(conexion, abierta)
+        return tarea
+    finally:
+        conexion.close()
+
+
+@app.post("/tarea/{tarea_id}/paso-minimo", response_model=Tarea)
+def actualizar_paso_minimo(tarea_id: UUID, cuerpo: PasoMinimoNuevo) -> Tarea:
+    conexion = db.conectar()
+    try:
+        tarea = db.actualizar_paso_minimo(conexion, tarea_id, cuerpo.paso_minimo)
+        if tarea is None:
+            raise HTTPException(status_code=404, detail="no existe esa tarea")
         return tarea
     finally:
         conexion.close()

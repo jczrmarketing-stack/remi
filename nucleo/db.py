@@ -125,6 +125,18 @@ def _fila_a_tarea(fila: sqlite3.Row) -> Tarea:
     )
 
 
+def actualizar_paso_minimo(
+    conexion: sqlite3.Connection, tarea_id: UUID, paso_minimo: str
+) -> Tarea | None:
+    """None si no existe esa tarea."""
+    conexion.execute(
+        "UPDATE tareas SET paso_minimo = ? WHERE id = ?", (paso_minimo, str(tarea_id))
+    )
+    conexion.commit()
+    fila = conexion.execute("SELECT * FROM tareas WHERE id = ?", (str(tarea_id),)).fetchone()
+    return _fila_a_tarea(fila) if fila else None
+
+
 def actualizar_estado_tarea(
     conexion: sqlite3.Connection, tarea_id: UUID, estado: str
 ) -> Tarea | None:
