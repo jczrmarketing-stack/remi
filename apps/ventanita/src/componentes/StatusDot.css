@@ -4,10 +4,13 @@
    (#6f6660) da 2.6:1: callado pero presente. Hallazgo para el Design
    System real (ver docs/README.md), no solo un cambio de acá. */
 .status-dot {
+  position: relative;
   width: 10px;
   height: 10px;
   border-radius: var(--radius-pill);
   background: var(--baja);
+  /* Sólido siempre: el pulso lo hace el halo (::after), nunca el núcleo. */
+  opacity: 1;
   transition:
     background var(--dur-estado) var(--curva),
     box-shadow var(--dur-estado) var(--curva),
@@ -17,8 +20,6 @@
 
 .status-dot[data-estado="escuchando"] {
   background: var(--luz);
-  box-shadow: var(--glow-luz);
-  animation: pulso-led var(--dur-pulso) var(--curva) infinite alternate;
 }
 
 /* Con el micrófono abierto el punto crece: la señal de "te escucho". */
@@ -37,11 +38,36 @@
   box-shadow: var(--glow-brasa);
 }
 
-@keyframes pulso-led {
+/* El pulso respira: un halo (glow-luz, sin tocar) que crece y decrece
+   sobre un ::after, dejando el núcleo del punto sólido siempre — antes
+   se animaba opacity del punto entero, y el glow se apagaba con él,
+   así que parecía que el punto desaparecía. ease-in-out porque la
+   curva del sistema es de desaceleración y en un ciclo alternate se
+   siente brusca; respirar pide una curva simétrica. */
+.status-dot[data-estado="escuchando"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--glow-luz);
+  animation: pulso-halo var(--dur-pulso) ease-in-out infinite alternate;
+}
+
+@keyframes pulso-halo {
   from {
-    opacity: 1;
+    opacity: 0.4;
+    transform: scale(0.85);
   }
   to {
-    opacity: 0.45;
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot[data-estado="escuchando"]::after {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }

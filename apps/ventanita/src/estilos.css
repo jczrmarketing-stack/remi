@@ -59,8 +59,5 @@ body {
   margin: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .status-dot {
-    animation: none !important;
-  }
-}
+/* El reduced-motion del pulso vive en StatusDot.css, junto a la
+   animación real (::after) — acá no queda nada que apagar. */
