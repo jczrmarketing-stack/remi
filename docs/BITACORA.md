@@ -20,6 +20,42 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2g app instalada · construido · b464770
+
+- **Qué cambió:** Remi es una app de verdad. Ícono propio (la brasa) en
+  `apps/ventanita/src-tauri/icons/` desde `design/icono-remi-1024.png`; `productName` pasa a
+  «Remi» en `tauri.conf.json`; una sola instancia con `tauri-plugin-single-instance` en
+  `src-tauri/src/lib.rs`; build release del `.app` y copia a `/Applications`; entitlements de
+  micrófono y firma ad-hoc del bundle; y `scripts/instalar.sh`, que deja el núcleo como
+  LaunchAgent con `RunAtLoad` y `KeepAlive`.
+- **Decisiones que tomé sin preguntar:**
+  1. `tauri icon` genera también juegos para Android e iOS. Remi no tiene esos destinos: los
+     borré y los puse en `.gitignore` en vez de commitear 35 archivos de adorno.
+  2. El build salía «linker-signed» y `codesign -dv` decía `Info.plist=not bound`, que es
+     justo lo que lee TCC. En vez de firmar a mano cada vez, puse `entitlements` y
+     `signingIdentity: "-"` en `tauri.conf.json`, para que todo build futuro salga firmado.
+  3. El precalentado de la voz vivía en `__main__` de `servidor.py`, y launchd levanta
+     `uvicorn servidor:app`: nunca corría. Pasó al ciclo de vida de la app.
+  4. `launchctl bootout` vuelve antes de que el servicio se vaya; recargar enseguida lo
+     dejaba abajo en silencio. El instalador ahora espera a que desaparezca.
+- **Dudas abiertas:**
+  1. **El micrófono no está probado.** El permiso lo pide macOS recién cuando la app intenta
+     grabar, y eso pasa con dos clicks en la ventanita. No toco el mouse ni el teclado de
+     Juan Camilo, así que ese paso es suyo.
+  2. El encargo me llegó **cortado** a mitad del punto 6 («…hay que resolverlo antes de»).
+     Lo leí como «antes de cerrar la fase» y lo verifiqué igual. Si había puntos 7 en
+     adelante, no me llegaron.
+  3. Sigue sin resolverse qué fase va después (2f no existe en el repo; ver la entrada de
+     2e.0).
+- **Cómo probarlo a mano:**
+  1. Cerrá la terminal. Abrí Remi desde Launchpad o Spotlight: el ícono es la brasa.
+  2. Doble click en la ventanita: macOS tiene que preguntar por el micrófono. Aceptá, hablá
+     y confirmá que transcribe.
+  3. Abrila otra vez desde Launchpad estando abierta: no aparece una segunda, se enfoca la
+     que hay.
+  4. Prendé «pensar con Claude» y mandá «¿qué te conté de Shopify?».
+  5. `tail -f ~/Library/Logs/Remi/nucleo.log` mientras hacés todo eso.
+
 ## 2026-09-29 · 2e.0 memoria · construido · 30229d7
 
 - **Qué cambió:** el estante. `Memoria` entra por `contratos/contratos.json` y de ahí se
