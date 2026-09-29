@@ -20,6 +20,31 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.2 doble click para parar · construido · d64e97f
+
+- **Qué cambió:** una sola cosa, del log de las 16:43. El doble click para empezar **ya
+  funcionaba** (`16:43:16.435 click n=2 … accion=grabarVoz`, ventana expandida). Lo que dejó
+  a Juan Camilo trabado 50 s fue un 3.er click 411 ms después —diálogo sin querer— y que en
+  diálogo ningún click paraba (decisión mía de 2i). Ahora, pasada la gracia, un click para
+  la grabación en dictado y en diálogo (`apps/ventanita/src/gestos.ts`); y el 2.º click de
+  ese doble click, que caía con Remi transcribiendo y cancelaba, se absorbe. 29 pruebas, con
+  la secuencia de las 16:43 tal cual. Instalada.
+- **Decisiones que tomé sin preguntar:**
+  1. **Revierto mi propia decisión de 2i** («en diálogo un click nunca para»). La tomé para
+     que el 4.º click de las 15:31 no cortara; se logra igual con la gracia en 1000 ms medida
+     desde el último gesto sobre la grabación (arranque, re-armado o pase a diálogo).
+  2. En diálogo, parar con un click manda lo dicho, igual que el silencio. Terminar el
+     diálogo sigue siendo Escape o la palanca.
+- **Dudas abiertas:**
+  1. **El silencio no cortó en 50 s de diálogo.** El corte se activó
+     (`16:43:16.847 corte por silencio activado`) y nunca disparó. Es el hallazgo 3 de Grok
+     (el piso del RODE mientras callás no se anota): sin ese dato no se puede afirmar si el
+     umbral 0.02 queda por debajo del ruido de fondo. No se toca en este paso.
+  2. Un 3.er click a 411 ms del 2.º entra en diálogo. Si a Juan Camilo le pasa seguido sin
+     querer, la ventana del triple click es lo que hay que mirar, no el doble.
+- **Cómo probarlo a mano:** doble click, hablar, doble click. Listo cuando el log muestre
+  `pararGrabacion` seguido de `2.º click del que paró` y después `transcrito`.
+
 ## 2026-09-29 · 2i.1 el doble click era imposible · construido · 1ff883b
 
 - **Qué cambió:** el diagnóstico de Claude sobre el log de las 16:18 era exacto: 13 clicks
