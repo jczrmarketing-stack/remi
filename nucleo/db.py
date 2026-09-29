@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
@@ -142,3 +143,34 @@ def listar_sesiones_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> list[
         "SELECT * FROM sesiones WHERE tarea_id = ? ORDER BY inicio", (str(tarea_id),)
     ).fetchall()
     return [_fila_a_sesion(fila) for fila in filas]
+
+
+def sesion_abierta_de_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> UUID | None:
+    fila = conexion.execute(
+        "SELECT id FROM sesiones WHERE tarea_id = ? AND fin IS NULL ORDER BY inicio DESC LIMIT 1",
+        (str(tarea_id),),
+    ).fetchone()
+    return UUID(fila["id"]) if fila else None
+
+
+def cerrar_sesion(conexion: sqlite3.Connection, sesion_id: UUID) -> Sesion | None:
+    """Escribe `fin` y calcula `real_min` desde `inicio` (ley 1). None si la
+    sesión no existe o ya estaba cerrada — cerrar dos veces no la altera."""
+    fila = conexion.execute(
+        "SELECT * FROM sesiones WHERE id = ?", (str(sesion_id),)
+    ).fetchone()
+    if fila is None or fila["fin"] is not None:
+        return None
+
+    inicio = datetime.fromisoformat(fila["inicio"])
+    fin = datetime.now(timezone.utc)
+    real_min = max(0, round((fin - inicio).total_seconds() / 60))
+
+    conexion.execute(
+        "UPDATE sesiones SET fin = ?, real_min = ? WHERE id = ?",
+        (fin.isoformat(), real_min, str(sesion_id)),
+    )
+    conexion.commit()
+    return _fila_a_sesion(
+        conexion.execute("SELECT * FROM sesiones WHERE id = ?", (str(sesion_id),)).fetchone()
+    )

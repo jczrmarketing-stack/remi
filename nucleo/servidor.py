@@ -6,9 +6,9 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -82,11 +82,30 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     conexion = db.conectar()
     try:
         db.crear_tarea(conexion, tarea)
+        # Invariante defensiva: nunca dos sesiones abiertas en paralelo para
+        # la misma tarea. Hoy /mensaje siempre crea una tarea nueva (id
+        # recién generado), así que esto es un no-op — pero si /mensaje
+        # llega a referenciar una tarea existente, ya queda a salvo.
+        abierta = db.sesion_abierta_de_tarea(conexion, tarea.id)
+        if abierta is not None:
+            db.cerrar_sesion(conexion, abierta)
         db.crear_sesion(conexion, sesion)
     finally:
         conexion.close()
 
     return RespuestaMensaje(tarea=tarea, sesion=sesion, voz=frase_remi(tarea.paso_minimo))
+
+
+@app.post("/sesion/{sesion_id}/cerrar", response_model=Sesion)
+def cerrar_sesion(sesion_id: UUID) -> Sesion:
+    conexion = db.conectar()
+    try:
+        sesion = db.cerrar_sesion(conexion, sesion_id)
+        if sesion is None:
+            raise HTTPException(status_code=404, detail="no hay sesión abierta con ese id")
+        return sesion
+    finally:
+        conexion.close()
 
 
 @app.get("/hoy", response_model=list[TareaConHistorial])
