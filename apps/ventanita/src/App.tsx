@@ -265,38 +265,54 @@ export default function App() {
   // dependía de una ventana de tiempo y de dónde caía cada click, y
   // encontramos dos bugs distintos ahí. Un modificador se lee en el
   // mismo evento, sin ambigüedad posible.
-  // Click: escribís · doble click: te escucha una vez (como Handy) ·
-  // triple click: dialogan. Sin temporizadores: el primer click abre
-  // YA en modo texto; si el navegador reporta un segundo click
-  // (evento.detail === 2) se cambia a voz, y un tercero a diálogo. La
-  // acción más común nunca espera a las menos comunes.
+  // Click: escribís · doble click: te escucha (micrófono) · triple
+  // click: dialogan (voz a voz). Contamos nosotros, por tiempo: el
+  // evento.detail del navegador se reinicia si cambia lo que hay bajo el
+  // cursor, y justo después del 1er click la ventana crece y aparece el
+  // cuadro — por eso el doble era intermitente y el triple casi nunca.
+  // El 1er click abre texto AL INSTANTE (la acción más común no espera);
+  // el 2do arma un temporizador corto por si viene el 3ro, y recién ahí
+  // arranca voz o diálogo. Leemos el estado por ref, no por closure.
+  const rachaRef = useRef({ n: 0, t: 0, timer: 0 as number });
+
   const alClick = useCallback(
     (evento: React.MouseEvent<HTMLDivElement>) => {
-      const clics = evento.detail;
+      const ahora = performance.now();
+      const racha = rachaRef.current;
+      const { estado: estadoActual, grabando: grabandoActual } = accionesRef.current;
 
-      // 2do/3er click sobre un cuadro recién abierto y todavía vacío:
-      // escalar a voz/diálogo aunque el click caiga dentro del terminal.
-      if (
-        clics >= 2 &&
-        estado === "escuchando" &&
-        !grabando &&
-        texto === ""
-      ) {
-        void empezarAEscuchar(clics >= 3 ? "dialogo" : "voz");
+      // Racha de clicks: cuenta si vienen seguidos (< 400 ms) y la ventana
+      // está en reposo o recién abierta en texto sin nada escrito.
+      const encadenable =
+        estadoActual === "reposo" ||
+        (estadoActual === "escuchando" && !grabandoActual && texto === "");
+      if (encadenable && ahora - racha.t < 400) {
+        racha.n += 1;
+      } else {
+        racha.n = 1;
+      }
+      racha.t = ahora;
+
+      if (racha.n >= 2 && encadenable) {
+        // 2do o 3er click: decidir voz vs diálogo cuando pare la racha.
+        window.clearTimeout(racha.timer);
+        racha.timer = window.setTimeout(() => {
+          const modoNuevo: Modo = rachaRef.current.n >= 3 ? "dialogo" : "voz";
+          rachaRef.current.n = 0;
+          void empezarAEscuchar(modoNuevo);
+        }, 380);
         return;
       }
 
       if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
 
-      if (estado === "reposo") {
+      if (estadoActual === "reposo") {
         empezarATipear();
         return;
       }
 
-      if (estado === "escuchando" && grabando) {
-        // En modo voz, un click corta y transcribe. Un 2do click seguido
-        // (detail 2) mientras graba no debe re-disparar nada.
-        if (clics === 1) void detenerYTranscribir();
+      if (estadoActual === "escuchando" && grabandoActual) {
+        void detenerYTranscribir();
         return;
       }
 
@@ -304,7 +320,7 @@ export default function App() {
       // a reposo. Ningún estado se queda sin salida.
       volverAReposo();
     },
-    [estado, grabando, texto, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
+    [texto, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
   );
 
   // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
