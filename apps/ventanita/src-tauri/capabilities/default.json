@@ -12,6 +12,9 @@
     "core:window:allow-start-dragging",
     "opener:default",
     "global-shortcut:default",
-    "log:default"
+    "log:default",
+    "core:window:allow-close",
+    "core:window:allow-hide",
+    "core:window:allow-show"
   ]
-}
+}\n

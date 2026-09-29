@@ -1,0 +1,52 @@
+/* La zona sensible es la esquina (la misma en reposo y expandida). Los
+   puntos aparecen al entrar el mouse ahí, en 150 ms, y se van al salir.
+   Medidas de macOS: 12 px, separados 8. Colores del sistema de diseño:
+   `alerta` para cerrar y `dinero` para ocultar. */
+.semaforo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: var(--space-2);
+  z-index: 2;
+}
+
+.semaforo__punto {
+  appearance: none;
+  border: none;
+  padding: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity var(--dur-estado) var(--curva),
+    transform var(--dur-estado) var(--curva);
+}
+
+.semaforo:hover .semaforo__punto,
+.semaforo__punto:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.semaforo__punto--cerrar {
+  background: var(--alerta);
+}
+
+.semaforo__punto--ocultar {
+  background: var(--dinero);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .semaforo__punto {
+    transition: none;
+    transform: none;
+  }
+}

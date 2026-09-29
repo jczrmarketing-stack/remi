@@ -4,6 +4,7 @@ import { StatusDot } from "./componentes/StatusDot";
 import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
 import { ControlesVoz } from "./componentes/ControlesVoz";
+import { Semaforo } from "./componentes/Semaforo";
 import {
   enviarMensaje,
   obtenerMotores,
@@ -50,7 +51,7 @@ import {
 // Qué es un control (nunca un gesto) y qué es el cuadro (gesto si está
 // vacío y la racha sigue viva). Los botones del cuadro —el toggle de
 // pensar— cuentan como control aunque estén dentro del cuadro.
-const SELECTOR_CONTROLES = ".controles-voz, button, select";
+const SELECTOR_CONTROLES = ".controles-voz, .semaforo, button, select";
 const SELECTOR_CUADRO = ".prompt-terminal";
 
 function clasificarObjetivo(objetivo: EventTarget | null) {
@@ -738,7 +739,7 @@ export default function App() {
   // es un click de verdad y llega a alClick.
   const alPresionar = useCallback((evento: React.MouseEvent<HTMLDivElement>) => {
     if (evento.button !== 0) return;
-    if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz")) return;
+    if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz, .semaforo")) return;
 
     const inicio = { x: evento.clientX, y: evento.clientY };
 
@@ -761,6 +762,7 @@ export default function App() {
 
   return (
     <div className={`ventanita ventanita--${estado}`} onMouseDown={alPresionar}>
+      <Semaforo />
       <StatusDot estado={estado} escuchandoVoz={grabando} />
 
       {/* Ley 1 en reposo. Si hay algo de hoy que ya hiciste antes, el dato
