@@ -29,8 +29,8 @@ function crearVentanita(inicial: Partial<Entrada> = {}) {
     get estado() {
       return estado;
     },
-    click(ahora: number, dentroDeControl = false) {
-      const decision = decidir({ ...estado, dentroDeControl, dentroDelCuadro: false, ahora, racha });
+    click(ahora: number, dentroDeControl = false, dentroDelCuadro = false) {
+      const decision = decidir({ ...estado, dentroDeControl, dentroDelCuadro, ahora, racha });
       racha = decision.racha;
 
       // Lo que haría App.tsx con cada acción.
@@ -213,3 +213,47 @@ describe("escuchas vacías en diálogo", () => {
   });
 });
 
+describe("la secuencia real del log de las 16:18: el cuadro aparece bajo el mouse", () => {
+  it("2.º click a 584 ms, dentro del cuadro vacío → graba", () => {
+    const v = crearVentanita();
+    // 1.er click en reposo: abre texto y la ventana crece a 420×520 con el
+    // cuadro llenándola. (El cambio de tamaño es lo que pone el cuadro bajo
+    // el mouse: acá se modela como estado=escuchando + dentroDelCuadro.)
+    expect(v.click(0).tipo).toBe("abrirTexto");
+    expect(v.estado.estado).toBe("escuchando");
+
+    const segundo = v.click(584, false, true);
+    expect(segundo.tipo).toBe("grabarVoz");
+    expect(v.estado.grabando).toBe(true);
+  });
+
+  it("3.º click también dentro del cuadro → diálogo", () => {
+    const v = crearVentanita();
+    v.click(0);
+    v.click(584, false, true);
+    expect(v.click(584 + 180, false, true).tipo).toBe("pasarADialogo");
+  });
+
+  it("con texto escrito, un click dentro del cuadro es para escribir", () => {
+    const v = crearVentanita({ estado: "escuchando", textoVacio: false });
+    expect(v.click(0, false, true)).toMatchObject({ tipo: "nada", razon: "dentro del cuadro (escribiendo)" });
+    expect(v.click(180, false, true)).toMatchObject({ tipo: "nada" });
+    expect(v.estado.grabando).toBe(false);
+  });
+
+  it("un click suelto dentro del cuadro vacío no graba, pero abre la racha", () => {
+    const v = crearVentanita({ estado: "escuchando" });
+    // Sin racha viva, un click en el cuadro es para escribir…
+    expect(v.click(5000, false, true)).toMatchObject({ tipo: "nada" });
+    // …pero cuenta como 1.º: el siguiente rápido es el 2.º y graba. Es lo
+    // que pasó a las 16:18:44 (dos clicks a 183 ms, los dos en el cuadro).
+    expect(v.click(5183, false, true).tipo).toBe("grabarVoz");
+  });
+
+  it("un click sobre un control nunca cuenta, ni con el cuadro vacío", () => {
+    const v = crearVentanita({ estado: "escuchando" });
+    expect(v.click(0, true).tipo).toBe("nada");
+    expect(v.click(150, true).tipo).toBe("nada");
+    expect(v.estado.grabando).toBe(false);
+  });
+});
