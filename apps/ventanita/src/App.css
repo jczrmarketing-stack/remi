@@ -5,6 +5,11 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
+  /* Al arrastrar desde cualquier parte, sin esto se selecciona y pinta
+     de azul el texto de Remi (y cualquier otra cosa) en el camino. El
+     textarea lo reactiva explícito, ahí sí hace falta seleccionar. */
+  user-select: none;
+  -webkit-user-select: none;
   display: flex;
   flex-direction: column;
   align-items: center;
