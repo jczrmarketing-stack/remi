@@ -27,13 +27,22 @@ BINARIO = "claude"
 # Las claves viven en nucleo/.env (fuera del repo). Se leen a un dict y NUNCA
 # se exportan al entorno: la CLI de Claude no tiene por qué ver la de Venice.
 RUTA_ENV = Path(__file__).resolve().parent / ".env"
-# Motor: "claude" (la membresía Max, por la CLI, con acceso al estante) o
-# "venice" (OpenAI-compatible, pago por token, sin herramientas: el índice
-# viaja en el system prompt pero no puede bajar nada del estante).
+# Motores: "claude" (la membresía Max, por la CLI, con acceso al estante) y
+# los OpenAI-compatibles, que comparten un solo cliente y no tienen
+# herramientas —el índice viaja en el system prompt pero no pueden bajar
+# nada del estante—: "venice" (pago por token) y "ollama" (local, gratis,
+# nada sale del Mac).
 MOTOR_POR_DEFECTO = "claude"
 VENICE_URL = "https://api.venice.ai/api/v1/chat/completions"
 VENICE_MODELO_POR_DEFECTO = "venice-uncensored"
 VENICE_TIMEOUT_SEGUNDOS = 20.0
+OLLAMA_BASE = "http://127.0.0.1:11434"
+OLLAMA_URL = f"{OLLAMA_BASE}/v1/chat/completions"
+# gemma3:4b: buen español, ~3,3 GB, cabe holgado en 16 GB y contesta en
+# un par de segundos en un M4. Se cambia con REMI_OLLAMA_MODELO.
+OLLAMA_MODELO_POR_DEFECTO = "gemma3:4b"
+# Local, pero un modelo frío tarda en cargar a memoria la primera vez.
+OLLAMA_TIMEOUT_SEGUNDOS = 30.0
 SERVIDOR_MEMORIA = Path(__file__).resolve().parent / "memoria_mcp.py"
 # Las únicas dos cosas que la CLI puede hacer además de contestar. El
 # prefijo `mcp__memoria__` lo arma Claude Code con el nombre del servidor.
@@ -147,7 +156,7 @@ def modelo() -> str:
     return _ajuste("REMI_CLAUDE_MODELO", MODELO_POR_DEFECTO)
 
 
-MOTORES = ("claude", "venice")
+MOTORES = ("claude", "venice", "ollama")
 
 
 def motor(pedido: str | None = None) -> str:
@@ -171,12 +180,34 @@ class MotorDisponible:
     detalle: str
 
 
+def _modelos_de_ollama() -> list[str] | None:
+    """Los modelos que Ollama tiene bajados. None si Ollama no está sirviendo."""
+    try:
+        respuesta = httpx.get(f"{OLLAMA_BASE}/api/tags", timeout=1.5)
+        respuesta.raise_for_status()
+        datos = respuesta.json()
+    except (httpx.HTTPError, ValueError):
+        return None
+    modelos = datos.get("models") if isinstance(datos, dict) else None
+    if not isinstance(modelos, list):
+        return []
+    return [m["name"] for m in modelos if isinstance(m, dict) and isinstance(m.get("name"), str)]
+
+
 def motores_disponibles() -> list[MotorDisponible]:
     """Lo que puede elegir el dropdown de la ventanita."""
     import shutil
 
     hay_cli = shutil.which(BINARIO) is not None
     hay_clave = bool(_ajuste("VENICE_API_KEY", ""))
+    modelo_ollama = _ajuste("REMI_OLLAMA_MODELO", OLLAMA_MODELO_POR_DEFECTO)
+    bajados = _modelos_de_ollama()
+    if bajados is None:
+        ollama_ok, ollama_detalle = False, "Ollama no está sirviendo (brew services start ollama)"
+    elif modelo_ollama not in bajados and f"{modelo_ollama}:latest" not in bajados:
+        ollama_ok, ollama_detalle = False, f"falta bajar el modelo (ollama pull {modelo_ollama})"
+    else:
+        ollama_ok, ollama_detalle = True, f"{modelo_ollama}, local, sin acceso al estante"
     return [
         MotorDisponible(
             id="claude",
@@ -193,6 +224,12 @@ def motores_disponibles() -> list[MotorDisponible]:
                 if hay_clave
                 else "sin VENICE_API_KEY en nucleo/.env"
             ),
+        ),
+        MotorDisponible(
+            id="ollama",
+            label="Ollama (local, gratis)",
+            disponible=ollama_ok,
+            detalle=ollama_detalle,
         ),
     ]
 
@@ -300,18 +337,26 @@ def pensar(frase: str, motor_pedido: str | None = None) -> Pensado | None:
     nunca se rompe la respuesta por esto."""
     indice = _indice()
     instrucciones = instrucciones_con_indice(indice)
-    if motor(motor_pedido) == "venice":
+    elegido = motor(motor_pedido)
+    if elegido == "venice":
         return _pensar_con_venice(frase, instrucciones, len(indice))
+    if elegido == "ollama":
+        return _pensar_con_ollama(frase, instrucciones, len(indice))
     return _pensar_con_claude(frase, instrucciones, indice)
 
 
-# — Venice —
+# — Los OpenAI-compatibles: Venice y Ollama comparten cliente y lector —
 
 
-def _llamar_venice(clave: str, nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
+def _llamar_openai_compatible(
+    url: str, clave: str | None, nombre_modelo: str, instrucciones: str, frase: str, timeout: float
+) -> dict[str, Any]:
+    cabeceras = {"Content-Type": "application/json"}
+    if clave:
+        cabeceras["Authorization"] = f"Bearer {clave}"
     respuesta = httpx.post(
-        VENICE_URL,
-        headers={"Authorization": f"Bearer {clave}", "Content-Type": "application/json"},
+        url,
+        headers=cabeceras,
         json={
             "model": nombre_modelo,
             "messages": [
@@ -320,14 +365,24 @@ def _llamar_venice(clave: str, nombre_modelo: str, instrucciones: str, frase: st
             ],
             "max_tokens": 200,
         },
-        timeout=VENICE_TIMEOUT_SEGUNDOS,
+        timeout=timeout,
     )
     respuesta.raise_for_status()
     datos: dict[str, Any] = respuesta.json()
     return datos
 
 
-def _leer_respuesta_venice(datos: dict[str, Any], nombre_modelo: str, entradas: int) -> Pensado | None:
+def _llamar_venice(clave: str, nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
+    return _llamar_openai_compatible(VENICE_URL, clave, nombre_modelo, instrucciones, frase, VENICE_TIMEOUT_SEGUNDOS)
+
+
+def _llamar_ollama(nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
+    return _llamar_openai_compatible(OLLAMA_URL, None, nombre_modelo, instrucciones, frase, OLLAMA_TIMEOUT_SEGUNDOS)
+
+
+def _leer_respuesta_venice(
+    datos: dict[str, Any], nombre_modelo: str, entradas: int, proveedor: str = "venice"
+) -> Pensado | None:
     """Del JSON OpenAI-compatible al Pensado. None si no hay texto."""
     try:
         contenido = datos["choices"][0]["message"]["content"]
@@ -343,7 +398,7 @@ def _leer_respuesta_venice(datos: dict[str, Any], nombre_modelo: str, entradas: 
         paso_minimo=contenido.strip(),
         tokens_entrada=int(entrada) if isinstance(entrada, int) else 0,
         tokens_salida=int(salida) if isinstance(salida, int) else 0,
-        modelo=f"venice/{modelo_real}",
+        modelo=f"{proveedor}/{modelo_real}",
         entradas_en_indice=entradas,
         leyo_memoria=False,
     )
@@ -371,6 +426,32 @@ def _pensar_con_venice(frase: str, instrucciones: str, entradas: int) -> Pensado
     print(
         f"[venice] modelo={pensado.modelo} tokens entrada={pensado.tokens_entrada} "
         f"salida={pensado.tokens_salida} memoria={entradas} leyó=no (sin herramientas)",
+        file=sys.stderr,
+    )
+    return pensado
+
+
+# — Ollama (local) —
+
+
+def _pensar_con_ollama(frase: str, instrucciones: str, entradas: int) -> Pensado | None:
+    nombre_modelo = _ajuste("REMI_OLLAMA_MODELO", OLLAMA_MODELO_POR_DEFECTO)
+    try:
+        datos = _llamar_ollama(nombre_modelo, instrucciones, frase)
+    except httpx.HTTPStatusError as error:
+        print(f"[ollama] respondió {error.response.status_code} (¿falta `ollama pull {nombre_modelo}`?): sigo sin IA", file=sys.stderr)
+        return None
+    except httpx.HTTPError as error:
+        print(f"[ollama] no está sirviendo ({type(error).__name__}): sigo sin IA", file=sys.stderr)
+        return None
+
+    pensado = _leer_respuesta_venice(datos, nombre_modelo, entradas, proveedor="ollama")
+    if pensado is None:
+        print("[ollama] respuesta vacía: sigo sin IA", file=sys.stderr)
+        return None
+    print(
+        f"[ollama] modelo={pensado.modelo} tokens entrada={pensado.tokens_entrada} "
+        f"salida={pensado.tokens_salida} memoria={entradas} leyó=no (sin herramientas) · local",
         file=sys.stderr,
     )
     return pensado

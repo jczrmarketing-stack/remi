@@ -318,6 +318,76 @@ def test_los_motores_disponibles_dicen_que_les_falta(monkeypatch, tmp_path):
     monkeypatch.delenv("VENICE_API_KEY", raising=False)
     monkeypatch.setattr(pensar.shutil if hasattr(pensar, "shutil") else __import__("shutil"), "which", lambda _b: None)
     motores = {m.id: m for m in pensar.motores_disponibles()}
-    assert set(motores) == {"claude", "venice"}
+    assert set(motores) == {"claude", "venice", "ollama"}
     assert motores["claude"].disponible is False and "claude" in motores["claude"].detalle
     assert motores["venice"].disponible is False and "VENICE_API_KEY" in motores["venice"].detalle
+
+
+# — Ollama, local —
+
+
+def test_ollama_lee_el_texto_y_marca_local(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setenv("REMI_OLLAMA_MODELO", "gemma3:4b")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    visto = {}
+
+    def falsa(nombre_modelo, instrucciones, frase):
+        visto.update(modelo=nombre_modelo, frase=frase)
+        return {"model": "gemma3:4b", "choices": [{"message": {"content": "Abre el correo."}}],
+                "usage": {"prompt_tokens": 400, "completion_tokens": 5}}
+
+    monkeypatch.setattr(pensar, "_llamar_ollama", falsa)
+    pensado = pensar.pensar("tengo el correo lleno", "ollama")
+    assert pensado is not None
+    assert pensado.paso_minimo == "Abre el correo."
+    assert pensado.modelo == "ollama/gemma3:4b"
+    assert visto["modelo"] == "gemma3:4b"
+
+
+def test_ollama_apagado_sigue_sin_ia(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+
+    def caido(*_a):
+        raise pensar.httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(pensar, "_llamar_ollama", caido)
+    assert pensar.pensar("algo", "ollama") is None
+
+
+def test_ollama_sin_pedir_clave_alguna(monkeypatch, tmp_path):
+    """Local: nunca manda Authorization."""
+    pensar = _importar_pensar()
+    visto = {}
+
+    def falso_post(url, headers=None, json=None, timeout=None):
+        visto.update(url=url, headers=headers)
+
+        class R:
+            def raise_for_status(self): pass
+            def json(self): return {"choices": [{"message": {"content": "ok"}}]}
+        return R()
+
+    monkeypatch.setattr(pensar.httpx, "post", falso_post)
+    pensar._llamar_ollama("gemma3:4b", "instr", "frase")
+    assert visto["url"].startswith("http://127.0.0.1:11434")
+    assert "Authorization" not in visto["headers"]
+
+
+def test_motores_disponibles_incluye_ollama_y_dice_que_le_falta(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_modelos_de_ollama", lambda: None)
+    m = {x.id: x for x in pensar.motores_disponibles()}
+    assert m["ollama"].disponible is False and "no está sirviendo" in m["ollama"].detalle
+
+    monkeypatch.setattr(pensar, "_modelos_de_ollama", lambda: ["llama3.2:latest"])
+    m = {x.id: x for x in pensar.motores_disponibles()}
+    assert m["ollama"].disponible is False and "ollama pull" in m["ollama"].detalle
+
+    monkeypatch.setattr(pensar, "_modelos_de_ollama", lambda: ["gemma3:4b"])
+    m = {x.id: x for x in pensar.motores_disponibles()}
+    assert m["ollama"].disponible is True and "local" in m["ollama"].detalle

@@ -94,7 +94,7 @@ class MensajeEntrante(BaseModel):
     think: bool = False
     # Con qué motor pensar, elegido a conciencia en la ventanita. None = el
     # del .env.
-    motor: Literal["claude", "venice"] | None = None
+    motor: Literal["claude", "venice", "ollama"] | None = None
     # Cómo entró: por voz o escrito. Lo guarda la Idea (contrato).
     origen: Literal["voz", "texto"] = "texto"
 
