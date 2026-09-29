@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
 import { StatusDot } from "./componentes/StatusDot";
 import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
@@ -63,6 +63,13 @@ export default function App() {
 
   const expandido = estado !== "reposo";
   const expandidoAnteriorRef = useRef(expandido);
+
+  // macOS restaura el tamaño de la última sesión (la app siempre arranca
+  // en reposo, la ventana no debería): forzar el tamaño real al montar.
+  useEffect(() => {
+    const { width, height } = TAMANO_REPOSO;
+    void getCurrentWindow().setSize(new LogicalSize(width, height));
+  }, []);
 
   useEffect(() => {
     if (expandidoAnteriorRef.current === expandido) return;
