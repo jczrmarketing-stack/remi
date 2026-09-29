@@ -9,8 +9,11 @@
 // siguiente cayera sobre una grabación recién nacida y la matara.
 import type { Estado, Modo } from "./tipos";
 
-// Dos clicks cuentan como racha si entran en esta ventana.
-export const MS_RACHA = 550;
+// Dos clicks cuentan como racha si entran en esta ventana. 700 y no 550:
+// el 1.er click hace crecer la ventana (250 ms de animación) y el cuadro
+// aparece bajo el mouse; el 2.º de la prueba real de las 16:18 llegó a
+// 584 ms. Un doble click humano sobre algo que se mueve no entra en 550.
+export const MS_RACHA = 700;
 // Desde que arranca (o se re-arma) una grabación, ningún click la para. Es
 // el resto de la racha del usuario: los dedos siguen cayendo después del
 // gesto, y no tienen por qué cortar lo que el gesto acaba de abrir.
@@ -31,8 +34,18 @@ export interface Entrada {
   grabando: boolean;
   /** Si el cuadro de texto está vacío (un 2.º click puede reemplazarlo). */
   textoVacio: boolean;
-  /** El click cayó dentro del cuadro o de los controles: no es un gesto. */
+  /**
+   * El click cayó sobre un control (botones, selector, toggle): nunca es un
+   * gesto y no toca la racha.
+   */
   dentroDeControl: boolean;
+  /**
+   * El click cayó dentro del cuadro de texto. Con el cuadro vacío y la racha
+   * viva, ES un gesto: el 1.er click hace crecer la ventana y el cuadro
+   * aparece justo debajo del mouse, así que el 2.º y el 3.º caen adentro sí
+   * o sí. Solo con texto escrito (o fuera de la racha) es para escribir.
+   */
+  dentroDelCuadro: boolean;
   /** Cuándo arrancó —o se re-armó— la grabación viva. null si no hay. */
   grabacionDesde: number | null;
   ahora: number;
@@ -63,15 +76,34 @@ function siguienteRacha(racha: Racha, ahora: number): Racha {
 }
 
 export function decidir(entrada: Entrada): Decision {
-  const { estado, modo, grabando, textoVacio, dentroDeControl, grabacionDesde, ahora } = entrada;
+  const {
+    estado,
+    modo,
+    grabando,
+    textoVacio,
+    dentroDeControl,
+    dentroDelCuadro,
+    grabacionDesde,
+    ahora,
+  } = entrada;
 
-  // Un click dentro del cuadro o de los controles no es un gesto y tampoco
-  // corta la racha: el usuario puede estar tocando el toggle entre clicks.
+  // Un click sobre un control no es un gesto y tampoco corta la racha: el
+  // usuario puede estar tocando el toggle entre clicks.
   if (dentroDeControl) {
     return { accion: { tipo: "nada", razon: "dentro de un control" }, racha: entrada.racha };
   }
 
+  // La racha se cuenta ANTES de mirar si cayó en el cuadro. Antes se
+  // descartaba primero, y como el cuadro aparece bajo el mouse tras el 1.er
+  // click, el 2.º siempre caía adentro: n=1 para siempre, el doble click era
+  // imposible por diseño (13 clicks seguidos así en el log de las 16:18).
   const racha = siguienteRacha(entrada.racha, ahora);
+
+  if (dentroDelCuadro && (!textoVacio || racha.n < 2)) {
+    const razon = textoVacio ? "dentro del cuadro (1.º de una racha)" : "dentro del cuadro (escribiendo)";
+    return { accion: { tipo: "nada", razon }, racha };
+  }
+
   const enGracia = grabacionDesde !== null && ahora - grabacionDesde < MS_GRACIA;
 
   // — La racha que arma el gesto —

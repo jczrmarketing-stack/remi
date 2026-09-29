@@ -7,6 +7,7 @@ import {
   MAX_VACIAS_SEGUIDAS,
   MS_ANTES_DE_REARMAR,
   MS_GRACIA,
+  MS_RACHA,
   RACHA_VACIA,
   type Entrada,
   type Racha,
@@ -29,7 +30,7 @@ function crearVentanita(inicial: Partial<Entrada> = {}) {
       return estado;
     },
     click(ahora: number, dentroDeControl = false) {
-      const decision = decidir({ ...estado, dentroDeControl, ahora, racha });
+      const decision = decidir({ ...estado, dentroDeControl, dentroDelCuadro: false, ahora, racha });
       racha = decision.racha;
 
       // Lo que haría App.tsx con cada acción.
@@ -163,8 +164,8 @@ describe("un click suelto", () => {
   it("dos clicks lejanos son dos clicks sueltos, no un doble", () => {
     const v = crearVentanita();
     expect(v.click(0).tipo).toBe("abrirTexto");
-    // 600 ms > MS_RACHA: la racha se reinicia, no hay doble click.
-    expect(v.click(600).tipo).not.toBe("grabarVoz");
+    // Más que MS_RACHA: la racha se reinicia, no hay doble click.
+    expect(v.click(MS_RACHA + 100).tipo).not.toBe("grabarVoz");
   });
 });
 
@@ -211,3 +212,4 @@ describe("escuchas vacías en diálogo", () => {
     expect(decidirTrasVacia(MAX_VACIAS_SEGUIDAS + 1)).toEqual({ tipo: "reposo" });
   });
 });
+
