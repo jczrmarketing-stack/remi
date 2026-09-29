@@ -709,6 +709,13 @@ export default function App() {
         <p className="num hace">{formatearHace(ultimaInteraccionMs, ahoraMs)}</p>
       )}
 
+      {/* El 3.er click no cambia nada visible: dictado y diálogo se ven
+          igual, y a las 16:59 eso hizo creer que el triple click no había
+          entrado. Una palabra chica bajo el punto, mientras escucha. */}
+      {estado === "escuchando" && grabando && modo === "dialogo" && (
+        <p className="num modo-escucha">diálogo</p>
+      )}
+
       {/* Estado visible mientras whisper trabaja: el punto ya está en
           `pensar`; esta línea lo nombra para que no sea un hueco mudo. */}
       {estado === "pensando" && transcribiendo && (

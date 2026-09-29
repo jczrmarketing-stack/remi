@@ -55,6 +55,13 @@
   color: var(--ink);
 }
 
+/* «diálogo» bajo el punto mientras escucha en ese modo: en `luz`, el color
+   de escuchar, para que se lea como parte del mismo estado y no como otra
+   locura (ley 4). */
+.modo-escucha {
+  color: var(--luz);
+}
+
 /* «transcribiendo»: la lavanda `pensar` es Remi trabajando. */
 .trabajando {
   color: var(--pensar);

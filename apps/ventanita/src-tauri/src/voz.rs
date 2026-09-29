@@ -172,6 +172,14 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
         let mut callado = Duration::ZERO;
         let mut transcurrido = Duration::ZERO;
 
+        // Hallazgo 3 de Grok: el pico solo quedaba al cruzar el umbral y al
+        // cortar, nunca el piso mientras callás. Sin ese dato no se puede
+        // saber si el ruido del RODE queda por encima de UMBRAL_VOZ, que es
+        // exactamente lo que explicaría un diálogo que nunca corta. Una
+        // línea por segundo, no cuatro.
+        let mut pasos_desde_el_ultimo_aviso = 0u32;
+        const PASOS_POR_AVISO: u32 = 4; // 4 × 250 ms = 1 s
+
         loop {
             thread::sleep(PASO_VIGILANCIA);
             if cancelado.load(Ordering::Relaxed) {
@@ -186,6 +194,16 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
                 }
                 continue;
             };
+
+            pasos_desde_el_ultimo_aviso += 1;
+            if pasos_desde_el_ultimo_aviso >= PASOS_POR_AVISO {
+                pasos_desde_el_ultimo_aviso = 0;
+                log::info!(
+                    "[voz] nivel {pico:.3} (umbral {UMBRAL_VOZ:.3}) · voz={} · callado={} ms",
+                    if hubo_voz { "sí" } else { "no" },
+                    callado.as_millis()
+                );
+            }
 
             if pico >= UMBRAL_VOZ {
                 if !hubo_voz {
