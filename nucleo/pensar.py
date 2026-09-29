@@ -16,28 +16,43 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import db
 
 BINARIO = "claude"
+SERVIDOR_MEMORIA = Path(__file__).resolve().parent / "memoria_mcp.py"
+# Las únicas dos cosas que la CLI puede hacer además de contestar. El
+# prefijo `mcp__memoria__` lo arma Claude Code con el nombre del servidor.
+HERRAMIENTAS = ("mcp__memoria__leer", "mcp__memoria__guardar")
+# Con una sola vuelta no le alcanza para leer del estante y después
+# responder. Tres son: pide la lectura, la recibe, contesta.
+MAX_VUELTAS = "3"
 # Ordenar un paso mínimo no necesita más. REMI_CLAUDE_MODELO lo cambia
 # (en 2e.1 se comparan); vale cualquier alias que acepte la CLI.
 MODELO_POR_DEFECTO = "haiku"
-# Un paso mínimo son ≤20 palabras. El techo cuenta TODA la salida, y el
-# razonamiento del modelo entra ahí: sin apagarlo (MAX_THINKING_TOKENS=0)
-# 200 tokens no alcanzan ni para frases cortas y la CLI devuelve error.
-MAX_TOKENS_SALIDA = "200"
-# La ventanita corta el fetch a los 8 s; una llamada real tarda ~2 s.
-TIMEOUT_SEGUNDOS = 6.0
+# El techo cuenta TODA la salida, y ahí entra el JSON de las llamadas a las
+# herramientas: con 200, `guardar` una idea de verdad se corta a la mitad y
+# la CLI devuelve "exceeded the 200 output token maximum" sin guardar nada.
+# 1500 alcanza para bajar algo del estante, guardar algo nuevo y contestar;
+# la frase de Remi la sigue recortando el servidor a 20 palabras.
+MAX_TOKENS_SALIDA = "1500"
+# Contestar solo tarda ~2 s; leer del estante ~3,5 s; guardar algo largo
+# llega a 10 s. Ojo: la ventanita corta su propio fetch a los 8 s, así que
+# un guardado largo pedido desde ahí igual se completa en el núcleo aunque
+# la ventanita ya haya contestado sin IA.
+TIMEOUT_SEGUNDOS = 20.0
 
 INSTRUCCIONES = (
-    "Te dan una frase suelta: una tarea, una idea o un pendiente. Respondé con UNA "
-    "sola acción concreta para empezarla, tan chica que se pueda hacer en cinco "
-    "minutos. En español, hablándole de tú, en imperativo, máximo 20 palabras. Sin "
-    "exclamaciones, sin explicar, sin preguntar, sin listas, sin comillas, sin "
-    "saludos. Si la frase es vaga, elegí igual un primer paso razonable: nunca "
-    "pidas más detalles. Respondé solo con esa frase y nada más."
+    "Te dan una frase suelta. Si es una tarea, una idea o un pendiente, respondé "
+    "con UNA sola acción concreta para empezarla, tan chica que se pueda hacer en "
+    "cinco minutos; si la frase es vaga, elegí igual un primer paso razonable y "
+    "nunca pidas más detalles. Si en cambio te preguntan algo que ya sabés, "
+    "contestá la pregunta con lo que sabés. "
+    "Siempre: en español, hablándole de tú, máximo 20 palabras, una sola frase. "
+    "Sin exclamaciones, sin explicar de más, sin listas, sin comillas, sin "
+    "saludos. Respondé solo con esa frase y nada más."
 )
 
 # La mente: el índice entero viaja en el system prompt, siempre. Es texto,
@@ -46,6 +61,10 @@ INSTRUCCIONES = (
 ENCABEZADO_INDICE = (
     "\n\nEsto es lo que ya sabés. Cada línea es algo que te contaron antes: "
     "[id] fecha · tema · título — con qué te quedaste.\n"
+    "El resumen te dice CUÁL es cada cosa, no alcanza para contestar sobre ella. "
+    "Si te preguntan por algo de esta lista, bajalo con la herramienta `leer` "
+    "usando su id, y recién entonces contestá. Y si te cuentan algo que valga la "
+    "pena recordar, guardalo con `guardar` — solo eso, no cada tarea suelta.\n"
 )
 
 
@@ -83,6 +102,9 @@ class Pensado:
     tokens_entrada: int
     tokens_salida: int
     modelo: str
+    # Cuántas cosas tenía presentes y si llegó a bajar alguna del estante.
+    entradas_en_indice: int = 0
+    leyo_memoria: bool = False
 
 
 def modelo() -> str:
@@ -102,7 +124,35 @@ def _entorno() -> dict[str, str]:
     return entorno
 
 
-def _comando(nombre_modelo: str, instrucciones: str) -> list[str]:
+def _config_mcp(carpeta: Path, marca: Path | None = None) -> Path:
+    """El único servidor que la CLI ve, escrito al vuelo en la carpeta
+    temporal de esta llamada. Con --strict-mcp-config, ningún otro MCP del
+    sistema entra: ni los de Claude Code, ni los del repo."""
+    ruta = carpeta / "mcp.json"
+    entorno_servidor = {}
+    # El estante corre en otro proceso: si la base no es la de siempre,
+    # hay que decírselo.
+    if "REMI_DB_PATH" in os.environ:
+        entorno_servidor["REMI_DB_PATH"] = os.environ["REMI_DB_PATH"]
+    if marca is not None:
+        entorno_servidor["REMI_MARCA_LECTURA"] = str(marca)
+    ruta.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "memoria": {
+                        "command": sys.executable,
+                        "args": [str(SERVIDOR_MEMORIA)],
+                        "env": entorno_servidor,
+                    }
+                }
+            }
+        )
+    )
+    return ruta
+
+
+def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path) -> list[str]:
     return [
         BINARIO,
         "-p",
@@ -112,8 +162,9 @@ def _comando(nombre_modelo: str, instrucciones: str) -> list[str]:
         "json",
         "--system-prompt",
         instrucciones,
-        # Remi solo quiere una frase: nada de herramientas, ni MCP, ni
-        # settings del usuario, ni sesión guardada en disco.
+        # El encierro no se afloja: sin herramientas de la casa, sin
+        # settings del usuario, sin sesión en disco. Lo único que se abre
+        # es el estante, y solo esas dos puertas.
         "--tools",
         "",
         "--restricted",
@@ -121,9 +172,15 @@ def _comando(nombre_modelo: str, instrucciones: str) -> list[str]:
         "--setting-sources",
         "",
         "--no-session-persistence",
+        "--mcp-config",
+        str(config_mcp),
+        "--allowedTools",
+        ",".join(HERRAMIENTAS),
         "--max-turns",
-        "1",
+        MAX_VUELTAS,
     ]
+
+
 
 
 def _tokens(uso: Any) -> tuple[int, int]:
@@ -162,8 +219,9 @@ def pensar(frase: str) -> Pensado | None:
         # cwd neutral: dentro del repo la CLI cargaría CLAUDE.md y contexto
         # que acá no pinta nada.
         with tempfile.TemporaryDirectory(prefix="remi-pensar-") as vacio:
+            marca = Path(vacio) / "leyo"
             terminado = subprocess.run(
-                _comando(nombre_modelo, instrucciones),
+                _comando(nombre_modelo, instrucciones, _config_mcp(Path(vacio), marca)),
                 input=frase,
                 capture_output=True,
                 text=True,
@@ -171,6 +229,10 @@ def pensar(frase: str) -> Pensado | None:
                 env=_entorno(),
                 cwd=vacio,
             )
+            # El JSON final de la CLI no dice qué herramientas usó; la marca
+            # la deja el propio estante al ser leído. Hay que mirarla antes
+            # de que la carpeta temporal desaparezca.
+            leyo = marca.exists()
     except FileNotFoundError:
         print(f"[claude] no encontré `{BINARIO}` en el PATH: sigo sin IA", file=sys.stderr)
         return None
@@ -202,7 +264,8 @@ def pensar(frase: str) -> Pensado | None:
     # La cuenta va a consola, no a la pantalla: es dato de operación.
     print(
         f"[claude] modelo={modelo_real} tokens entrada={tokens_entrada} "
-        f"salida={tokens_salida} memoria={len(indice)}",
+        f"salida={tokens_salida} memoria={len(indice)} "
+        f"leyó={'sí' if leyo else 'no'}",
         file=sys.stderr,
     )
 
@@ -222,4 +285,6 @@ def pensar(frase: str) -> Pensado | None:
         tokens_entrada=tokens_entrada,
         tokens_salida=tokens_salida,
         modelo=modelo_real,
+        entradas_en_indice=len(indice),
+        leyo_memoria=leyo,
     )
