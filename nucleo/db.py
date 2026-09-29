@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
-from modelos import Sesion, Tarea
+from modelos import Memoria, Sesion, Tarea
 
 RUTA_DB = Path(os.environ.get("REMI_DB_PATH", str(Path(__file__).resolve().parent / "remi.db")))
 
@@ -52,6 +53,21 @@ CREATE TABLE IF NOT EXISTS nudges (
     salida_amable INTEGER NOT NULL,
     respuesta TEXT
 );
+
+-- El estante: lo que Remi sabe. `cuerpo` es lo largo y solo se lee cuando
+-- hace falta; el índice (titulo/resumen) es lo que vive siempre en la mente.
+CREATE TABLE IF NOT EXISTS memoria (
+    id TEXT PRIMARY KEY,
+    titulo TEXT NOT NULL,
+    resumen TEXT NOT NULL,
+    tema TEXT NOT NULL,
+    fecha TEXT NOT NULL,
+    cuerpo TEXT NOT NULL,
+    fuente TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memoria_fecha ON memoria(fecha);
+CREATE INDEX IF NOT EXISTS idx_memoria_tema ON memoria(tema);
 
 CREATE TABLE IF NOT EXISTS entregas (
     id TEXT PRIMARY KEY,
@@ -239,3 +255,112 @@ def cerrar_sesion(conexion: sqlite3.Connection, sesion_id: UUID) -> Sesion | Non
     return _fila_a_sesion(
         conexion.execute("SELECT * FROM sesiones WHERE id = ?", (str(sesion_id),)).fetchone()
     )
+
+
+# — El estante: la memoria de Remi —
+
+
+@dataclass(frozen=True)
+class EntradaIndice:
+    """Una línea del índice. No es un contrato: es una vista recortada de
+    Memoria, justo lo que entra en la mente. Sin `cuerpo`, a propósito —
+    el cuerpo se lee del estante cuando hace falta, no antes."""
+
+    id: UUID
+    titulo: str
+    resumen: str
+    tema: str
+    fecha: datetime
+
+
+def guardar_memoria(conexion: sqlite3.Connection, memoria: Memoria) -> None:
+    conexion.execute(
+        """
+        INSERT INTO memoria (id, titulo, resumen, tema, fecha, cuerpo, fuente)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            str(memoria.id),
+            memoria.titulo,
+            memoria.resumen,
+            memoria.tema,
+            memoria.fecha.isoformat(),
+            memoria.cuerpo,
+            memoria.fuente,
+        ),
+    )
+    conexion.commit()
+
+
+def indice_memoria(conexion: sqlite3.Connection) -> list[EntradaIndice]:
+    """Lo que Remi tiene presente, lo más reciente primero. La consulta
+    nombra las columnas una por una y `cuerpo` no está: si alguien lo
+    agrega, el índice deja de caber en la mente."""
+    filas = conexion.execute(
+        "SELECT id, titulo, resumen, tema, fecha FROM memoria ORDER BY fecha DESC"
+    ).fetchall()
+    return [
+        EntradaIndice(
+            id=UUID(fila["id"]),
+            titulo=fila["titulo"],
+            resumen=fila["resumen"],
+            tema=fila["tema"],
+            fecha=datetime.fromisoformat(fila["fecha"]),
+        )
+        for fila in filas
+    ]
+
+
+def _fila_a_memoria(fila: sqlite3.Row) -> Memoria:
+    return Memoria(
+        id=UUID(fila["id"]),
+        titulo=fila["titulo"],
+        resumen=fila["resumen"],
+        tema=fila["tema"],
+        fecha=fila["fecha"],
+        cuerpo=fila["cuerpo"],
+        fuente=fila["fuente"],
+    )
+
+
+def leer_memoria(conexion: sqlite3.Connection, memoria_id: UUID) -> Memoria | None:
+    """Bajar una del estante, entera. None si no está."""
+    fila = conexion.execute(
+        "SELECT * FROM memoria WHERE id = ?", (str(memoria_id),)
+    ).fetchone()
+    return _fila_a_memoria(fila) if fila else None
+
+
+def editar_memoria(
+    conexion: sqlite3.Connection,
+    memoria_id: UUID,
+    *,
+    titulo: str | None = None,
+    resumen: str | None = None,
+    tema: str | None = None,
+    cuerpo: str | None = None,
+) -> Memoria | None:
+    """Cambia solo lo que venga. None si no existe esa memoria. `fecha` y
+    `fuente` no se editan: son de dónde y cuándo vino, no opinión."""
+    cambios = {
+        "titulo": titulo,
+        "resumen": resumen,
+        "tema": tema,
+        "cuerpo": cuerpo,
+    }
+    pedidos = {campo: valor for campo, valor in cambios.items() if valor is not None}
+    if pedidos:
+        asignaciones = ", ".join(f"{campo} = ?" for campo in pedidos)
+        conexion.execute(
+            f"UPDATE memoria SET {asignaciones} WHERE id = ?",
+            (*pedidos.values(), str(memoria_id)),
+        )
+        conexion.commit()
+    return leer_memoria(conexion, memoria_id)
+
+
+def borrar_memoria(conexion: sqlite3.Connection, memoria_id: UUID) -> bool:
+    """True si había algo que borrar."""
+    cursor = conexion.execute("DELETE FROM memoria WHERE id = ?", (str(memoria_id),))
+    conexion.commit()
+    return cursor.rowcount > 0

@@ -21,10 +21,13 @@ TIPOS_BASE = {
 }
 
 RANGO = re.compile(r"^(\d+)-(\d+)$")
+# string(80): un texto con largo máximo. El límite es del contrato, no una
+# validación suelta en el servidor — así lo respetan todas las capas.
+LARGO_MAXIMO = re.compile(r"^string\((\d+)\)$")
 
 
-def tipo_python(spec: bool | str) -> tuple[str, str | None, tuple[str, str] | None]:
-    """Devuelve (anotación, valor_por_defecto_literal, restricción_rango)."""
+def tipo_python(spec: bool | str) -> tuple[str, str | None, str | None]:
+    """Devuelve (anotación, valor_por_defecto_literal, argumentos de Field)."""
     if isinstance(spec, bool):
         return "bool", repr(spec), None
 
@@ -36,13 +39,17 @@ def tipo_python(spec: bool | str) -> tuple[str, str | None, tuple[str, str] | No
     if len(alternativas) == 1:
         alt = alternativas[0]
         rango = RANGO.match(alt)
+        largo = LARGO_MAXIMO.match(alt)
         if alt in TIPOS_BASE:
             base = TIPOS_BASE[alt]
         elif alt.startswith("iso"):
             base = "datetime"
         elif rango:
             base = "int"
-            restriccion = (rango.group(1), rango.group(2))
+            restriccion = f"ge={rango.group(1)}, le={rango.group(2)}"
+        elif largo:
+            base = "str"
+            restriccion = f"min_length=1, max_length={largo.group(1)}"
         else:
             base = f'Literal["{alt}"]'
     else:
@@ -60,10 +67,9 @@ def linea_campo(campo: str, spec: bool | str) -> str:
         return f"    {campo}: {tipo} = {default_literal}"
 
     if restriccion is not None:
-        minimo, maximo = restriccion
         opcional = tipo.endswith("| None")
         default = ", default=None" if opcional else ""
-        return f"    {campo}: {tipo} = Field(ge={minimo}, le={maximo}{default})"
+        return f"    {campo}: {tipo} = Field({restriccion}{default})"
 
     return f"    {campo}: {tipo}"
 

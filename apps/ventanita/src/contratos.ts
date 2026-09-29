@@ -42,6 +42,16 @@ export interface Nudge {
   respuesta: "listo" | "ahora_no" | null;
 }
 
+export interface Memoria {
+  id: UUID;
+  titulo: string;
+  resumen: string;
+  tema: string;
+  fecha: ISODateString;
+  cuerpo: string;
+  fuente: "conversacion" | "manual" | "ollama";
+}
+
 export interface Entrega {
   id: UUID;
   cliente: string;

@@ -17,6 +17,9 @@ const TIPOS_BASE = {
 };
 
 const RANGO = /^(\d+)-(\d+)$/;
+// string(80): el largo máximo vive en el contrato y lo valida el núcleo;
+// en TypeScript sigue siendo un string.
+const LARGO_MAXIMO = /^string\((\d+)\)$/;
 
 function tipoTS(spec) {
   if (typeof spec === "boolean") {
@@ -36,6 +39,8 @@ function tipoTS(spec) {
       base = "ISODateString";
     } else if (RANGO.test(alt)) {
       base = "number";
+    } else if (LARGO_MAXIMO.test(alt)) {
+      base = "string";
     } else {
       base = JSON.stringify(alt);
     }

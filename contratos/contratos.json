@@ -35,6 +35,15 @@
     "salida_amable": true,
     "respuesta": "listo|ahora_no|null"
   },
+  "Memoria": {
+    "id": "uuid",
+    "titulo": "string(80)",
+    "resumen": "string(240)",
+    "tema": "string",
+    "fecha": "iso",
+    "cuerpo": "string",
+    "fuente": "conversacion|manual|ollama"
+  },
   "Entrega": {
     "id": "uuid",
     "cliente": "string",

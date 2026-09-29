@@ -58,6 +58,18 @@ class Nudge(BaseModel):
     respuesta: Literal["listo", "ahora_no"] | None
 
 
+class Memoria(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    titulo: str = Field(min_length=1, max_length=80)
+    resumen: str = Field(min_length=1, max_length=240)
+    tema: str
+    fecha: datetime
+    cuerpo: str
+    fuente: Literal["conversacion", "manual", "ollama"]
+
+
 class Entrega(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
