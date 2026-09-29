@@ -20,6 +20,36 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.5 el diálogo corta y contesta · construido · b37f24c
+
+- **Qué cambió:** tres cosas, tres commits, del log de las 17:09. (1) **Umbral adaptativo**:
+  el RODE en silencio da 0.030–0.080 y el umbral era 0.020, así que para el detector nunca
+  te callabas; ahora el piso es el mínimo de los últimos 3 s y hay voz por encima de
+  ×2,5 del piso (`voz.rs`, 8 pruebas). (2) **En diálogo se piensa**: la ventanita manda
+  `think=true` en diálogo, y una idea con think se guarda igual pero contesta lo que pensó
+  el motor (`servidor.py`, `App.tsx`). (3) **Dos motores**: `REMI_PENSADOR=claude|venice`
+  en `nucleo/.env`, con `VENICE_API_KEY` y `REMI_VENICE_MODELO` (`pensar.py`). Verificado en
+  vivo: una idea con think contestó «Guardá ahora mismo las tres recetas que más cocina tu
+  mamá…» por Claude (Max). 134 pruebas, mypy limpio. Instalada.
+- **Decisiones que tomé sin preguntar:**
+  1. El motor por defecto es Claude (la membresía). Venice paga por token y **no tiene
+     ningún modelo a $0**: los más baratos son `zai-org-glm-4.7-flash` (0.06/0.40 por
+     millón) y `qwen3-5-9b` (0.10/0.15). Dejé el que dio Juan Camilo (`venice-uncensored`,
+     0.20/0.90).
+  2. Venice no tiene acceso al estante: el índice viaja en el prompt, pero sin herramientas
+     no puede bajar nada. El log lo dice (`leyó=no (sin herramientas)`).
+  3. En texto y dictado el toggle sigue mandando: solo el diálogo piensa siempre.
+- **Dudas abiertas:**
+  1. **La clave de Venice se pegó en el chat.** Está en `nucleo/.env` (fuera del repo) y en
+     ningún otro lado del disco, pero ya viajó por esta conversación. Conviene rotarla.
+  2. Una prueba mía llamó a Venice con la clave real (1080 tokens) porque `_leer_env` fijaba
+     la ruta al definirse y el monkeypatch no la alcanzaba. Corregido en `b37f24c`.
+  3. Pensar por Claude tardó 8,7 s con 5895 tokens de entrada (índice + herramientas del
+     estante). Dentro del corte de 25 s de la ventanita, pero lento para un diálogo.
+- **Cómo probarlo a mano:** tres clicks, ver «diálogo», una frase, callarse 2 s: tiene que
+  cortar sola, y Remi contesta en voz. Para cambiar de motor: `REMI_PENSADOR=venice` en
+  `nucleo/.env` y `./scripts/instalar.sh`.
+
 ## 2026-09-29 · 2i.4 el diálogo no se veía · construido · 6aff5f8
 
 - **Qué cambió:** nada del gesto. Del log de las 16:59: los tres clicks **entraban en
