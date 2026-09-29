@@ -23,9 +23,15 @@ export interface RespuestaMensaje {
 }
 
 // Si el núcleo no responde, no nos quedamos esperando para siempre en
-// "pensando" — a los 8s el fetch se cancela solo y enviar() lo trata
-// como cualquier otro fallo (ley 3: Remi lo dice sin culpa, no revienta).
-const TIMEOUT_NUCLEO_MS = 8000;
+// "pensando": el fetch se cancela solo y enviar() lo trata como cualquier
+// otro fallo (ley 3: Remi lo dice sin culpa, no revienta).
+//
+// Tiene que ser MAYOR que nucleo/pensar.py:TIMEOUT_SEGUNDOS (20 s), no
+// menor. Estaba en 8 s: Remi decía «No pude guardarlo» mientras el núcleo
+// seguía guardando, y si lo repetías quedaba duplicado — una culpa por
+// algo que sí había pasado, que es lo que la ley 3 prohíbe.
+// pruebas/test_timeouts.py ata los dos números para que no se separen.
+const TIMEOUT_NUCLEO_MS = 25000;
 
 // think: opt-in por mensaje a pensar con Claude. Apagado, el núcleo no
 // gasta un token.
