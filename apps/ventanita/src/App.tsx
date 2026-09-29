@@ -31,6 +31,8 @@ function duracionHablando(frase: string): number {
 }
 // Ventana para contar 1, 2 o 3 clicks antes de decidir qué hacer.
 const ESPERA_CLICS = 350;
+// Por debajo de esto es un click; por encima, arrastrás la ventana.
+const UMBRAL_ARRASTRE_PX = 4;
 
 function recortarPalabras(frase: string): string {
   const palabras = frase.trim().split(/\s+/);
@@ -244,12 +246,31 @@ export default function App() {
 
   // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
   // salvo dentro del PromptTerminal (ahí hay que poder hacer click y
-  // seleccionar texto, no mover la ventana). Un click sin arrastre
-  // igual dispara alClick: startDragging no lo bloquea.
+  // seleccionar texto, no mover la ventana). startDragging() llamado en
+  // mousedown se come el evento click en macOS — por eso medimos el
+  // movimiento nosotros y solo arrastramos pasado el umbral; por debajo,
+  // es un click de verdad y llega a alClick.
   const alPresionar = useCallback((evento: React.MouseEvent<HTMLDivElement>) => {
     if (evento.button !== 0) return;
     if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
-    void getCurrentWindow().startDragging();
+
+    const inicio = { x: evento.clientX, y: evento.clientY };
+
+    function alMover(e: MouseEvent) {
+      const dx = e.clientX - inicio.x;
+      const dy = e.clientY - inicio.y;
+      if (Math.hypot(dx, dy) < UMBRAL_ARRASTRE_PX) return;
+      limpiar();
+      void getCurrentWindow().startDragging();
+    }
+
+    function limpiar() {
+      window.removeEventListener("mousemove", alMover);
+      window.removeEventListener("mouseup", limpiar);
+    }
+
+    window.addEventListener("mousemove", alMover);
+    window.addEventListener("mouseup", limpiar);
   }, []);
 
   return (
