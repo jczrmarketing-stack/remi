@@ -20,6 +20,31 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.7 el vigilante que calla · construido · 688c0e4
+
+- **Qué cambió:** del intento de las 17:29: tres clicks, «corte por silencio activado», el
+  wav creciendo a 29 KB/s con audio (pico 0.095 medido desde afuera)… y el vigilante **no
+  escribió nada en cuatro minutos**, ni el nivel por segundo. Verifiqué y descarté: la app
+  viva, ffmpeg vivo, micrófono autorizado (la hipótesis de TCC era falsa), código idéntico
+  al que a las 17:22 sí escribía. El binario va sin símbolos: no se le puede mirar adentro.
+  Lo único posible es que hable: ahora anota cuando arranca y, si no puede medir, por qué
+  (`voz.rs`, `pico_reciente_o_motivo`). Y un techo al umbral adaptativo: 0.15.
+- **Decisiones que tomé sin preguntar:**
+  1. **El techo de 0.15 es un bug real, probado con los números de las 17:22**, no una
+     adivinanza sobre el de las 17:29: si empezás a hablar apenas entrás en diálogo, el piso
+     sale de ventanas con voz, ×2.5 lo deja por encima de tu voz y nunca «te escucho». Con
+     techo, la voz (0.24–0.68) entra y el silencio del RODE (0.03–0.08) no.
+  2. Los subtítulos que pidió Juan Camilo (tres líneas de lo que Remi dice, ocultables)
+     esperan a que el diálogo conteste: primero que ande, después que se vea.
+- **Dudas abiertas:**
+  1. **No sé por qué el vigilante calló a las 17:29.** No lo voy a adivinar: con la
+     instrumentación nueva, el próximo intento lo dice. Si vuelve a callar sin «vigilancia
+     arrancó», el hilo no se está creando y el problema está en `activar_corte_por_silencio`.
+  2. Tras cada `actualizar.sh` la voz Kokoro tarda ~18 s en cargar; si la primera respuesta
+     llega antes, sale con la voz del sistema. No es un fallo, pero se nota.
+- **Cómo probarlo a mano:** lo mismo: tres clicks, una frase, callarse 2 s. En el log tiene
+  que aparecer «vigilancia de silencio arrancó» y luego «nivel …» cada segundo.
+
 ## 2026-09-29 · 2i.6 el diálogo manda, y el motor se elige a conciencia · construido · d5e168e
 
 - **Qué cambió:** (1) `44aad7b`: **el diálogo nunca mandaba.** Del log de las 17:22:
