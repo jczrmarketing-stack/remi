@@ -402,6 +402,17 @@ pub fn detener_escucha_y_transcribir(
 // Una voz normal pica bien por encima de esto; si no llega, el micrófono
 // no escuchó nada (silenciado, volumen de entrada bajo, o mal dispositivo).
 const PICO_MINIMO_DB: f32 = -42.0;
+// Por debajo de esto no hay una frase: es un click que cortó enseguida.
+// Whisper, con menos de un segundo, se inventa algo. No se le da la chance.
+const DURACION_MINIMA: Duration = Duration::from_millis(800);
+// Una transcripción de una o dos letras es ruido con forma de letra.
+const LARGO_MINIMO_TRANSCRIPCION: usize = 3;
+
+fn duracion_del_wav(ruta_wav: &Path) -> Option<Duration> {
+    let largo = fs::metadata(ruta_wav).ok()?.len();
+    let muestras = largo.saturating_sub(LARGO_CABECERA_WAV);
+    Some(Duration::from_secs_f64(muestras as f64 / BYTES_POR_SEGUNDO as f64))
+}
 
 fn pico_db(ffmpeg_bin: &str, ruta_wav: &Path) -> Option<f32> {
     let salida = Command::new(ffmpeg_bin)
@@ -425,6 +436,17 @@ fn pico_db(ffmpeg_bin: &str, ruta_wav: &Path) -> Option<f32> {
 fn transcribir(ruta_wav: &Path) -> Result<String, String> {
     let config = leer_config_voz()?;
 
+    if let Some(duracion) = duracion_del_wav(ruta_wav) {
+        if duracion < DURACION_MINIMA {
+            log::info!(
+                "[voz] grabación de {} ms: muy corta para ser una frase, no la transcribo",
+                duracion.as_millis()
+            );
+            return Err("no era una frase (muy corta)".to_string());
+        }
+        log::info!("[voz] grabación de {} ms", duracion.as_millis());
+    }
+
     if let Some(pico) = pico_db(&config.ffmpeg_bin, ruta_wav) {
         log::info!("[voz] pico del audio: {pico} dB");
         if pico < PICO_MINIMO_DB {
@@ -444,6 +466,15 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
             &config.idioma,
             "-nt",
             "-np",
+            // Los umbrales de no-voz de esta versión de whisper-cli:
+            // -sns suprime los tokens que no son habla ([MÚSICA], [SILENCIO]…)
+            // en el decodificador, en vez de dejarlos salir y filtrarlos
+            // después; -nth baja de 0.6 a 0.5 el umbral a partir del cual un
+            // segmento se toma por sin-voz. --vad queda fuera: pide un
+            // modelo aparte que no está descargado.
+            "-sns",
+            "-nth",
+            "0.5",
             "-otxt",
             "-of",
         ])
@@ -466,6 +497,10 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
     let texto = texto.trim().to_string();
     if es_solo_ruido(&texto) {
         log::warn!("[voz] whisper solo devolvió ruido: {texto:?}");
+        return Err("no se entendió nada de lo grabado".to_string());
+    }
+    if texto.chars().count() < LARGO_MINIMO_TRANSCRIPCION {
+        log::warn!("[voz] transcripción de {} caracteres, la descarto: {texto:?}", texto.chars().count());
         return Err("no se entendió nada de lo grabado".to_string());
     }
     Ok(texto)
@@ -530,6 +565,16 @@ mod pruebas {
         let ruta = escribir_wav("voz-luego-silencio", &muestras);
         let pico = pico_reciente(&ruta).unwrap();
         assert!(pico < UMBRAL_VOZ, "pico {pico}");
+        let _ = fs::remove_file(ruta);
+    }
+
+    #[test]
+    fn la_duracion_sale_del_tamano_del_wav() {
+        let n = muestras_por_ventana(); // 0.4 s
+        let ruta = escribir_wav("duracion", &vec![0i16; n * 2]); // 0.8 s
+        let duracion = duracion_del_wav(&ruta).unwrap();
+        assert!((duracion.as_millis() as i64 - 800).abs() <= 1, "{duracion:?}");
+        assert!(duracion >= DURACION_MINIMA);
         let _ = fs::remove_file(ruta);
     }
 
