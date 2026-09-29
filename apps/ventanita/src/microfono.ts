@@ -8,8 +8,12 @@ export function iniciarEscucha(cortarSolo: boolean): Promise<void> {
   return invoke("iniciar_escucha", { cortarSolo });
 }
 
-export function detenerEscuchaYTranscribir(): Promise<string> {
-  return invoke("detener_escucha_y_transcribir");
+// Quién cortó la grabación. Lo sabe la ventanita, no el micrófono, y sin
+// eso el log no alcanza para entender un gesto que salió mal.
+export type OrigenParada = "click" | "silencio:fin" | "silencio:sin_voz" | "escape" | "timeout";
+
+export function detenerEscuchaYTranscribir(origen: OrigenParada): Promise<string> {
+  return invoke("detener_escucha_y_transcribir", { origen });
 }
 
 // "fin": hablaste y te callaste → se transcribe. "sin_voz": pasaron 10 s

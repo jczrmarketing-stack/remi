@@ -19,7 +19,13 @@ import {
   type PreferenciaVoz,
   type Velocidad,
 } from "./preferencias";
-import { alDetectarSilencio, detenerEscuchaYTranscribir, iniciarEscucha } from "./microfono";
+import {
+  alDetectarSilencio,
+  detenerEscuchaYTranscribir,
+  iniciarEscucha,
+  type OrigenParada,
+} from "./microfono";
+import { enchufarConsola, registrar } from "./registro";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
 import "./App.css";
@@ -62,6 +68,8 @@ const UMBRAL_ARRASTRE_PX = 4;
 // Dos clicks cuentan como racha si entran en esta ventana. Antes el número
 // estaba suelto en el código y el comentario decía otro.
 const MS_RACHA = 550;
+// Cuánto se espera tras el 2do click por si viene un 3ro.
+const MS_ESPERA_RACHA = 520;
 
 function recortarPalabras(frase: string): string {
   const palabras = frase.trim().split(/\s+/);
@@ -74,6 +82,9 @@ function recortarPalabras(frase: string): string {
 function fraseDeFallo(): string {
   return "No pude guardarlo. Lo intento más tarde.";
 }
+
+// Antes del primer render: si algo falla al montar, tiene que quedar escrito.
+enchufarConsola();
 
 export default function App() {
   const [estado, setEstado] = useState<Estado>("reposo");
@@ -122,6 +133,11 @@ export default function App() {
   // podía saltar a "hablando" de la nada después de haber cancelado.
   const generacionRef = useRef(0);
 
+  // Cada cambio de estado queda escrito: es la columna vertebral del log.
+  useEffect(() => {
+    registrar("estado", { a: estado });
+  }, [estado]);
+
   const expandido = estado !== "reposo";
   const expandidoAnteriorRef = useRef(expandido);
   const hayHace = ultimaInteraccionMs !== null;
@@ -142,6 +158,7 @@ export default function App() {
     // el setSize a ese mínimo y la ventana no encoge. Fijarlos en tiempo de
     // ejecución ANTES de pedir el tamaño hace que el reposo real entre por
     // hot reload sin depender de que Rust se vuelva a construir.
+    registrar("tamaño", { motivo: "montar", w: width, h: height });
     void (async () => {
       await ventana.setMinSize(
         new LogicalSize(TAMANO_REPOSO_MINIMO.width, TAMANO_REPOSO_MINIMO.height),
@@ -160,6 +177,11 @@ export default function App() {
     const reposo = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
     const desde = expandido ? reposo : TAMANO_EXPANDIDO;
     const hasta = expandido ? TAMANO_EXPANDIDO : reposo;
+    registrar("tamaño", {
+      motivo: expandido ? "expandir" : "encoger",
+      w: hasta.width,
+      h: hasta.height,
+    });
     void animarTamano(ventana, desde, hasta, DURACION_APARECER);
   }, [expandido]);
 
@@ -169,6 +191,7 @@ export default function App() {
   useEffect(() => {
     if (expandido) return;
     const { width, height } = tamanoReposo(hayHace, hayUltimaVez);
+    registrar("tamaño", { motivo: "reposo", w: width, h: height });
     void getCurrentWindow().setSize(new LogicalSize(width, height));
   }, [expandido, hayHace, hayUltimaVez]);
 
@@ -219,9 +242,15 @@ export default function App() {
       const think = accionesRef.current.pensarConClaude;
       setPensarConClaude(false);
       setEstado("pensando");
+      const arranque = performance.now();
+      registrar("enviar", { palabras: limpio.split(/\s+/).length, think });
       try {
         const respuesta = await enviarMensaje(limpio, think);
         if (generacionRef.current !== miGeneracion) return; // cancelado mientras esperaba
+        registrar("respuesta", {
+          tipo: respuesta.tipo,
+          ms: Math.round(performance.now() - arranque),
+        });
         const ahora = Date.now();
         registrarInteraccion(ahora);
         setUltimaInteraccionMs(ahora);
@@ -249,6 +278,7 @@ export default function App() {
         }
       } catch (error) {
         if (generacionRef.current !== miGeneracion) return;
+        registrar("enviar:falló", { ms: Math.round(performance.now() - arranque) });
         console.error("no se pudo mandar el mensaje:", error);
         setVoz(fraseDeFallo());
       } finally {
@@ -269,30 +299,38 @@ export default function App() {
     setOrigenMensaje("voz");
     setEstado("escuchando");
     setGrabando(true);
+    const cortarSolo = modoNuevo === "dialogo";
+    registrar("iniciarEscucha", { modo: modoNuevo, cortarSolo });
     try {
       // En diálogo corta sola cuando dejás de hablar; en modo voz,
       // como Handy: vos la cortás con otro click.
-      await iniciarEscucha(modoNuevo === "dialogo");
+      await iniciarEscucha(cortarSolo);
     } catch (error) {
       // Sin micrófono disponible: cae a escritura manual, sin culpa (ley 3).
       console.error("no se pudo prender el micrófono:", error);
+      registrar("iniciarEscucha:falló", { modo: modoNuevo });
       setGrabando(false);
       setModo("texto");
       setOrigenMensaje("texto");
     }
   }, []);
 
-  const detenerYTranscribir = useCallback(async () => {
-    if (!accionesRef.current.grabando) return;
+  const detenerYTranscribir = useCallback(async (origen: OrigenParada) => {
+    if (!accionesRef.current.grabando) {
+      registrar("parada:ignorada", { origen, motivo: "no estaba grabando" });
+      return;
+    }
     const enDialogo = accionesRef.current.modo === "dialogo";
     const miGeneracion = generacionRef.current;
+    registrar("parada", { origen, modo: accionesRef.current.modo });
     setGrabando(false);
     setTranscribiendo(true);
     setEstado("pensando");
     try {
-      const transcripcion = await detenerEscuchaYTranscribir();
+      const transcripcion = await detenerEscuchaYTranscribir(origen);
       if (generacionRef.current !== miGeneracion) return; // cancelado mientras transcribía
       setTranscribiendo(false);
+      registrar("transcrito", { origen, caracteres: transcripcion.length });
       setTexto(transcripcion);
       if (enDialogo) {
         // En diálogo no se edita: lo dicho se manda solo.
@@ -303,6 +341,7 @@ export default function App() {
     } catch (error) {
       if (generacionRef.current !== miGeneracion) return;
       setTranscribiendo(false);
+      registrar("sinTranscripcion", { origen, enDialogo });
       // No escuchó nada (o no se entendió): sin culpa (ley 3).
       console.error("no se pudo transcribir:", error);
       if (enDialogo) {
@@ -320,13 +359,14 @@ export default function App() {
   // sin frase, sin culpa (ley 3): simplemente no era el momento.
   useEffect(() => {
     const suscripcion = alDetectarSilencio((motivo) => {
+      registrar("silencio", { motivo, grabando: accionesRef.current.grabando });
       if (!accionesRef.current.grabando) return;
       if (motivo === "sin_voz") {
-        void detenerEscuchaYTranscribir().catch(() => undefined);
+        void detenerEscuchaYTranscribir("silencio:sin_voz").catch(() => undefined);
         volverAReposo();
         return;
       }
-      void detenerYTranscribir();
+      void detenerYTranscribir("silencio:fin");
     });
     return () => {
       void suscripcion.then((desuscribir) => desuscribir());
@@ -340,8 +380,9 @@ export default function App() {
     function alTeclado(evento: KeyboardEvent) {
       if (evento.key === "Escape") {
         evento.preventDefault();
+        registrar("escape", { grabando: accionesRef.current.grabando, estado: accionesRef.current.estado });
         if (accionesRef.current.grabando) {
-          void detenerEscuchaYTranscribir().catch(() => undefined);
+          void detenerEscuchaYTranscribir("escape").catch(() => undefined);
         }
         volverAReposo();
         return;
@@ -410,6 +451,7 @@ export default function App() {
       volverAReposo();
     };
 
+    registrar("hablando", { origen: origenMensaje, lecturas, velocidad, palabras: voz.split(/\s+/).length });
     const habla = lecturas > 0 || (origenMensaje === "voz" && !accionesRef.current.silenciado);
     let techo: number | undefined;
     if (habla) {
@@ -457,6 +499,7 @@ export default function App() {
       const encadenable =
         estadoActual === "reposo" ||
         (estadoActual === "escuchando" && !grabandoActual && texto === "");
+      const desdeElAnterior = racha.t === 0 ? -1 : Math.round(ahora - racha.t);
       if (encadenable && ahora - racha.t < MS_RACHA) {
         racha.n += 1;
       } else {
@@ -464,35 +507,56 @@ export default function App() {
       }
       racha.t = ahora;
 
+      // Una línea por click, ANTES de decidir: el n con el que entró, en qué
+      // estado, si encadenaba y cuánto pasó desde el click anterior.
+      const comun = {
+        n: racha.n,
+        estado: estadoActual,
+        grabando: grabandoActual,
+        encadenable,
+        msDesdeAnterior: desdeElAnterior,
+      };
+
       if (racha.n >= 2 && encadenable) {
         // 2do o 3er click: decidir voz vs diálogo cuando pare la racha.
+        registrar("click", { ...comun, rama: "arma temporizador" });
         window.clearTimeout(racha.timer);
         racha.timer = window.setTimeout(() => {
-          const modoNuevo: Modo = rachaRef.current.n >= 3 ? "dialogo" : "voz";
+          const nFinal = rachaRef.current.n;
+          const modoNuevo: Modo = nFinal >= 3 ? "dialogo" : "voz";
+          registrar("temporizador", { n: nFinal, modo: modoNuevo });
           rachaRef.current.n = 0;
           void empezarAEscuchar(modoNuevo);
-        }, 520);
+        }, MS_ESPERA_RACHA);
         return;
       }
 
-      if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz")) return;
+      if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz")) {
+        registrar("click", { ...comun, rama: "dentro de un control" });
+        return;
+      }
 
       if (estadoActual === "reposo") {
+        registrar("click", { ...comun, rama: "abre texto" });
         empezarATipear();
         return;
       }
 
       if (estadoActual === "escuchando" && grabandoActual) {
-        void detenerYTranscribir();
+        registrar("click", { ...comun, rama: "corta la grabación" });
+        void detenerYTranscribir("click");
         return;
       }
 
       // Con texto escrito o dictado, un click fuera del cuadro lo MANDA —
       // antes borraba todo y volvía a reposo, que perdía el dictado.
       if (estadoActual === "escuchando" && texto.trim() !== "") {
+        registrar("click", { ...comun, rama: "manda el texto" });
         void enviar(texto);
         return;
       }
+
+      registrar("click", { ...comun, rama: "vuelve a reposo" });
 
       // Cualquier otro estado no-reposo: un click fuera del cuadro vuelve
       // a reposo. Ningún estado se queda sin salida.

@@ -91,7 +91,7 @@ impl EstadoGrabacion {
     pub fn matar_si_hay_grabacion(&self) {
         if let Ok(mut guarda) = self.0.lock() {
             if let Some(mut grabacion) = guarda.take() {
-                eprintln!("[voz] la app cierra con una grabación activa: matando ffmpeg");
+                log::warn!("[voz] la app cierra con una grabación activa: matando ffmpeg");
                 grabacion.cancelar_vigilancia.store(true, Ordering::Relaxed);
                 let _ = grabacion.hijo.kill();
                 let _ = grabacion.hijo.wait();
@@ -186,7 +186,7 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
 
             if pico >= UMBRAL_VOZ {
                 if !hubo_voz {
-                    eprintln!("[voz] te escucho (pico {pico:.3})");
+                    log::info!("[voz] te escucho (pico {pico:.3})");
                 }
                 hubo_voz = true;
                 callado = Duration::ZERO;
@@ -195,7 +195,7 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
 
             if !hubo_voz {
                 if transcurrido >= SIN_VOZ_MAXIMO {
-                    eprintln!(
+                    log::info!(
                         "[voz] {}s sin voz (pico {pico:.3}) → dejo de esperar",
                         SIN_VOZ_MAXIMO.as_secs()
                     );
@@ -207,7 +207,7 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
 
             callado += PASO_VIGILANCIA;
             if callado >= SILENCIO_PARA_CORTAR {
-                eprintln!("[voz] dejaste de hablar (pico {pico:.3}) → corto sola");
+                log::info!("[voz] dejaste de hablar (pico {pico:.3}) → corto sola");
                 let _ = app.emit(EVENTO_SILENCIO, AvisoSilencio { motivo: "fin" });
                 return;
             }
@@ -271,7 +271,7 @@ pub fn iniciar_escucha(
     }
 
     let ruta_wav = ruta_temporal(".wav");
-    eprintln!(
+    log::info!(
         "[voz] grabando: {} -f avfoundation -i :{} → {} (corte solo: {cortar_solo})",
         config.ffmpeg_bin,
         config.dispositivo_audio,
@@ -318,8 +318,8 @@ pub fn iniciar_escucha(
             "ffmpeg terminó enseguida ({estado_salida}): {}",
             ultima_linea_util(&error)
         );
-        eprintln!("[voz] {detalle}");
-        eprintln!("[voz] stderr completo:\n{error}");
+        log::error!("[voz] {detalle}");
+        log::error!("[voz] stderr completo:\n{error}");
         return Err(detalle);
     }
 
@@ -339,18 +339,32 @@ pub fn iniciar_escucha(
     Ok(())
 }
 
+/// `origen` dice QUIÉN cortó: "click", "silencio:fin", "silencio:sin_voz",
+/// "escape" o "timeout". Lo sabe la ventanita, no acá, y sin eso el log no
+/// alcanza para entender un gesto que salió mal.
 #[tauri::command]
-pub fn detener_escucha_y_transcribir(estado: tauri::State<EstadoGrabacion>) -> Result<String, String> {
+pub fn detener_escucha_y_transcribir(
+    estado: tauri::State<EstadoGrabacion>,
+    origen: String,
+) -> Result<String, String> {
     let grabacion = estado
         .0
         .lock()
         .map_err(|e| e.to_string())?
         .take()
-        .ok_or_else(|| "no había ninguna grabación activa".to_string())?;
+        .ok_or_else(|| {
+            log::warn!("[voz] parada ({origen}) sin grabación activa");
+            "no había ninguna grabación activa".to_string()
+        })?;
 
+    log::info!("[voz] parada ({origen}): cierro ffmpeg y transcribo");
     let ruta_wav = grabacion.detener();
     let resultado = transcribir(&ruta_wav);
     let _ = fs::remove_file(&ruta_wav);
+    match &resultado {
+        Ok(texto) => log::info!("[voz] transcrito ({origen}): {} caracteres", texto.len()),
+        Err(error) => log::warn!("[voz] sin transcripción ({origen}): {error}"),
+    }
     resultado
 }
 
@@ -381,7 +395,7 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
     let config = leer_config_voz()?;
 
     if let Some(pico) = pico_db(&config.ffmpeg_bin, ruta_wav) {
-        eprintln!("[voz] pico del audio: {pico} dB");
+        log::info!("[voz] pico del audio: {pico} dB");
         if pico < PICO_MINIMO_DB {
             return Err(format!(
                 "no se escuchó nada (pico {pico:.1} dB): revisá el micrófono o el volumen de entrada"
@@ -420,7 +434,7 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
 
     let texto = texto.trim().to_string();
     if es_solo_ruido(&texto) {
-        eprintln!("[voz] whisper solo devolvió ruido: {texto:?}");
+        log::warn!("[voz] whisper solo devolvió ruido: {texto:?}");
         return Err("no se entendió nada de lo grabado".to_string());
     }
     Ok(texto)

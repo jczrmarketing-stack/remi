@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -184,12 +186,27 @@ NO_ENTRA = "Así no entra: el título va hasta 80 caracteres y el resumen hasta 
 def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     """Lo que decís no siempre es una tarea. El clasificador (sin IA) decide
     si enfría en la Bandeja, si abre un bloque o si cierra el que estaba."""
+    arranque = time.perf_counter()
     tipo = clasificar.clasificar(mensaje.texto)
+
     if tipo == "idea":
-        return _guardar_idea(mensaje)
-    if tipo == "hecha":
-        return _cerrar_lo_abierto()
-    return _abrir_bloque(mensaje)
+        respuesta = _guardar_idea(mensaje)
+    elif tipo == "hecha":
+        respuesta = _cerrar_lo_abierto()
+    else:
+        respuesta = _abrir_bloque(mensaje)
+
+    # Una línea por mensaje, para poder cruzarla con el log de la ventanita:
+    # qué tipo salió, cuánto tardó y si se gastó un token.
+    ms = (time.perf_counter() - arranque) * 1000
+    penso = "sí" if respuesta.tokens else ("pedido" if mensaje.think else "no")
+    print(
+        f"[mensaje] tipo={tipo} ms={ms:.0f} pensó={penso} "
+        f"palabras={len(mensaje.texto.split())}",
+        file=sys.stderr,
+        flush=True,
+    )
+    return respuesta
 
 
 def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
