@@ -35,6 +35,11 @@ const UMBRAL_VOZ: f32 = 0.02;
 // diálogo no cortaba jamás. Con ×2.5 sobre un piso de 0.05 el umbral queda
 // en 0.125: por encima del ruido, por debajo de la voz.
 const FACTOR_SOBRE_PISO: f32 = 2.5;
+// Y un techo: si empezás a hablar apenas entrás en diálogo, las primeras
+// ventanas son todas voz, el «piso» sale alto y ×2.5 lo deja por encima de
+// tu propia voz — nunca «te escucho» y a los 10 s se rinde. Con el RODE la
+// voz pica 0.24–0.68: por encima de 0.15 es voz en cualquier micrófono.
+const UMBRAL_MAXIMO: f32 = 0.15;
 // Cuántas ventanas recientes se miran para estimar el piso (12 × 0.4 s ≈ 3 s
 // con pasos de 250 ms). Entre palabra y palabra hay huecos: el mínimo de
 // tres segundos es el fondo aunque estés hablando.
@@ -45,9 +50,9 @@ fn piso_de(recientes: &[f32]) -> Option<f32> {
     recientes.iter().copied().reduce(f32::min)
 }
 
-/// Umbral de voz para un piso dado: nunca por debajo de UMBRAL_VOZ.
+/// Umbral de voz para un piso dado: entre UMBRAL_VOZ y UMBRAL_MAXIMO.
 fn umbral_para(piso: f32) -> f32 {
-    (piso * FACTOR_SOBRE_PISO).max(UMBRAL_VOZ)
+    (piso * FACTOR_SOBRE_PISO).clamp(UMBRAL_VOZ, UMBRAL_MAXIMO)
 }
 // Cuánto silencio seguido, después de hablar, cuenta como "ya terminaste".
 const SILENCIO_PARA_CORTAR: Duration = Duration::from_millis(1200);
@@ -165,30 +170,45 @@ fn drenar_stderr(stderr: ChildStderr) {
 // silencedetect de ffmpeg no imprime nada en esta versión, así que
 // medimos el audio nosotros leyendo el archivo mientras crece.
 fn pico_reciente(ruta_wav: &Path) -> Option<f32> {
-    let mut archivo = fs::File::open(ruta_wav).ok()?;
-    let largo = archivo.metadata().ok()?.len();
+    pico_reciente_o_motivo(ruta_wav).ok()
+}
+
+// La versión que explica. El 29/09 a las 17:29 el vigilante no escribió
+// nada en 4 minutos con el wav creciendo: la rama «no pude leer» callaba y
+// no había forma de saber en qué se trababa.
+fn pico_reciente_o_motivo(ruta_wav: &Path) -> Result<f32, String> {
+    let mut archivo = fs::File::open(ruta_wav).map_err(|e| format!("no abre: {e}"))?;
+    let largo = archivo
+        .metadata()
+        .map_err(|e| format!("sin metadata: {e}"))?
+        .len();
     let ventana = (BYTES_POR_SEGUNDO as f64 * VENTANA_SEGUNDOS) as u64;
     if largo < ventana + LARGO_CABECERA_WAV {
-        return None;
+        return Err(format!("todavía no hay una ventana entera ({largo} bytes)"));
     }
 
     use std::io::{Seek, SeekFrom};
-    archivo.seek(SeekFrom::Start(largo - ventana)).ok()?;
+    archivo
+        .seek(SeekFrom::Start(largo - ventana))
+        .map_err(|e| format!("no pude posicionarme: {e}"))?;
     let mut crudo = vec![0u8; ventana as usize];
-    archivo.read_exact(&mut crudo).ok()?;
+    archivo
+        .read_exact(&mut crudo)
+        .map_err(|e| format!("no pude leer la ventana: {e}"))?;
 
     let pico = crudo
         .chunks_exact(2)
         .map(|par| i16::from_le_bytes([par[0], par[1]]).unsigned_abs())
         .max()
         .unwrap_or(0);
-    Some(pico as f32 / i16::MAX as f32)
+    Ok(pico as f32 / i16::MAX as f32)
 }
 
 // Avisa a la ventanita cuando dejaste de hablar, para cortar sola — o
 // cuando pasó SIN_VOZ_MAXIMO sin que dijeras nada.
 fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool>) {
     thread::spawn(move || {
+        log::info!("[voz] vigilancia de silencio arrancó sobre {}", ruta_wav.display());
         let mut hubo_voz = false;
         let mut callado = Duration::ZERO;
         let mut transcurrido = Duration::ZERO;
@@ -210,12 +230,21 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
             }
             transcurrido += PASO_VIGILANCIA;
 
-            let Some(pico) = pico_reciente(&ruta_wav) else {
-                // Todavía no hay una ventana entera (o el archivo ya no está).
-                if !ruta_wav.exists() {
-                    return;
+            let pico = match pico_reciente_o_motivo(&ruta_wav) {
+                Ok(pico) => pico,
+                Err(motivo) => {
+                    if !ruta_wav.exists() {
+                        log::info!("[voz] vigilancia termina: el wav ya no está");
+                        return;
+                    }
+                    // Una vez por segundo, no cuatro: pero nunca en silencio.
+                    pasos_desde_el_ultimo_aviso += 1;
+                    if pasos_desde_el_ultimo_aviso >= PASOS_POR_AVISO {
+                        pasos_desde_el_ultimo_aviso = 0;
+                        log::warn!("[voz] sin nivel: {motivo}");
+                    }
+                    continue;
                 }
-                continue;
             };
 
             if recientes.len() == VENTANAS_PARA_EL_PISO {
@@ -643,6 +672,18 @@ mod pruebas {
     fn en_una_habitacion_callada_el_umbral_no_baja_del_piso_fijo() {
         assert_eq!(umbral_para(0.004), UMBRAL_VOZ);
         assert_eq!(piso_de(&[]), None);
+    }
+
+    #[test]
+    fn si_empezas_hablando_el_umbral_no_sube_por_encima_de_tu_voz() {
+        // Las primeras ventanas son todas voz (17:29): el piso «es» 0.20.
+        let piso = piso_de(&[0.31, 0.24, 0.20, 0.45]).unwrap();
+        let umbral = umbral_para(piso);
+        assert_eq!(umbral, UMBRAL_MAXIMO);
+        // Tu voz sigue siendo voz…
+        assert!(0.24 >= umbral);
+        // …y el silencio del RODE sigue siendo silencio.
+        assert!(0.08 < umbral);
     }
 
     #[test]
