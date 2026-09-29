@@ -20,6 +20,32 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.9 un click no cancela la respuesta; semáforo en la esquina · construido · 43978ba
+
+- **Qué cambió:** el diálogo ya contesta con voz (confirmado por Juan Camilo). (1) `0be864e`:
+  en `hablando` un click no hace nada; para cortar está Escape. A las 17:43 una respuesta
+  que iba bien se canceló por tocar la ventana. (2) `9d7e697`: dos puntos como los de macOS
+  en la esquina superior izquierda, visibles solo al acercar el mouse: rojo (`alerta`)
+  cierra, amarillo (`dinero`) oculta sin cortar la voz; vuelve con ⌘⌥⇧L o abriendo Remi.
+  Es la única forma con el mouse de cerrar u ocultar (`Semaforo.tsx`, `App.tsx`,
+  `capabilities/default.json`). (3) `43978ba`: arreglo de un `\n` literal mío que dejó el
+  JSON de permisos inválido y el build en rojo. 35 pruebas. Instalada a las 17:46.
+- **Decisiones que tomé sin preguntar:**
+  1. **Sin verde.** Juan Camilo pidió «rojo, amarillo y verde». En una píldora no hay nada
+     que maximizar y el DS no tiene verde. Si igual lo quiere, es un botón más.
+  2. **Amarillo = ocultar, no minimizar al Dock.** Una ventana sin decoraciones no siempre
+     se deja minimizar en macOS; ocultar funciona seguro y es lo mismo que hace el atajo de
+     mostrar/ocultar. La voz sigue sonando oculta.
+  3. Los puntos son controles: un click ahí no es un gesto ni arrastra la ventana.
+- **Dudas abiertas:**
+  1. **«Que conteste más rápido».** Hoy el tiempo lo come arrancar la CLI de Claude con el
+     estante (2 a 9 s), no la voz. Bajarlo de verdad es una sesión persistente de la CLI, o
+     Venice (sin estante). Es un encargo aparte.
+  2. Los subtítulos de tres líneas con opción de ocultar siguen pendientes.
+- **Cómo probarlo a mano:** hacer una pregunta en diálogo y, mientras contesta, tocar la
+  ventana: sigue. Acercar el mouse a la esquina: aparecen los dos puntos; el amarillo la
+  oculta con la voz sonando.
+
 ## 2026-09-29 · 2i.8 el vigilante se iba antes de que ffmpeg abriera el wav · construido · f4dbaf9
 
 - **Qué cambió:** la instrumentación de 2i.7 lo dijo en dos líneas a las 17:38:34: «vigilancia
