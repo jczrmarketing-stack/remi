@@ -20,6 +20,53 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2e.0 memoria · construido · 30229d7
+
+- **Qué cambió:** el estante. `Memoria` entra por `contratos/contratos.json` y de ahí se
+  generan modelo y tipo; tabla `memoria` con índices en `nucleo/db.py`. El índice (título y
+  con qué me quedé, nunca el cuerpo) viaja en el system prompt de `nucleo/pensar.py`. El
+  cuerpo se baja por `nucleo/memoria_mcp.py`, servidor MCP con `leer` y `guardar`, al que la
+  CLI encerrada accede por `--mcp-config` con esas dos herramientas y nada más. Las mismas
+  operaciones por HTTP en `/memoria` (`nucleo/servidor.py`), semilla en
+  `nucleo/sembrar_memoria.py`, `.mcp.json` en la raíz y `nucleo/pruebas/test_memoria.py`.
+- **Decisiones que tomé sin preguntar:**
+  1. El encargo decía «modelo Memoria en modelos.py», pero ese archivo es **generado**. Lo
+     puse en el contrato y enseñé a los dos generadores `string(80)`, para que el largo
+     máximo viva en el contrato y no suelto en el servidor.
+  2. **Techo de salida 200 → 1500.** Medido: el JSON de una llamada a `guardar` cuenta como
+     salida, y con 200 se corta a la mitad — la CLI devuelve «exceeded the 200 output token
+     maximum» y no guarda nada. La voz la sigue recortando el servidor a 20 palabras.
+  3. **Tiempo máximo 6 s → 20 s.** Contestar tarda ~2 s, leer ~3,5 s, guardar algo largo
+     llegó a 10 s.
+  4. El JSON final de la CLI **no dice** qué herramientas usó (probado con un dato imposible
+     de adivinar: lo trajo y `num_turns` siguió en 2). La marca la deja el propio estante al
+     ser leído, en la carpeta temporal de esa llamada.
+  5. Las instrucciones ahora también **contestan preguntas**, no solo dan un paso mínimo: sin
+     eso, «¿qué te conté de Shopify?» devolvía una tarea.
+  6. `editar_memoria` arma la memoria entera de nuevo antes de escribir, para que el contrato
+     valide; y un cambio que no entra es 422, no un 500.
+- **Dudas abiertas:**
+  1. **Qué fase sigo.** El protocolo dice «2f en curso, 2e.0 después»; el repo no tiene nada
+     de 2f y 2e.0 la terminé hoy por encargo explícito. Con «nunca dos en la misma fase»,
+     necesito que alguien decida el orden real antes del próximo encargo.
+  2. `nucleo/clasificar.py` sigue sin trackear y sin que nadie lo importe. Es material de 2f
+     y no es mío.
+  3. Un guardado largo pedido **desde la ventanita** se completa en el núcleo, pero la
+     ventanita ya cortó su fetch a los 8 s y contesta sin IA. Subir ese número es UI, y 2e.0
+     era solo núcleo.
+  4. `Memoria` no tiene campo `compartible`. Por la regla de privacidad eso la deja fuera de
+     los espejos, que es lo que quiero, pero conviene confirmarlo antes de la fase 4.
+- **Cómo probarlo a mano:**
+  1. `cd nucleo && uv run python sembrar_memoria.py` — la segunda vez dice «ya estaba».
+  2. `uv run python servidor.py`, y en otra terminal `curl -s localhost:4400/memoria` — sale
+     el índice, sin `cuerpo`.
+  3. `curl -s -X POST localhost:4400/mensaje -H 'Content-Type: application/json' -d
+     '{"texto":"¿qué te conté de Shopify?","think":true}'` — contesta con la idea y la
+     consola del núcleo dice `memoria=1 leyó=sí`.
+  4. Abrir Claude Code en el repo y preguntar «¿qué sabés de Shopify?» — usa el MCP del
+     `.mcp.json`.
+  5. `cd nucleo && uv run pytest -q && uv run mypy .` — 53 en verde.
+
 ## 2026-09-29 · estado del repo · leído · 9c2ff27
 
 - **Qué cambió:** nada. Esta entrada abre la bitácora y deja por escrito qué hay de verdad
