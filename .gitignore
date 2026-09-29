@@ -1,0 +1,24 @@
+# Datos personales — JAMÁS al repo (privacidad por arquitectura)
+*.db
+*.db-journal
+*.sqlite*
+.env
+.env.*
+credenciales*
+
+# Node
+node_modules/
+dist/
+.next/
+out/
+
+# Tauri / Rust
+apps/ventanita/src-tauri/target/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Sistema
+.DS_Store

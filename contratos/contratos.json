@@ -1,0 +1,47 @@
+{
+  "$comment": "Contratos de Remi — sagrados. Los tipos TS y modelos Python se generan de aquí. Cambiarlos es decisión de arquitectura, nunca parche.",
+  "version": 1,
+  "Tarea": {
+    "id": "uuid",
+    "titulo": "string",
+    "proyecto_id": "uuid|null",
+    "estado": "hoy|camino|hecha",
+    "paso_minimo": "string",
+    "estimado_min": "int|null",
+    "real_min": "int|null",
+    "compartible": false
+  },
+  "Idea": {
+    "id": "uuid",
+    "texto": "string",
+    "origen": "voz|texto",
+    "creada_en": "iso",
+    "enfria_hasta": "iso(+48h)",
+    "estado": "enfriando|lista|proyecto|soltada",
+    "problema_vision": "1-6|null"
+  },
+  "Sesion": {
+    "id": "uuid",
+    "tarea_id": "uuid",
+    "inicio": "iso",
+    "fin": "iso|null",
+    "real_min": "int",
+    "app_contexto": "string|null"
+  },
+  "Nudge": {
+    "id": "uuid",
+    "tipo": "cuerpo|ritual|encoger",
+    "voz": "string",
+    "salida_amable": true,
+    "respuesta": "listo|ahora_no|null"
+  },
+  "Entrega": {
+    "id": "uuid",
+    "cliente": "string",
+    "proyecto_id": "uuid",
+    "fecha": "iso",
+    "monto": "number|null",
+    "estado": "camino|entregada|pagada",
+    "compartible": true
+  }
+}
