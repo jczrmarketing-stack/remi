@@ -11,12 +11,12 @@ from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 import db
 import pensar
 import tts
-from modelos import Sesion, Tarea
+from modelos import Memoria, Sesion, Tarea
 
 RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
 CONFIG = json.loads(RUTA_CONFIG.read_text())
@@ -109,6 +109,40 @@ class VozDisponible(BaseModel):
     id: str
     lang: str
     label: str
+
+
+class EntradaDeIndice(BaseModel):
+    """Lo que Remi tiene presente. Sin `cuerpo`, a propósito: para eso está
+    GET /memoria/{id}."""
+
+    id: UUID
+    titulo: str
+    resumen: str
+    tema: str
+    fecha: datetime
+
+
+class MemoriaNueva(BaseModel):
+    # Los largos los pone el contrato (Memoria), no este archivo: acá
+    # llegan crudos y Pydantic los valida al construir la memoria.
+    titulo: str
+    resumen: str
+    cuerpo: str
+    tema: str
+    fuente: Literal["conversacion", "manual", "ollama"] = "manual"
+
+
+class MemoriaEditada(BaseModel):
+    titulo: str | None = None
+    resumen: str | None = None
+    tema: str | None = None
+    cuerpo: str | None = None
+
+
+# Los largos los pone el contrato (Memoria). Cuando algo no entra, Pydantic
+# levanta ValidationError al construirla: acá se traduce a un 422 con voz
+# de Remi, en vez de dejarlo salir como un 500.
+NO_ENTRA = "Así no entra: el título va hasta 80 caracteres y el resumen hasta 240, y ninguno vacío."
 
 
 @app.post("/mensaje", response_model=RespuestaMensaje)
@@ -233,6 +267,95 @@ def decir(pedido: PedidoVoz) -> Response:
         media_type="audio/wav",
         headers={"X-Remi-Voz": voz_id},
     )
+
+
+# — El estante: las mismas operaciones que ve el MCP, por HTTP —
+
+
+@app.get("/memoria", response_model=list[EntradaDeIndice])
+def listar_memoria() -> list[EntradaDeIndice]:
+    """El índice: lo más reciente primero, nunca el cuerpo."""
+    conexion = db.conectar()
+    try:
+        return [
+            EntradaDeIndice(
+                id=entrada.id,
+                titulo=entrada.titulo,
+                resumen=entrada.resumen,
+                tema=entrada.tema,
+                fecha=entrada.fecha,
+            )
+            for entrada in db.indice_memoria(conexion)
+        ]
+    finally:
+        conexion.close()
+
+
+@app.get("/memoria/{memoria_id}", response_model=Memoria)
+def leer_una_memoria(memoria_id: UUID) -> Memoria:
+    conexion = db.conectar()
+    try:
+        memoria = db.leer_memoria(conexion, memoria_id)
+        if memoria is None:
+            raise HTTPException(status_code=404, detail="no tengo nada con ese id")
+        return memoria
+    finally:
+        conexion.close()
+
+
+@app.post("/memoria", response_model=Memoria, status_code=201)
+def guardar_una_memoria(cuerpo: MemoriaNueva) -> Memoria:
+    try:
+        memoria = Memoria(
+            id=uuid4(),
+            titulo=cuerpo.titulo,
+            resumen=cuerpo.resumen,
+            tema=cuerpo.tema,
+            fecha=datetime.now(timezone.utc),
+            cuerpo=cuerpo.cuerpo,
+            fuente=cuerpo.fuente,
+        )
+    except ValidationError:
+        raise HTTPException(status_code=422, detail=NO_ENTRA) from None
+    conexion = db.conectar()
+    try:
+        db.guardar_memoria(conexion, memoria)
+    finally:
+        conexion.close()
+    return memoria
+
+
+@app.patch("/memoria/{memoria_id}", response_model=Memoria)
+def editar_una_memoria(memoria_id: UUID, cambios: MemoriaEditada) -> Memoria:
+    conexion = db.conectar()
+    try:
+        try:
+            memoria = db.editar_memoria(
+                conexion,
+                memoria_id,
+                titulo=cambios.titulo,
+                resumen=cambios.resumen,
+                tema=cambios.tema,
+                cuerpo=cambios.cuerpo,
+            )
+        except ValidationError:
+            raise HTTPException(status_code=422, detail=NO_ENTRA) from None
+        if memoria is None:
+            raise HTTPException(status_code=404, detail="no tengo nada con ese id")
+        return memoria
+    finally:
+        conexion.close()
+
+
+@app.delete("/memoria/{memoria_id}", status_code=204)
+def borrar_una_memoria(memoria_id: UUID) -> Response:
+    conexion = db.conectar()
+    try:
+        if not db.borrar_memoria(conexion, memoria_id):
+            raise HTTPException(status_code=404, detail="no tengo nada con ese id")
+    finally:
+        conexion.close()
+    return Response(status_code=204)
 
 
 @app.get("/hoy", response_model=list[TareaConHistorial])

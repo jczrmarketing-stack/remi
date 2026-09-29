@@ -157,9 +157,13 @@ def test_nunca_hereda_la_clave_de_api(monkeypatch):
     entorno = visto["env"]
     assert "ANTHROPIC_API_KEY" not in entorno
     assert "ANTHROPIC_AUTH_TOKEN" not in entorno
-    # El razonamiento cuenta contra el techo: apagado, 200 alcanzan.
+    # El razonamiento cuenta contra el techo de salida, así que va apagado.
     assert entorno["MAX_THINKING_TOKENS"] == "0"
-    assert entorno["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "200"
+    # 1500, no 200: el JSON de una llamada a `guardar` cuenta como salida y
+    # con 200 se corta a la mitad — la CLI devuelve "exceeded the 200 output
+    # token maximum" y no guarda nada. La voz la recorta el servidor a 20
+    # palabras, no este techo.
+    assert entorno["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "1500"
 
 
 def test_modelo_configurable(monkeypatch):

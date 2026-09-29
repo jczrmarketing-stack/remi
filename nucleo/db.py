@@ -341,22 +341,30 @@ def editar_memoria(
     cuerpo: str | None = None,
 ) -> Memoria | None:
     """Cambia solo lo que venga. None si no existe esa memoria. `fecha` y
-    `fuente` no se editan: son de dónde y cuándo vino, no opinión."""
-    cambios = {
-        "titulo": titulo,
-        "resumen": resumen,
-        "tema": tema,
-        "cuerpo": cuerpo,
-    }
-    pedidos = {campo: valor for campo, valor in cambios.items() if valor is not None}
-    if pedidos:
-        asignaciones = ", ".join(f"{campo} = ?" for campo in pedidos)
-        conexion.execute(
-            f"UPDATE memoria SET {asignaciones} WHERE id = ?",
-            (*pedidos.values(), str(memoria_id)),
-        )
-        conexion.commit()
-    return leer_memoria(conexion, memoria_id)
+    `fuente` no se editan: son de dónde y cuándo vino, no opinión.
+
+    Arma la memoria entera de nuevo antes de escribir, en vez de parchear
+    columnas sueltas: así el contrato sigue siendo el único lugar donde
+    dice cuánto mide un título, y un cambio inválido no llega a la base."""
+    actual = leer_memoria(conexion, memoria_id)
+    if actual is None:
+        return None
+
+    nueva = Memoria(
+        id=actual.id,
+        titulo=actual.titulo if titulo is None else titulo,
+        resumen=actual.resumen if resumen is None else resumen,
+        tema=actual.tema if tema is None else tema,
+        fecha=actual.fecha,
+        cuerpo=actual.cuerpo if cuerpo is None else cuerpo,
+        fuente=actual.fuente,
+    )
+    conexion.execute(
+        "UPDATE memoria SET titulo = ?, resumen = ?, tema = ?, cuerpo = ? WHERE id = ?",
+        (nueva.titulo, nueva.resumen, nueva.tema, nueva.cuerpo, str(nueva.id)),
+    )
+    conexion.commit()
+    return nueva
 
 
 def borrar_memoria(conexion: sqlite3.Connection, memoria_id: UUID) -> bool:
