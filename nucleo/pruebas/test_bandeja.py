@@ -193,3 +193,30 @@ def test_pensar_no_elige_el_tipo(tmp_path, monkeypatch):
     ).json()
     assert cuerpo["tipo"] == "idea"
     assert _contar(servidor)["ideas"] == 1
+
+
+def test_ultima_vez_es_el_bloque_medido_mas_reciente(tmp_path, monkeypatch):
+    """El reposo muestra lo último que se midió de verdad. No mira las
+    tareas de hoy: al decir «listo» la tarea pasa a `hecha` y sale de esa
+    lista, así que ahí nunca estaría el bloque recién cerrado."""
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    import db
+
+    # Sin nada cerrado todavía no hay dato: no se inventa.
+    assert cliente.get("/ultima-vez").json()["minutos"] is None
+
+    abierto = cliente.post("/mensaje", json={"texto": "voy a revisar el contrato"}).json()
+    assert cliente.get("/ultima-vez").json()["minutos"] is None
+
+    conexion = db.conectar()
+    inicio = datetime.fromisoformat(abierto["sesion"]["inicio"]) - timedelta(minutes=2)
+    conexion.execute(
+        "UPDATE sesiones SET inicio = ? WHERE id = ?",
+        (inicio.isoformat(), abierto["sesion"]["id"]),
+    )
+    conexion.commit()
+    conexion.close()
+
+    assert cliente.post("/mensaje", json={"texto": "listo"}).json()["voz"] == "Cerrada. 2 min."
+    assert cliente.get("/ultima-vez").json()["minutos"] == 2

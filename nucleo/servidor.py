@@ -469,6 +469,23 @@ def listar_hoy() -> list[TareaConHistorial]:
         conexion.close()
 
 
+class UltimaVez(BaseModel):
+    # None mientras no se haya cerrado ningún bloque: la ley 1 no inventa.
+    minutos: int | None
+
+
+@app.get("/ultima-vez", response_model=UltimaVez)
+def ultima_vez() -> UltimaVez:
+    """Cuánto tardó el último bloque que se cerró. Lo usa el reposo de la
+    ventanita: con algo medido para mostrar, vale más que «hace N min»."""
+    conexion = db.conectar()
+    try:
+        sesion = db.ultima_sesion_cerrada(conexion)
+        return UltimaVez(minutos=sesion.real_min if sesion else None)
+    finally:
+        conexion.close()
+
+
 @app.get("/tarea/{tarea_id}/historial", response_model=Historial)
 def historial_tarea(tarea_id: UUID) -> Historial:
     conexion = db.conectar()

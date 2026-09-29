@@ -76,11 +76,17 @@ export async function obtenerUltimaVezMin(tareaId: string): Promise<number | nul
   return encontrada ? encontrada.ultima_vez_min : null;
 }
 
-// Para el reposo: de las tareas de hoy, la más reciente que ya se hizo
-// alguna vez. null si ninguna tiene historial — ahí no hay nada medido
-// que mostrar, y la ley 1 no inventa números.
+// Para el reposo: cuánto tardó el último bloque que se cerró. null hasta
+// que se cierre el primero — la ley 1 no inventa números.
+//
+// No es «la última vez que hiciste ESTA tarea», que sería lo ideal, porque
+// en reposo no hay ninguna tarea elegida: al decir «listo» la tarea pasa a
+// `hecha` y sale de las de hoy, así que mirar ahí nunca mostraría el bloque
+// que acabás de cerrar.
 export async function obtenerUltimaVezDeHoy(): Promise<number | null> {
-  const conHistorial = (await obtenerHoy()).filter((t) => t.ultima_vez_min !== null);
-  const ultima = conHistorial[conHistorial.length - 1];
-  return ultima ? ultima.ultima_vez_min : null;
+  const respuesta = await fetch(`${URL_NUCLEO}/ultima-vez`);
+  if (!respuesta.ok) {
+    throw new Error(`El núcleo respondió ${respuesta.status}`);
+  }
+  return ((await respuesta.json()) as { minutos: number | null }).minutos;
 }

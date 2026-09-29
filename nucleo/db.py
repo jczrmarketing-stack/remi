@@ -298,6 +298,16 @@ def cerrar_sesion_en_cero(conexion: sqlite3.Connection, sesion_id: UUID) -> Sesi
     )
 
 
+def ultima_sesion_cerrada(conexion: sqlite3.Connection) -> Sesion | None:
+    """El último bloque que se midió de verdad, sea de la tarea que sea.
+    Es lo que el reposo muestra como «la última vez»: un dato medido, no un
+    reloj. None si todavía no se cerró ninguno — no se inventa."""
+    fila = conexion.execute(
+        "SELECT * FROM sesiones WHERE fin IS NOT NULL ORDER BY fin DESC LIMIT 1"
+    ).fetchone()
+    return _fila_a_sesion(fila) if fila else None
+
+
 def sesion_abierta_mas_reciente(conexion: sqlite3.Connection) -> UUID | None:
     """La última que quedó abierta, sea de la tarea que sea. Es la que
     cierra un «listo» suelto: no hace falta decir cuál."""
