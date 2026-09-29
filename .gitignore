@@ -24,5 +24,10 @@ __pycache__/
 # Audio generado por la prueba de humo del TTS (se regenera solo)
 vendor/kokoro/salida/
 
+# `tauri icon` genera también juegos para Android e iOS. Remi es una app de
+# Mac: no tiene esos destinos y esos íconos serían 35 archivos de adorno.
+apps/ventanita/src-tauri/icons/android/
+apps/ventanita/src-tauri/icons/ios/
+
 # Sistema
 .DS_Store
