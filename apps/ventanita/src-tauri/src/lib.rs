@@ -13,6 +13,19 @@ use voz::EstadoGrabacion;
 // respaldo si config/ventanita.json falta o no se puede leer.
 const ATAJO_POR_DEFECTO: &str = "CmdOrCtrl+Alt+Shift+L";
 
+// El log vive donde macOS espera los logs, al lado del del núcleo, para
+// poder leer los dos juntos cuando algo no se entiende.
+const CARPETA_LOGS: &str = "Library/Logs/Remi";
+const ARCHIVO_LOG: &str = "ventanita";
+// Un log que llena el disco es peor que no tener log. Al pasarse, guarda
+// uno viejo y empieza de nuevo.
+const MAX_BYTES_LOG: u128 = 5 * 1024 * 1024;
+
+fn carpeta_de_logs() -> PathBuf {
+    let casa = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    PathBuf::from(casa).join(CARPETA_LOGS)
+}
+
 #[derive(Deserialize)]
 struct ConfigVentanita {
     atajo_mostrar_ocultar: String,
@@ -35,12 +48,12 @@ fn leer_atajo() -> String {
         Ok(contenido) => match serde_json::from_str::<ConfigVentanita>(&contenido) {
             Ok(config) => config.atajo_mostrar_ocultar,
             Err(_) => {
-                eprintln!("config/ventanita.json inválido, uso el atajo por defecto");
+                log::warn!("config/ventanita.json inválido, uso el atajo por defecto");
                 ATAJO_POR_DEFECTO.to_string()
             }
         },
         Err(_) => {
-            eprintln!("no encontré {}, uso el atajo por defecto", ruta.display());
+            log::warn!("no encontré {}, uso el atajo por defecto", ruta.display());
             ATAJO_POR_DEFECTO.to_string()
         }
     }
@@ -67,6 +80,35 @@ pub fn run() {
             voz::iniciar_escucha,
             voz::detener_escucha_y_transcribir
         ])
+        // Todo a un archivo: los `log::info!` de Rust y, desde el otro
+        // lado, la consola del webview (ver src/registro.ts). Sin esto, lo
+        // que pasa con la app instalada no se ve en ninguna parte: no hay
+        // terminal donde mirar.
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .clear_targets()
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Folder {
+                        path: carpeta_de_logs(),
+                        file_name: Some(ARCHIVO_LOG.to_string()),
+                    },
+                ))
+                // Hora con milisegundos: para entender un gesto hace falta
+                // ver el orden y la distancia entre dos eventos, no el
+                // segundo en que cayeron.
+                .format(|salida, mensaje, registro| {
+                    salida.finish(format_args!(
+                        "{} [{}] {}",
+                        chrono::Local::now().format("%H:%M:%S%.3f"),
+                        registro.level(),
+                        mensaje
+                    ))
+                })
+                .max_file_size(MAX_BYTES_LOG)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
