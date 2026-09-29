@@ -5,6 +5,7 @@ import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
 import { enviarMensaje } from "./servidor";
 import { animarTamano } from "./movimiento";
+import { callarse, hablar, haySoporteDeVoz } from "./voz";
 import type { Estado } from "./tipos";
 import "./estilos.css";
 import "./App.css";
@@ -12,7 +13,9 @@ import "./App.css";
 const TAMANO_REPOSO = { width: 320, height: 180 };
 const TAMANO_EXPANDIDO = { width: 420, height: 520 };
 const DURACION_APARECER = 250;
-const DURACION_VOZ_VISIBLE = 4000;
+// Piso mínimo para leer la frase cuando el webview no tiene voces instaladas.
+const DURACION_VOZ_SIN_SONIDO = 4000;
+const PAUSA_TRAS_HABLAR = 700;
 const MAX_PALABRAS_VOZ = 20;
 
 function recortarPalabras(frase: string): string {
@@ -46,18 +49,44 @@ export default function App() {
 
   useEffect(() => {
     if (estado !== "hablando") return;
-    const id = window.setTimeout(() => {
+
+    let cancelado = false;
+    const volverAReposo = () => {
+      if (cancelado) return;
       setEstado("reposo");
       setTexto("");
       setVoz("");
-    }, DURACION_VOZ_VISIBLE);
-    return () => window.clearTimeout(id);
-  }, [estado]);
+    };
+
+    if (haySoporteDeVoz()) {
+      void hablar(voz).then(() => {
+        if (cancelado) return;
+        window.setTimeout(volverAReposo, PAUSA_TRAS_HABLAR);
+      });
+    } else {
+      window.setTimeout(volverAReposo, DURACION_VOZ_SIN_SONIDO);
+    }
+
+    return () => {
+      cancelado = true;
+      callarse();
+    };
+  }, [estado, voz]);
 
   const alTocarVentanita = useCallback(() => {
     if (estado !== "reposo") return;
     setEstado("escuchando");
   }, [estado]);
+
+  // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
+  // salvo dentro del PromptTerminal (ahí hay que poder hacer click y
+  // seleccionar texto, no mover la ventana). Un click sin arrastre
+  // igual dispara alTocarVentanita: startDragging no lo bloquea.
+  const alPresionar = useCallback((evento: React.MouseEvent<HTMLDivElement>) => {
+    if (evento.button !== 0) return;
+    if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
+    void getCurrentWindow().startDragging();
+  }, []);
 
   const alEnviar = useCallback(async () => {
     const mensaje = texto.trim();
@@ -77,7 +106,7 @@ export default function App() {
     <div
       className={`ventanita ventanita--${estado}`}
       onClick={alTocarVentanita}
-      {...(!expandido ? { "data-tauri-drag-region": true } : {})}
+      onMouseDown={alPresionar}
     >
       <StatusDot estado={estado} />
 
