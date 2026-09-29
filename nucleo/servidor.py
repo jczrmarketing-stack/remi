@@ -57,10 +57,16 @@ class RespuestaMensaje(BaseModel):
 class TareaConHistorial(BaseModel):
     tarea: Tarea
     sesiones: list[Sesion]
+    ultima_vez_min: int | None
 
 
 class EstadoNuevo(BaseModel):
     estado: Literal["hoy", "camino", "hecha"]
+
+
+class Historial(BaseModel):
+    sesiones: list[Sesion]
+    total_min: int
 
 
 @app.post("/mensaje", response_model=RespuestaMensaje)
@@ -136,10 +142,24 @@ def listar_hoy() -> list[TareaConHistorial]:
         tareas = db.listar_tareas_hoy(conexion)
         return [
             TareaConHistorial(
-                tarea=tarea, sesiones=db.listar_sesiones_tarea(conexion, tarea.id)
+                tarea=tarea,
+                sesiones=db.listar_sesiones_tarea(conexion, tarea.id),
+                # Ley 1: nunca pedir un estimado a ciegas — este es el dato
+                # histórico que Remi ofrece al planear.
+                ultima_vez_min=db.ultima_sesion_cerrada_min(conexion, tarea.id),
             )
             for tarea in tareas
         ]
+    finally:
+        conexion.close()
+
+
+@app.get("/tarea/{tarea_id}/historial", response_model=Historial)
+def historial_tarea(tarea_id: UUID) -> Historial:
+    conexion = db.conectar()
+    try:
+        sesiones = db.listar_sesiones_cerradas_tarea(conexion, tarea_id)
+        return Historial(sesiones=sesiones, total_min=sum(s.real_min for s in sesiones))
     finally:
         conexion.close()
 

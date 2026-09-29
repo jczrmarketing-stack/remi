@@ -156,6 +156,25 @@ def listar_sesiones_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> list[
     return [_fila_a_sesion(fila) for fila in filas]
 
 
+def listar_sesiones_cerradas_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> list[Sesion]:
+    filas = conexion.execute(
+        "SELECT * FROM sesiones WHERE tarea_id = ? AND fin IS NOT NULL ORDER BY inicio",
+        (str(tarea_id),),
+    ).fetchall()
+    return [_fila_a_sesion(fila) for fila in filas]
+
+
+def ultima_sesion_cerrada_min(conexion: sqlite3.Connection, tarea_id: UUID) -> int | None:
+    """El dato que pide la ley 1: cuánto tardó la última vez. None si la
+    tarea nunca tuvo una sesión cerrada — no hay de dónde sacarlo."""
+    fila = conexion.execute(
+        "SELECT real_min FROM sesiones WHERE tarea_id = ? AND fin IS NOT NULL "
+        "ORDER BY fin DESC LIMIT 1",
+        (str(tarea_id),),
+    ).fetchone()
+    return fila["real_min"] if fila else None
+
+
 def sesion_abierta_de_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> UUID | None:
     fila = conexion.execute(
         "SELECT id FROM sesiones WHERE tarea_id = ? AND fin IS NULL ORDER BY inicio DESC LIMIT 1",
