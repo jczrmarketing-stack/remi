@@ -217,32 +217,43 @@ export default function App() {
     };
   }, [estado, voz, origenMensaje, silenciado, empezarAEscuchar, volverAReposo]);
 
-  // 1 click escribís · 2 clicks te escucha (como Handy) · 3 clicks dialogan.
-  const alClick = useCallback(() => {
-    if (estado === "reposo") {
-      clicsRef.current += 1;
-      if (esperaClicsRef.current !== undefined) {
-        window.clearTimeout(esperaClicsRef.current);
-      }
-      esperaClicsRef.current = window.setTimeout(() => {
-        const clics = clicsRef.current;
-        clicsRef.current = 0;
-        esperaClicsRef.current = undefined;
-        if (clics <= 1) {
-          empezarATipear();
-        } else if (clics === 2) {
-          void empezarAEscuchar("voz");
-        } else {
-          void empezarAEscuchar("dialogo");
-        }
-      }, ESPERA_CLICS);
-      return;
-    }
+  // 1 click escribís (al toque, sin esperar) · 2 clicks te escucha (como
+  // Handy) · 3 clicks dialogan. La acción más común (escribir) no paga la
+  // espera de las menos comunes: el primer click ya abrió el cuadro: los
+  // clicks de más, dentro de la ventana, solo suben de modo.
+  const alClick = useCallback(
+    (evento: React.MouseEvent<HTMLDivElement>) => {
+      if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
 
-    if (estado === "escuchando" && grabando) {
-      void detenerYTranscribir();
-    }
-  }, [estado, grabando, empezarATipear, empezarAEscuchar, detenerYTranscribir]);
+      // Un click más mientras ya estamos en la ventana de espera: cuenta
+      // para subir de modo, no abre nada de nuevo.
+      if (esperaClicsRef.current !== undefined) {
+        clicsRef.current += 1;
+        return;
+      }
+
+      if (estado === "reposo") {
+        empezarATipear();
+        clicsRef.current = 1;
+        esperaClicsRef.current = window.setTimeout(() => {
+          const clics = clicsRef.current;
+          clicsRef.current = 0;
+          esperaClicsRef.current = undefined;
+          if (clics === 2) {
+            void empezarAEscuchar("voz");
+          } else if (clics >= 3) {
+            void empezarAEscuchar("dialogo");
+          }
+        }, ESPERA_CLICS);
+        return;
+      }
+
+      if (estado === "escuchando" && grabando) {
+        void detenerYTranscribir();
+      }
+    },
+    [estado, grabando, empezarATipear, empezarAEscuchar, detenerYTranscribir],
+  );
 
   // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
   // salvo dentro del PromptTerminal (ahí hay que poder hacer click y
