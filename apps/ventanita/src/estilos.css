@@ -1,5 +1,47 @@
 @import "./tokens.css";
 
+/* — Fuentes del design system, locales (SIL OFL). Remi no pide nada a la red. —
+   Van después del @import: un @import tras cualquier otra regla se ignora. */
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fuentes/instrument-serif-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fuentes/instrument-serif-400-italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fuentes/geist-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fuentes/geist-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fuentes/geist-mono-400.woff2") format("woff2");
+}
+
 :root {
   --curva: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-estado: 150ms;
