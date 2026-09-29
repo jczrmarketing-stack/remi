@@ -268,7 +268,9 @@ def test_el_servidor_mcp_anuncia_exactamente_dos_herramientas(tmp_path, monkeypa
         input=peticiones + "\n",
         capture_output=True,
         text=True,
-        timeout=60,
+        # 60 s se quedaba corto cuando esto corría mientras compilaba la
+        # app: el subproceso levanta el SDK de MCP y tarda.
+        timeout=180,
     )
     nombres = []
     for linea in terminado.stdout.splitlines():
