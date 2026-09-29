@@ -5,6 +5,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
@@ -66,8 +67,14 @@ fn leer_config_voz() -> Result<ConfigVoz, String> {
     Ok(config.voz)
 }
 
+// Nombre único por grabación: si un hilo viejo (que vigila un silencio que
+// ya no importa) llega a mirar este archivo después de que se borró, no
+// puede confundirlo con una grabación nueva que reusa el mismo nombre.
+static CONTADOR_GRABACION: AtomicU64 = AtomicU64::new(0);
+
 fn ruta_temporal(sufijo: &str) -> PathBuf {
-    std::env::temp_dir().join(format!("remi-voz-{}{}", std::process::id(), sufijo))
+    let n = CONTADOR_GRABACION.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!("remi-voz-{}-{n}{sufijo}", std::process::id()))
 }
 
 // ffmpeg escribe MUCHO por stderr: si nadie lo lee, se llena el pipe y se

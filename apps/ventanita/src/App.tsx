@@ -135,11 +135,17 @@ export default function App() {
       }
       setEstado("escuchando");
     } catch (error) {
-      // No escuchó nada (o no se entendió): se escribe a mano, sin culpa.
+      // No escuchó nada (o no se entendió): sin culpa (ley 3).
       console.error("no se pudo transcribir:", error);
-      setEstado("escuchando");
+      if (enDialogo) {
+        // En diálogo no hay cuadro para escribir: si no la dejamos
+        // escuchando de nuevo, queda muda y trabada.
+        void empezarAEscuchar("dialogo");
+      } else {
+        setEstado("escuchando");
+      }
     }
-  }, [enviar]);
+  }, [enviar, empezarAEscuchar]);
 
   // El núcleo avisa cuando dejaste de hablar (solo en modo diálogo).
   useEffect(() => {
