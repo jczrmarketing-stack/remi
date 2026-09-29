@@ -148,3 +148,31 @@ def test_importar_el_servidor_no_carga_el_modelo(tmp_path, monkeypatch):
     import tts
 
     assert tts._pipelines == {}
+
+
+def test_el_precalentado_corre_con_el_servidor_no_solo_con_python_servidor(tmp_path, monkeypatch):
+    """launchd levanta `uvicorn servidor:app`, así que `__main__` nunca
+    corre. Si el precalentado viviera ahí, Remi arrancaría siempre con la
+    voz fría y la primera frase la diría el sistema."""
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    monkeypatch.setenv("REMI_TTS_PRECALENTAR", "1")
+    servidor = _arrancar_servidor()
+    llamadas = []
+    monkeypatch.setattr(servidor.tts, "precalentar", lambda: llamadas.append(True))
+
+    # Entrar al contexto del TestClient es lo que dispara el ciclo de vida.
+    with TestClient(servidor.app):
+        pass
+    assert llamadas == [True]
+
+
+def test_se_puede_apagar_el_precalentado(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    monkeypatch.setenv("REMI_TTS_PRECALENTAR", "0")
+    servidor = _arrancar_servidor()
+    llamadas = []
+    monkeypatch.setattr(servidor.tts, "precalentar", lambda: llamadas.append(True))
+
+    with TestClient(servidor.app):
+        pass
+    assert llamadas == []

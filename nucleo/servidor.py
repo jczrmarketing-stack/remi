@@ -4,8 +4,12 @@ en los espejos, no este servidor."""
 from __future__ import annotations
 
 import json
+import os
+import threading
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from collections.abc import AsyncIterator
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -23,7 +27,20 @@ CONFIG = json.loads(RUTA_CONFIG.read_text())
 HOST = CONFIG["host"]
 PUERTO = CONFIG["puerto"]
 
-app = FastAPI(title="Remi — núcleo")
+@asynccontextmanager
+async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
+    """Cargar el modelo de voz tarda ~18 s la primera vez: si esperáramos a
+    la primera frase, Remi contestaría con la voz del sistema mientras
+    tanto. Va en un hilo al arrancar el servidor, no en `__main__`, porque
+    launchd levanta `uvicorn servidor:app` y ahí `__main__` nunca corre.
+    Importar el módulo sigue sin cargar nada: esto es del ciclo de vida de
+    la app, no del import (REMI_TTS_PRECALENTAR=0 lo apaga)."""
+    if os.environ.get("REMI_TTS_PRECALENTAR", "1") != "0":
+        threading.Thread(target=tts.precalentar, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Remi — núcleo", lifespan=ciclo_de_vida)
 
 # Orígenes reales del webview de la ventanita (Tauri 2, macOS): el devUrl de
 # tauri.conf.json en desarrollo, y el esquema tauri:// en producción.
@@ -388,14 +405,6 @@ def historial_tarea(tarea_id: UUID) -> Historial:
 
 
 if __name__ == "__main__":
-    import threading
-
     import uvicorn
-
-    # Cargar el modelo de voz tarda ~18 s la primera vez: si esperáramos a
-    # la primera frase, Remi se quedaría muda hasta que termine. Se carga
-    # en un hilo al arrancar y para cuando haga falta ya está listo. No se
-    # hace al importar: las pruebas no tienen por qué cargar 300 MB.
-    threading.Thread(target=tts.precalentar, daemon=True).start()
 
     uvicorn.run(app, host=HOST, port=PUERTO)
