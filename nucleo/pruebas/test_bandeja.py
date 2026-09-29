@@ -153,7 +153,7 @@ def test_un_listo_cierra_el_bloque_mas_reciente_aunque_sea_de_otra_tarea(tmp_pat
     cliente = TestClient(servidor.app)
 
     cliente.post("/mensaje", json={"texto": "voy a escribir la propuesta"})
-    segundo = cliente.post("/mensaje", json={"texto": "ahora reviso los proxies"}).json()
+    segundo = cliente.post("/mensaje", json={"texto": "me pongo con los proxies"}).json()
 
     cerrado = cliente.post("/mensaje", json={"texto": "listo"}).json()
     assert cerrado["sesion"]["id"] == segundo["sesion"]["id"]

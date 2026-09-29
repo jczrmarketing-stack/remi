@@ -44,7 +44,7 @@ def test_pasar_a_hecha_cierra_la_sesion_abierta(tmp_path, monkeypatch):
     cliente = TestClient(servidor.app)
     import db
 
-    creada = cliente.post("/mensaje", json={"texto": "ahora llamo al banco"}).json()
+    creada = cliente.post("/mensaje", json={"texto": "voy a llamar al banco"}).json()
     tarea_id = creada["tarea"]["id"]
     sesion_id = creada["sesion"]["id"]
     assert creada["sesion"]["fin"] is None

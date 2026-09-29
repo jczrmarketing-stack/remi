@@ -10,10 +10,10 @@ def test_tarea_rechaza_campo_fuera_de_contrato():
     with pytest.raises(ValidationError):
         Tarea(
             id=uuid4(),
-            titulo="ahora llamo al banco",
+            titulo="voy a llamar al banco",
             proyecto_id=None,
             estado="hoy",
-            paso_minimo="ahora llamo al banco",
+            paso_minimo="voy a llamar al banco",
             estimado_min=None,
             real_min=None,
             compartible=False,
