@@ -286,7 +286,7 @@ export default function App() {
       const encadenable =
         estadoActual === "reposo" ||
         (estadoActual === "escuchando" && !grabandoActual && texto === "");
-      if (encadenable && ahora - racha.t < 400) {
+      if (encadenable && ahora - racha.t < 550) {
         racha.n += 1;
       } else {
         racha.n = 1;
@@ -300,7 +300,7 @@ export default function App() {
           const modoNuevo: Modo = rachaRef.current.n >= 3 ? "dialogo" : "voz";
           rachaRef.current.n = 0;
           void empezarAEscuchar(modoNuevo);
-        }, 380);
+        }, 520);
         return;
       }
 
@@ -316,11 +316,18 @@ export default function App() {
         return;
       }
 
+      // Con texto escrito o dictado, un click fuera del cuadro lo MANDA —
+      // antes borraba todo y volvía a reposo, que perdía el dictado.
+      if (estadoActual === "escuchando" && texto.trim() !== "") {
+        void enviar(texto);
+        return;
+      }
+
       // Cualquier otro estado no-reposo: un click fuera del cuadro vuelve
       // a reposo. Ningún estado se queda sin salida.
       volverAReposo();
     },
-    [texto, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
+    [texto, enviar, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
   );
 
   // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
