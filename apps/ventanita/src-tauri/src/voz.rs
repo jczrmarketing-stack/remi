@@ -2,10 +2,17 @@
 //! transcribe con whisper.cpp (Homebrew), reusando un modelo que Handy
 //! ya tenía descargado. Nada de esto sale del Mac.
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
+
+// Si ffmpeg muere antes de esto, fue un fallo real (permiso de
+// micrófono negado, dispositivo inválido, etc.) — no lo tomamos como
+// "ya está grabando".
+const ESPERA_CONFIRMAR_ARRANQUE: Duration = Duration::from_millis(400);
 
 use serde::Deserialize;
 
@@ -48,6 +55,18 @@ fn ruta_temporal(sufijo: &str) -> PathBuf {
     std::env::temp_dir().join(format!("remi-voz-{}{}", std::process::id(), sufijo))
 }
 
+// ffmpeg imprime un banner enorme antes del error real; nos quedamos con
+// la última línea no vacía, que es la que importa.
+fn ultima_linea_util(salida: &str) -> String {
+    salida
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .next_back()
+        .unwrap_or("(sin detalle)")
+        .to_string()
+}
+
 #[tauri::command]
 pub fn iniciar_escucha(estado: tauri::State<EstadoGrabacion>) -> Result<(), String> {
     let config = leer_config_voz()?;
@@ -57,7 +76,7 @@ pub fn iniciar_escucha(estado: tauri::State<EstadoGrabacion>) -> Result<(), Stri
     }
 
     let ruta_wav = ruta_temporal(".wav");
-    let hijo = Command::new(&config.ffmpeg_bin)
+    let mut hijo = Command::new(&config.ffmpeg_bin)
         .args([
             "-y",
             "-f",
@@ -72,9 +91,24 @@ pub fn iniciar_escucha(estado: tauri::State<EstadoGrabacion>) -> Result<(), Stri
         .arg(&ruta_wav)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("no pude arrancar ffmpeg: {e}"))?;
+
+    // ffmpeg tarda un toque en fallar (permiso de mic negado, dispositivo
+    // que no existe): si ya murió en este rato corto, no mentimos que
+    // está grabando.
+    thread::sleep(ESPERA_CONFIRMAR_ARRANQUE);
+    if let Ok(Some(estado_salida)) = hijo.try_wait() {
+        let mut error = String::new();
+        if let Some(mut stderr) = hijo.stderr.take() {
+            let _ = stderr.read_to_string(&mut error);
+        }
+        return Err(format!(
+            "ffmpeg terminó enseguida ({estado_salida}): {}",
+            ultima_linea_util(&error)
+        ));
+    }
 
     *guarda = Some((hijo, ruta_wav));
     Ok(())

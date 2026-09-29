@@ -112,8 +112,10 @@ export default function App() {
     setGrabando(true);
     try {
       await iniciarEscucha();
-    } catch {
+    } catch (error) {
       // Sin micrófono disponible: cae a escritura manual, sin culpa (ley 3).
+      // El detalle técnico va a la consola, no a la voz de Remi.
+      console.error("no se pudo prender el micrófono:", error);
       setGrabando(false);
       setOrigenMensaje("texto");
     }
@@ -125,8 +127,9 @@ export default function App() {
     try {
       const transcripcion = await detenerEscuchaYTranscribir();
       setTexto(transcripcion);
-    } catch {
+    } catch (error) {
       // No se pudo transcribir: el cuadro queda vacío, se escribe a mano.
+      console.error("no se pudo transcribir:", error);
     } finally {
       setEstado("escuchando");
     }
