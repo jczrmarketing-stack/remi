@@ -270,7 +270,10 @@ export default function App() {
         return;
       }
       const miGeneracion = generacionRef.current;
-      const think = accionesRef.current.pensarConClaude;
+      // En diálogo siempre se piensa: una conversación con «Guardada. La
+      // miramos en dos días.» a todo no es una conversación. En texto y en
+      // dictado sigue mandando el toggle.
+      const think = accionesRef.current.pensarConClaude || accionesRef.current.modo === "dialogo";
       setPensarConClaude(false);
       setEstado("pensando");
       const arranque = performance.now();

@@ -178,20 +178,51 @@ def test_formato_de_duracion(tmp_path, monkeypatch):
 
 
 def test_pensar_no_elige_el_tipo(tmp_path, monkeypatch):
-    """Aunque Claude conteste cualquier cosa, una idea sigue siendo idea:
-    pensar solo reformula la voz de un bloque que se abre."""
+    """Aunque el modelo conteste cualquier cosa, una idea sigue siendo idea
+    y se guarda: pensar solo cambia lo que Remi contesta."""
     servidor = _arrancar(tmp_path, monkeypatch)
-
-    def explota(_frase):
-        raise AssertionError("una idea no tiene por qué gastar un token")
-
-    monkeypatch.setattr(servidor.pensar, "pensar", explota)
+    monkeypatch.setattr(
+        servidor.pensar,
+        "pensar",
+        lambda _frase: servidor.pensar.Pensado("Es una tarea urgentísima, hacela ya.", 1, 1, "m"),
+    )
     cliente = TestClient(servidor.app)
 
     cuerpo = cliente.post(
         "/mensaje", json={"texto": "se me ocurrió una app de recetas", "think": True}
     ).json()
     assert cuerpo["tipo"] == "idea"
+    assert cuerpo["tarea"] is None
+    assert _contar(servidor) == {"tareas": 0, "sesiones": 0, "ideas": 1}
+
+
+def test_una_idea_sin_think_no_gasta_un_token(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+
+    def explota(_frase):
+        raise AssertionError("sin think no se piensa")
+
+    monkeypatch.setattr(servidor.pensar, "pensar", explota)
+    cliente = TestClient(servidor.app)
+    cuerpo = cliente.post("/mensaje", json={"texto": "se me ocurrió una app de recetas"}).json()
+    assert cuerpo["voz"] == "Guardada. La miramos en dos días."
+    assert cuerpo["tokens"] is None
+
+
+def test_en_dialogo_una_idea_contesta_pensando(tmp_path, monkeypatch):
+    """think=true sobre una idea: se guarda igual y la voz es lo que pensó."""
+    servidor = _arrancar(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        servidor.pensar,
+        "pensar",
+        lambda _frase: servidor.pensar.Pensado("Empezá por una receta, la que más hacés.", 300, 12, "venice/x"),
+    )
+    cliente = TestClient(servidor.app)
+    cuerpo = cliente.post(
+        "/mensaje", json={"texto": "se me ocurrió una app de recetas", "think": True}
+    ).json()
+    assert cuerpo["voz"] == "Empezá por una receta, la que más hacés."
+    assert cuerpo["tokens"] == {"entrada": 300, "salida": 12, "modelo": "venice/x"}
     assert _contar(servidor)["ideas"] == 1
 
 

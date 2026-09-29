@@ -227,7 +227,18 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
         db.crear_idea(conexion, idea)
     finally:
         conexion.close()
-    return RespuestaMensaje(tipo="idea", voz="Guardada. La miramos en dos días.")
+
+    # El tipo ya está decidido (idea, y se guardó): pensar solo cambia lo que
+    # Remi CONTESTA. En diálogo, «Guardada. La miramos en dos días.» a todo
+    # lo que digas no es una conversación.
+    pensado = pensar.pensar(mensaje.texto) if mensaje.think else None
+    if pensado is None:
+        return RespuestaMensaje(tipo="idea", voz="Guardada. La miramos en dos días.")
+    return RespuestaMensaje(
+        tipo="idea",
+        voz=recortar_voz(pensado.paso_minimo),
+        tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
+    )
 
 
 def _cerrar_lo_abierto() -> RespuestaMensaje:
