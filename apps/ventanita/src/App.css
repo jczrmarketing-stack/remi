@@ -70,3 +70,18 @@
     animation: none;
   }
 }
+
+/* Error boundary: el detalle técnico, chico y en ink-muted. */
+.ventanita--error {
+  cursor: default;
+  user-select: text;
+}
+.limite-error__detalle {
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 16px;
+  margin: 0;
+}
