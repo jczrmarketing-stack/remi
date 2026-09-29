@@ -20,6 +20,37 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.10 Ollama, el motor local y gratis · construido · 2a304f2
+
+- **Qué cambió:** medí antes de construir lo que había propuesto (estante persistente) y la
+  medición lo tiró: 2,05 s sin estante, 2,08 s con; el estante arranca en paralelo con la CLI
+  y no suma. Los 1,5 s fijos son la CLI de Claude misma. Lo que sí baja el tiempo es no
+  arrancarla: Ollama por HTTP en el mismo Mac. `nucleo/pensar.py`: Venice y Ollama comparten
+  un cliente OpenAI-compatible; Ollama no manda clave; modelo por defecto `gemma3:4b`
+  (`REMI_OLLAMA_MODELO`). `GET /pensar/motores` lo lista y dice qué le falta. 142 pruebas.
+  **Medido:** primera respuesta 9,4 s (carga el modelo a memoria), después 0,6 s y 0,5 s.
+- **Decisiones que tomé sin preguntar:**
+  1. **Fuera del repo:** `brew services start ollama` (arranca al iniciar sesión) y
+     `ollama pull gemma3:4b` (3,3 GB). Y creé `/Volumes/ORGANIC/Mac/Modelos-IA/ollama-models`:
+     `~/.ollama/models` era un enlace **roto** a esa carpeta, dejado el 23/09 (el día del
+     disco lleno) para tener los modelos en el SSD; Ollama no arrancaba por eso. Respeté esa
+     decisión en vez de mover los modelos al disco interno.
+  2. gemma3:4b y no un 7B: en un M4 con 16 GB, 4B contesta en medio segundo; el doble de
+     tamaño sería el doble de tiempo por una mejora chica en español.
+  3. Claude sigue como motor por defecto; Ollama se elige en el dropdown.
+- **Dudas abiertas:**
+  1. **Ollama descarga el modelo a los 5 min sin uso** (`OLLAMA_KEEP_ALIVE=5m`): la primera
+     respuesta después de una pausa vuelve a costar ~9 s. Si Remi va a usarlo de día a día,
+     conviene `OLLAMA_KEEP_ALIVE=-1` en el servicio: 3,3 GB de RAM ocupados siempre.
+  2. Si ORGANIC no está montado, Ollama no arranca. Es la consecuencia del enlace del 23/09.
+  3. Dos cosas reportadas por Juan Camilo, con dato ya tomado y sin tocar todavía:
+     **texto + Enter contesta «Guardada…»** porque en texto solo piensa con el toggle (diseño;
+     con Ollama gratis, pensar por defecto ya no cuesta); y **la comprensión**: los picos del
+     micrófono están en −4 a −7 dB (fuerte, no es volumen), y en la carpeta de Handy ya está
+     `ggml-large-v3-turbo`, muy superior al `small` que usa Remi. Es un cambio de config.
+- **Cómo probarlo a mano:** en el dropdown elegir «Ollama (local, gratis)», prender «pensar
+  con», escribir algo y Enter. La primera vez tarda; las siguientes, medio segundo.
+
 ## 2026-09-29 · 2i.9 un click no cancela la respuesta; semáforo en la esquina · construido · 43978ba
 
 - **Qué cambió:** el diálogo ya contesta con voz (confirmado por Juan Camilo). (1) `0be864e`:
