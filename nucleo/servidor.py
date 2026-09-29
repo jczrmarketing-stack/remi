@@ -1,16 +1,35 @@
-"""FastAPI local — solo 127.0.0.1:4400. No escucha en la red."""
+"""FastAPI local. El bind en 127.0.0.1 no protege del origen: por acá no pueden
+salir pacientes, finanzas ni salud — eso lo hace la regla de compartible=true
+en los espejos, no este servidor."""
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import db
 from modelos import Sesion, Tarea
 
+RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
+CONFIG = json.loads(RUTA_CONFIG.read_text())
+HOST = CONFIG["host"]
+PUERTO = CONFIG["puerto"]
+
 app = FastAPI(title="Remi — núcleo")
+
+# Orígenes reales del webview de la ventanita (Tauri 2, macOS): el devUrl de
+# tauri.conf.json en desarrollo, y el esquema tauri:// en producción.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["tauri://localhost", "http://localhost:1420"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
 
 MAX_PALABRAS_VOZ = 20
 
@@ -88,4 +107,4 @@ def listar_hoy() -> list[TareaConHistorial]:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=4400)
+    uvicorn.run(app, host=HOST, port=PUERTO)

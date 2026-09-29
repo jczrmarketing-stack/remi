@@ -1,0 +1,44 @@
+/* Generado desde design/tokens.json por scripts/generar-tokens.mjs. */
+/* No editar a mano: correr `npm run generar:tokens` de nuevo. */
+
+:root {
+  --ground: #151112;
+  --surface: #1d1718;
+  --surface-2: #26201f;
+  --line: #3a302d;
+  --ink: #f3ebdd;
+  --ink-muted: #a89d8f;
+  --ink-faint: #6b6058;
+  --luz: #fff2c9;
+  --on-luz: #1a1200;
+  --dinero: #ffb020;
+  --on-dinero: #1a1200;
+  --brasa: #ff8a3d;
+  --on-brasa: #1a0a00;
+  --alerta: #ff4d6d;
+  --pensar: #c9a0ff;
+  --baja: #6f6660;
+  --dormido: #3a302d;
+  --focus-ring: #ffd27a;
+
+  --glow-luz: 0 0 12px rgba(255, 242, 201, 0.55);
+  --glow-brasa: 0 0 14px rgba(255, 138, 61, 0.45);
+  --glow-pensar: 0 0 10px rgba(201, 160, 255, 0.5);
+
+  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  --radius-sm: 8px;
+  --radius-md: 20px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+}

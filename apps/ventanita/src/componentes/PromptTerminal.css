@@ -1,0 +1,25 @@
+.prompt-terminal {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  width: 100%;
+}
+
+.prompt-terminal__campo {
+  width: 100%;
+  min-height: 72px;
+  resize: none;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  outline: none;
+}
+
+.prompt-terminal__campo::placeholder {
+  color: var(--ink-muted);
+}
+
+.prompt-terminal__campo:disabled {
+  color: var(--ink-muted);
+}

@@ -1,0 +1,27 @@
+.ventanita {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.ventanita--escuchando,
+.ventanita--pensando,
+.ventanita--hablando {
+  cursor: default;
+}
+
+.voz {
+  color: var(--ink);
+}

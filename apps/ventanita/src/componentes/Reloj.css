@@ -1,0 +1,14 @@
+.reloj--brasa {
+  width: 100%;
+  max-width: 220px;
+  height: 6px;
+  background: var(--line);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.reloj__relleno {
+  width: 55%;
+  height: 100%;
+  background: var(--brasa);
+}

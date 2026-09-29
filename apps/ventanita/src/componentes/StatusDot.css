@@ -1,0 +1,35 @@
+/* StatusDot: único portador de glow-* y del único pulso permitido (ley 4/6). */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--dormido);
+  transition:
+    background var(--dur-estado) var(--curva),
+    box-shadow var(--dur-estado) var(--curva);
+}
+
+.status-dot[data-estado="escuchando"] {
+  background: var(--luz);
+  box-shadow: var(--glow-luz);
+  animation: pulso-led var(--dur-pulso) var(--curva) infinite alternate;
+}
+
+.status-dot[data-estado="pensando"] {
+  background: var(--pensar);
+  box-shadow: var(--glow-pensar);
+}
+
+.status-dot[data-estado="hablando"] {
+  background: var(--brasa);
+  box-shadow: var(--glow-brasa);
+}
+
+@keyframes pulso-led {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}

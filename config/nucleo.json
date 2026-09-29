@@ -1,0 +1,5 @@
+{
+  "$comment": "Fuente única del puerto real del núcleo. Python (servidor.py) y la ventanita (src/config.ts, generado) lo leen de acá — nunca un puerto hardcodeado en dos lugares.",
+  "host": "127.0.0.1",
+  "puerto": 4400
+}
