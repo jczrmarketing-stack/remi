@@ -14,8 +14,11 @@ use voz::EstadoGrabacion;
 // siendo un atajo GLOBAL, lo captura en todo el sistema. Este es el
 // respaldo si config/ventanita.json falta o no se puede leer.
 const ATAJO_POR_DEFECTO: &str = "CmdOrCtrl+Alt+Shift+L";
-// La palanca de dictado. Handy usa Option+Space: Control+Option no choca.
-const ATAJO_DICTADO_POR_DEFECTO: &str = "Control+Alt+Space";
+// La palanca de dictado. Control+Option+Space parecía libre, pero macOS lo
+// captura antes que nadie para «Seleccionar la siguiente fuente de
+// entrada»: registrar() no falla y la pulsación nunca llega. R no tiene
+// conflicto conocido. Se puede cambiar en config/ventanita.json.
+const ATAJO_DICTADO_POR_DEFECTO: &str = "Control+Alt+R";
 // Una tecla mantenida repite: dos pulsos en menos de esto son uno.
 const ANTIRREBOTE_PALANCA: Duration = Duration::from_millis(300);
 // Lo que la ventanita escucha cuando cae la palanca.
@@ -153,21 +156,34 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, atajo, event| {
+                    let es_palanca = *atajo == palanca_para_handler;
+                    // Cada evento de la palanca queda escrito, también el
+                    // soltar: si no aparece NINGUNO, la combinación no está
+                    // llegando a la app (macOS o alguien la captura antes).
+                    if es_palanca && event.state() == ShortcutState::Released {
+                        log::info!("[palanca] soltada");
+                        return;
+                    }
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
                     let Some(ventana) = app.get_webview_window("main") else {
+                        log::warn!("[palanca] pulsada, pero no encuentro la ventana");
                         return;
                     };
 
                     // — La palanca de dictado —
-                    if *atajo == palanca_para_handler {
+                    if es_palanca {
                         let ahora = Instant::now();
                         let ultima = app.state::<UltimaPalanca>();
                         if let Ok(mut guarda) = ultima.0.lock() {
                             if let Some(anterior) = *guarda {
-                                if ahora.duration_since(anterior) < ANTIRREBOTE_PALANCA {
-                                    log::info!("[palanca] rebote, ignorado");
+                                let hace = ahora.duration_since(anterior);
+                                if hace < ANTIRREBOTE_PALANCA {
+                                    log::info!(
+                                        "[palanca] pulsada a los {} ms de la anterior: rebote, ignorada",
+                                        hace.as_millis()
+                                    );
                                     return;
                                 }
                             }
@@ -198,8 +214,31 @@ pub fn run() {
         )
         .setup(move |app| {
             app.global_shortcut().register(atajo_mostrar)?;
-            app.global_shortcut().register(atajo_dictado)?;
-            log::info!("[palanca] atajo de dictado registrado: {}", atajos.dictado);
+            // Registrar la palanca no puede tirar la app: sin ella Remi
+            // sigue andando con los clicks. Pero tiene que quedar escrito.
+            match app.global_shortcut().register(atajo_dictado) {
+                Ok(()) => {
+                    // La API no sabe si macOS se queda con la combinación
+                    // (register() acepta Control+Option+Space y después la
+                    // pulsación nunca llega): lo único comprobable es que
+                    // quedó registrada de nuestro lado. El conflicto se ve
+                    // por ausencia: cero líneas «pulsada» tras apretarla.
+                    let confirmado = app
+                        .global_shortcut()
+                        .is_registered(atajo_dictado);
+                    log::info!(
+                        "[palanca] atajo de dictado registrado: {} (is_registered={confirmado}; \
+                         si al apretarlo no aparece «pulsada», lo captura el sistema)",
+                        atajos.dictado
+                    );
+                }
+                Err(error) => {
+                    log::error!(
+                        "[palanca] NO pude registrar {}: {error}. Remi anda solo con clicks",
+                        atajos.dictado
+                    );
+                }
+            }
             Ok(())
         })
         .build(tauri::generate_context!())

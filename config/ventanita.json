@@ -1,8 +1,8 @@
 {
   "$comment": "src-tauri lee esto al arrancar; cambiar un valor no pide recompilar, solo relanzar la app.",
   "atajo_mostrar_ocultar": "CmdOrCtrl+Alt+Shift+L",
-  "$comment_atajo_dictado": "Palanca: una vez graba, otra vez para y transcribe; en diálogo, lo termina. Handy usa Option+Space: por eso Control+Option.",
-  "atajo_dictado": "Control+Alt+Space",
+  "$comment_atajo_dictado": "Palanca: una vez graba, otra vez para y transcribe; en diálogo, lo termina. Control+Option+Space lo captura macOS antes que nadie («Seleccionar la siguiente fuente de entrada»): en el log de las 16:18 no hubo ni una pulsación. Control+Option+R no tiene conflicto conocido.",
+  "atajo_dictado": "Control+Alt+R",
   "voz": {
     "$comment": "Reusa whisper.cpp (Homebrew) y un modelo que ya tenía descargado Handy — cero descargas nuevas. Cambiar dispositivo_audio si ffmpeg -f avfoundation -list_devices true -i \"\" lista otro índice para tu micrófono.",
     "ffmpeg_bin": "/opt/homebrew/bin/ffmpeg",
