@@ -20,6 +20,29 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.4 el diálogo no se veía · construido · 6aff5f8
+
+- **Qué cambió:** nada del gesto. Del log de las 16:59: los tres clicks **entraban en
+  diálogo las dos veces** (`click n=3 → pasarADialogo`, a 1440 y a 535 ms del 2.º). Lo que
+  Juan Camilo vivió como «se queda en dos clicks» era otra cosa: dictado y diálogo se ven
+  igual, y el diálogo se comportaba como dictado porque el silencio nunca cortó (72 s
+  hablando, parado con un click). Dos cosas de ver: la palabra «diálogo» bajo el punto
+  mientras escucha en ese modo (`App.tsx`, `App.css`), y el vigilante de silencio anota el
+  nivel del micrófono una vez por segundo, con el umbral y cuánto lleva callado (`voz.rs`,
+  hallazgo 3 de Grok). Instalada.
+- **Decisiones que tomé sin preguntar:**
+  1. No toqué tiempos. La propuesta de Juan Camilo era «dos clicks en un segundo, tres en un
+     segundo»; el log muestra que los tiempos ya estaban bien y que el problema no era ese.
+  2. «diálogo» va en `luz`, el color de escuchar, y en `num`: parte del mismo estado, no
+     otra locura (ley 4).
+  3. El hallazgo 3 de Grok lo implementé sin encargo formal: era el dato que faltaba para
+     entender el silencio que no corta, y Juan Camilo estaba probando en vivo.
+- **Dudas abiertas:** el silencio en diálogo. Con la línea `[voz] nivel …` de esta versión,
+  la próxima prueba dice si el piso del RODE queda por encima de 0.020. Si es eso, el
+  arreglo es el umbral (o medirlo al arrancar), no el gesto.
+- **Cómo probarlo a mano:** tres clicks, ver la palabra «diálogo» bajo el punto, decir una
+  frase y callarse 3 segundos sin tocar nada.
+
 ## 2026-09-29 · 2i.3 tres clicks en menos de dos segundos · construido · 97857e0
 
 - **Qué cambió:** una sola cosa. El triple click ya entraba en diálogo si venía pegado
