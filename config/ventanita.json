@@ -4,10 +4,10 @@
   "$comment_atajo_dictado": "Palanca: una vez graba, otra vez para y transcribe; en diálogo, lo termina. Control+Option+Space lo captura macOS antes que nadie («Seleccionar la siguiente fuente de entrada»): en el log de las 16:18 no hubo ni una pulsación. Control+Option+R no tiene conflicto conocido.",
   "atajo_dictado": "Control+Alt+R",
   "voz": {
-    "$comment": "Reusa whisper.cpp (Homebrew) y un modelo que ya tenía descargado Handy — cero descargas nuevas. Cambiar dispositivo_audio si ffmpeg -f avfoundation -list_devices true -i \"\" lista otro índice para tu micrófono.",
+    "$comment": "Reusa whisper.cpp (Homebrew) y un modelo que ya tenía descargado Handy — cero descargas nuevas. large-v3-turbo en vez de small: en un clip de 7 s tarda 2,2 s contra 0,8 (con Metal), y entiende mucho mejor el español hablado de verdad; small era el que no entendía. Cambiar dispositivo_audio si ffmpeg -f avfoundation -list_devices true -i \"\" lista otro índice para tu micrófono.",
     "ffmpeg_bin": "/opt/homebrew/bin/ffmpeg",
     "whisper_cli_bin": "/opt/homebrew/bin/whisper-cli",
-    "modelo": "/Users/juancamilo/Library/Application Support/com.pais.handy/models/ggml-small.bin",
+    "modelo": "/Users/juancamilo/Library/Application Support/com.pais.handy/models/ggml-large-v3-turbo.bin",
     "idioma": "es",
     "dispositivo_audio": "2"
   }
