@@ -1,9 +1,13 @@
-/* StatusDot: único portador de glow-* y del único pulso permitido (ley 4/6). */
+/* StatusDot: único portador de glow-* y del único pulso permitido (ley 4/6).
+   Reposo usa `baja`, no `dormido`: dormido es el mismo valor que `line`
+   (#3a302d) — sobre `surface` da 1.5:1 y el punto no se ve. `baja`
+   (#6f6660) da 2.6:1: callado pero presente. Hallazgo para el Design
+   System real (ver docs/README.md), no solo un cambio de acá. */
 .status-dot {
   width: 10px;
   height: 10px;
   border-radius: var(--radius-pill);
-  background: var(--dormido);
+  background: var(--baja);
   transition:
     background var(--dur-estado) var(--curva),
     box-shadow var(--dur-estado) var(--curva),
