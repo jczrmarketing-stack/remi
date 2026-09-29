@@ -7,6 +7,7 @@ import { ControlesVoz } from "./componentes/ControlesVoz";
 import { enviarMensaje, obtenerUltimaVezMin } from "./servidor";
 import { animarTamano } from "./movimiento";
 import { callarse, hablar } from "./voz";
+import { copiarAlPortapapeles } from "./portapapeles";
 import {
   alternarSilencio,
   estaSilenciado,
@@ -65,6 +66,13 @@ export default function App() {
   // Pensar con Claude: opt-in POR MENSAJE. Nace apagado y se apaga solo
   // después de cada envío — nunca queda prendido de fondo gastando tokens.
   const [pensarConClaude, setPensarConClaude] = useState(false);
+  // Leer en voz alta a demanda: cada click suma uno y la locución
+  // arranca (o se reinicia). Cero = nadie pidió leer.
+  const [lecturas, setLecturas] = useState(0);
+  const [copiado, setCopiado] = useState(false);
+  // Con el puntero sobre los controles, la respuesta no se cierra sola:
+  // si vas a copiar o a leer, la ventanita te espera.
+  const [sostenido, setSostenido] = useState(false);
   // Ley 1 hecha visible en el Reloj: null hasta que sepamos si hay dato
   // real, y se queda null si no lo hay (nunca un número inventado).
   const [sesionInicio, setSesionInicio] = useState<string | null>(null);
@@ -121,6 +129,9 @@ export default function App() {
     setSesionInicio(null);
     setUltimaVezMin(null);
     setPensarConClaude(false);
+    setLecturas(0);
+    setCopiado(false);
+    setSostenido(false);
     callarse();
   }, []);
 
@@ -259,12 +270,27 @@ export default function App() {
     setVelocidad(nueva);
   }, []);
 
+  const leerEnVozAlta = useCallback(() => {
+    setLecturas((n) => n + 1);
+  }, []);
+
+  const copiar = useCallback(async () => {
+    // Lo que dijiste y lo que contestó Remi, tal como se vieron.
+    const contenido = texto.trim() ? `${texto.trim()}\n\n${voz}` : voz;
+    const pudo = await copiarAlPortapapeles(contenido);
+    if (!pudo) {
+      console.warn("[portapapeles] no se pudo copiar");
+      return;
+    }
+    setCopiado(true);
+  }, [texto, voz]);
+
   // Remi habla solo si ESTE mensaje llegó por voz y no está silenciada —
-  // mirado una sola vez al entrar. Si habla, "hablando" dura hasta que la
-  // locución termina de verdad (cambiar la velocidad la reinicia a la
-  // nueva); si no, un tiempo proporcional al texto. Al terminar, en
-  // diálogo vuelve a escucharte sola; si no, reposo. Un click la cierra
-  // antes (ver alClick).
+  // mirado una sola vez al entrar — o si pediste leerlo (botón). Si habla,
+  // "hablando" dura hasta que la locución termina de verdad (cambiar la
+  // velocidad o volver a pedir leer la reinicia); si no, un tiempo
+  // proporcional al texto. Al terminar, en diálogo vuelve a escucharte
+  // sola; si no, reposo. Un click la cierra antes (ver alClick).
   useEffect(() => {
     if (estado !== "hablando") return;
 
@@ -281,12 +307,12 @@ export default function App() {
       volverAReposo();
     };
 
-    const habla = origenMensaje === "voz" && !accionesRef.current.silenciado;
-    let techo: number;
+    const habla = lecturas > 0 || (origenMensaje === "voz" && !accionesRef.current.silenciado);
+    let techo: number | undefined;
     if (habla) {
       void hablar(voz, velocidad).then(terminar);
       techo = window.setTimeout(terminar, TECHO_LOCUCION_MS);
-    } else {
+    } else if (!sostenido) {
       techo = window.setTimeout(terminar, duracionHablando(voz));
     }
 
@@ -295,7 +321,7 @@ export default function App() {
       window.clearTimeout(techo);
       callarse();
     };
-  }, [estado, voz, origenMensaje, velocidad, empezarAEscuchar, volverAReposo]);
+  }, [estado, voz, origenMensaje, velocidad, lecturas, sostenido, empezarAEscuchar, volverAReposo]);
 
   // Click: escribís · Option+click: te escucha una vez (como Handy) ·
   // Option+Shift+click: dialogan. Nada de contar clicks rápidos — eso
@@ -406,7 +432,15 @@ export default function App() {
 
       {estado === "hablando" && <p className="display-it voz">{recortarPalabras(voz)}</p>}
       {estado === "hablando" && (
-        <ControlesVoz velocidad={velocidad} onVelocidad={cambiarVelocidad} />
+        <ControlesVoz
+          velocidad={velocidad}
+          onVelocidad={cambiarVelocidad}
+          puedeLeer={origenMensaje === "texto"}
+          onLeer={leerEnVozAlta}
+          onCopiar={() => void copiar()}
+          copiado={copiado}
+          onSostener={setSostenido}
+        />
       )}
       {estado === "hablando" && ultimaVezMin !== null && sesionInicio !== null && (
         <Reloj

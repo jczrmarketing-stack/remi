@@ -35,3 +35,32 @@
   color: var(--ink);
   background: var(--surface-2);
 }
+
+/* Botones de icono (Lucide 16px / 1.75): cuadrados, sin caja, ink-faint;
+   el "copiado" se confirma con el check en ink-muted, sin otro color. */
+.controles-voz__icono {
+  appearance: none;
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    color var(--dur-estado) var(--curva),
+    background var(--dur-estado) var(--curva);
+}
+
+.controles-voz__icono:hover {
+  color: var(--ink-muted);
+  background: var(--surface-2);
+}
+
+.controles-voz__icono[data-hecho="si"] {
+  color: var(--ink-muted);
+}
