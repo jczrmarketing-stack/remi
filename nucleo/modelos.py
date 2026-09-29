@@ -9,10 +9,12 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Tarea(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: UUID
     titulo: str
     proyecto_id: UUID | None
@@ -24,6 +26,8 @@ class Tarea(BaseModel):
 
 
 class Idea(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: UUID
     texto: str
     origen: Literal["voz", "texto"]
@@ -34,6 +38,8 @@ class Idea(BaseModel):
 
 
 class Sesion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: UUID
     tarea_id: UUID
     inicio: datetime
@@ -43,6 +49,8 @@ class Sesion(BaseModel):
 
 
 class Nudge(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: UUID
     tipo: Literal["cuerpo", "ritual", "encoger"]
     voz: str
@@ -51,6 +59,8 @@ class Nudge(BaseModel):
 
 
 class Entrega(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: UUID
     cliente: str
     proyecto_id: UUID

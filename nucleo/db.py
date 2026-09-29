@@ -6,11 +6,11 @@ import sqlite3
 from pathlib import Path
 from uuid import UUID
 
-from modelos import Tarea
+from modelos import Sesion, Tarea
 
 RUTA_DB = Path(os.environ.get("REMI_DB_PATH", str(Path(__file__).resolve().parent / "remi.db")))
 
-ESQUEMA_TAREAS = """
+ESQUEMA = """
 CREATE TABLE IF NOT EXISTS tareas (
     id TEXT PRIMARY KEY,
     titulo TEXT NOT NULL,
@@ -20,18 +20,55 @@ CREATE TABLE IF NOT EXISTS tareas (
     estimado_min INTEGER,
     real_min INTEGER,
     compartible INTEGER NOT NULL
-)
+);
+
+CREATE TABLE IF NOT EXISTS sesiones (
+    id TEXT PRIMARY KEY,
+    tarea_id TEXT NOT NULL,
+    inicio TEXT NOT NULL,
+    fin TEXT,
+    real_min INTEGER NOT NULL,
+    app_contexto TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ideas (
+    id TEXT PRIMARY KEY,
+    texto TEXT NOT NULL,
+    origen TEXT NOT NULL,
+    creada_en TEXT NOT NULL,
+    enfria_hasta TEXT NOT NULL,
+    estado TEXT NOT NULL,
+    problema_vision INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS nudges (
+    id TEXT PRIMARY KEY,
+    tipo TEXT NOT NULL,
+    voz TEXT NOT NULL,
+    salida_amable INTEGER NOT NULL,
+    respuesta TEXT
+);
+
+CREATE TABLE IF NOT EXISTS entregas (
+    id TEXT PRIMARY KEY,
+    cliente TEXT NOT NULL,
+    proyecto_id TEXT NOT NULL,
+    fecha TEXT NOT NULL,
+    monto REAL,
+    estado TEXT NOT NULL,
+    compartible INTEGER NOT NULL
+);
 """
 
 
 def conectar(ruta: Path = RUTA_DB) -> sqlite3.Connection:
     conexion = sqlite3.connect(ruta)
     conexion.row_factory = sqlite3.Row
-    conexion.execute(ESQUEMA_TAREAS)
+    conexion.executescript(ESQUEMA)
     return conexion
 
 
-def guardar_tarea(conexion: sqlite3.Connection, tarea: Tarea) -> None:
+def crear_tarea(conexion: sqlite3.Connection, tarea: Tarea) -> None:
     conexion.execute(
         """
         INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible)
@@ -64,8 +101,44 @@ def _fila_a_tarea(fila: sqlite3.Row) -> Tarea:
     )
 
 
-def listar_tareas_por_estado(conexion: sqlite3.Connection, estado: str) -> list[Tarea]:
+def listar_tareas_hoy(conexion: sqlite3.Connection) -> list[Tarea]:
     filas = conexion.execute(
-        "SELECT * FROM tareas WHERE estado = ? ORDER BY rowid", (estado,)
+        "SELECT * FROM tareas WHERE estado = 'hoy' ORDER BY rowid"
     ).fetchall()
     return [_fila_a_tarea(fila) for fila in filas]
+
+
+def crear_sesion(conexion: sqlite3.Connection, sesion: Sesion) -> None:
+    conexion.execute(
+        """
+        INSERT INTO sesiones (id, tarea_id, inicio, fin, real_min, app_contexto)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            str(sesion.id),
+            str(sesion.tarea_id),
+            sesion.inicio.isoformat(),
+            sesion.fin.isoformat() if sesion.fin else None,
+            sesion.real_min,
+            sesion.app_contexto,
+        ),
+    )
+    conexion.commit()
+
+
+def _fila_a_sesion(fila: sqlite3.Row) -> Sesion:
+    return Sesion(
+        id=UUID(fila["id"]),
+        tarea_id=UUID(fila["tarea_id"]),
+        inicio=fila["inicio"],
+        fin=fila["fin"],
+        real_min=fila["real_min"],
+        app_contexto=fila["app_contexto"],
+    )
+
+
+def listar_sesiones_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> list[Sesion]:
+    filas = conexion.execute(
+        "SELECT * FROM sesiones WHERE tarea_id = ? ORDER BY inicio", (str(tarea_id),)
+    ).fetchall()
+    return [_fila_a_sesion(fila) for fila in filas]

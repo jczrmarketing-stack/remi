@@ -83,7 +83,7 @@ def generar() -> None:
         "from typing import Literal",
         "from uuid import UUID",
         "",
-        "from pydantic import BaseModel, Field",
+        "from pydantic import BaseModel, ConfigDict, Field",
     ]
 
     for entidad, campos in contrato.items():
@@ -92,6 +92,8 @@ def generar() -> None:
         lineas.append("")
         lineas.append("")
         lineas.append(f"class {entidad}(BaseModel):")
+        lineas.append('    model_config = ConfigDict(extra="forbid")')
+        lineas.append("")
         for campo, spec in campos.items():
             lineas.append(linea_campo(campo, spec))
 
