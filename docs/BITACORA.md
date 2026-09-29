@@ -20,6 +20,50 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2f la Bandeja · construido · 7f810b9
+
+- **Qué cambió:** `/mensaje` dejó de convertir cada frase en una tarea. `nucleo/clasificar.py`
+  (función pura, sin IA) decide idea, hoy o hecha; `nucleo/servidor.py` enruta: una idea
+  enfría 48 h en `ideas` sin crear nada, un arranque abre tarea y sesión, y «listo» cierra el
+  bloque abierto más reciente y dice cuánto tardó. `RespuestaMensaje` gana `tipo` y
+  `tarea`/`sesion` pasan a opcionales, con la ventanita al día. `nucleo/sanear.py` cerró las
+  12 sesiones colgadas. El reposo muestra «la última vez: 2 min» vía `GET /ultima-vez`.
+  Y los tres hallazgos de Grok que tenían encargo.
+- **Decisiones que tomé sin preguntar:**
+  1. **El contrato no cambió.** `Idea` ya estaba en `contratos/contratos.json` con todo lo
+     que hacía falta, y `RespuestaMensaje` es el sobre de la API, no una entidad del
+     dominio: vive en `servidor.py`. Lo que sí respeté es no tocar `modelos.py` a mano.
+  2. **«La última vez» mira el último bloque cerrado, no una tarea de hoy.** El encargo
+     decía «si hay tarea hoy con historial», pero eso nunca puede mostrar el bloque recién
+     cerrado: al decir «listo» la tarea pasa a `hecha` y sale de esa lista. Probándolo salía
+     «la última vez: 13 min» de una tarea vieja en vez de los 2 min que pide el criterio.
+  3. Los tests viejos decían «Llamar al banco» esperando que fuera una tarea. Ahora eso es
+     una idea, que es lo correcto, así que pasaron a decir «ahora llamo al banco»: lo que en
+     realidad querían probar.
+  4. La píldora se ensancha a 210 px solo cuando muestra «la última vez»: esa línea es del
+     doble de largo y no se parte.
+  5. El 550 de la racha de clicks salió a la constante `MS_RACHA` en vez de corregir el
+     número en la prosa, así no se pueden volver a separar.
+- **Dudas abiertas:**
+  1. **Quedan 12 tareas de basura** («hola», «scdscsc», «[Motor]») en estado `hoy`, con el
+     historial que les puso `sanear.py`. No las borro: dijiste que las marcás vos.
+  2. **«No me quedó listo» se clasifica como `hecha`.** Son cuatro palabras y contiene
+     «listo», así que entra por la regla de «≤3 palabras más», tal como la escribiste.
+     Cerraría un bloque que no terminaste. Se arregla con una guarda de negación, pero es
+     una regla nueva y preferí no inventarla.
+  3. **Un test es flaky:** `test_el_servidor_mcp_anuncia_exactamente_dos_herramientas` falló
+     una vez de tres mientras compilaba la app en paralelo. Levanta un subproceso con
+     `timeout=60`; bajo carga se queda corto.
+  4. `es_solo_ruido` (hallazgo 2 de Grok) sigue esperando encargo.
+- **Cómo probarlo a mano:**
+  1. `./scripts/actualizar.sh` y abrí Remi.
+  2. Decí «se me ocurrió una app de recetas» → «Guardada. La miramos en dos días.»
+  3. Decí «voy a revisar el contrato ahora», trabajá dos minutos, decí «listo» →
+     «Cerrada. 2 min.»
+  4. Volvé a reposo: la píldora dice «la última vez: 2 min».
+  5. Decí «listo» otra vez sin nada abierto → «No había nada abierto.», sin reto.
+  6. `sqlite3 nucleo/remi.db "select texto from ideas order by creada_en desc limit 3"`.
+
 ## 2026-09-29 · 2g (lo que faltó) · construido · 45533d2
 
 - **Qué cambió:** Remi se abre sola al iniciar sesión (segundo LaunchAgent
