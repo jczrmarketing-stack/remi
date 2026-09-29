@@ -124,3 +124,23 @@ export function decidir(entrada: Entrada): Decision {
 
   return { accion: { tipo: "volverAReposo" }, racha };
 }
+
+// La palanca (atajo global). No es un click: no cuenta para la racha ni
+// respeta la gracia, porque es una tecla, no un dedo que sigue cayendo.
+// Sin grabación, graba en modo voz; con grabación, la para. En diálogo, lo
+// termina: la escucha se cierra y no se vuelve a armar.
+export type AccionPalanca =
+  | { tipo: "grabarVoz" }
+  | { tipo: "pararGrabacion" }
+  | { tipo: "terminarDialogo" }
+  | { tipo: "nada"; razon: string };
+
+export function decidirPalanca(entrada: Pick<Entrada, "estado" | "modo" | "grabando">): AccionPalanca {
+  if (entrada.grabando) {
+    return entrada.modo === "dialogo" ? { tipo: "terminarDialogo" } : { tipo: "pararGrabacion" };
+  }
+  if (entrada.estado === "pensando" || entrada.estado === "hablando") {
+    return { tipo: "nada", razon: `Remi está ${entrada.estado}` };
+  }
+  return { tipo: "grabarVoz" };
+}

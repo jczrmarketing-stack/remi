@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidir, MS_GRACIA, RACHA_VACIA, type Entrada, type Racha } from "./gestos";
+import { decidir, decidirPalanca, MS_GRACIA, RACHA_VACIA, type Entrada, type Racha } from "./gestos";
 
 /** Un clicker: mantiene la racha y el estado como lo hace la ventanita. */
 function crearVentanita(inicial: Partial<Entrada> = {}) {
@@ -154,5 +154,26 @@ describe("un click suelto", () => {
     expect(v.click(0).tipo).toBe("abrirTexto");
     // 600 ms > MS_RACHA: la racha se reinicia, no hay doble click.
     expect(v.click(600).tipo).not.toBe("grabarVoz");
+  });
+});
+
+describe("la palanca (atajo global)", () => {
+  it("sin grabación, graba en modo voz", () => {
+    expect(decidirPalanca({ estado: "reposo", modo: "texto", grabando: false }).tipo).toBe("grabarVoz");
+    expect(decidirPalanca({ estado: "escuchando", modo: "texto", grabando: false }).tipo).toBe("grabarVoz");
+  });
+
+  it("con dictado en curso, lo para — aunque acabe de arrancar", () => {
+    // Es una tecla, no un dedo que sigue cayendo: no hay gracia.
+    expect(decidirPalanca({ estado: "escuchando", modo: "voz", grabando: true }).tipo).toBe("pararGrabacion");
+  });
+
+  it("en diálogo, lo termina", () => {
+    expect(decidirPalanca({ estado: "escuchando", modo: "dialogo", grabando: true }).tipo).toBe("terminarDialogo");
+  });
+
+  it("mientras Remi piensa o habla, no hace nada", () => {
+    expect(decidirPalanca({ estado: "pensando", modo: "voz", grabando: false }).tipo).toBe("nada");
+    expect(decidirPalanca({ estado: "hablando", modo: "voz", grabando: false }).tipo).toBe("nada");
   });
 });

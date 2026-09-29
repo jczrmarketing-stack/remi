@@ -22,11 +22,12 @@ import {
 import {
   activarCortePorSilencio,
   alDetectarSilencio,
+  alPalanca,
   detenerEscuchaYTranscribir,
   iniciarEscucha,
   type OrigenParada,
 } from "./microfono";
-import { decidir, RACHA_VACIA, type Racha } from "./gestos";
+import { decidir, decidirPalanca, RACHA_VACIA, type Accion, type Racha } from "./gestos";
 import { enchufarConsola, registrar } from "./registro";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
@@ -510,7 +511,41 @@ export default function App() {
   ]);
 
   // Click: escribís · doble click: te escucha · triple click: dialogan.
-  // Las reglas viven en gestos.ts.
+  // Las reglas viven en gestos.ts; acá solo se ejecuta lo que decidan.
+  const ejecutar = useCallback(
+    (accion: Accion, origen: OrigenParada, ahora: number) => {
+      switch (accion.tipo) {
+        case "nada":
+          return;
+        case "abrirTexto":
+          empezarATipear();
+          return;
+        case "grabarVoz":
+          void empezarAEscuchar("voz");
+          return;
+        case "pasarADialogo":
+          // La grabación sigue: solo cambia el modo y se prende el corte.
+          setModo("dialogo");
+          grabacionDesdeRef.current = ahora;
+          registrar("pasarADialogo");
+          void activarCortePorSilencio().catch((error) => {
+            console.error("no pude activar el corte por silencio:", error);
+          });
+          return;
+        case "pararGrabacion":
+          void detenerYTranscribir(origen);
+          return;
+        case "mandarTexto":
+          void enviar(texto);
+          return;
+        case "volverAReposo":
+          volverAReposo();
+          return;
+      }
+    },
+    [texto, enviar, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
+  );
+
   const rachaRef = useRef<Racha>(RACHA_VACIA);
 
   // Cada click pasa por gestos.ts, que decide sin mirar el DOM ni el reloj
@@ -546,37 +581,38 @@ export default function App() {
         ...(accion.tipo === "nada" ? { razon: accion.razon } : {}),
       });
 
-      switch (accion.tipo) {
-        case "nada":
-          return;
-        case "abrirTexto":
-          empezarATipear();
-          return;
-        case "grabarVoz":
-          void empezarAEscuchar("voz");
-          return;
-        case "pasarADialogo":
-          // La grabación sigue: solo cambia el modo y se prende el corte.
-          setModo("dialogo");
-          grabacionDesdeRef.current = ahora;
-          registrar("pasarADialogo");
-          void activarCortePorSilencio().catch((error) => {
-            console.error("no pude activar el corte por silencio:", error);
-          });
-          return;
-        case "pararGrabacion":
-          void detenerYTranscribir("click");
-          return;
-        case "mandarTexto":
-          void enviar(texto);
-          return;
-        case "volverAReposo":
-          volverAReposo();
-          return;
-      }
+      ejecutar(accion, "click", ahora);
     },
-    [texto, enviar, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
+    [texto, ejecutar],
   );
+
+  // La palanca global: Rust la desrebota y avisa; acá se decide con el
+  // mismo módulo y se ejecuta por la misma función que un click. No hay un
+  // camino paralelo que pueda desincronizarse del gesto.
+  useEffect(() => {
+    const suscripcion = alPalanca(() => {
+      const { estado: estadoActual, modo: modoActual, grabando: grabandoActual } = accionesRef.current;
+      const accion = decidirPalanca({ estado: estadoActual, modo: modoActual, grabando: grabandoActual });
+      registrar("palanca", {
+        estado: estadoActual,
+        modo: modoActual,
+        grabando: grabandoActual,
+        accion: accion.tipo,
+        ...(accion.tipo === "nada" ? { razon: accion.razon } : {}),
+      });
+      if (accion.tipo === "terminarDialogo") {
+        // Se cierra la escucha y lo dicho se transcribe igual; con el modo
+        // en "voz", después no se vuelve a armar.
+        setModo("voz");
+        void detenerYTranscribir("atajo");
+        return;
+      }
+      ejecutar(accion, "atajo", performance.now());
+    });
+    return () => {
+      void suscripcion.then((desuscribir) => desuscribir());
+    };
+  }, [ejecutar, detenerYTranscribir]);
 
   // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
   // salvo dentro del PromptTerminal (ahí hay que poder hacer click y

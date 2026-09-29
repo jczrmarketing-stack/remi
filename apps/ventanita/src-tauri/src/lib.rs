@@ -1,8 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 mod voz;
@@ -12,6 +14,12 @@ use voz::EstadoGrabacion;
 // siendo un atajo GLOBAL, lo captura en todo el sistema. Este es el
 // respaldo si config/ventanita.json falta o no se puede leer.
 const ATAJO_POR_DEFECTO: &str = "CmdOrCtrl+Alt+Shift+L";
+// La palanca de dictado. Handy usa Option+Space: Control+Option no choca.
+const ATAJO_DICTADO_POR_DEFECTO: &str = "Control+Alt+Space";
+// Una tecla mantenida repite: dos pulsos en menos de esto son uno.
+const ANTIRREBOTE_PALANCA: Duration = Duration::from_millis(300);
+// Lo que la ventanita escucha cuando cae la palanca.
+const EVENTO_PALANCA: &str = "gesto://palanca";
 
 // El log vive donde macOS espera los logs, al lado del del núcleo, para
 // poder leer los dos juntos cuando algo no se entiende.
@@ -29,6 +37,13 @@ fn carpeta_de_logs() -> PathBuf {
 #[derive(Deserialize)]
 struct ConfigVentanita {
     atajo_mostrar_ocultar: String,
+    #[serde(default)]
+    atajo_dictado: Option<String>,
+}
+
+struct Atajos {
+    mostrar_ocultar: String,
+    dictado: String,
 }
 
 // config/ventanita.json vive en la raíz del repo, fuera de src-tauri, para
@@ -42,28 +57,52 @@ fn ruta_config() -> PathBuf {
         .join("ventanita.json")
 }
 
-fn leer_atajo() -> String {
+fn leer_atajos() -> Atajos {
+    let por_defecto = Atajos {
+        mostrar_ocultar: ATAJO_POR_DEFECTO.to_string(),
+        dictado: ATAJO_DICTADO_POR_DEFECTO.to_string(),
+    };
     let ruta = ruta_config();
     match fs::read_to_string(&ruta) {
         Ok(contenido) => match serde_json::from_str::<ConfigVentanita>(&contenido) {
-            Ok(config) => config.atajo_mostrar_ocultar,
+            Ok(config) => Atajos {
+                mostrar_ocultar: config.atajo_mostrar_ocultar,
+                dictado: config
+                    .atajo_dictado
+                    .unwrap_or_else(|| ATAJO_DICTADO_POR_DEFECTO.to_string()),
+            },
             Err(_) => {
-                log::warn!("config/ventanita.json inválido, uso el atajo por defecto");
-                ATAJO_POR_DEFECTO.to_string()
+                log::warn!("config/ventanita.json inválido, uso los atajos por defecto");
+                por_defecto
             }
         },
         Err(_) => {
-            log::warn!("no encontré {}, uso el atajo por defecto", ruta.display());
-            ATAJO_POR_DEFECTO.to_string()
+            log::warn!("no encontré {}, uso los atajos por defecto", ruta.display());
+            por_defecto
         }
     }
 }
 
+// Último pulso de la palanca, para el antirrebote.
+struct UltimaPalanca(Mutex<Option<Instant>>);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let atajo_configurado = leer_atajo();
+    let atajos = leer_atajos();
+    let atajo_dictado: Shortcut = atajos.dictado.parse().unwrap_or_else(|_| {
+        log::warn!("atajo_dictado inválido ({}), uso {ATAJO_DICTADO_POR_DEFECTO}", atajos.dictado);
+        ATAJO_DICTADO_POR_DEFECTO
+            .parse()
+            .expect("atajo de dictado por defecto inválido")
+    });
+    let atajo_mostrar: Shortcut = atajos.mostrar_ocultar.parse().unwrap_or_else(|_| {
+        log::warn!("atajo_mostrar_ocultar inválido ({}), uso {ATAJO_POR_DEFECTO}", atajos.mostrar_ocultar);
+        ATAJO_POR_DEFECTO.parse().expect("atajo por defecto inválido")
+    });
+    let palanca_para_handler = atajo_dictado;
 
     tauri::Builder::default()
+        .manage(UltimaPalanca(Mutex::new(None)))
         // Una sola Remi. Abrirla estando ya abierta no crea otra ventana:
         // trae la que hay y le da el foco. Antes había que adivinar si
         // estaba corriendo, y dos instancias se peleaban el micrófono.
@@ -113,13 +152,40 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(move |app, atajo, event| {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
                     let Some(ventana) = app.get_webview_window("main") else {
                         return;
                     };
+
+                    // — La palanca de dictado —
+                    if *atajo == palanca_para_handler {
+                        let ahora = Instant::now();
+                        let ultima = app.state::<UltimaPalanca>();
+                        if let Ok(mut guarda) = ultima.0.lock() {
+                            if let Some(anterior) = *guarda {
+                                if ahora.duration_since(anterior) < ANTIRREBOTE_PALANCA {
+                                    log::info!("[palanca] rebote, ignorado");
+                                    return;
+                                }
+                            }
+                            *guarda = Some(ahora);
+                        }
+                        // Si estaba oculta, que se vea — sin robarle el foco
+                        // a la app en la que estás: la palanca es para
+                        // dictar sin dejar de trabajar.
+                        if !ventana.is_visible().unwrap_or(true) {
+                            let _ = ventana.show();
+                            log::info!("[palanca] la ventana estaba oculta: la muestro");
+                        }
+                        log::info!("[palanca] pulsada");
+                        let _ = app.emit(EVENTO_PALANCA, ());
+                        return;
+                    }
+
+                    // — Mostrar / ocultar —
                     let visible = ventana.is_visible().unwrap_or(true);
                     if visible {
                         let _ = ventana.hide();
@@ -131,10 +197,9 @@ pub fn run() {
                 .build(),
         )
         .setup(move |app| {
-            let atajo: Shortcut = atajo_configurado
-                .parse()
-                .unwrap_or_else(|_| ATAJO_POR_DEFECTO.parse().expect("atajo por defecto inválido"));
-            app.global_shortcut().register(atajo)?;
+            app.global_shortcut().register(atajo_mostrar)?;
+            app.global_shortcut().register(atajo_dictado)?;
+            log::info!("[palanca] atajo de dictado registrado: {}", atajos.dictado);
             Ok(())
         })
         .build(tauri::generate_context!())

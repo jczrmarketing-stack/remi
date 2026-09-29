@@ -10,7 +10,13 @@ export function iniciarEscucha(cortarSolo: boolean): Promise<void> {
 
 // Quién cortó la grabación. Lo sabe la ventanita, no el micrófono, y sin
 // eso el log no alcanza para entender un gesto que salió mal.
-export type OrigenParada = "click" | "silencio:fin" | "silencio:sin_voz" | "escape" | "timeout";
+export type OrigenParada =
+  | "click"
+  | "silencio:fin"
+  | "silencio:sin_voz"
+  | "escape"
+  | "timeout"
+  | "atajo";
 
 // El 3.er click: la grabación sigue, solo se le prende el corte por silencio.
 export function activarCortePorSilencio(): Promise<void> {
@@ -31,4 +37,12 @@ interface AvisoSilencio {
 
 export function alDetectarSilencio(accion: (motivo: MotivoSilencio) => void): Promise<() => void> {
   return listen<AvisoSilencio>(EVENTO_SILENCIO, (evento) => accion(evento.payload.motivo));
+}
+
+// La palanca global (Control+Option+Space): Rust la recibe, la desrebota y
+// avisa por acá. Qué hacer con ella lo decide gestos.ts, como con un click.
+export const EVENTO_PALANCA = "gesto://palanca";
+
+export function alPalanca(accion: () => void): Promise<() => void> {
+  return listen(EVENTO_PALANCA, accion);
 }
