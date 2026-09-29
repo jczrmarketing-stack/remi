@@ -32,10 +32,24 @@ import {
   decidir,
   decidirPalanca,
   decidirTrasVacia,
+  MS_RACHA,
   RACHA_VACIA,
   type Accion,
   type Racha,
 } from "./gestos";
+
+// Qué es un control (nunca un gesto) y qué es el cuadro (gesto si está
+// vacío y la racha sigue viva). Los botones del cuadro —el toggle de
+// pensar— cuentan como control aunque estén dentro del cuadro.
+const SELECTOR_CONTROLES = ".controles-voz, button, select";
+const SELECTOR_CUADRO = ".prompt-terminal";
+
+function clasificarObjetivo(objetivo: EventTarget | null) {
+  const elemento = objetivo instanceof HTMLElement ? objetivo : null;
+  const dentroDeControl = Boolean(elemento?.closest(SELECTOR_CONTROLES));
+  const dentroDelCuadro = !dentroDeControl && Boolean(elemento?.closest(SELECTOR_CUADRO));
+  return { dentroDeControl, dentroDelCuadro };
+}
 import { enchufarConsola, registrar } from "./registro";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
@@ -130,8 +144,9 @@ export default function App() {
   const [ultimaVezDeHoy, setUltimaVezDeHoy] = useState<number | null>(null);
 
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
-  const accionesRef = useRef({ grabando, modo, estado, silenciado, pensarConClaude });
-  accionesRef.current = { grabando, modo, estado, silenciado, pensarConClaude };
+  const textoVacio = texto.trim() === "";
+  const accionesRef = useRef({ grabando, modo, estado, silenciado, pensarConClaude, textoVacio });
+  accionesRef.current = { grabando, modo, estado, silenciado, pensarConClaude, textoVacio };
 
   // Cada vez que se vuelve a reposo a mano (click o Escape), esto sube:
   // si un fetch/invoke que ya estaba en vuelo resuelve DESPUÉS, se nota
@@ -530,6 +545,11 @@ export default function App() {
           empezarATipear();
           return;
         case "grabarVoz":
+          // Si el 2.º click cayó en el cuadro, el cuadro tiene el foco: se
+          // lo sacamos antes de que desaparezca, para que no quede un caret
+          // parpadeando en ningún lado ni el teclado vaya a un textarea que
+          // ya no está.
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
           void empezarAEscuchar("voz");
           return;
         case "pasarADialogo":
@@ -561,19 +581,20 @@ export default function App() {
   // de verdad: acá solo se junta la entrada y se ejecuta la acción. Lo que
   // decide está probado con la secuencia real del log.
   const alClick = useCallback(
-    (evento: React.MouseEvent<HTMLDivElement>) => {
+    (evento: MouseEvent) => {
+      if (evento.button !== 0) return;
       const ahora = performance.now();
       const { estado: estadoActual, grabando: grabandoActual, modo: modoActual } = accionesRef.current;
       const rachaAnterior = rachaRef.current;
+      const { dentroDeControl, dentroDelCuadro } = clasificarObjetivo(evento.target);
 
       const { accion, racha } = decidir({
         estado: estadoActual,
         modo: modoActual,
         grabando: grabandoActual,
         textoVacio: texto.trim() === "",
-        dentroDeControl: Boolean(
-          (evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz"),
-        ),
+        dentroDeControl,
+        dentroDelCuadro,
         grabacionDesde: grabacionDesdeRef.current,
         ahora,
         racha: rachaAnterior,
@@ -594,6 +615,31 @@ export default function App() {
     },
     [texto, ejecutar],
   );
+
+  // El gesto se escucha sobre window, en fase de captura: así el textarea
+  // no se traga el click, que es lo que pasaba con onClick en el div. Y en
+  // mousedown, si este va a ser el 2.º o 3.º click de una racha sobre el
+  // cuadro vacío, se le impide al textarea tomar el foco y posicionar el
+  // caret: ese click es un gesto, no un click para escribir.
+  useEffect(() => {
+    const alPresionarEnCaptura = (evento: MouseEvent) => {
+      if (evento.button !== 0) return;
+      const { dentroDelCuadro } = clasificarObjetivo(evento.target);
+      if (!dentroDelCuadro) return;
+      const racha = rachaRef.current;
+      const rachaViva = racha.n > 0 && performance.now() - racha.ultimo < MS_RACHA;
+      if (accionesRef.current.textoVacio && rachaViva) {
+        evento.preventDefault();
+        registrar("mousedown", { rama: "gesto sobre el cuadro vacío: sin foco ni caret" });
+      }
+    };
+    window.addEventListener("mousedown", alPresionarEnCaptura, { capture: true });
+    window.addEventListener("click", alClick, { capture: true });
+    return () => {
+      window.removeEventListener("mousedown", alPresionarEnCaptura, { capture: true });
+      window.removeEventListener("click", alClick, { capture: true });
+    };
+  }, [alClick]);
 
   // La palanca global: Rust la desrebota y avisa; acá se decide con el
   // mismo módulo y se ejecuta por la misma función que un click. No hay un
@@ -653,11 +699,7 @@ export default function App() {
   }, []);
 
   return (
-    <div
-      className={`ventanita ventanita--${estado}`}
-      onClick={alClick}
-      onMouseDown={alPresionar}
-    >
+    <div className={`ventanita ventanita--${estado}`} onMouseDown={alPresionar}>
       <StatusDot estado={estado} escuchandoVoz={grabando} />
 
       {/* Ley 1 en reposo. Si hay algo de hoy que ya hiciste antes, el dato
