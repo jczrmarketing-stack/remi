@@ -20,6 +20,42 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i gestos fiables · construido · 032eb48
+
+- **Qué cambió:** los gestos viven en `apps/ventanita/src/gestos.ts`, un módulo puro con
+  vitest (21 pruebas, entre ellas la secuencia real del log de las 15:31). Se acabó la espera
+  de 520 ms: el 2.º click graba en el acto y el 3.º pasa a diálogo sobre la grabación viva,
+  con un comando nuevo en `voz.rs` (`activar_corte_por_silencio`). Gracia de 900 ms; el
+  diálogo no lo para un click; una escucha vacía re-arma a los 1,2 s y dos seguidas mandan a
+  reposo. Palanca `Control+Option+Space` (`atajo_dictado` en `config/ventanita.json`), por
+  el mismo camino que el doble click. Enter envía. `hablar()` con generación: sin eco, y
+  cancelar no cae a la voz del sistema. Whisper no transcribe menos de 800 ms, usa `-sns` y
+  `-nth 0.5`, y descarta ≤2 caracteres. Instalada con `actualizar.sh`.
+- **Decisiones que tomé sin preguntar:**
+  1. **En diálogo, un click no para la grabación: nunca.** El encargo decía «pasada la
+     gracia, un click sí para (dictado)» y pedía que en la secuencia del log el 4.º click a
+     los 1300 ms no cortara. Con gracia de 900 ms desde cualquier anclaje, ese click está
+     fuera de la gracia (934 ms desde el 3.º; 1133 desde que arrancó la grabación), así que
+     la única lectura que satisface la prueba es la del paréntesis: el click para el
+     *dictado*; el diálogo lo cortan el silencio, Escape o la palanca. Y es lo que arregla la
+     cadena de cinco ciclos.
+  2. **La palanca no cuenta para la racha ni respeta la gracia:** es una tecla, no un dedo
+     que sigue cayendo. Y en diálogo lo *termina* transcribiendo lo dicho: cierra la escucha,
+     manda lo que hubo, y no se vuelve a armar.
+  3. **`--vad` de whisper quedó fuera:** pide un modelo aparte que no está descargado. Van
+     `-sns` (suprime tokens de no-voz en el decodificador) y `-nth 0.5`.
+  4. Las dos políticas del diálogo (a qué modo le aplica el corte, y qué hacer tras una
+     vacía) salieron también a `gestos.ts` para poder probarlas, y App las usa.
+- **Dudas abiertas:**
+  1. **Las dos auditorías de Grok (2h y 2f) llegaron como marcadores:** `[pegá aquí el
+     bloque…]`, sin el texto. No las agregué porque sería inventarlas. Van cuando lleguen.
+  2. La línea `[palanca] pulsada` la escribe la tecla de Juan Camilo; yo solo pude verificar
+     `atajo de dictado registrado: Control+Alt+Space` al arrancar.
+  3. Si `Control+Option+Space` choca con algo del sistema, se cambia en
+     `config/ventanita.json` sin recompilar.
+- **Cómo probarlo a mano:** una sola cosa, en este orden: doble click, hablar 5 s con pausas
+  de 1 s, click para parar; triple click y hablar; `⌃⌥Space` dos veces. Después, «listo».
+
 ## 2026-09-29 · 2h ver antes de arreglar · construido · b41f594
 
 - **Qué cambió:** luz, no arreglos. Los gestos no se tocaron. `nucleo/clasificar.py` tiene la
