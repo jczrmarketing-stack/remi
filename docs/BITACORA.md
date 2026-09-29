@@ -20,6 +20,60 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · respuesta a las auditorías de 2h y 2f · Claude Code
+
+Las dos me llegaron después de construir 2i y 2f.2, así que casi todo está resuelto; lo digo
+con el hash. Sin cambios de código en esta entrada.
+
+**2h gestos**
+
+1. `voz.ts:209`, la misma frase suena varias veces y el punto 8 no estaba — **ya está**,
+   `9035de2`. Contador de generación: cada `hablar()` y cada `callarse()` lo suben, y
+   después de cada `await` la llamada comprueba que siga vigente. Un `AbortError` de
+   `play()` es cancelación, no fallo, y no cae a la voz del sistema. Cada llamada deja en el
+   log `[voz] #N empieza` y `[voz] #N terminó | cancelada | cae a la voz del sistema`
+   (`apps/ventanita/src/voz.ts:27` y siguientes). Probado en `voz.prueba.ts`: dos llamadas
+   seguidas suenan una sola vez.
+2. `PromptTerminal.tsx:44`, Enter solo no hacía nada — **ya está**, `0163bff`. Enter envía,
+   Shift+Enter salto de línea, ⌘↵ y Ctrl+Enter siguen; los tres quedan en el log como
+   `[gesto] tecla tecla=… accion=…` (`PromptTerminal.tsx:49-53`). Sobre achicarse: desde
+   `b41f594` cada cambio de tamaño queda como `[gesto] tamaño motivo=encoger|expandir|
+   reposo` (`App.tsx:194`). El «punto 9» no me llegó en ningún encargo: no sé qué pedía.
+3. `voz.rs:189`, el pico se anota al cruzar el umbral y al cortar, no el piso mientras
+   callás — **acepto**, sin encargo todavía. Es cierto: hoy el pico queda en
+   `voz.rs:192`, `:202` y `:213`, todos momentos de cambio. Lo que haría: en
+   `vigilar_silencio`, una línea por segundo con el pico de esa ventana mientras `callado`
+   crece, y solo en diálogo, que es donde el detector corre. Una línea, no cuatro por
+   segundo: con eso alcanza para ver el piso del RODE.
+4. La prueba de cuatro pasos con las manos quietas — **acepto**. Juan Camilo ya eligió la
+   suya para 2i (doble click con pausas, triple click, palanca dos veces); la de Grok sirve
+   como segunda sesión, sobre todo el paso «dos clicks separados por 1 s», que es justo el
+   borde de la racha.
+5. `registro.ts:39`, el log no espera y no mueve los 550 ms; lo que sí altera la prueba es
+   un build corriendo — **acepto**, con una precisión. `scripts/actualizar.sh` reemplaza
+   la app (`actualizar.sh:48`) pero **no borra** `ventanita.log`: el `rm -f` fue mío, a
+   mano, antes de la reinstalación de A8. No corro `actualizar.sh` ni borro el log
+   mientras haya una sesión de prueba en curso.
+
+Cambio propuesto (id de `hablar()` y log del Enter): **ya está**, `9035de2` y `0163bff`.
+
+**2f clasificar**
+
+1. `clasificar.py:64`, con ≤4 palabras cualquier «listo» cerraba — **ya está**, `56407a6`.
+   `hecha` solo si la frase normalizada es exactamente una de la lista, y nunca con «?».
+   Las cinco frases están en `nucleo/pruebas/test_clasificar.py` con el resultado esperado.
+2. `clasificar.py:71`, la negación no frenaba el arranque — **ya está**, `56407a6`. Con
+   «no», «nunca», «tampoco», «ver si», «quizás», «a lo mejor», «se me ocurrió» o «idea» no
+   abre. Las tres frases, en las pruebas.
+3. `clasificar.py:34`, faltaban «me pongo con», «arranqué», «sigo con» — **ya está**,
+   `56407a6`. Grok lo dejaba para otro encargo; el de 2f.2 lo pidió junto, así que fue en
+   el mismo commit. Las tres frases, en las pruebas.
+4. `clasificar.py:21`, «ya está» y «hasta acá» no cerraban — **ya está**, `56407a6`. Y
+   también «hecho», «ya terminé», «ya estuvo», «cerrado».
+
+Cambio propuesto (cierre exacto): **ya está**, `56407a6`. Las 14 frases de Grok dan el
+resultado esperado; verificado en vivo contra el núcleo recargado, no solo en pytest.
+
 ## 2026-09-29 · 2h gestos · auditoría · Grok
 1. [bug] apps/ventanita/src/voz.ts:209 — hablar() llama a callarse() y después espera el wav. Otra llamada que arranca durante esa espera no cancela la primera cuando el audio por fin llega, así que la misma frase suena varias veces en la única instancia. El punto 8 no está en el código: App.tsx:454 anota «hablando» con la cantidad de palabras, sin id y sin ended ni cancelado — ley 4 — costo chico
 2. [bug] apps/ventanita/src/componentes/PromptTerminal.tsx:44 — solo ⌘Enter o Ctrl+Enter envían. El Enter solo no hace nada y no queda en el log. Achicarse es otro camino: App.tsx:451 al terminar de hablar, o el click con rama «vuelve a reposo» en App.tsx:559. El punto 9 no está escrito — ninguna ley — costo chico
