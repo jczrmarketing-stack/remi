@@ -20,6 +20,37 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.1 el doble click era imposible · construido · 1ff883b
+
+- **Qué cambió:** el diagnóstico de Claude sobre el log de las 16:18 era exacto: 13 clicks
+  seguidos descartados con «dentro de un control», porque el 1.er click hace crecer la
+  ventana y el cuadro aparece bajo el mouse, y `gestos.ts` descartaba el 2.º ANTES de contar
+  la racha. Ahora la racha se cuenta primero; con el cuadro vacío y la racha viva, un click
+  dentro del cuadro es el 2.º o el 3.º (`apps/ventanita/src/gestos.ts`). El gesto se escucha
+  sobre `window` en fase de captura, y el mousedown del 2.º click no le da foco ni caret al
+  textarea (`App.tsx`). Pruebas con la secuencia real de las 16:18 (26 en total). Palanca a
+  `Control+Option+R` con cada evento en el log (`lib.rs`, `config/ventanita.json`).
+  Instalada; el log dice `atajo de dictado registrado: Control+Alt+R (is_registered=true)`.
+- **Decisiones que tomé sin preguntar:**
+  1. **`MS_RACHA` sube de 550 a 700.** El 2.º click de la prueba real llegó a **584 ms**, y
+     el punto 3 pedía que esa secuencia diera `grabar`: con 550 no daba ni contándola. Un
+     doble click humano sobre algo que se está moviendo (250 ms de animación) no entra en
+     550.
+  2. **Los botones que viven dentro del cuadro cuentan como control, no como cuadro.** El
+     toggle de «pensar con Claude» está en el pie del cuadro: sin esto, un doble click sobre
+     él con el cuadro vacío arrancaría a grabar. La entrada de `decidir()` separa
+     `dentroDeControl` de `dentroDelCuadro`.
+  3. **Un click suelto dentro del cuadro vacío no graba, pero abre la racha.** Es lo que
+     pasó a las 16:18:44: dos clicks a 183 ms, los dos en el cuadro. El primero es «para
+     escribir» y a la vez el 1.º de la racha; el segundo graba.
+  4. **El conflicto del atajo se detecta por ausencia.** La API de Tauri acepta
+     `Control+Option+Space` y después macOS se lo queda: `register()` no falla. Lo único
+     comprobable es `is_registered()` de nuestro lado, y la línea de registro lo dice.
+- **Dudas abiertas:** la línea `[palanca] pulsada` la escribe la tecla de Juan Camilo. Si
+  con `⌃⌥R` tampoco aparece, no es un rebote ni un registro fallido: el log lo diría.
+- **Cómo probarlo a mano:** doble click y hablar; triple click y hablar; `⌃⌥R` dos veces.
+  Listo cuando el log muestre `click n=2 … accion=grabarVoz` con la ventana ya expandida.
+
 ## 2026-09-29 · respuesta a las auditorías de 2h y 2f · Claude Code
 
 Las dos me llegaron después de construir 2i y 2f.2, así que casi todo está resuelto; lo digo
