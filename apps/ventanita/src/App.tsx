@@ -265,34 +265,46 @@ export default function App() {
   // dependía de una ventana de tiempo y de dónde caía cada click, y
   // encontramos dos bugs distintos ahí. Un modificador se lee en el
   // mismo evento, sin ambigüedad posible.
+  // Click: escribís · doble click: te escucha una vez (como Handy) ·
+  // triple click: dialogan. Sin temporizadores: el primer click abre
+  // YA en modo texto; si el navegador reporta un segundo click
+  // (evento.detail === 2) se cambia a voz, y un tercero a diálogo. La
+  // acción más común nunca espera a las menos comunes.
   const alClick = useCallback(
     (evento: React.MouseEvent<HTMLDivElement>) => {
+      const clics = evento.detail;
+
+      // 2do/3er click sobre un cuadro recién abierto y todavía vacío:
+      // escalar a voz/diálogo aunque el click caiga dentro del terminal.
+      if (
+        clics >= 2 &&
+        estado === "escuchando" &&
+        !grabando &&
+        texto === ""
+      ) {
+        void empezarAEscuchar(clics >= 3 ? "dialogo" : "voz");
+        return;
+      }
+
       if ((evento.target as HTMLElement).closest(".prompt-terminal")) return;
 
       if (estado === "reposo") {
-        if (evento.altKey && evento.shiftKey) {
-          void empezarAEscuchar("dialogo");
-        } else if (evento.altKey) {
-          void empezarAEscuchar("voz");
-        } else {
-          empezarATipear();
-        }
+        empezarATipear();
         return;
       }
 
       if (estado === "escuchando" && grabando) {
-        void detenerYTranscribir();
+        // En modo voz, un click corta y transcribe. Un 2do click seguido
+        // (detail 2) mientras graba no debe re-disparar nada.
+        if (clics === 1) void detenerYTranscribir();
         return;
       }
 
-      // Cualquier otro estado no-reposo (escuchando sin grabar mientras
-      // escribís, pensando, hablando): un click fuera del cuadro vuelve a
-      // reposo. Ningún estado se queda sin salida — en "pensando" además
-      // cancela lo que estuviera esperando (generacionRef en
-      // volverAReposo): si esa respuesta llega después, no revive el estado.
+      // Cualquier otro estado no-reposo: un click fuera del cuadro vuelve
+      // a reposo. Ningún estado se queda sin salida.
       volverAReposo();
     },
-    [estado, grabando, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
+    [estado, grabando, texto, empezarATipear, empezarAEscuchar, detenerYTranscribir, volverAReposo],
   );
 
   // Se arrastra desde cualquier parte de la ventanita, en cualquier estado,
