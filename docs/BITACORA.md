@@ -20,6 +20,29 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2f.2 clasificador · construido · 2a3e8b9
+
+- **Qué cambió:** `nucleo/clasificar.py` reemplaza «hasta 3 palabras más» y los arranques
+  sueltos. `hecha` solo con la frase exacta (listo, hecha, hecho, terminé, paro, paré, ya
+  está, ya terminé, ya estuvo, hasta acá, cerrado) y nunca con un «?». `hoy` solo si la
+  frase empieza —tras un «ahora», «hoy» o «ya» opcional— con voy a, vamos con, me pongo
+  con, arranco, arranqué, empiezo, empecé o sigo con, sin negación ni «ver si», «quizás»,
+  «a lo mejor», «se me ocurrió», «idea». Todo lo demás, idea. Las 14 frases de Grok y las
+  seis de la negación, en `pruebas/test_clasificar.py`. 126 pruebas, mypy limpio.
+- **Decisiones que tomé sin preguntar:**
+  1. **«listo la tarjeta» pasó de `hecha` a `idea`.** El encargo anterior lo daba por
+     cierre; este dice que «listo el contrato» no cierra, y es la misma forma. Gana el
+     encargo nuevo y la prueba vieja se dio vuelta.
+  2. Los tests de otras suites que abrían bloque con «ahora llamo al banco» pasaron a «voy
+     a llamar al banco»: «ahora» solo ya no es un arranque.
+  3. «ahora sí arranco con esto» queda `idea`: el «sí» entre el prefijo y el arranque no
+     está contemplado en la regla. Si te sale natural decirlo así, es una regla más.
+- **Dudas abiertas:** las dos auditorías de Grok (2h y 2f) siguen sin texto en la bitácora;
+  llegaron como `[pegá aquí el bloque…]`.
+- **Cómo probarlo a mano:** con Remi instalada, decir «listo el contrato» → «Guardada. La
+  miramos en dos días.»; «me pongo con la propuesta» → abre bloque; «ya está» → «Cerrada.
+  N min.».
+
 ## 2026-09-29 · 2i gestos fiables · construido · 032eb48
 
 - **Qué cambió:** los gestos viven en `apps/ventanita/src/gestos.ts`, un módulo puro con
