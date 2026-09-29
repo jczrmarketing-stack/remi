@@ -73,8 +73,20 @@ export default function App() {
   // macOS restaura el tamaño de la última sesión (la app siempre arranca
   // en reposo, la ventana no debería): forzar el tamaño real al montar.
   useEffect(() => {
+    const ventana = getCurrentWindow();
     const { width, height } = TAMANO_REPOSO;
-    void getCurrentWindow().setSize(new LogicalSize(width, height));
+    // Los límites min/max vienen compilados desde tauri.conf.json, y un
+    // binario que no se recompiló trae los viejos (320×180): macOS clampea
+    // el setSize a ese mínimo y la ventana no encoge. Fijarlos en tiempo de
+    // ejecución ANTES de pedir el tamaño hace que el reposo real entre por
+    // hot reload sin depender de que Rust se vuelva a construir.
+    void (async () => {
+      await ventana.setMinSize(new LogicalSize(width, height));
+      await ventana.setMaxSize(
+        new LogicalSize(TAMANO_EXPANDIDO.width, TAMANO_EXPANDIDO.height),
+      );
+      await ventana.setSize(new LogicalSize(width, height));
+    })();
   }, []);
 
   useEffect(() => {
