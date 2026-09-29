@@ -20,6 +20,22 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.8 el vigilante se iba antes de que ffmpeg abriera el wav · construido · f4dbaf9
+
+- **Qué cambió:** la instrumentación de 2i.7 lo dijo en dos líneas a las 17:38:34: «vigilancia
+  de silencio arrancó» y, 255 ms después, «termina: el wav ya no está». ffmpeg con
+  avfoundation tarda hasta un segundo en abrir el archivo de salida; el vigilante miraba
+  antes, no lo encontraba y lo tomaba por «la grabación terminó». A las 17:29 fue lo mismo
+  con el código viejo, que se iba callado: los cuatro minutos mudos. A las 17:22 funcionó de
+  casualidad. Ahora «no existe» solo significa «terminó» si el archivo existió antes; al
+  arrancar espera hasta 5 s y anota a los cuántos ms apareció (`voz.rs`). Instalada.
+- **Decisiones que tomé sin preguntar:** ninguna nueva. Los subtítulos siguen esperando a
+  que el diálogo conteste.
+- **Dudas abiertas:** la misma carrera existe en el dictado con corte propio (`iniciar_escucha`
+  con `cortar_solo`), que hoy nadie usa; queda cubierta por el mismo cambio.
+- **Cómo probarlo a mano:** tres clicks, una frase, callarse 2 s. En el log: «el wav apareció
+  a los N ms», después «nivel …» por segundo, «te escucho», «dejaste de hablar → corto sola».
+
 ## 2026-09-29 · 2i.7 el vigilante que calla · construido · 688c0e4
 
 - **Qué cambió:** del intento de las 17:29: tres clicks, «corte por silencio activado», el
