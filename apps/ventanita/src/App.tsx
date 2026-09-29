@@ -153,6 +153,9 @@ export default function App() {
   // que quedó viejo y no pisa el estado — si no, una respuesta tardía
   // podía saltar a "hablando" de la nada después de haber cancelado.
   const generacionRef = useRef(0);
+  // true mientras un POST /mensaje está en vuelo. Es lo que impide mandar
+  // dos veces, sin confundirlo con «pensando», que también es transcribir.
+  const enviandoRef = useRef(false);
   // Cuándo arrancó —o se re-armó— la grabación viva (reloj de
   // performance.now). Es lo que mide el periodo de gracia de los gestos.
   const grabacionDesdeRef = useRef<number | null>(null);
@@ -265,10 +268,19 @@ export default function App() {
       const limpio = mensaje.trim();
       if (!limpio) return;
       // Un doble Cmd+Enter (u onEnviar disparado dos veces) no manda dos
-      // tareas: si ya está pensando o hablando, este envío no cuenta.
-      if (accionesRef.current.estado === "pensando" || accionesRef.current.estado === "hablando") {
+      // tareas. La guarda mira si hay un ENVÍO en curso, no el estado de la
+      // pantalla: antes miraba «pensando», y el diálogo pone pensando
+      // mientras transcribe, así que al ir a mandar lo transcrito la guarda
+      // lo frenaba en silencio. El diálogo nunca pudo mandar (17:22:16).
+      if (enviandoRef.current) {
+        registrar("enviar:ignorado", { motivo: "ya hay un envío en curso" });
         return;
       }
+      if (accionesRef.current.estado === "hablando") {
+        registrar("enviar:ignorado", { motivo: "Remi está hablando" });
+        return;
+      }
+      enviandoRef.current = true;
       const miGeneracion = generacionRef.current;
       // En diálogo siempre se piensa: una conversación con «Guardada. La
       // miramos en dos días.» a todo no es una conversación. En texto y en
@@ -316,6 +328,7 @@ export default function App() {
         console.error("no se pudo mandar el mensaje:", error);
         setVoz(fraseDeFallo());
       } finally {
+        enviandoRef.current = false;
         if (generacionRef.current === miGeneracion) setEstado("hablando");
       }
     },
