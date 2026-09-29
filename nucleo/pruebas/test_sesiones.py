@@ -20,7 +20,7 @@ def test_cerrar_sesion_escribe_fin_y_calcula_real_min(tmp_path, monkeypatch):
     servidor = _arrancar_servidor()
     cliente = TestClient(servidor.app)
 
-    creada = cliente.post("/mensaje", json={"texto": "Llamar al banco"}).json()
+    creada = cliente.post("/mensaje", json={"texto": "ahora llamo al banco"}).json()
     sesion_id = creada["sesion"]["id"]
     assert creada["sesion"]["fin"] is None
     assert creada["sesion"]["real_min"] == 0
@@ -42,7 +42,7 @@ def test_mensaje_no_deja_dos_sesiones_abiertas_para_la_misma_tarea(tmp_path, mon
     cliente = TestClient(servidor.app)
     import db
 
-    creada = cliente.post("/mensaje", json={"texto": "Mandar la factura"}).json()
+    creada = cliente.post("/mensaje", json={"texto": "voy a mandar la factura"}).json()
     tarea_id = creada["tarea"]["id"]
 
     conexion = db.conectar()

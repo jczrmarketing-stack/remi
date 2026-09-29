@@ -22,12 +22,12 @@ def test_mensaje_crea_tarea_y_sesion_y_sobrevive_a_reiniciar_servidor(tmp_path, 
     servidor = _arrancar_servidor()
     cliente = TestClient(servidor.app)
 
-    respuesta = cliente.post("/mensaje", json={"texto": "Llamar al banco"})
+    respuesta = cliente.post("/mensaje", json={"texto": "ahora llamo al banco"})
     assert respuesta.status_code == 200
     cuerpo = respuesta.json()
     tarea_creada = cuerpo["tarea"]
     sesion_creada = cuerpo["sesion"]
-    assert tarea_creada["titulo"] == "Llamar al banco"
+    assert tarea_creada["titulo"] == "ahora llamo al banco"
     assert tarea_creada["estado"] == "hoy"
     assert sesion_creada["tarea_id"] == tarea_creada["id"]
     assert len(cuerpo["voz"].split()) <= 20
@@ -43,6 +43,6 @@ def test_mensaje_crea_tarea_y_sesion_y_sobrevive_a_reiniciar_servidor(tmp_path, 
 
     assert any(t["tarea"]["id"] == tarea_creada["id"] for t in tareas_hoy)
     encontrada = next(t for t in tareas_hoy if t["tarea"]["id"] == tarea_creada["id"])
-    assert encontrada["tarea"]["titulo"] == "Llamar al banco"
+    assert encontrada["tarea"]["titulo"] == "ahora llamo al banco"
     assert encontrada["tarea"]["estado"] == "hoy"
     assert any(s["id"] == sesion_creada["id"] for s in encontrada["sesiones"])

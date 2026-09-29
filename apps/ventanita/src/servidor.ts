@@ -9,9 +9,15 @@ export interface TokensClaude {
   modelo: string;
 }
 
+// Lo que decís no siempre es una tarea: el núcleo clasifica sin IA.
+// "idea" enfría en la Bandeja y no crea nada; "hoy" abre un bloque;
+// "hecha" cierra el que estaba. Por eso tarea y sesion pueden faltar.
+export type TipoMensaje = "idea" | "hoy" | "hecha";
+
 export interface RespuestaMensaje {
-  tarea: Tarea;
-  sesion: Sesion;
+  tipo: TipoMensaje;
+  tarea: Tarea | null;
+  sesion: Sesion | null;
   voz: string;
   tokens: TokensClaude | null;
 }

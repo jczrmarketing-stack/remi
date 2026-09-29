@@ -20,7 +20,7 @@ def test_actualizar_estado_valida_contra_el_contrato(tmp_path, monkeypatch):
     servidor = _arrancar_servidor()
     cliente = TestClient(servidor.app)
 
-    creada = cliente.post("/mensaje", json={"texto": "Mandar la factura"}).json()
+    creada = cliente.post("/mensaje", json={"texto": "voy a mandar la factura"}).json()
     tarea_id = creada["tarea"]["id"]
 
     respuesta = cliente.post(f"/tarea/{tarea_id}/estado", json={"estado": "camino"})
@@ -44,7 +44,7 @@ def test_pasar_a_hecha_cierra_la_sesion_abierta(tmp_path, monkeypatch):
     cliente = TestClient(servidor.app)
     import db
 
-    creada = cliente.post("/mensaje", json={"texto": "Llamar al banco"}).json()
+    creada = cliente.post("/mensaje", json={"texto": "ahora llamo al banco"}).json()
     tarea_id = creada["tarea"]["id"]
     sesion_id = creada["sesion"]["id"]
     assert creada["sesion"]["fin"] is None

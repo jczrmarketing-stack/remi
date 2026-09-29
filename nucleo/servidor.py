@@ -7,7 +7,7 @@ import json
 import os
 import threading
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from collections.abc import AsyncIterator
 from typing import Literal
@@ -17,10 +17,11 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
+import clasificar
 import db
 import pensar
 import tts
-from modelos import Memoria, Sesion, Tarea
+from modelos import Idea, Memoria, Sesion, Tarea
 
 RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
 CONFIG = json.loads(RUTA_CONFIG.read_text())
@@ -53,6 +54,9 @@ app.add_middleware(
 
 MAX_PALABRAS_VOZ = 20
 
+# Ley 6: lo suelto enfría dos días antes de poder volverse proyecto.
+HORAS_DE_ENFRIAMIENTO = 48
+
 # paso_minimo no se decide al crear la tarea (ahí no puede haber fricción):
 # nace con esto, universal, nunca vacío, con algo real a lo que la ley 3
 # pueda encoger desde el día uno. El verdadero se fija después —
@@ -73,10 +77,21 @@ def frase_remi(titulo: str) -> str:
     return recortar_voz(f"Hoy solo esto: {titulo}.")
 
 
+def formatear_duracion(minutos: int) -> str:
+    """Mismo formato que el «hace N min» de la ventanita (tiempo.ts): por
+    debajo de una hora, «40 min»; por encima, «1 h 40»."""
+    if minutos < 60:
+        return f"{minutos} min"
+    horas, resto = divmod(minutos, 60)
+    return f"{horas} h {resto:02d}" if resto else f"{horas} h"
+
+
 class MensajeEntrante(BaseModel):
     texto: str
     # Opt-in por mensaje: solo con think=true se gasta un token (ver pensar.py).
     think: bool = False
+    # Cómo entró: por voz o escrito. Lo guarda la Idea (contrato).
+    origen: Literal["voz", "texto"] = "texto"
 
 
 class TokensClaude(BaseModel):
@@ -86,8 +101,11 @@ class TokensClaude(BaseModel):
 
 
 class RespuestaMensaje(BaseModel):
-    tarea: Tarea
-    sesion: Sesion
+    # Lo decide el clasificador, nunca el modelo: pensar solo reformula la
+    # voz. Una idea no crea tarea ni sesión, y un cierre no crea nada.
+    tipo: clasificar.TipoMensaje
+    tarea: Tarea | None = None
+    sesion: Sesion | None = None
     voz: str
     # Solo cuando pensó con Claude. Dato de operación: la ventanita lo manda
     # a su consola, nunca a la pantalla.
@@ -164,6 +182,63 @@ NO_ENTRA = "Así no entra: el título va hasta 80 caracteres y el resumen hasta 
 
 @app.post("/mensaje", response_model=RespuestaMensaje)
 def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
+    """Lo que decís no siempre es una tarea. El clasificador (sin IA) decide
+    si enfría en la Bandeja, si abre un bloque o si cierra el que estaba."""
+    tipo = clasificar.clasificar(mensaje.texto)
+    if tipo == "idea":
+        return _guardar_idea(mensaje)
+    if tipo == "hecha":
+        return _cerrar_lo_abierto()
+    return _abrir_bloque(mensaje)
+
+
+def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
+    """Ley 6: enfría 48 h en la Bandeja. No crea tarea ni sesión — si cada
+    cosa suelta abriera un bloque, la ley 1 mediría cualquier cosa."""
+    ahora = datetime.now(timezone.utc)
+    idea = Idea(
+        id=uuid4(),
+        texto=mensaje.texto,
+        origen=mensaje.origen,
+        creada_en=ahora,
+        enfria_hasta=ahora + timedelta(hours=HORAS_DE_ENFRIAMIENTO),
+        estado="enfriando",
+        problema_vision=None,
+    )
+    conexion = db.conectar()
+    try:
+        db.crear_idea(conexion, idea)
+    finally:
+        conexion.close()
+    return RespuestaMensaje(tipo="idea", voz="Guardada. La miramos en dos días.")
+
+
+def _cerrar_lo_abierto() -> RespuestaMensaje:
+    """Cierra el bloque abierto más reciente y marca su tarea `hecha`. Es
+    idempotente: cerrar dos veces no altera nada, y sin nada abierto lo dice
+    sin regañar (ley 3)."""
+    conexion = db.conectar()
+    try:
+        abierta = db.sesion_abierta_mas_reciente(conexion)
+        if abierta is None:
+            return RespuestaMensaje(tipo="hecha", voz="No había nada abierto.")
+
+        sesion = db.cerrar_sesion(conexion, abierta)
+        if sesion is None:
+            return RespuestaMensaje(tipo="hecha", voz="No había nada abierto.")
+
+        tarea = db.actualizar_estado_tarea(conexion, sesion.tarea_id, "hecha")
+        return RespuestaMensaje(
+            tipo="hecha",
+            tarea=tarea,
+            sesion=sesion,
+            voz=f"Cerrada. {formatear_duracion(sesion.real_min)}.",
+        )
+    finally:
+        conexion.close()
+
+
+def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # Si pidió pensar, el paso mínimo lo ordena Claude y es lo que Remi
     # dice. Si no pidió (o Claude no pudo), todo sigue como siempre, sin IA.
     pensado = pensar.pensar(mensaje.texto) if mensaje.think else None
@@ -198,9 +273,9 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     try:
         db.crear_tarea(conexion, tarea)
         # Invariante defensiva: nunca dos sesiones abiertas en paralelo para
-        # la misma tarea. Hoy /mensaje siempre crea una tarea nueva (id
-        # recién generado), así que esto es un no-op — pero si /mensaje
-        # llega a referenciar una tarea existente, ya queda a salvo.
+        # la misma tarea. Hoy esto siempre crea una tarea nueva (id recién
+        # generado), así que es un no-op — pero si llega a referenciar una
+        # tarea existente, ya queda a salvo.
         abierta = db.sesion_abierta_de_tarea(conexion, tarea.id)
         if abierta is not None:
             db.cerrar_sesion(conexion, abierta)
@@ -208,7 +283,7 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     finally:
         conexion.close()
 
-    return RespuestaMensaje(tarea=tarea, sesion=sesion, voz=voz, tokens=tokens)
+    return RespuestaMensaje(tipo="hoy", tarea=tarea, sesion=sesion, voz=voz, tokens=tokens)
 
 
 @app.post("/sesion/{sesion_id}/cerrar", response_model=Sesion)

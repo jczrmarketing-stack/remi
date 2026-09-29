@@ -201,16 +201,21 @@ export default function App() {
           console.info("[claude] pidió pensar pero el núcleo siguió sin IA (¿falta la clave en nucleo/.env?)");
         }
         setVoz(respuesta.voz);
-        setSesionInicio(respuesta.sesion.inicio);
-        // Si esto falla, el Reloj simplemente no se renderiza — no es
-        // motivo para no poder contestar (ley 3, sin culpa).
-        obtenerUltimaVezMin(respuesta.tarea.id)
-          .then((valor) => {
-            if (generacionRef.current === miGeneracion) setUltimaVezMin(valor);
-          })
-          .catch(() => {
-            if (generacionRef.current === miGeneracion) setUltimaVezMin(null);
-          });
+        // Solo un bloque abierto tiene reloj: una idea que enfría y un
+        // cierre no tienen nada que medir.
+        setSesionInicio(respuesta.sesion?.inicio ?? null);
+        const tareaId = respuesta.tarea?.id;
+        if (tareaId !== undefined) {
+          // Si esto falla, el Reloj simplemente no se renderiza — no es
+          // motivo para no poder contestar (ley 3, sin culpa).
+          obtenerUltimaVezMin(tareaId)
+            .then((valor) => {
+              if (generacionRef.current === miGeneracion) setUltimaVezMin(valor);
+            })
+            .catch(() => {
+              if (generacionRef.current === miGeneracion) setUltimaVezMin(null);
+            });
+        }
       } catch (error) {
         if (generacionRef.current !== miGeneracion) return;
         console.error("no se pudo mandar el mensaje:", error);

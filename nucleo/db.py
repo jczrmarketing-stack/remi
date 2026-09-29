@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
-from modelos import Memoria, Sesion, Tarea
+from modelos import Idea, Memoria, Sesion, Tarea
 
 RUTA_DB = Path(os.environ.get("REMI_DB_PATH", str(Path(__file__).resolve().parent / "remi.db")))
 
@@ -171,6 +171,46 @@ def listar_tareas_hoy(conexion: sqlite3.Connection) -> list[Tarea]:
     return [_fila_a_tarea(fila) for fila in filas]
 
 
+# — La Bandeja: lo suelto entra acá y enfría 48 h (ley 6) —
+
+
+def crear_idea(conexion: sqlite3.Connection, idea: Idea) -> None:
+    conexion.execute(
+        """
+        INSERT INTO ideas (id, texto, origen, creada_en, enfria_hasta, estado, problema_vision)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            str(idea.id),
+            idea.texto,
+            idea.origen,
+            idea.creada_en.isoformat(),
+            idea.enfria_hasta.isoformat(),
+            idea.estado,
+            idea.problema_vision,
+        ),
+    )
+    conexion.commit()
+
+
+def _fila_a_idea(fila: sqlite3.Row) -> Idea:
+    return Idea(
+        id=UUID(fila["id"]),
+        texto=fila["texto"],
+        origen=fila["origen"],
+        creada_en=fila["creada_en"],
+        enfria_hasta=fila["enfria_hasta"],
+        estado=fila["estado"],
+        problema_vision=fila["problema_vision"],
+    )
+
+
+def listar_ideas(conexion: sqlite3.Connection) -> list[Idea]:
+    """Lo que está enfriando, lo más nuevo primero."""
+    filas = conexion.execute("SELECT * FROM ideas ORDER BY creada_en DESC").fetchall()
+    return [_fila_a_idea(fila) for fila in filas]
+
+
 def crear_sesion(conexion: sqlite3.Connection, sesion: Sesion) -> None:
     conexion.execute(
         """
@@ -232,6 +272,23 @@ def sesion_abierta_de_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> UUI
         (str(tarea_id),),
     ).fetchone()
     return UUID(fila["id"]) if fila else None
+
+
+def sesion_abierta_mas_reciente(conexion: sqlite3.Connection) -> UUID | None:
+    """La última que quedó abierta, sea de la tarea que sea. Es la que
+    cierra un «listo» suelto: no hace falta decir cuál."""
+    fila = conexion.execute(
+        "SELECT id FROM sesiones WHERE fin IS NULL ORDER BY inicio DESC LIMIT 1"
+    ).fetchone()
+    return UUID(fila["id"]) if fila else None
+
+
+def sesiones_abiertas(conexion: sqlite3.Connection) -> list[Sesion]:
+    """Todas las que nadie cerró. Las usa nucleo/sanear.py."""
+    filas = conexion.execute(
+        "SELECT * FROM sesiones WHERE fin IS NULL ORDER BY inicio"
+    ).fetchall()
+    return [_fila_a_sesion(fila) for fila in filas]
 
 
 def cerrar_sesion(conexion: sqlite3.Connection, sesion_id: UUID) -> Sesion | None:

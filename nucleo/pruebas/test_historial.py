@@ -20,7 +20,7 @@ def test_historial_devuelve_sesiones_cerradas_y_total(tmp_path, monkeypatch):
     servidor = _arrancar_servidor()
     cliente = TestClient(servidor.app)
 
-    creada = cliente.post("/mensaje", json={"texto": "Llamar al banco"}).json()
+    creada = cliente.post("/mensaje", json={"texto": "ahora llamo al banco"}).json()
     tarea_id = creada["tarea"]["id"]
     sesion_id = creada["sesion"]["id"]
 
@@ -41,7 +41,7 @@ def test_hoy_incluye_ultima_vez_min(tmp_path, monkeypatch):
     servidor = _arrancar_servidor()
     cliente = TestClient(servidor.app)
 
-    creada = cliente.post("/mensaje", json={"texto": "Mandar la factura"}).json()
+    creada = cliente.post("/mensaje", json={"texto": "voy a mandar la factura"}).json()
     tarea_id = creada["tarea"]["id"]
     sesion_id = creada["sesion"]["id"]
 

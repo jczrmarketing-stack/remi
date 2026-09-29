@@ -27,9 +27,9 @@ def test_sin_think_no_toca_a_claude(tmp_path, monkeypatch):
     monkeypatch.setattr(servidor.pensar, "pensar", explota)
     cliente = TestClient(servidor.app)
 
-    creada = cliente.post("/mensaje", json={"texto": "Llamar al banco"}).json()
+    creada = cliente.post("/mensaje", json={"texto": "ahora llamo al banco"}).json()
     assert creada["tarea"]["paso_minimo"] == servidor.PASO_MINIMO_INICIAL
-    assert creada["voz"] == "Hoy solo esto: Llamar al banco."
+    assert creada["voz"] == "Hoy solo esto: ahora llamo al banco."
     assert creada["tokens"] is None
 
 
@@ -50,8 +50,8 @@ def test_con_think_el_paso_minimo_lo_ordena_claude(tmp_path, monkeypatch):
     monkeypatch.setattr(servidor.pensar, "pensar", falso_pensar)
     cliente = TestClient(servidor.app)
 
-    creada = cliente.post("/mensaje", json={"texto": "Llamar al banco", "think": True}).json()
-    assert llamadas == ["Llamar al banco"]
+    creada = cliente.post("/mensaje", json={"texto": "ahora llamo al banco", "think": True}).json()
+    assert llamadas == ["ahora llamo al banco"]
     assert creada["tarea"]["paso_minimo"] == "Abre la app del banco y busca el teléfono."
     assert creada["voz"] == "Abre la app del banco y busca el teléfono."
     assert creada["tokens"] == {"entrada": 120, "salida": 14, "modelo": "modelo-de-prueba"}
@@ -66,9 +66,9 @@ def test_con_think_pero_claude_no_puede_sigue_sin_ia(tmp_path, monkeypatch):
     monkeypatch.setattr(servidor.pensar, "pensar", lambda _frase: None)
     cliente = TestClient(servidor.app)
 
-    creada = cliente.post("/mensaje", json={"texto": "Llamar al banco", "think": True}).json()
+    creada = cliente.post("/mensaje", json={"texto": "ahora llamo al banco", "think": True}).json()
     assert creada["tarea"]["paso_minimo"] == servidor.PASO_MINIMO_INICIAL
-    assert creada["voz"] == "Hoy solo esto: Llamar al banco."
+    assert creada["voz"] == "Hoy solo esto: ahora llamo al banco."
     assert creada["tokens"] is None
 
 
@@ -83,7 +83,7 @@ def test_la_voz_de_claude_tambien_se_recorta_a_20_palabras(tmp_path, monkeypatch
     )
     cliente = TestClient(servidor.app)
 
-    creada = cliente.post("/mensaje", json={"texto": "x", "think": True}).json()
+    creada = cliente.post("/mensaje", json={"texto": "arranco con x", "think": True}).json()
     assert len(creada["voz"].split()) <= servidor.MAX_PALABRAS_VOZ
 
 
@@ -112,7 +112,7 @@ def test_pensar_lee_el_paso_y_los_tokens_de_la_cli(monkeypatch):
     pensar = _importar_pensar()
     monkeypatch.setattr(pensar.subprocess, "run", lambda *a, **k: _salida_cli())
 
-    pensado = pensar.pensar("Llamar al banco")
+    pensado = pensar.pensar("ahora llamo al banco")
     assert pensado is not None
     assert pensado.paso_minimo == "Busca el número del banco en tu tarjeta."
     assert (pensado.tokens_entrada, pensado.tokens_salida) == (544, 29)
@@ -129,7 +129,7 @@ def test_la_frase_va_por_stdin_con_haiku_y_sin_herramientas(monkeypatch):
         return _salida_cli()
 
     monkeypatch.setattr(pensar.subprocess, "run", espiar)
-    pensar.pensar("Llamar al banco")
+    pensar.pensar("ahora llamo al banco")
 
     comando = visto["comando"]
     assert comando[0] == "claude" and "-p" in comando
@@ -138,7 +138,7 @@ def test_la_frase_va_por_stdin_con_haiku_y_sin_herramientas(monkeypatch):
     assert comando[comando.index("--tools") + 1] == ""
     assert comando[comando.index("--system-prompt") + 1] == pensar.INSTRUCCIONES
     # La frase entra por stdin, no por argumento (nunca en la lista de procesos).
-    assert visto["kwargs"]["input"] == "Llamar al banco"
+    assert visto["kwargs"]["input"] == "ahora llamo al banco"
 
 
 def test_nunca_hereda_la_clave_de_api(monkeypatch):
