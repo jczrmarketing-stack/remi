@@ -147,12 +147,54 @@ def modelo() -> str:
     return _ajuste("REMI_CLAUDE_MODELO", MODELO_POR_DEFECTO)
 
 
-def motor() -> str:
-    elegido = _ajuste("REMI_PENSADOR", MOTOR_POR_DEFECTO).lower()
-    if elegido not in ("claude", "venice"):
+MOTORES = ("claude", "venice")
+
+
+def motor(pedido: str | None = None) -> str:
+    """El motor a usar: el que pida la ventanita (un dropdown, elegido a
+    conciencia) y, si no pide, el del .env. Uno desconocido cae al por
+    defecto y lo dice."""
+    elegido = (pedido or _ajuste("REMI_PENSADOR", MOTOR_POR_DEFECTO)).lower()
+    if elegido not in MOTORES:
         print(f"[pensar] motor desconocido {elegido!r}: uso {MOTOR_POR_DEFECTO}", file=sys.stderr)
         return MOTOR_POR_DEFECTO
     return elegido
+
+
+@dataclass(frozen=True)
+class MotorDisponible:
+    id: str
+    label: str
+    # False si le falta algo (la CLI, la clave): se muestra igual, apagado,
+    # para que se vea POR QUÉ no está.
+    disponible: bool
+    detalle: str
+
+
+def motores_disponibles() -> list[MotorDisponible]:
+    """Lo que puede elegir el dropdown de la ventanita."""
+    import shutil
+
+    hay_cli = shutil.which(BINARIO) is not None
+    hay_clave = bool(_ajuste("VENICE_API_KEY", ""))
+    return [
+        MotorDisponible(
+            id="claude",
+            label="Claude (Max)",
+            disponible=hay_cli,
+            detalle=f"{modelo()}, con acceso al estante" if hay_cli else "no encuentro `claude` en el PATH",
+        ),
+        MotorDisponible(
+            id="venice",
+            label="Venice (por token)",
+            disponible=hay_clave,
+            detalle=(
+                f"{_ajuste('REMI_VENICE_MODELO', VENICE_MODELO_POR_DEFECTO)}, sin acceso al estante"
+                if hay_clave
+                else "sin VENICE_API_KEY en nucleo/.env"
+            ),
+        ),
+    ]
 
 
 def _entorno() -> dict[str, str]:
@@ -252,13 +294,13 @@ def _modelo_real(datos: dict[str, Any], pedido: str) -> str:
     return pedido
 
 
-def pensar(frase: str) -> Pensado | None:
+def pensar(frase: str, motor_pedido: str | None = None) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`. None si el motor no está,
     falla o no devolvió texto: el que llama sigue por el camino sin IA —
     nunca se rompe la respuesta por esto."""
     indice = _indice()
     instrucciones = instrucciones_con_indice(indice)
-    if motor() == "venice":
+    if motor(motor_pedido) == "venice":
         return _pensar_con_venice(frase, instrucciones, len(indice))
     return _pensar_con_claude(frase, instrucciones, indice)
 

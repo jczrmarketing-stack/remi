@@ -184,7 +184,7 @@ def test_pensar_no_elige_el_tipo(tmp_path, monkeypatch):
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda _frase: servidor.pensar.Pensado("Es una tarea urgentísima, hacela ya.", 1, 1, "m"),
+        lambda _frase, _motor=None: servidor.pensar.Pensado("Es una tarea urgentísima, hacela ya.", 1, 1, "m"),
     )
     cliente = TestClient(servidor.app)
 
@@ -199,7 +199,7 @@ def test_pensar_no_elige_el_tipo(tmp_path, monkeypatch):
 def test_una_idea_sin_think_no_gasta_un_token(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
 
-    def explota(_frase):
+    def explota(_frase, _motor=None):
         raise AssertionError("sin think no se piensa")
 
     monkeypatch.setattr(servidor.pensar, "pensar", explota)
@@ -215,7 +215,7 @@ def test_en_dialogo_una_idea_contesta_pensando(tmp_path, monkeypatch):
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda _frase: servidor.pensar.Pensado("Empezá por una receta, la que más hacés.", 300, 12, "venice/x"),
+        lambda _frase, _motor=None: servidor.pensar.Pensado("Empezá por una receta, la que más hacés.", 300, 12, "venice/x"),
     )
     cliente = TestClient(servidor.app)
     cuerpo = cliente.post(
@@ -251,3 +251,27 @@ def test_ultima_vez_es_el_bloque_medido_mas_reciente(tmp_path, monkeypatch):
 
     assert cliente.post("/mensaje", json={"texto": "listo"}).json()["voz"] == "Cerrada. 2 min."
     assert cliente.get("/ultima-vez").json()["minutos"] == 2
+
+
+def test_el_motor_viaja_de_la_ventanita_al_pensar(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    visto = {}
+
+    def falso_pensar(frase, motor=None):
+        visto.update(frase=frase, motor=motor)
+        return servidor.pensar.Pensado("Una respuesta.", 1, 1, "venice/x")
+
+    monkeypatch.setattr(servidor.pensar, "pensar", falso_pensar)
+    cliente = TestClient(servidor.app)
+    cliente.post("/mensaje", json={"texto": "se me ocurrió algo", "think": True, "motor": "venice"})
+    assert visto["motor"] == "venice"
+    # Un motor que no existe no pasa la validación del contrato de entrada.
+    assert cliente.post("/mensaje", json={"texto": "x", "think": True, "motor": "gpt"}).status_code == 422
+
+
+def test_get_pensar_motores(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    motores = cliente.get("/pensar/motores").json()
+    assert [m["id"] for m in motores] == ["claude", "venice"]
+    assert all({"id", "label", "disponible", "detalle"} <= set(m) for m in motores)

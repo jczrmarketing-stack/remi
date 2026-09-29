@@ -21,7 +21,7 @@ def test_sin_think_no_toca_a_claude(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     servidor = _arrancar_servidor()
 
-    def explota(_frase):
+    def explota(_frase, _motor=None):
         raise AssertionError("no debía pensar con Claude")
 
     monkeypatch.setattr(servidor.pensar, "pensar", explota)
@@ -38,7 +38,7 @@ def test_con_think_el_paso_minimo_lo_ordena_claude(tmp_path, monkeypatch):
     servidor = _arrancar_servidor()
     llamadas = []
 
-    def falso_pensar(frase):
+    def falso_pensar(frase, motor=None):
         llamadas.append(frase)
         return servidor.pensar.Pensado(
             paso_minimo="Abre la app del banco y busca el teléfono.",
@@ -63,7 +63,7 @@ def test_con_think_el_paso_minimo_lo_ordena_claude(tmp_path, monkeypatch):
 def test_con_think_pero_claude_no_puede_sigue_sin_ia(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     servidor = _arrancar_servidor()
-    monkeypatch.setattr(servidor.pensar, "pensar", lambda _frase: None)
+    monkeypatch.setattr(servidor.pensar, "pensar", lambda _frase, _motor=None: None)
     cliente = TestClient(servidor.app)
 
     creada = cliente.post("/mensaje", json={"texto": "voy a llamar al banco", "think": True}).json()
@@ -79,7 +79,7 @@ def test_la_voz_de_claude_tambien_se_recorta_a_20_palabras(tmp_path, monkeypatch
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda _frase: servidor.pensar.Pensado(largo, 1, 1, "m"),
+        lambda _frase, _motor=None: servidor.pensar.Pensado(largo, 1, 1, "m"),
     )
     cliente = TestClient(servidor.app)
 
@@ -298,3 +298,26 @@ def test_la_clave_de_venice_no_se_exporta_a_la_cli_de_claude(monkeypatch, tmp_pa
     monkeypatch.delenv("VENICE_API_KEY", raising=False)
     assert pensar._ajuste("VENICE_API_KEY", "") == "secreta"
     assert "VENICE_API_KEY" not in pensar._entorno()
+
+
+# — El motor elegido desde la ventanita —
+
+
+def test_el_motor_pedido_gana_sobre_el_env(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("REMI_PENSADOR", "claude")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    assert pensar.motor("venice") == "venice"
+    assert pensar.motor(None) == "claude"
+    assert pensar.motor("otro") == "claude"
+
+
+def test_los_motores_disponibles_dicen_que_les_falta(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.delenv("VENICE_API_KEY", raising=False)
+    monkeypatch.setattr(pensar.shutil if hasattr(pensar, "shutil") else __import__("shutil"), "which", lambda _b: None)
+    motores = {m.id: m for m in pensar.motores_disponibles()}
+    assert set(motores) == {"claude", "venice"}
+    assert motores["claude"].disponible is False and "claude" in motores["claude"].detalle
+    assert motores["venice"].disponible is False and "VENICE_API_KEY" in motores["venice"].detalle

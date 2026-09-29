@@ -92,6 +92,9 @@ class MensajeEntrante(BaseModel):
     texto: str
     # Opt-in por mensaje: solo con think=true se gasta un token (ver pensar.py).
     think: bool = False
+    # Con qué motor pensar, elegido a conciencia en la ventanita. None = el
+    # del .env.
+    motor: Literal["claude", "venice"] | None = None
     # Cómo entró: por voz o escrito. Lo guarda la Idea (contrato).
     origen: Literal["voz", "texto"] = "texto"
 
@@ -146,6 +149,22 @@ class VozDisponible(BaseModel):
     id: str
     lang: str
     label: str
+
+
+class MotorDePensar(BaseModel):
+    id: str
+    label: str
+    disponible: bool
+    detalle: str
+
+
+@app.get("/pensar/motores", response_model=list[MotorDePensar])
+def listar_motores() -> list[MotorDePensar]:
+    """Lo que el dropdown de la ventanita puede elegir, y qué le falta a cada uno."""
+    return [
+        MotorDePensar(id=m.id, label=m.label, disponible=m.disponible, detalle=m.detalle)
+        for m in pensar.motores_disponibles()
+    ]
 
 
 class EntradaDeIndice(BaseModel):
@@ -231,7 +250,7 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # El tipo ya está decidido (idea, y se guardó): pensar solo cambia lo que
     # Remi CONTESTA. En diálogo, «Guardada. La miramos en dos días.» a todo
     # lo que digas no es una conversación.
-    pensado = pensar.pensar(mensaje.texto) if mensaje.think else None
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor) if mensaje.think else None
     if pensado is None:
         return RespuestaMensaje(tipo="idea", voz="Guardada. La miramos en dos días.")
     return RespuestaMensaje(
@@ -269,7 +288,7 @@ def _cerrar_lo_abierto() -> RespuestaMensaje:
 def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # Si pidió pensar, el paso mínimo lo ordena Claude y es lo que Remi
     # dice. Si no pidió (o Claude no pudo), todo sigue como siempre, sin IA.
-    pensado = pensar.pensar(mensaje.texto) if mensaje.think else None
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor) if mensaje.think else None
     paso_minimo = recortar_voz(pensado.paso_minimo) if pensado else PASO_MINIMO_INICIAL
     voz = paso_minimo if pensado else frase_remi(mensaje.texto)
     tokens = (
