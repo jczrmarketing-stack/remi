@@ -29,8 +29,11 @@ CREATE TABLE IF NOT EXISTS sesiones (
     inicio TEXT NOT NULL,
     fin TEXT,
     real_min INTEGER NOT NULL,
-    app_contexto TEXT
+    app_contexto TEXT,
+    FOREIGN KEY (tarea_id) REFERENCES tareas(id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_sesiones_tarea_id ON sesiones(tarea_id);
 
 CREATE TABLE IF NOT EXISTS ideas (
     id TEXT PRIMARY KEY,
@@ -62,10 +65,30 @@ CREATE TABLE IF NOT EXISTS entregas (
 """
 
 
+_rutas_con_esquema_listo: set[str] = set()
+
+
+def inicializar_esquema(ruta: Path = RUTA_DB) -> None:
+    """El CREATE TABLE/INDEX corre una sola vez por archivo, no en cada
+    conectar() — PRAGMA foreign_keys en cambio es por-conexión en SQLite y
+    hay que activarlo siempre, eso sí lo hace conectar()."""
+    clave = str(ruta)
+    if clave in _rutas_con_esquema_listo:
+        return
+    conexion = sqlite3.connect(ruta)
+    try:
+        conexion.executescript(ESQUEMA)
+        conexion.commit()
+    finally:
+        conexion.close()
+    _rutas_con_esquema_listo.add(clave)
+
+
 def conectar(ruta: Path = RUTA_DB) -> sqlite3.Connection:
+    inicializar_esquema(ruta)
     conexion = sqlite3.connect(ruta)
     conexion.row_factory = sqlite3.Row
-    conexion.executescript(ESQUEMA)
+    conexion.execute("PRAGMA foreign_keys = ON")
     return conexion
 
 
