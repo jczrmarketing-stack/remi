@@ -3,7 +3,7 @@ import { LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
 import { StatusDot } from "./componentes/StatusDot";
 import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
-import { enviarMensaje } from "./servidor";
+import { enviarMensaje, obtenerUltimaVezMin } from "./servidor";
 import { animarTamano } from "./movimiento";
 import { callarse, hablar } from "./voz";
 import { alternarSilencio, estaSilenciado } from "./silencio";
@@ -52,6 +52,10 @@ export default function App() {
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
   const [grabando, setGrabando] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
+  // Ley 1 hecha visible en el Reloj: null hasta que sepamos si hay dato
+  // real, y se queda null si no lo hay (nunca un número inventado).
+  const [sesionInicio, setSesionInicio] = useState<string | null>(null);
+  const [ultimaVezMin, setUltimaVezMin] = useState<number | null>(null);
 
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
   const accionesRef = useRef({ grabando, modo, estado, silenciado });
@@ -82,6 +86,8 @@ export default function App() {
     setGrabando(false);
     setTexto("");
     setVoz("");
+    setSesionInicio(null);
+    setUltimaVezMin(null);
     callarse();
   }, []);
 
@@ -98,6 +104,12 @@ export default function App() {
       try {
         const respuesta = await enviarMensaje(limpio);
         setVoz(respuesta.voz);
+        setSesionInicio(respuesta.sesion.inicio);
+        // Si esto falla, el Reloj simplemente no se renderiza — no es
+        // motivo para no poder contestar (ley 3, sin culpa).
+        obtenerUltimaVezMin(respuesta.tarea.id)
+          .then(setUltimaVezMin)
+          .catch(() => setUltimaVezMin(null));
       } catch (error) {
         console.error("no se pudo mandar el mensaje:", error);
         setVoz(fraseDeFallo());
@@ -291,7 +303,12 @@ export default function App() {
       <StatusDot estado={estado} escuchandoVoz={grabando} />
 
       {estado === "hablando" && <p className="display-it voz">{recortarPalabras(voz)}</p>}
-      {estado === "hablando" && <Reloj />}
+      {estado === "hablando" && ultimaVezMin !== null && sesionInicio !== null && (
+        <Reloj
+          minutosTranscurridos={(Date.now() - new Date(sesionInicio).getTime()) / 60000}
+          ultimaVezMin={ultimaVezMin}
+        />
+      )}
 
       {/* Mientras el micrófono está abierto, o mientras Remi habla, no hay
           cuadro — una sola locura por pantalla (ley 4): se ve que escucha o

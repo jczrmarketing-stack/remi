@@ -8,7 +8,8 @@
 }
 
 .reloj__relleno {
-  width: 55%;
+  /* El width real lo pone Reloj.tsx inline (tiempo transcurrido sobre
+     ultima_vez_min) — acá no hay un número inventado. */
   height: 100%;
   background: var(--brasa);
 }
