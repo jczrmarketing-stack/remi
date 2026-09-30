@@ -20,6 +20,33 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 0a episodios vacíos: no era un bug de escritura · construido · f261830
+
+- **Qué cambió:** probé `cierre.guardar()` a mano con un transcript sintético (dos turnos con
+  una promesa incluida) apuntando a una ruta fuera de cualquier libro: escribió el episodio,
+  el título, el resumen y las cuatro secciones perfectos, y quedó una fila en `memoria`. Borré
+  ese episodio y esa fila de prueba después de confirmar (no queda nada de la prueba en
+  `remi-mente/` ni en `remi.db`). La escritura funciona de punta a punta. `nucleo/cierre.py`
+  ahora distingue en el log si faltó `transcript_path` o si el transcript no tenía turnos
+  legibles (antes decía lo mismo para los dos casos); `scripts/hooks/claude-sesion.py` deja
+  una línea en `ventanita.log` cuando el POST a `/evento` no llega al núcleo.
+- **Diagnóstico:** en todo `nucleo.log` solo hay 3 líneas `[cierre]` en la vida del proyecto;
+  dos escribieron episodios de prueba (ya borrados a mano según la entrada de 3d) y una fue el
+  arreglo de «sesión sin charla». El núcleo recién quedó persistente hoy (KeepAlive, entrada
+  3e) — antes, si Claude Code cerraba una sesión con el núcleo caído, el POST fallaba en
+  silencio (`_post` atrapa la excepción y no deja rastro) y no había forma de saberlo. Con el
+  KeepAlive de hoy más el log nuevo, la próxima vez que falle va a quedar escrito.
+- **Decisiones que tomé sin preguntar:** ninguna.
+- **Dudas abiertas:** no hay todavía una sesión real (con `/exit` o cierre normal) posterior al
+  KeepAlive de hoy para confirmarlo en vivo — la prueba de mañana (al final del reporte) cubre
+  justo esto.
+- **Cómo probarlo a mano:** abrir Claude Code en `~/proyectos/remi` o `~/beam`, charlar algo
+  real, cerrar con `/exit` (no cerrando la terminal de un golpe), y mirar
+  `remi-mente/episodios/` — tiene que aparecer un `.md` nuevo. Si no aparece,
+  `tail ~/Library/Logs/Remi/ventanita.log` va a decir por qué.
+
+---
+
 ## 2026-09-30 · 3d los cuatro proyectos de hoy, conectados · construido · 1c710ce
 
 - **Qué cambió** (en la bóveda `remi-mente/proyectos/`, que no está en git): Juan Camilo
