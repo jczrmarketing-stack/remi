@@ -170,7 +170,7 @@ class RespuestaMensaje(BaseModel):
     # Lo decide el clasificador, nunca el modelo: pensar solo reformula la
     # voz. Una idea no crea tarea ni sesión, y un cierre no crea nada.
     # «encargo» es el modo Prompt, que no pasa por el clasificador.
-    tipo: clasificar.TipoMensaje | Literal["encargo"]
+    tipo: clasificar.TipoMensaje | Literal["encargo", "cliente"]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
     # Lo que se ve en la pantalla, completo.
@@ -313,6 +313,13 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         ms = (time.perf_counter() - arranque) * 1000
         print(f"[mensaje] tipo=encargo ms={ms:.0f} pensó={'sí' if respuesta.tokens else 'no'}", file=sys.stderr, flush=True)
         return respuesta
+    if clasificar.es_texto_de_cliente(mensaje.texto):
+        # No pasa por el clasificador de tareas/ideas: es una lectura para
+        # decidir, no algo que Juan Camilo pidió hacer (Biblia Parte VI).
+        respuesta = _leer_cliente(mensaje)
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=cliente ms={ms:.0f} pensó={'sí' if respuesta.tokens else 'no'}", file=sys.stderr, flush=True)
+        return respuesta
     tipo = clasificar.clasificar(mensaje.texto)
     # «buscá…» se contesta (con la web), no se guarda en la Bandeja.
     if (
@@ -396,6 +403,29 @@ def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
         texto=pensado.paso_minimo,
         # Un encargo no se lee en voz alta: se copia.
         voz="Listo, lo tenés para copiar.",
+        tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
+    )
+
+
+def _leer_cliente(mensaje: MensajeEntrante) -> RespuestaMensaje:
+    """«Me escribió un cliente» (Biblia Parte VI): lectura, riesgos,
+    respuesta recomendada y límites — nunca se guarda en la Bandeja, nunca
+    abre un bloque, y Remi no manda nada a ningún lado: es una propuesta
+    para que Juan Camilo lea y decida."""
+    if not mensaje.think:
+        return RespuestaMensaje(
+            tipo="cliente", texto="Sin pensar no puedo leer esto.", voz="Sin pensar no puedo leer esto."
+        )
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, "equilibrio", pensar.sistema_cliente())
+    if pensado is None:
+        return RespuestaMensaje(
+            tipo="cliente", texto="No pude leer el mensaje. Probá de nuevo.", voz="No pude leerlo."
+        )
+    return RespuestaMensaje(
+        tipo="cliente",
+        texto=pensado.paso_minimo,
+        # Igual que un encargo: esto se lee y se copia, no se dice en voz.
+        voz="Tenés la lectura lista. La mandás vos.",
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
     )
 

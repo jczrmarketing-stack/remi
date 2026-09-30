@@ -204,6 +204,44 @@ def _cuerpo_oficio(nombre: str) -> str:
     return partes[2].strip() if len(partes) >= 3 else texto.strip()
 
 
+# «Me escribió un cliente» (Biblia Parte VI, oficio «clientes»): mismo
+# patrón que el encargo — un archivo del repo (sin datos personales) más
+# los oficios reales, nivel 2, cargados adentro.
+RUTA_CLIENTE = Path(__file__).resolve().parent / "prompts" / "cliente.md"
+
+
+def sistema_cliente() -> str:
+    """Lectura, riesgos, respuesta recomendada y límites (oficio `clientes`)
+    — con los oficios `clientes`, `proyectos-sop` y `mi-voz` cargados
+    enteros, más el proyecto activo si hay uno. Remi nunca envía nada:
+    esto es una propuesta para que Juan Camilo decida."""
+    try:
+        base = RUTA_CLIENTE.read_text().strip()
+    except OSError:
+        print(f"[pensar] no encuentro {RUTA_CLIENTE}: uso uno mínimo", file=sys.stderr)
+        base = (
+            "Te pegaron algo de un cliente. Devolvé LECTURA, RIESGOS, RESPUESTA "
+            "RECOMENDADA y LÍMITES. Nunca envíes nada: es una propuesta."
+        )
+    piezas = [base]
+    for oficio in ("clientes", "proyectos-sop", "mi-voz"):
+        cuerpo = _cuerpo_oficio(oficio)
+        if cuerpo:
+            piezas.append(f"## Oficio: {oficio}\n" + cuerpo)
+
+    try:
+        activo = precarga.proyecto_activo()
+        if activo is not None:
+            tema, _razon = activo
+            resumen = precarga.resumen_nivel2(tema)
+            if resumen:
+                piezas.append("## Proyecto activo\n" + resumen)
+    except Exception as error:  # noqa: BLE001 — sin proyecto activo, sigue igual
+        print(f"[pensar] no pude precargar el proyecto activo del cliente ({type(error).__name__})", file=sys.stderr)
+
+    return "\n\n".join(piezas)
+
+
 def sistema_encargo() -> str:
     """La puerta de los prompts (Biblia Parte VI): el encargo no sale solo
     con la forma fija de `encargo.md`, sino con los oficios `prompting` y

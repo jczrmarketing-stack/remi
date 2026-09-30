@@ -97,6 +97,23 @@ def pide_busqueda(texto: str) -> bool:
     return bool(_PATRON_BUSQUEDA.match(normalizar(texto)))
 
 
+# «Me escribió un cliente» (Biblia Parte VI, oficio «clientes»): Juan Camilo
+# pega o cuenta lo que le dijo un tercero. Sin IA, como el resto de este
+# archivo — las frases exactas que lo anuncian, nada de adivinar por el
+# largo del texto (eso ya lo cubre `episodios.LARGO_MINIMO` para otra cosa:
+# ofrecer guardar la charla, no leerla como cliente).
+_PATRON_CLIENTE = re.compile(
+    r"\b(?:me (?:escribio|dijo|escribieron|dijeron)|"
+    r"(?:el|la) cliente (?:dice|escribio|me escribio|me dijo)|"
+    r"le escribio (?:el|la) cliente|"
+    r"escribio (?:el|la) cliente)\b"
+)
+
+
+def es_texto_de_cliente(texto: str) -> bool:
+    return bool(_PATRON_CLIENTE.search(normalizar(texto)))
+
+
 def clasificar(texto: str) -> TipoMensaje:
     limpio = normalizar(texto)
     if not limpio:
