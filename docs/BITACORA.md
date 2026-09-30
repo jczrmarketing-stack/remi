@@ -20,6 +20,32 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 2i.12 clicks fantasma y motor por defecto · construido · e4ccba1
+
+- **Qué cambió:** (1) `a09e0f7`: cada click deja isTrusted, detail, screenX/Y y los ms desde
+  el último cambio de tamaño. Filtros en `gestos.ts` que no tocan la racha: «fantasma: muy
+  seguido» (<80 ms del anterior) y «fantasma: resize» (<100 ms de un cambio de tamaño). En
+  «pensando» ningún click cancela; solo Escape. Pruebas con las dos secuencias del log
+  (18:42:59 y 18:44:01) tal cual. (2) `e4ccba1`: Claude por defecto; Venice elegible a
+  mano, con «(pago)», y nunca por arrastre (una preferencia vieja en venice se lee como
+  claude); si el motor guardado no está disponible al arrancar, vuelve a Claude y lo
+  escribe. 142 pruebas núcleo, 42 ventanita. Instalada.
+- **Decisiones que tomé sin preguntar:**
+  1. **100 ms tras un cambio de tamaño, no 250.** Lo medí antes de escribirlo: los fantasmas
+     llegan a 1–30 ms del anterior y a 14 ms de un cambio de tamaño; los 2.º clicks reales
+     que graban llegan a 125–215 ms del 1.º, o sea a 105–195 ms del cambio que dispara el
+     1.º. Con 250 se perdía la mitad de los dobles clicks del día. Hay una prueba que cuida
+     el doble click real más rápido (125 ms) y falla si alguien sube el número.
+  2. El «último cambio de tamaño» se marca al empezar la animación y otra vez al terminar
+     (dura 250 ms): un click durante la animación cuenta como cercano al cambio.
+- **Dudas abiertas:**
+  1. **De dónde salen los fantasmas sigue sin saberse.** Ahora el log dice si son
+     `confiable=false` (sintetizados) o caen todos en el mismo `xy`. Con una sesión de uso
+     se sabe; hasta entonces el filtro por tiempo los ataja.
+  2. Sigue pendiente: texto + Enter contesta «Guardada» en vez de pensar (diseño).
+- **Cómo probarlo a mano:** usar Remi normal. En el log, buscar `razon=fantasma` y mirar
+  `confiable` y `xy` de esas líneas.
+
 ## 2026-09-29 · 2i.11 Whisper large-v3-turbo · construido · 36bc1d6
 
 - **Qué cambió:** `config/ventanita.json` apunta a `ggml-large-v3-turbo.bin` (ya estaba en
