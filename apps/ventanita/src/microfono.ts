@@ -16,7 +16,13 @@ export type OrigenParada =
   | "silencio:sin_voz"
   | "escape"
   | "timeout"
-  | "atajo";
+  | "atajo"
+  | "x";
+
+// La X y Escape: corta y borra el audio sin transcribir.
+export function cancelarEscucha(origen: OrigenParada): Promise<void> {
+  return invoke("cancelar_escucha", { origen });
+}
 
 // El 3.er click: la grabación sigue, solo se le prende el corte por silencio.
 export function activarCortePorSilencio(): Promise<void> {

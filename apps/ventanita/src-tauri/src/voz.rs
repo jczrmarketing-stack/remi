@@ -470,6 +470,22 @@ pub fn activar_corte_por_silencio(
     Ok(())
 }
 
+/// Cancelar: cierra la grabación y borra el audio SIN transcribir. Es lo
+/// que hacen la X y Escape; antes cortaban con detener_escucha_y_transcribir
+/// y Whisper trabajaba igual para un texto que nadie iba a usar.
+#[tauri::command]
+pub fn cancelar_escucha(estado: tauri::State<EstadoGrabacion>, origen: String) -> Result<(), String> {
+    let grabacion = estado.0.lock().map_err(|e| e.to_string())?.take();
+    let Some(grabacion) = grabacion else {
+        log::info!("[voz] cancelar ({origen}) sin grabación activa: nada que hacer");
+        return Ok(());
+    };
+    let ruta_wav = grabacion.detener();
+    let _ = fs::remove_file(&ruta_wav);
+    log::info!("[voz] cancelada ({origen}): sin transcribir, audio borrado");
+    Ok(())
+}
+
 /// `origen` dice QUIÉN cortó: "click", "silencio:fin", "silencio:sin_voz",
 /// "escape" o "timeout". Lo sabe la ventanita, no acá, y sin eso el log no
 /// alcanza para entender un gesto que salió mal.

@@ -5,6 +5,7 @@ import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
 import { ControlesVoz } from "./componentes/ControlesVoz";
 import { Semaforo } from "./componentes/Semaforo";
+import { BotonCancelar } from "./componentes/BotonCancelar";
 import {
   enviarMensaje,
   obtenerMotores,
@@ -39,6 +40,7 @@ import {
 import {
   activarCortePorSilencio,
   alDetectarSilencio,
+  cancelarEscucha,
   alPalanca,
   detenerEscuchaYTranscribir,
   iniciarEscucha,
@@ -309,6 +311,22 @@ export default function App() {
     callarse();
   }, []);
 
+  // La X y Escape: cancelan lo que esté pasando, sin transcribir ni mandar.
+  // Si estaba grabando, se corta y se borra el audio (Whisper no trabaja);
+  // si estaba pensando, la respuesta que llegue ya no es de esta
+  // generación y se descarta; si hablaba, se calla.
+  const cancelar = useCallback(
+    (origen: "escape" | "x") => {
+      const { grabando: grabandoActual, estado: estadoActual } = accionesRef.current;
+      registrar("cancelar", { origen, estado: estadoActual, grabando: grabandoActual });
+      if (grabandoActual) {
+        void cancelarEscucha(origen).catch(() => undefined);
+      }
+      volverAReposo();
+    },
+    [volverAReposo],
+  );
+
   const enviar = useCallback(
     async (mensaje: string) => {
       const limpio = mensaje.trim();
@@ -490,7 +508,7 @@ export default function App() {
         return;
       }
       if (motivo === "sin_voz") {
-        void detenerEscuchaYTranscribir("silencio:sin_voz").catch(() => undefined);
+        void cancelarEscucha("silencio:sin_voz").catch(() => undefined);
         volverAReposo();
         return;
       }
@@ -508,11 +526,7 @@ export default function App() {
     function alTeclado(evento: KeyboardEvent) {
       if (evento.key === "Escape") {
         evento.preventDefault();
-        registrar("escape", { grabando: accionesRef.current.grabando, estado: accionesRef.current.estado });
-        if (accionesRef.current.grabando) {
-          void detenerEscuchaYTranscribir("escape").catch(() => undefined);
-        }
-        volverAReposo();
+        cancelar("escape");
         return;
       }
       if (evento.key.toLowerCase() === "m" && evento.metaKey && evento.shiftKey) {
@@ -522,7 +536,7 @@ export default function App() {
     }
     window.addEventListener("keydown", alTeclado);
     return () => window.removeEventListener("keydown", alTeclado);
-  }, [volverAReposo]);
+  }, [cancelar]);
 
   const cambiarVelocidad = useCallback((nueva: Velocidad) => {
     fijarVelocidad(nueva);
@@ -820,6 +834,7 @@ export default function App() {
   return (
     <div className={`ventanita ventanita--${estado}`} onMouseDown={alPresionar}>
       <Semaforo />
+      {estado !== "reposo" && <BotonCancelar onCancelar={() => cancelar("x")} />}
       <StatusDot estado={estado} escuchandoVoz={grabando} />
 
       {/* Ley 1 en reposo. Si hay algo de hoy que ya hiciste antes, el dato
