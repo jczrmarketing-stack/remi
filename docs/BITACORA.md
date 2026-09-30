@@ -20,6 +20,59 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · notion: GET real, solo de ida, mockups del panel · construido · e3629f6
+
+- **Qué cambió:** tres commits en `main`, pytest completo después de cada uno:
+  1. `07e2b76` — `notion.buscar_base()` pedía `POST /blocks/{id}/children` (agregar bloques)
+     para LISTAR los hijos y encontrar la base «Proyectos»/«Entregas» existente: Notion
+     devolvía 400 y `notion_sync.sincronizar()` nunca llegaba a crear ni encontrar nada. Ahora
+     es `GET` con `params` (nuevo parámetro en `_pedir()`, que antes solo mandaba `json`).
+     Verifiqué contra la API real: disparé el `LaunchAgent` a mano dos veces
+     (`launchctl kickstart -k gui/$UID/com.remi.notion`) y el segundo ciclo (y el siguiente)
+     ya no aparecen en `notion.log` — solo el resumen JSON limpio. Tests con un transporte
+     httpx falso (`httpx.MockTransport`, sin red): confirma el método GET, que encuentra la
+     base entre otros tipos de bloque, y que pagina con `start_cursor`.
+  2. `be0230c` — Notion solo de ida por defecto (`docs/ROBUSTEZ.md`): `sincronizar()` ya no
+     llama `obtener_pagina()` ni anota conflictos salvo `NOTION_VUELTA=1` en `nucleo/.env`
+     (`notion.vuelta_habilitada()`). Sin la bandera, empuja lo local tal cual y no lee nada de
+     vuelta. Los tres tests que ya cubrían la vuelta real ahora la prenden explícito
+     (`monkeypatch.setenv("NOTION_VUELTA", "1")`); sumé dos tests nuevos para el caso por
+     defecto (proyecto y entrega) que confirman que un cambio hecho a mano en Notion no pisa
+     el libro ni la base local, y que no se abre `bitacora.md`.
+  3. `e3629f6` — `docs/mockups/panel/` tal como estaba (17 pantallas HTML + prototipo +
+     README), sin tocar nada del código.
+  pytest: 402→406→402 (los 4 de más/menos son `test_vectores.py`, que ya sabíamos flojo bajo
+  carga — a veces pasa, a veces skip, según cómo esté Ollama en el momento; no tiene que ver
+  con estos cambios). mypy limpio (76 módulos) en todo momento.
+- **`scripts/actualizar.sh`:** corrió sobre `e3629f6`; el log confirma «Instalada la de:
+  e3629f6 docs: diseño del panel, 17 pantallas». `com.remi.notion` se recargó con el fix del
+  GET adentro.
+- **Decisiones que tomé sin preguntar:**
+  1. `_pedir()` suma `params` como keyword-only, sin tocar ninguno de los otros cinco
+     llamados (todos siguen mandando `json=cuerpo, params=None`): cambio mínimo, nada de
+     tocar `crear_base`/`consultar_base`/etc.
+  2. La vuelta apagada por defecto también apaga el chequeo `obtener_pagina()` entero (no
+     solo la comparación): menos una llamada de red por proyecto/entrega en cada ciclo de
+     15 min mientras la bandera esté apagada, no solo «leer y descartar».
+  3. `docs/mockups/panel/` va en un commit propio, sin pytest relevante (es HTML estático):
+     igual corrí la suite completa después, por consistencia con el resto del encargo.
+- **Dudas abiertas:**
+  1. `NOTION_VUELTA` no está en `nucleo/.env` todavía — Notion sigue solo de ida en este Mac
+     hasta que alguien decida prenderla (la propia docs/ROBUSTEZ.md dice que eso espera a que
+     Remi lleve un mes de uso real).
+  2. **f-telegram, otra vez:** el worktree `remi-telegram` sigue en `7341db3` (el mismo commit
+     que ya está en `main` desde el merge anterior) — no hay nada nuevo que mergear todavía.
+     El encargo dice mergear «cuando remi-telegram-28 avise el reporte nocturno»: eso es obra
+     de otra sesión trabajando en paralelo en ese worktree, que todavía no terminó ni
+     commiteó. Lo dejo pendiente — no hay nada que mergear hasta que esa rama tenga commits
+     nuevos y avise. Cuando pase: mergear f-telegram, pytest completo, `scripts/actualizar.sh`,
+     y una entrada de bitácora nueva (esta no se edita).
+- **Cómo probarlo a mano:** `cd nucleo && uv run pytest pruebas/test_notion.py
+  pruebas/test_notion_sync.py -v`; `launchctl kickstart -k gui/$(id -u)/com.remi.notion &&
+  tail -5 ~/Library/Logs/Remi/notion.log` — el resumen JSON, sin traceback de 400.
+
+---
+
 ## 2026-09-30 · merge f-fase3 + f-notion + f-telegram · construido · c2bc091
 
 - **Qué cambió:** tres merges a `main`, sin squash, un `git commit` cada uno, pytest completo
