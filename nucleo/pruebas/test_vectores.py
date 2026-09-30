@@ -39,6 +39,9 @@ def test_asociacion_trae_shopify_y_mantenimiento(monkeypatch) -> None:
     asociados_cobro = vectores.asociar(conexion, "cómo cobro la mensualidad")
     assert any("Mantenimiento" in titulo for titulo in asociados_cobro), asociados_cobro
 
+    asociados_plan_mode = vectores.asociar(conexion, "qué es plan mode")
+    assert any("Claude Code" in titulo for titulo in asociados_plan_mode), asociados_plan_mode
+
 
 def test_no_recalcula_si_el_contenido_no_cambio(tmp_path, monkeypatch) -> None:
     boveda = tmp_path / "boveda"

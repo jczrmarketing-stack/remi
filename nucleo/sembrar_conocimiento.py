@@ -46,6 +46,12 @@ def carpeta() -> Path:
     return Path(os.environ.get("REMI_CONOCIMIENTO") or CARPETA)
 
 
+def carpeta_oficios() -> Path:
+    """Los oficios viven al lado de proyectos/, no adentro (Biblia Parte VI:
+    son libros del mismo estante, con `tipo: oficio` en el frontmatter)."""
+    return carpeta().parent / "oficios"
+
+
 def leer_ficha(ruta: Path) -> Ficha | None:
     """None si no tiene el frontmatter completo: se avisa y se salta."""
     texto = ruta.read_text()
@@ -90,10 +96,22 @@ def nivel_de(ruta: Path) -> int:
 
 def sembrar() -> dict[str, int]:
     """Cuántas se crearon, actualizaron, quedaron igual o se saltaron."""
+    return _sembrar_desde(carpeta(), "conocimiento")
+
+
+def sembrar_oficios() -> dict[str, int]:
+    """Los oficios (Biblia Parte VI) entran al mismo estante que los
+    proyectos: título y resumen siempre en la mente, `tipo: oficio` es solo
+    una marca en el frontmatter (no cambia cómo se siembran). Nivel 1
+    siempre — un oficio no se "olvida" por no tocarlo, es saber-hacer, no
+    actividad reciente."""
+    return _sembrar_desde(carpeta_oficios(), "oficios", nivel_fijo=NIVEL_RECIENTE)
+
+
+def _sembrar_desde(origen: Path, etiqueta: str, nivel_fijo: int | None = None) -> dict[str, int]:
     cuenta = {"creadas": 0, "actualizadas": 0, "iguales": 0, "saltadas": 0}
-    origen = carpeta()
     if not origen.is_dir():
-        print(f"[conocimiento] no está {origen}: nada que sembrar", file=sys.stderr)
+        print(f"[{etiqueta}] no está {origen}: nada que sembrar", file=sys.stderr)
         return cuenta
 
     conexion = db.conectar()
@@ -101,11 +119,11 @@ def sembrar() -> dict[str, int]:
         for ruta in sorted(origen.glob("*.md")):
             ficha = leer_ficha(ruta)
             if ficha is None:
-                print(f"[conocimiento] {ruta.name}: sin titulo/tema/resumen, la salto", file=sys.stderr)
+                print(f"[{etiqueta}] {ruta.name}: sin titulo/tema/resumen, la salto", file=sys.stderr)
                 cuenta["saltadas"] += 1
                 continue
 
-            nivel = nivel_de(ruta)
+            nivel = nivel_fijo if nivel_fijo is not None else nivel_de(ruta)
             existentes = db.memorias_por_tema(conexion, ficha.tema)
             try:
                 if not existentes:
@@ -143,7 +161,7 @@ def sembrar() -> dict[str, int]:
                 cuenta["actualizadas"] += 1
             except ValidationError:
                 print(
-                    f"[conocimiento] {ruta.name}: el título pasa de 80 o el resumen de 240, la salto",
+                    f"[{etiqueta}] {ruta.name}: el título pasa de 80 o el resumen de 240, la salto",
                     file=sys.stderr,
                 )
                 cuenta["saltadas"] += 1
@@ -151,7 +169,7 @@ def sembrar() -> dict[str, int]:
         conexion.close()
 
     print(
-        "[conocimiento] "
+        f"[{etiqueta}] "
         + " · ".join(f"{clave}={valor}" for clave, valor in cuenta.items()),
         file=sys.stderr,
     )
@@ -160,3 +178,4 @@ def sembrar() -> dict[str, int]:
 
 if __name__ == "__main__":
     sembrar()
+    sembrar_oficios()
