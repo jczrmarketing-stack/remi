@@ -7,6 +7,7 @@ igual, corto, con un primer paso de cinco minutos.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -35,6 +36,76 @@ INSTRUCCIONES = (
     "## Primer paso de mañana\n"
     "(una sola acción de cinco minutos)\n"
 )
+
+# — El libro de errores (oficio «stack», Fase C · 3) —
+# Si el transcript de la sesión dice, tal cual, que un problema se resolvió,
+# además del episodio normal queda uno con `fuente: error` y
+# `claves: [error, <tema>]`: síntoma, causa, cura y archivo. `oficios/stack.md`
+# ya documenta que Remi lo busca antes de proponer un arreglo nuevo.
+PATRON_ERROR = re.compile(r"la causa era|se arregl[oó]|fallaba porque", re.IGNORECASE)
+ORDEN_ERROR = ("Síntoma", "Causa", "Cura", "Archivo")
+INSTRUCCIONES_ERROR = (
+    "Te paso el final de una sesión donde se resolvió un problema técnico. Sacá SOLO estas "
+    "cuatro secciones, una frase corta cada una, con datos que estén literalmente en la "
+    "charla — si alguno no aparece con claridad, escribí «sin dato» en esa sección en vez de "
+    "inventar:\n"
+    "## Síntoma\n(qué fallaba, tal como se ve)\n"
+    "## Causa\n(la causa real, tal como se explica)\n"
+    "## Cura\n(qué se hizo para arreglarlo)\n"
+    "## Archivo\n(archivo(s) tocados, si se nombran; si no, «sin dato»)\n"
+)
+
+
+def hay_problema_resuelto(charla: str) -> bool:
+    return bool(PATRON_ERROR.search(charla))
+
+
+def redactar_error(charla: str, titulo_libro: str) -> dict[str, str] | None:
+    """Las cuatro secciones del error, o None si no se pudo sacar nada real."""
+    pedido = f"Proyecto: {titulo_libro}\n\n{charla}"[-8000:]
+    try:
+        pensado = pensar._una_llamada_claude(pensar.MODOS["rapido"], pedido, INSTRUCCIONES_ERROR, [])
+    except Exception as error:  # noqa: BLE001 — sin Haiku, no hay libro de errores esta vez
+        print(f"[cierre] error: Haiku no contestó ({type(error).__name__})", file=sys.stderr)
+        return None
+    if pensado is None:
+        return None
+    return secciones_error_de(pensado.paso_minimo)
+
+
+def secciones_error_de(texto: str) -> dict[str, str] | None:
+    actual: str | None = None
+    buf: dict[str, list[str]] = {nombre: [] for nombre in ORDEN_ERROR}
+    for linea in texto.splitlines():
+        limpia = linea.strip()
+        if limpia.startswith("## "):
+            nombre = limpia[3:].strip()
+            actual = nombre if nombre in buf else None
+            continue
+        if actual is not None:
+            buf[actual].append(linea)
+    resultado = {nombre: ("\n".join(lineas).strip() or "sin dato") for nombre, lineas in buf.items()}
+    if all(resultado[nombre].lower() == "sin dato" for nombre in ORDEN_ERROR):
+        return None  # no sacó nada real: mejor ningún episodio que uno vacío
+    return resultado
+
+
+def escribir_episodio_error(tema: str, titulo_libro: str, secciones: dict[str, str], ahora_local: datetime) -> Path:
+    carpeta = episodios.carpeta_episodios()
+    carpeta.mkdir(parents=True, exist_ok=True)
+    sintoma = episodios._una_linea(secciones["Síntoma"])
+    titulo = episodios._recortar(f"Error en {titulo_libro}: {sintoma}", 80)
+    resumen = episodios._recortar(episodios._una_linea(secciones["Causa"]), 240)
+    cuerpo = "".join(f"## {nombre}\n\n{secciones[nombre]}\n\n" for nombre in ORDEN_ERROR)
+    base = f"{ahora_local:%Y-%m-%d}-error-{episodios.slug(tema)}-{episodios.slug(sintoma)}"
+    destino = episodios._ruta_libre(carpeta, base)
+    boveda_git.snapshot_antes(f"escribir el episodio de error {destino.name}")
+    destino.write_text(
+        f'---\ntitulo: "{episodios._una_linea(titulo)}"\ntema: {tema}\n'
+        f'resumen: "{episodios._una_linea(resumen)}"\nfuente: error\nclaves: [error, {tema}]\n---\n\n{cuerpo}'
+    )
+    boveda_git.snapshot_despues(f"bóveda: episodio de error {destino.name} (oficio stack) al cerrar sesión en {tema}")
+    return destino
 
 
 def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None:
@@ -83,6 +154,11 @@ def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None
     if libro is not None:
         _cursor(libro.tema, ahora)
     print(f"[cierre] {destino.name} · tema={tema} · {por}", file=sys.stderr)
+    if hay_problema_resuelto(charla):
+        secciones_error = redactar_error(charla, titulo_libro)
+        if secciones_error is not None:
+            error_destino = escribir_episodio_error(tema, titulo_libro, secciones_error, local)
+            print(f"[cierre] {error_destino.name} · episodio de error (oficio stack)", file=sys.stderr)
     return destino
 
 

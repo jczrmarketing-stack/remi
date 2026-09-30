@@ -121,6 +121,111 @@ def test_al_cerrar_escribe_episodio_y_actualiza_el_libro(tmp_path, monkeypatch) 
     assert "Esto se queda." in libro
 
 
+def test_un_problema_resuelto_deja_ademas_un_episodio_de_error(tmp_path, monkeypatch) -> None:
+    repo = tmp_path / "malik"
+    repo.mkdir()
+    _libro(tmp_path, repo)
+    transcript = tmp_path / "sesion.jsonl"
+    transcript.write_text(
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "role": "assistant",
+                    "content": "Ya anduvo: la causa era que el webhook no reintentaba tras un 500.",
+                },
+            }
+        )
+        + "\n"
+    )
+    servidor = _arrancar(tmp_path, monkeypatch)
+    import cierre
+
+    monkeypatch.setattr(
+        cierre,
+        "redactar",
+        lambda _pedido: {
+            "Qué se hizo": "Se arregló el webhook.",
+            "Decisiones": "ninguna nueva",
+            "Pendientes": "ninguno",
+            "Primer paso de mañana": "seguir mañana",
+        },
+    )
+    monkeypatch.setattr(
+        cierre,
+        "redactar_error",
+        lambda _charla, _titulo: {
+            "Síntoma": "El webhook no reintentaba tras un 500.",
+            "Causa": "Faltaba el reintento tras un 500.",
+            "Cura": "Se agregó el reintento con backoff.",
+            "Archivo": "webhook.py",
+        },
+    )
+    cliente = TestClient(servidor.app)
+    respuesta = cliente.post(
+        "/evento",
+        json={
+            "tipo": "sesion_fin",
+            "ruta": str(repo),
+            "datos": {"session_id": "abc", "transcript_path": str(transcript)},
+        },
+    )
+
+    assert respuesta.status_code == 200
+    episodios = sorted((tmp_path / "boveda" / "episodios").glob("*.md"))
+    assert len(episodios) == 2
+    de_error = [e for e in episodios if "error" in e.name][0]
+    nota = de_error.read_text()
+    assert "fuente: error" in nota
+    assert "claves: [error, malik]" in nota
+    assert "## Síntoma" in nota
+    assert "El webhook no reintentaba tras un 500." in nota
+    assert "## Cura" in nota
+    assert "Se agregó el reintento con backoff." in nota
+
+
+def test_sin_patron_de_error_no_deja_episodio_de_error(tmp_path, monkeypatch) -> None:
+    repo = tmp_path / "malik"
+    repo.mkdir()
+    _libro(tmp_path, repo)
+    transcript = tmp_path / "sesion.jsonl"
+    transcript.write_text(
+        json.dumps({"type": "user", "message": {"role": "user", "content": "Segui con la ficha."}}) + "\n"
+    )
+    servidor = _arrancar(tmp_path, monkeypatch)
+    import cierre
+
+    monkeypatch.setattr(
+        cierre,
+        "redactar",
+        lambda _pedido: {
+            "Qué se hizo": "Se avanzó con la ficha.",
+            "Decisiones": "ninguna nueva",
+            "Pendientes": "ninguno",
+            "Primer paso de mañana": "seguir mañana",
+        },
+    )
+    llamado: list[int] = []
+
+    def redactar_error_falso(*_args: object) -> dict[str, str] | None:
+        llamado.append(1)
+        return None
+
+    monkeypatch.setattr(cierre, "redactar_error", redactar_error_falso)
+    cliente = TestClient(servidor.app)
+    cliente.post(
+        "/evento",
+        json={
+            "tipo": "sesion_fin",
+            "ruta": str(repo),
+            "datos": {"session_id": "abc", "transcript_path": str(transcript)},
+        },
+    )
+    assert not llamado
+    episodios = list((tmp_path / "boveda" / "episodios").glob("*.md"))
+    assert len(episodios) == 1
+
+
 def test_una_sesion_sin_charla_no_deja_episodio_ni_toca_el_libro(tmp_path, monkeypatch) -> None:
     repo = tmp_path / "malik"
     repo.mkdir()
