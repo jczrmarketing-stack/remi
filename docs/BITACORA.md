@@ -20,6 +20,46 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 3a cerebro v1 (niveles 0 a 2) · construido · f5597c4
+
+- **Qué cambió:** manda `docs/ARQUITECTURA-CEREBRO.md`. Contra lo construido en 3a: los
+  puntos 1 y 3 ya estaban (`ae58466`, `4cb6dc7`); solo cambió el texto de la nota a «a la
+  bandeja» (`7bc39ae`). Nuevo: (2) `49f042d` tres modos por la sesión de Max —rápido=haiku
+  8 s, equilibrio=sonnet 25 s (por defecto), inteligente=opus con razonamiento 60 s— con
+  caída al anterior y un selector mínimo en la ventanita. (4) `7a2f0dd` `claves` y `nivel`
+  por el contrato, con migración; libros en nivel 1. (5) `aefa159` 10 turnos literales +
+  resumen vivo (Ollama, si no Haiku, en segundo plano); conversación nueva tras 60 min sin
+  turnos. (6) `407fb5b` log con modo, caché y libros leídos. (7) `f5597c4` pruebas. Antes,
+  `822778b`: una pregunta se contesta y no va a la Bandeja. 174 pruebas, mypy limpio.
+- **Criterio de listo y medición por modo, por texto, contra el núcleo instalado:**
+
+  | Modo · pregunta | ms | entrada / caché leída / caché escrita / salida | leyó |
+  |---|---|---|---|
+  | equilibrio · ¿qué tengo pendiente con Alfonso? | 8238 | 4 / 6020 / 1032 / 493 | upvisuals |
+  | equilibrio · ¿y cuándo arranco? (por el turno anterior) | 5985 | 4 / 6408 / 1499 / 371 | upvisuals |
+  | rápido · ¿qué tengo pendiente con Alfonso? | 3582 | 3392 / 0 / 0 / 180 | — |
+  | inteligente · ¿qué tengo pendiente con Alfonso? | 8449 | 4 / 4318 / 4865 / 480 | upvisuals |
+
+- **Decisiones que tomé sin preguntar:**
+  1. **No hice commits vacíos** para lo que ya estaba (puntos 1 y 3): lo digo con el hash.
+  2. **`claves` quedó estricto** (`string|null` sin default): cada lugar que arma una
+     `Memoria` lo pasa explícito, en vez de aflojar el generador para todos los contratos.
+  3. **La migración tocó tu `remi.db`** (ALTER TABLE, sin borrar nada); antes dejé una copia
+     en el scratchpad de la sesión.
+  4. El selector de modo es mínimo, junto al del motor y solo con Claude: el definitivo
+     (flechita junto al punto) es 3b.
+  5. Peor caso de la cadena: 93 s; la ventanita espera 100 s.
+- **Dudas abiertas:**
+  1. **`docs/ARQUITECTURA-CEREBRO.md` está sin trackear.** No lo escribí yo; no lo commiteo.
+  2. **La medición por modo no es limpia:** las tres preguntas fueron en la misma
+     conversación, así que rápido contestó desde los turnos anteriores sin leer el libro, e
+     inteligente dijo «lo mismo que antes». Para comparar de verdad hace falta 3f (banco de
+     pruebas, conversaciones nuevas por modo).
+  3. Las respuestas siguen trayendo markdown crudo (`**…**`, listas). Es del carácter.
+  4. Los libros no tienen `claves` en su frontmatter todavía; la columna está vacía.
+- **Cómo probarlo a mano:** elegir modo en el selector nuevo, preguntar por Alfonso y seguir
+  con «¿y cuándo arranco?». `grep '\[claude\] modo=' ~/Library/Logs/Remi/nucleo.log`.
+
 ## 2026-09-29 · 3a Remi piensa de verdad · construido · 71643ac
 
 - **Qué cambió:** siete commits, uno por punto. (1) `ae58466` todo mensaje de la ventanita
