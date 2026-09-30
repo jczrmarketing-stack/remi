@@ -50,12 +50,23 @@ export function partesConEnlaces(texto: string): Parte[] {
   return partes.filter((p) => p.tipo === "enlace" || p.texto !== "");
 }
 
-const TITULOS_DEL_ENCARGO = new Set(["QUÉ", "DÓNDE", "LISTO CUANDO", "NO TOCAR", "DESPUÉS"]);
+// La puerta de los prompts (Biblia Parte VI) arma el encargo con estas seis
+// secciones (nucleo/prompts/encargo.md); DESPUÉS es la única opcional.
+const TITULOS_DEL_ENCARGO = new Set([
+  "QUÉ LEER PRIMERO",
+  "DIAGNÓSTICO",
+  "PUNTOS",
+  "QUÉ NO HACER",
+  "LISTO CUANDO",
+  "RECOMENDACIÓN",
+  "DESPUÉS",
+]);
+const TITULO_INICIAL_DEL_ENCARGO = "QUÉ LEER PRIMERO";
 
 /**
  * Una respuesta de Remi en bloques: el texto, y el encargo para Claude Code
- * (desde el renglón «QUÉ», si trae «LISTO CUANDO») o un bloque ``` como
- * tarjeta mono con Copiar.
+ * (desde el renglón «QUÉ LEER PRIMERO», si trae «LISTO CUANDO») o un bloque
+ * ``` como tarjeta mono con Copiar.
  */
 export function partirRespuesta(texto: string): Bloque[] {
   const bloques: Bloque[] = [];
@@ -82,7 +93,7 @@ export function partirRespuesta(texto: string): Bloque[] {
   // modelo agregue después («Un detalle de diseño…») vuelve a ser texto.
   const parrafos = texto.split(/\n\s*\n/);
   const titulo = (p: string) => p.trim().split("\n")[0].trim();
-  const inicio = parrafos.findIndex((p) => titulo(p) === "QUÉ");
+  const inicio = parrafos.findIndex((p) => titulo(p) === TITULO_INICIAL_DEL_ENCARGO);
   let fin = inicio;
   // Un título solo en su párrafo («QUÉ» y línea en blanco) se lleva el
   // párrafo que le sigue.

@@ -188,15 +188,57 @@ def rol_tecnico() -> str:
         return ""
 
 
-def sistema_encargo() -> str:
+def _cuerpo_oficio(nombre: str) -> str:
+    """El cuerpo de un oficio (sin frontmatter), para meterlo nivel 2 —
+    entero, no solo el título — en el system prompt de un encargo. Cadena
+    vacía si no está: la puerta de prompts sigue andando sin ese oficio,
+    peor pero sin caerse (Biblia Parte VI)."""
+    import sembrar_conocimiento  # import diferido: evita ciclos de import
+
+    ruta = sembrar_conocimiento.carpeta_oficios() / f"{nombre}.md"
     try:
-        return RUTA_ENCARGO.read_text().strip()
+        texto = ruta.read_text()
+    except OSError:
+        return ""
+    partes = texto.split("---", 2)
+    return partes[2].strip() if len(partes) >= 3 else texto.strip()
+
+
+def sistema_encargo() -> str:
+    """La puerta de los prompts (Biblia Parte VI): el encargo no sale solo
+    con la forma fija de `encargo.md`, sino con los oficios `prompting` y
+    `claude-code` de verdad cargados (nivel 2, el cuerpo entero) más el
+    libro del proyecto activo, si hay uno. Sin ellos, cae al `encargo.md`
+    solo — nunca se rompe por faltar un oficio."""
+    try:
+        base = RUTA_ENCARGO.read_text().strip()
     except OSError:
         print(f"[pensar] no encuentro {RUTA_ENCARGO}: uso uno mínimo", file=sys.stderr)
-        return (
+        base = (
             "Devolvé lo que te dicen como UN encargo de UNA tarea para Claude Code, "
             "en español y sin markdown, con las secciones QUÉ, DÓNDE, LISTO CUANDO y NO TOCAR."
         )
+    piezas = [base]
+
+    prompting = _cuerpo_oficio("prompting")
+    if prompting:
+        piezas.append("## Oficio: prompting — la forma fija del encargo\n" + prompting)
+
+    claude_code = _cuerpo_oficio("claude-code")
+    if claude_code:
+        piezas.append("## Oficio: Claude Code — qué pieza y qué modelo recomendar\n" + claude_code)
+
+    try:
+        activo = precarga.proyecto_activo()
+        if activo is not None:
+            tema, _razon = activo
+            resumen = precarga.resumen_nivel2(tema)
+            if resumen:
+                piezas.append("## Proyecto activo\n" + resumen)
+    except Exception as error:  # noqa: BLE001 — sin proyecto activo, el encargo sigue
+        print(f"[pensar] no pude precargar el proyecto activo del encargo ({type(error).__name__})", file=sys.stderr)
+
+    return "\n\n".join(piezas)
 
 
 def instrucciones_con_indice(indice: list[db.EntradaIndice], base: str | None = None) -> str:

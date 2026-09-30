@@ -280,7 +280,7 @@ def test_modo_prompt_arma_un_encargo_sin_guardar_nada(monkeypatch):
 def test_el_encargo_usa_su_system_prompt_con_la_mente(monkeypatch):
     pensar = _pensar()
     prompt = pensar.instrucciones_con_indice([], pensar.sistema_encargo())
-    assert "LISTO CUANDO" in prompt and "NO TOCAR" in prompt
+    assert "LISTO CUANDO" in prompt and "QUÉ NO HACER" in prompt
     assert pensar.caracter()[:40] not in prompt
 
 
