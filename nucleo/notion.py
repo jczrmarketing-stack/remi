@@ -56,6 +56,12 @@ def pagina_id() -> str | None:
     return _ajuste("NOTION_PAGINA_ID")
 
 
+def vuelta_habilitada() -> bool:
+    """Notion solo de ida por defecto (docs/ROBUSTEZ.md): Remi empuja, nunca
+    lee ni anota conflictos, salvo `NOTION_VUELTA=1` en `nucleo/.env`."""
+    return _ajuste("NOTION_VUELTA") == "1"
+
+
 class Notion:
     """Lo mínimo que `notion_sync.py` necesita: bases, páginas, consultas."""
 

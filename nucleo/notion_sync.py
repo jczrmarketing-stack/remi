@@ -1,13 +1,16 @@
-"""Fase 4 · espejo de Notion: proyectos y entregas, ida y vuelta.
+"""Fase 4 · espejo de Notion: proyectos y entregas.
 
-Solo campos de OPERACIÓN viajan de Notion hacia Remi — «próxima acción» y el
-estado de una entrega. La prosa del libro (Quedaste/Decisiones) y los
-episodios nunca vuelven: eso sale solo de la máquina (Biblia Parte IV,
-ARQUITECTURA-CEREBRO §7 y §12).
+Solo de ida por defecto (docs/ROBUSTEZ.md): Remi empuja `Título`, `Estado`,
+`Próxima acción`, `Entrega`, `Monto`, `Estado de entrega`/`Estado` a Notion;
+nunca lee la página de vuelta ni anota conflictos. Con `NOTION_VUELTA=1` en
+`nucleo/.env` (`notion.vuelta_habilitada()`) se prende la vuelta de campos de
+OPERACIÓN — «próxima acción» y el estado de una entrega. La prosa del libro
+(Quedaste/Decisiones) y los episodios nunca vuelven, con o sin la bandera:
+eso sale solo de la máquina (Biblia Parte IV, ARQUITECTURA-CEREBRO §7 y §12).
 
-Sin evidencia de cambio en Notion, no se toca nada. Si cambió en los dos
-lados, gana el más reciente y queda anotado en `remi-mente/bitacora.md` (vía
-`boveda_git`, con su commit antes y después).
+Con la vuelta prendida: sin evidencia de cambio en Notion, no se toca nada;
+si cambió en los dos lados, gana el más reciente y queda anotado en
+`remi-mente/bitacora.md` (vía `boveda_git`, con su commit antes y después).
 
 `sincronizar()` es lo único que llama `scripts/instalar.sh` (LaunchAgent
 `com.remi.notion`, cada 15 min) y la ruta `POST /notion/sincronizar`. Sin
@@ -207,6 +210,20 @@ def _sincronizar_proyecto(
         return
 
     pagina_id = previo["pagina_id"]
+    if not notion.vuelta_habilitada():
+        # Solo de ida (docs/ROBUSTEZ.md): ni se lee la página de Notion ni se
+        # anotan conflictos — se empuja el estado local tal cual.
+        cliente.actualizar_pagina(
+            pagina_id, _propiedades_proyecto(libro.titulo, id_libro, estado_texto, proxima_local, entrega)
+        )
+        cache["proyectos"][id_libro] = {
+            "pagina_id": pagina_id,
+            "proxima_accion": proxima_local,
+            "estado_entrega": entrega.estado if entrega else None,
+        }
+        resumen.proyectos_actualizados += 1
+        return
+
     pagina = cliente.obtener_pagina(pagina_id)
     proxima_remota = notion.leer_texto(pagina["properties"].get("Próxima acción"))
     cambio_local = proxima_local != previo.get("proxima_accion")
@@ -276,6 +293,13 @@ def _sincronizar_entrega(
         return
 
     pagina_id = previo["pagina_id"]
+    if not notion.vuelta_habilitada():
+        # Solo de ida: ni se lee la página de Notion ni se anotan conflictos.
+        cliente.actualizar_pagina(pagina_id, _propiedades_entrega(entrega, id_proyecto))
+        cache["entregas"][clave] = {"pagina_id": pagina_id, "estado": entrega.estado}
+        resumen.entregas_actualizadas += 1
+        return
+
     pagina = cliente.obtener_pagina(pagina_id)
     estado_remoto = notion.leer_seleccion(pagina["properties"].get("Estado"))
     estado_final = entrega.estado
