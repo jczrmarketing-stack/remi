@@ -190,6 +190,50 @@ else
   echo "  whisper: sin whisper-server o sin modelo — la ventanita usa whisper-cli" >&2
 fi
 
+# — La copia nocturna cifrada (3e): todas las noches a las 3:00 —
+# remi.db (por la API de backup de SQLite) y la bóveda, con restic, al
+# destino de config/copia.json. Log en copia.log. Si el Mac estaba dormido a
+# las 3, launchd la corre al despertar.
+ETIQUETA_COPIA="com.remi.copia"
+PLIST_COPIA="$HOME/Library/LaunchAgents/$ETIQUETA_COPIA.plist"
+bajar_agente "$ETIQUETA_COPIA" "$PLIST_COPIA" || true
+cat > "$PLIST_COPIA" <<PLISTCEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$ETIQUETA_COPIA</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>$RAIZ/scripts/copia.sh</string>
+	</array>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>3</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>$RUTA</string>
+		<key>HOME</key>
+		<string>$HOME</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>$LOGS/copia.log</string>
+	<key>StandardErrorPath</key>
+	<string>$LOGS/copia.log</string>
+</dict>
+</plist>
+PLISTCEOF
+plutil -lint "$PLIST_COPIA" > /dev/null
+launchctl bootstrap "gui/$UID" "$PLIST_COPIA" 2>/dev/null || launchctl load "$PLIST_COPIA"
+echo "  copia:  todas las noches a las 3:00 (config/copia.json)"
+
 # — Segundo agente: abrir Remi al iniciar sesión —
 # Sin KeepAlive a propósito: si cerrás la ventanita, se queda cerrada hasta
 # el próximo inicio de sesión. El núcleo sí se relevanta; la app es tuya.

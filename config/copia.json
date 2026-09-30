@@ -1,0 +1,22 @@
+{
+  "$comment": "Copia nocturna cifrada de Remi (3e). Solo un destino activo a la vez; los demás quedan preparados. Las credenciales NUNCA van acá: viven en el Llavero de macOS (servicio indicado en cada destino). La clave de cifrado es el ítem «remi-copia» del Llavero: guardala también fuera del Mac, sin ella las copias no se abren.",
+  "destino": "icloud",
+  "conservar_dias": 30,
+  "destinos": {
+    "icloud": {
+      "repo": "~/Library/Mobile Documents/com~apple~CloudDocs/Remi/copias"
+    },
+    "r2": {
+      "$comment": "Cloudflare R2 (plan gratis). Para activarlo: crear el bucket remi-copias y una clave de API, guardar en el Llavero remi-copia-r2-id y remi-copia-r2-clave, poner la cuenta en la URL y cambiar «destino» a r2.",
+      "repo": "s3:https://CUENTA.r2.cloudflarestorage.com/remi-copias",
+      "llavero_id": "remi-copia-r2-id",
+      "llavero_clave": "remi-copia-r2-clave"
+    },
+    "b2": {
+      "$comment": "Backblaze B2 (10 GB gratis). Para activarlo: crear el bucket remi-copias y una application key, guardar en el Llavero remi-copia-b2-id y remi-copia-b2-clave y cambiar «destino» a b2.",
+      "repo": "b2:remi-copias:/",
+      "llavero_id": "remi-copia-b2-id",
+      "llavero_clave": "remi-copia-b2-clave"
+    }
+  }
+}
