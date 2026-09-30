@@ -9,6 +9,7 @@ import { ChipCerebro } from "./componentes/ChipCerebro";
 import { ChipVoz } from "./componentes/ChipVoz";
 import {
   enviarMensaje,
+  guardarEpisodio,
   obtenerConversacion,
   obtenerModelosOllama,
   obtenerMotores,
@@ -908,6 +909,57 @@ export default function App() {
     void enviar(ultimo.texto, "texto", true);
   }, [enviar]);
 
+  // Pegar una charla larga (3c · 7): Remi pregunta en una línea si la
+  // guarda. Con Sí, se resume (Ollama, o Haiku) y queda como episodio en la
+  // bóveda y en memoria; con No, sigue en el campo como cualquier texto.
+  const guardarPegado = useCallback(
+    async (pegado: string) => {
+      const miGeneracion = generacionRef.current;
+      setTexto((actual) => actual.replace(pegado, "").trim());
+      setEstado("pensando");
+      registrar("episodio", { caracteres: pegado.length });
+      try {
+        const episodio = await guardarEpisodio(pegado);
+        if (generacionRef.current !== miGeneracion) return;
+        registrar("episodio:guardado", { archivo: episodio.archivo, por: episodio.resumido_por });
+        agregar({ rol: "remi", texto: `Guardada: «${episodio.titulo}». Quedó en episodios/${episodio.archivo}.` });
+      } catch (error) {
+        if (generacionRef.current !== miGeneracion) return;
+        console.error("no se pudo guardar la charla:", error);
+        setTexto(pegado);
+        agregar({ rol: "remi", texto: "No pude guardarla ahora. La dejé en el campo." });
+      }
+      setEstado("escuchando");
+    },
+    [agregar],
+  );
+
+  const preguntarSiGuardo = useCallback(
+    (pegado: string) => {
+      const id = nuevoId();
+      const quitar = () => setMensajes((actuales) => actuales.filter((m) => m.id !== id));
+      setMensajes((actuales) => [
+        ...actuales,
+        {
+          id,
+          rol: "remi",
+          texto: "¿Lo guardo como conversación?",
+          pregunta: {
+            onSi: () => {
+              quitar();
+              void guardarPegado(pegado);
+            },
+            onNo: () => {
+              quitar();
+              campoRef.current?.enfocar();
+            },
+          },
+        },
+      ]);
+    },
+    [guardarPegado],
+  );
+
   const escuchar = useCallback(
     (frase: string) => {
       registrar("escuchar", { palabras: frase.split(/\s+/).length });
@@ -964,7 +1016,7 @@ export default function App() {
         valor={texto}
         onCambio={setTexto}
         onEnviar={() => void enviar(texto, "texto")}
-        onPegarLargo={() => undefined}
+        onPegarLargo={preguntarSiGuardo}
       />
 
       <div
