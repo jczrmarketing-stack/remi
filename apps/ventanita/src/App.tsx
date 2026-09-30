@@ -86,15 +86,13 @@ import {
   type Tamano,
 } from "./ventana";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
+import { mostrarTextoIsla, MS_ISLA_ENCOGER, MS_ISLA_VISIBLE, tamanoIsla, TAMANO_ISLA_MINIMA } from "./reposo";
 import "./estilos.css";
 import "./App.css";
 
 // — Tamaños —
-// Reposo es una píldora. Sin historia, 120×44: solo el punto. Con «hace 6
-// min» debajo, 120×64; con el dato medido de la ley 1, más ancha.
-const TAMANO_REPOSO_MINIMO = { width: 120, height: 44 };
-const TAMANO_REPOSO_CON_HACE = { width: 120, height: 64 };
-const TAMANO_REPOSO_ULTIMA_VEZ = { width: 210, height: 64 };
+// Reposo es una píldora. Sin nada que decir, 120×44: solo el punto (3f · 1).
+const TAMANO_REPOSO_MINIMO = TAMANO_ISLA_MINIMA;
 // Abierta es el chat (3c): una sola pantalla, del tamaño que la dejaste
 // (ventana.ts). Guardar tamaño y lugar espera a que dejes de mover.
 const MS_GUARDAR_VENTANA = 400;
@@ -126,9 +124,8 @@ async function tamanoActual(): Promise<Tamano> {
   return { width: fisico.width / f, height: fisico.height / f };
 }
 
-function tamanoReposo(hayHace: boolean, hayUltimaVez: boolean) {
-  if (hayUltimaVez) return TAMANO_REPOSO_ULTIMA_VEZ;
-  return hayHace ? TAMANO_REPOSO_CON_HACE : TAMANO_REPOSO_MINIMO;
+function tamanoReposo(mostrarTexto: boolean) {
+  return tamanoIsla(mostrarTexto);
 }
 
 // Qué es un control (nunca un gesto de la píldora) y qué es el campo.
@@ -221,8 +218,21 @@ export default function App() {
   const expandidoAnteriorRef = useRef(expandido);
   const hayHace = ultimaInteraccionMs !== null || recordatorio !== null;
   const hayUltimaVez = ultimaVezDeHoy !== null;
-  const reposoRef = useRef({ hayHace, hayUltimaVez });
-  reposoRef.current = { hayHace, hayUltimaVez };
+  const hayContenidoReposo = hayHace || hayUltimaVez;
+  // Isla de reposo (3f · 1): al volver a reposo, 4 s mostrando el texto y
+  // se encoge; con el mouse encima se vuelve a mostrar aunque ya se encogió.
+  const [hoverIsla, setHoverIsla] = useState(false);
+  const [vencioIsla, setVencioIsla] = useState(false);
+  const mostrarTextoReposo = mostrarTextoIsla(vencioIsla ? MS_ISLA_VISIBLE : 0, hoverIsla, hayContenidoReposo);
+  const reposoRef = useRef({ mostrarTextoReposo });
+  reposoRef.current = { mostrarTextoReposo };
+
+  useEffect(() => {
+    if (estado !== "reposo") return;
+    setVencioIsla(false);
+    const id = window.setTimeout(() => setVencioIsla(true), MS_ISLA_VISIBLE);
+    return () => window.clearTimeout(id);
+  }, [estado]);
 
   // Mientras la animamos nosotros, los cambios de tamaño no son tuyos: no
   // se guardan.
@@ -236,7 +246,7 @@ export default function App() {
   // Al arrancar: la píldora del tamaño justo y en el lugar donde la dejaste.
   useEffect(() => {
     const ventana = getCurrentWindow();
-    const reposo = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
+    const reposo = tamanoReposo(reposoRef.current.mostrarTextoReposo);
     registrar("tamaño", { motivo: "montar", w: reposo.width, h: reposo.height });
     cambioDeTamanoRef.current = performance.now();
     void (async () => {
@@ -260,7 +270,7 @@ export default function App() {
     if (expandidoAnteriorRef.current === expandido) return;
     expandidoAnteriorRef.current = expandido;
     const ventana = getCurrentWindow();
-    const reposo = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
+    const reposo = tamanoReposo(reposoRef.current.mostrarTextoReposo);
     void (async () => {
       animandoRef.current = true;
       cambioDeTamanoRef.current = performance.now();
@@ -323,13 +333,32 @@ export default function App() {
     };
   }, []);
 
+  // La isla se agranda o se encoge (200 ms) según haya texto para mostrar.
+  const tamanoIslaAnteriorRef = useRef(mostrarTextoReposo);
   useEffect(() => {
     // Durante la animación de cerrar, el tamaño lo pone ella.
     if (expandido || animandoRef.current) return;
-    const { width, height } = tamanoReposo(hayHace, hayUltimaVez);
-    cambioDeTamanoRef.current = performance.now();
-    void getCurrentWindow().setSize(new LogicalSize(width, height));
-  }, [expandido, hayHace, hayUltimaVez]);
+    if (tamanoIslaAnteriorRef.current === mostrarTextoReposo) {
+      // Primer paint en reposo (o cambio de contenido sin cambio de tamaño):
+      // fija el tamaño ya, sin animar.
+      const { width, height } = tamanoReposo(mostrarTextoReposo);
+      cambioDeTamanoRef.current = performance.now();
+      void getCurrentWindow().setSize(new LogicalSize(width, height));
+      return;
+    }
+    tamanoIslaAnteriorRef.current = mostrarTextoReposo;
+    const ventana = getCurrentWindow();
+    const hasta = tamanoReposo(mostrarTextoReposo);
+    void (async () => {
+      animandoRef.current = true;
+      cambioDeTamanoRef.current = performance.now();
+      const desde = await tamanoActual();
+      registrar("tamaño", { motivo: mostrarTextoReposo ? "isla:mostrar" : "isla:encoger", w: hasta.width, h: hasta.height });
+      await animarTamano(ventana, desde, hasta, MS_ISLA_ENCOGER);
+      cambioDeTamanoRef.current = performance.now();
+      animandoRef.current = false;
+    })();
+  }, [expandido, mostrarTextoReposo]);
 
   useEffect(() => {
     if (expandido || !hayHace) return;
@@ -1069,16 +1098,23 @@ export default function App() {
 
   if (estado === "reposo") {
     return (
-      <div className="ventanita ventanita--reposo" onMouseDown={alPresionar}>
+      <div
+        className="ventanita ventanita--reposo"
+        onMouseDown={alPresionar}
+        onMouseEnter={() => setHoverIsla(true)}
+        onMouseLeave={() => setHoverIsla(false)}
+      >
         <Semaforo enPildora onVerde={abrirChat} />
         <div className="punto-zona">
           <StatusDot estado="reposo" />
         </div>
-        {recordatorio !== null && <p className="num hace recordatorio-motor">{recordatorio}</p>}
-        {recordatorio === null && ultimaVezDeHoy !== null && (
+        {mostrarTextoReposo && recordatorio !== null && (
+          <p className="num hace recordatorio-motor">{recordatorio}</p>
+        )}
+        {mostrarTextoReposo && recordatorio === null && ultimaVezDeHoy !== null && (
           <p className="num hace">la última vez: {formatearDuracion(ultimaVezDeHoy)}</p>
         )}
-        {recordatorio === null && ultimaVezDeHoy === null && ultimaInteraccionMs !== null && (
+        {mostrarTextoReposo && recordatorio === null && ultimaVezDeHoy === null && ultimaInteraccionMs !== null && (
           <p className="num hace">{formatearHace(ultimaInteraccionMs, ahoraMs)}</p>
         )}
       </div>
