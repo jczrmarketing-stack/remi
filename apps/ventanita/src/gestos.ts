@@ -79,6 +79,12 @@ export interface Entrada {
   grabacionDesde: number | null;
   /** Cuánto hace que la ventana cambió de tamaño. null si nunca. */
   msDesdeCambioDeTamano: number | null;
+  /**
+   * La respuesta que se está mostrando se queda hasta que la cierres
+   * (escrita, o un encargo): un click afuera la cierra. Las respuestas por
+   * voz no: ahí un click no hace nada, para no cortarla hablando.
+   */
+  respuestaQueda?: boolean;
   ahora: number;
   racha: Racha;
 }
@@ -200,6 +206,9 @@ export function decidir(entrada: Entrada): Decision {
   // 29/09 a las 17:43 una respuesta que iba bien se canceló por tocar la
   // ventana. Para cortarla está Escape; si no, termina sola.
   if (estado === "hablando") {
+    if (entrada.respuestaQueda) {
+      return { accion: { tipo: "volverAReposo" }, racha };
+    }
     return { accion: { tipo: "nada", razon: "Remi está hablando (Escape para cortar)" }, racha };
   }
 

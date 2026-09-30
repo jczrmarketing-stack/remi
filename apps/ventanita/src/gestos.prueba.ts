@@ -373,3 +373,32 @@ describe("clicks fantasma (log del 29/09)", () => {
     expect(MS_FANTASMA_SEGUIDO).toBeLessThan(125);
   });
 });
+
+describe("la respuesta escrita se queda (3b)", () => {
+  it("un click afuera la cierra", () => {
+    const decision = decidir({
+      estado: "hablando", modo: "texto", grabando: false, textoVacio: true,
+      dentroDeControl: false, dentroDelCuadro: false, grabacionDesde: null,
+      msDesdeCambioDeTamano: null, ahora: 5000, racha: RACHA_VACIA, respuestaQueda: true,
+    });
+    expect(decision.accion.tipo).toBe("volverAReposo");
+  });
+
+  it("un click sobre el texto de la respuesta no la cierra (para poder seleccionarlo)", () => {
+    const decision = decidir({
+      estado: "hablando", modo: "texto", grabando: false, textoVacio: true,
+      dentroDeControl: true, dentroDelCuadro: false, grabacionDesde: null,
+      msDesdeCambioDeTamano: null, ahora: 5000, racha: RACHA_VACIA, respuestaQueda: true,
+    });
+    expect(decision.accion.tipo).toBe("nada");
+  });
+
+  it("por voz, igual que antes: un click no la corta", () => {
+    const decision = decidir({
+      estado: "hablando", modo: "voz", grabando: false, textoVacio: true,
+      dentroDeControl: false, dentroDelCuadro: false, grabacionDesde: null,
+      msDesdeCambioDeTamano: null, ahora: 5000, racha: RACHA_VACIA, respuestaQueda: false,
+    });
+    expect(decision.accion.tipo).toBe("nada");
+  });
+});

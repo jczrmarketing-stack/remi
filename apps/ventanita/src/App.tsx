@@ -62,7 +62,7 @@ import {
 // Qué es un control (nunca un gesto) y qué es el cuadro (gesto si está
 // vacío y la racha sigue viva). Los botones del cuadro —el toggle de
 // pensar— cuentan como control aunque estén dentro del cuadro.
-const SELECTOR_CONTROLES = ".controles-voz, .semaforo, .selector-modo, .encargo, button, select";
+const SELECTOR_CONTROLES = ".controles-voz, .semaforo, .selector-modo, .encargo, .voz, button, select";
 const SELECTOR_CUADRO = ".prompt-terminal";
 
 function clasificarObjetivo(objetivo: EventTarget | null) {
@@ -116,6 +116,10 @@ const UMBRAL_ARRASTRE_PX = 4;
 
 // Qué pasó con lo que dijiste, además de la respuesta. Solo si la escribió
 // el modelo: «Guardada. La miramos en dos días.» ya lo dice sola.
+function respuestaQueda(tipo: TipoMensaje | null, origen: OrigenMensaje): boolean {
+  return tipo === "encargo" || origen === "texto";
+}
+
 function notaDe(tipo: TipoMensaje, delModelo: boolean): string | null {
   if (!delModelo) return null;
   if (tipo === "idea") return "a la bandeja";
@@ -146,7 +150,11 @@ export default function App() {
   // De qué tipo fue la última respuesta: un encargo se muestra distinto
   // (bloque mono + Copiar) y no se cierra solo.
   const [tipoRespuesta, setTipoRespuesta] = useState<TipoMensaje | null>(null);
+  const tipoRespuestaRef = useRef(tipoRespuesta);
+  tipoRespuestaRef.current = tipoRespuesta;
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
+  const origenMensajeRef = useRef(origenMensaje);
+  origenMensajeRef.current = origenMensaje;
   const [grabando, setGrabando] = useState(false);
   // Entre cortar la grabación y ver el texto: Remi transcribe (whisper
   // local). Antes ese hueco era mudo; ahora se ve, en `pensar`.
@@ -627,9 +635,10 @@ export default function App() {
     if (estado !== "hablando") return;
 
     let vigente = true;
-    // Un encargo se copia: no se cierra solo, ni al terminar de decir
-    // «Listo, lo tenés para copiar». Queda hasta click afuera, Escape o la X.
-    const queda = tipoRespuesta === "encargo";
+    // Una respuesta escrita (o un encargo) no se cierra sola: queda hasta
+    // click afuera, Escape o la X — ni siquiera después de leerla en voz
+    // alta con el botón. Por voz, como siempre: se cierra al terminar.
+    const queda = respuestaQueda(tipoRespuesta, origenMensaje);
     const terminar = () => {
       if (!vigente) return;
       vigente = false;
@@ -737,6 +746,7 @@ export default function App() {
         dentroDelCuadro,
         grabacionDesde: grabacionDesdeRef.current,
         msDesdeCambioDeTamano,
+        respuestaQueda: respuestaQueda(tipoRespuestaRef.current, origenMensajeRef.current),
         ahora,
         racha: rachaAnterior,
       });
