@@ -20,6 +20,50 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 3e Remi indestructible · construido · c7fbdb3
+
+- **Qué cambió:**
+  1. **Sin remoto:** el repo no tiene ningún `git remote`. No lo creé (lo pidió así).
+  2. `a9e5849` copia nocturna cifrada: `scripts/copia.sh` fotografía `remi.db` con la API
+     de backup de SQLite (integrity_check de la foto) y copia la bóveda con **restic**
+     (instalado con Homebrew) a `iCloud Drive/Remi/copias`. Conserva 30 días desde la
+     última copia. `config/copia.json`: iCloud activo; R2 y B2 preparados con sus pasos,
+     sin activar; credenciales solo en el Llavero. LaunchAgent `com.remi.copia` a las 3:00,
+     log en `copia.log`.
+  3. `eee7d15` `scripts/restaurar.sh`: a una carpeta temporal y verifica (remi.db abre con
+     integrity_check ok y la bóveda está completa archivo por archivo); `--reemplazar` la
+     pone en su lugar parando el núcleo y apartando lo que había (`.antes-FECHA`, nunca
+     borra).
+  4. `c7fbdb3` `GET /salud` (503 si la base no abre) y `scripts/vigia.sh` cada minuto
+     (`com.remi.vigia`): a los 5 minutos caído, una notificación de macOS, una sola vez; al
+     volver, otra. `d109d4c` arregla la **falla intermitente de pytest** que venía de 3b: una
+     carrera con el stdin del MCP en `test_memoria`.
+- **Medido:**
+
+  | Qué | Tiempo |
+  |---|---|
+  | Copia completa (foto + restic + limpieza) | 5 s |
+  | Restaurar a temporal y verificar | 2,4 s |
+  | Restaurar en su lugar (prueba) | 2,4 s |
+
+- **Criterio de listo, probado:** borré una copia de prueba de remi.db y de la bóveda, corrí
+  `restaurar.sh --reemplazar --db … --boveda …` y un núcleo aparte sobre lo restaurado (puerto
+  4499) devolvió lo mismo que el real: 8 memorias, 12 tareas de hoy, el libro de UpVisuals.
+- **Decisiones que tomé sin preguntar:**
+  1. restic y no age: cifra, deduplica y borra por fecha en un solo programa.
+  2. **La clave de cifrado vive en el Llavero** (`remi-copia`), generada al azar. Si el Mac
+     muere, el Llavero muere con él: Juan Camilo tiene que guardarla afuera.
+  3. El vigía no suena (ley de los nudges) y no escribe una línea por minuto.
+- **Dudas abiertas:**
+  1. **GitHub privado**: es de Juan Camilo crearlo; sin él, el código solo está en este Mac y
+     en la copia no está (la copia es remi.db y la bóveda, no el repo).
+  2. iCloud Drive puede «optimizar» y sacar del disco archivos del repositorio de restic; si
+     una copia futura falla leyendo, el log lo va a decir. R2/B2 quedan listos para eso.
+- **Cómo probarlo a mano:** `./scripts/restaurar.sh` (dice en cuánto y si está completo);
+  mañana a las 3:05, `tail ~/Library/Logs/Remi/copia.log`.
+
+---
+
 ## 2026-09-30 · 3d revisión de lo de Grok + semáforo, scroll y lectura · construido · f1cf463
 
 - **Contexto:** los puntos 1–8 de 3d los escribió **Grok directamente en el repo**
