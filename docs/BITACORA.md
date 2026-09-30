@@ -20,6 +20,92 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Fase F · 3f: ventanita final (9 puntos) · construido · 32cffe2
+
+- **Qué cambió** (worktree `remi-ventanita`, rama `f-ventanita`; frontera del encargo: solo
+  `apps/ventanita/` y un archivo nuevo `nucleo/entregas.py`, sin tocar `actualizar.sh`). Un
+  commit por punto, de `89e33b5` a `32cffe2`:
+  1. `89e33b5` **Isla de reposo**: `reposo.ts` (lógica pura, con test) — 120×44 solo el
+     punto; con algo que decir, 210×64 por 4 s y se encoge en 200 ms (`animarTamano`); el
+     mouse encima la vuelve a mostrar. Reemplaza los tres tamaños viejos de reposo
+     (`TAMANO_REPOSO_CON_HACE` ya no existe).
+  2. `45e3eb0` **Entrega en uso**: `nucleo/entregas.py`, router aparte con una sola línea de
+     include en `servidor.py` (`app.include_router(entregas.router)`, más el import). CRUD
+     completo contra la tabla `entregas` que ya existía en `db.py` pero sin funciones.
+     `parsear_entrega()` reconoce «entrega para Alfonso el 18 de octubre por 5.000» con
+     regex, sin IA. `GET /entregas/de-proyecto/{id}` dice si un proyecto tiene una entrega
+     viva (no pagada, con monto).
+  3+4. `14b8411` **Piel dinero + Reloj de una línea**, en el mismo commit porque comparten
+     el efecto de `App.tsx` que resuelve la entrega del bloque abierto. `StatusDot` suma
+     `dinero` (reemplaza `brasa` en `hablando`, sin glow nuevo: el DS solo tiene tres).
+     `Chat.tsx` suma `RelojLinea`: «0:31 · la última vez 1:20» (`formatearReloj`, h:mm,
+     `tiempo.ts`), bajo el bloque abierto, en `brasa` o `dinero`.
+  5. **Ya estaba.** «Hecha» + celebración (chispas de `dinero`, 950 ms) es el commit
+     `8595827` de Fase F, de antes de este worktree — lo verifiqué contra el encargo punto
+     por punto y cumple: bajo el último mensaje, solo con bloque abierto, ley 3 (sin
+     celebrar un cierre que falló). No lo reconstruí.
+  6. `1ff7ab5` **Nudge dentro del chat**: componente canónico `Nudge.tsx`, píldoras «Listo» /
+     «Ahora no», Enter/Escape, expande desde reposo, sin sonido. `servidor.ts` tiene el
+     cliente (`obtenerNudgePendiente`, `responderNudge`) contra `/nudges/pendiente` y
+     `/nudges/{id}/respuesta` — **esos endpoints no existen en el núcleo todavía** (grep
+     limpio en `servidor.py`); el cliente devuelve `null`/`false` ante cualquier fallo, así
+     que no rompe nada hasta que la sesión de Fase 3 los construya.
+  7. `b7623ba` **Retomar**: al abrir sin nada nuevo dicho, los últimos 3 turnos de la
+     conversación vigente (antes eran todos) en `ink-muted` (clase nueva y reusable en
+     `estilos.css`).
+  8. `b52c2e4` **⌘⇧C**: copia el encargo cuando la última respuesta de Remi es una tarjeta de
+     prompt (`partirRespuesta` ya distinguía `tipo: "encargo"`; solo faltaba el atajo).
+  9. `32cffe2` **Limpieza DS**: Geist Mono 500 empaquetado (`geist-mono-500.woff2`, tomado
+     del paquete npm `geist`, SIL OFL — antes solo estaba el 400 y `.num` pedía un peso que
+     no existía); borde especular sacado del hex suelto en `App.css` a una variable única
+     `--borde-especular` (**no** es un token real del DS: `tokens.css` se genera de
+     `design/tokens.json`, que no edito a mano — queda anotado para sumarlo al Design System
+     real); `.limite-error__detalle` pisaba `.code` a 11 px suelto, ahora usa los 13 px de
+     `.code`. Biónica en nudges: cubierta por el punto 6. Biónica en celebración: ya estaba
+     cubierta sin querer, porque «Cerrado. N min.» pasa por el mismo `partirRespuesta` +
+     `Partes` que cualquier otra respuesta.
+- **Verificado:** 89 vitest, tsc limpio, `cargo check` + `cargo test` (11 tests) limpios en
+  `src-tauri`, 253/254 pytest del núcleo (la única roja, `test_vectores.py`, es de Fase C —
+  confirmé que falla igual con `entregas.py`/`servidor.py` en stash, no es mía), `mypy
+  entregas.py` limpio.
+- **Decisiones que tomé sin preguntar:**
+  1. `_proyecto_id_de_tema()` en `entregas.py` inventa un id determinístico (`uuid5`) por
+     `tema` porque **hoy no existe un Proyecto con id real** en el núcleo — `tarea.proyecto_id`
+     sale `None` siempre (`servidor.py`, donde se arma la `Tarea` al abrir un bloque). Piel
+     dinero y «de-proyecto» están wireados de punta a punta y con tests, pero en la app real
+     no se van a disparar hasta que algo le ponga `proyecto_id` a una tarea — que es trabajo
+     de `nucleo/` fuera de mi frontera. Lo dejo escrito acá en vez de tocar `servidor.py` más
+     de la una línea que pedía el encargo.
+  2. Bundle de `3+4` en un commit: pedían «un commit por punto» pero los dos tocan el mismo
+     efecto de `App.tsx` que resuelve si el bloque abierto paga; separarlos hubiera sido un
+     commit roto a la mitad. Mismo criterio que ya usó esta rama en `9fda832` (`3+4`).
+  3. No reconstruí el punto 5: ya estaba, commit `8595827`, y dupli carlo hubiera sido peor
+     que dejarlo.
+- **Dudas abiertas:**
+  1. **`/nudges/pendiente` y `/nudges/{id}/respuesta` no existen.** El cliente y el
+     componente están listos y probados con la lógica pura (`nudges.ts`), pero nadie vio un
+     nudge real en pantalla todavía — hace falta el backend de Fase 3 y probarlo a mano.
+  2. **`tarea.proyecto_id` sigue siendo siempre `null`.** Piel dinero y Reloj dinero no se
+     van a ver nunca hasta que alguien (fuera de esta frontera) le asigne proyecto a una
+     tarea al crearla. Encargo aparte para `nucleo/`.
+  3. **Borde especular no es un token real.** Queda como variable local en `App.css`; falta
+     sumarlo al Design System real (claude.ai) para que `tokens.css` lo genere de ahí.
+  4. No vi nada de esto en pantalla (mismo motivo que Fase F: no hay `@testing-library/react`
+     en este repo, todo lo cubierto es lógica pura en `.ts`).
+- **Cómo probarlo a mano:**
+  1. Reposo con algo que decir: la píldora nace en 210×64, a los 4 s se encoge sola a
+     120×44; pasar el mouse la vuelve a mostrar.
+  2. `curl -X POST localhost:4400/entregas -d '{"texto":"entrega para Alfonso el 18 de
+     octubre por 5.000"}' -H 'Content-Type: application/json'` — 201 con `cliente:
+     "Alfonso"`, `monto: 5000`.
+  3. `cd nucleo && uv run pytest pruebas/test_entregas.py -v`.
+  4. `cd apps/ventanita && npx vitest run && npx tsc --noEmit -p .`.
+  5. `cd apps/ventanita/src-tauri && cargo test`.
+  6. Decir «armame la tarea de mandar la factura», ver que aparece «Hecha» y el reloj de una
+     línea bajo la respuesta; tocar «Hecha» y ver la celebración.
+
+---
+
 ## 2026-09-30 · reparación del incidente de los Estados + vectores de Fase C · construido · 961aeb6
 
 - **Qué cambió** (encargo corto de Juan Camilo, cinco puntos, un commit cada uno):
