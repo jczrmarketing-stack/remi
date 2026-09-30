@@ -24,6 +24,7 @@ import db
 import episodios
 import pensar
 import sembrar_conocimiento
+import trabajo
 import tts
 from modelos import Idea, Memoria, Sesion, Tarea
 
@@ -258,6 +259,25 @@ class MemoriaEditada(BaseModel):
 # levanta ValidationError al construirla: acá se traduce a un 422 con voz
 # de Remi, en vez de dejarlo salir como un 500.
 NO_ENTRA = "Así no entra: el título va hasta 80 caracteres y el resumen hasta 240, y ninguno vacío."
+
+
+class EventoEntrante(BaseModel):
+    tipo: Literal["commit", "sesion_inicio", "sesion_fin"]
+    ruta: str
+    datos: dict[str, object] = Field(default_factory=dict)
+
+
+class RespuestaEvento(BaseModel):
+    proyecto: str | None
+    anotado: bool
+
+
+@app.post("/evento", response_model=RespuestaEvento)
+def recibir_evento(evento: EventoEntrante) -> RespuestaEvento:
+    """Un commit o una sesión, desde un hook. Si la carpeta no tiene libro,
+    queda en la Bandeja como proyecto sin ficha. No depende de una palabra clave."""
+    hecho = trabajo.recibir(evento.tipo, evento.ruta, evento.datos)
+    return RespuestaEvento(proyecto=hecho["proyecto"], anotado=bool(hecho["anotado"]))  # type: ignore[arg-type]
 
 
 @app.post("/mensaje", response_model=RespuestaMensaje)

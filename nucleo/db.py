@@ -116,6 +116,19 @@ CREATE TABLE IF NOT EXISTS entregas (
     estado TEXT NOT NULL,
     compartible INTEGER NOT NULL
 );
+
+-- Lo que las herramientas avisan solas (3d): un commit, un arranque o un
+-- cierre de sesión. tema es null cuando la carpeta no tiene libro.
+CREATE TABLE IF NOT EXISTS trabajo_eventos (
+    id TEXT PRIMARY KEY,
+    tipo TEXT NOT NULL,
+    ruta TEXT NOT NULL,
+    tema TEXT,
+    datos TEXT NOT NULL,
+    fecha TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_trabajo_eventos_fecha ON trabajo_eventos(fecha);
 """
 
 
