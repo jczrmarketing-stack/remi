@@ -38,7 +38,7 @@ def test_con_think_contesta_el_modelo_y_el_paso_minimo_nace_universal(tmp_path, 
     servidor = _arrancar_servidor()
     llamadas = []
 
-    def falso_pensar(frase, motor=None, modo=None):
+    def falso_pensar(frase, motor=None, modo=None, nivel=None):
         llamadas.append(frase)
         return servidor.pensar.Pensado(
             paso_minimo="Abre la app del banco y busca el teléfono.",
@@ -62,7 +62,7 @@ def test_con_think_contesta_el_modelo_y_el_paso_minimo_nace_universal(tmp_path, 
 def test_con_think_pero_claude_no_puede_sigue_sin_ia(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     servidor = _arrancar_servidor()
-    monkeypatch.setattr(servidor.pensar, "pensar", lambda _frase, _motor=None, _modo=None: None)
+    monkeypatch.setattr(servidor.pensar, "pensar", lambda _frase, _motor=None, _modo=None, nivel=None: None)
     cliente = TestClient(servidor.app)
 
     creada = cliente.post("/mensaje", json={"texto": "voy a llamar al banco", "think": True}).json()
@@ -83,7 +83,7 @@ def test_sin_techo_de_palabras_y_hablado_hasta_tres_frases(tmp_path, monkeypatch
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda _frase, _motor=None, _modo=None: servidor.pensar.Pensado(largo.strip(), 1, 1, "m"),
+        lambda _frase, _motor=None, _modo=None, nivel=None: servidor.pensar.Pensado(largo.strip(), 1, 1, "m"),
     )
     cliente = TestClient(servidor.app)
 
@@ -214,6 +214,34 @@ def test_inteligente_cae_a_equilibrio_y_despues_a_rapido(monkeypatch):
     pensado = pensar.pensar("algo", "claude", "inteligente")
     assert pensado is not None and pensado.paso_minimo == "Rápido contestó."
     assert modelos == ["opus", "sonnet", "haiku"]
+
+
+def test_el_nivel_solo_cambia_al_elegido(monkeypatch):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    llamadas = []
+
+    def falso_run(comando, **kwargs):
+        m = comando[comando.index("--model") + 1]
+        llamadas.append((m, kwargs["env"]["MAX_THINKING_TOKENS"], kwargs["timeout"]))
+        if m != "haiku":
+            raise subprocess.TimeoutExpired(cmd="claude", timeout=kwargs["timeout"])
+        return _salida_cli(result="ok")
+
+    monkeypatch.setattr(pensar.subprocess, "run", falso_run)
+    pensar.pensar("algo", "claude", "equilibrio", nivel="alto")
+    # Sonnet con alto piensa 16000 y espera 60 s; Haiku, al caer, va con lo suyo.
+    assert llamadas == [("sonnet", "16000", 60.0), ("haiku", "0", 8.0)]
+
+
+def test_opus_en_bajo_no_razona_y_el_peor_caso_no_crece():
+    pensar = _importar_pensar()
+    bajo = pensar.con_nivel(pensar.MODOS["inteligente"], "bajo")
+    assert bajo.razonamiento_tokens == 0 and bajo.techo_segundos == 60.0
+    for n in pensar.NIVELES:
+        for m in pensar.MODOS.values():
+            assert pensar.con_nivel(m, n).techo_segundos <= 60.0
+    assert pensar.con_nivel(pensar.MODOS["rapido"], None) == pensar.MODOS["rapido"]
 
 
 def test_rapido_no_cae_a_nada(monkeypatch):

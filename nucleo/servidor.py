@@ -143,6 +143,9 @@ class MensajeEntrante(BaseModel):
     # «prompt» no es un cerebro sino un formato: arma un encargo para Claude
     # Code con Sonnet (equilibrio) y no clasifica ni guarda nada.
     modo: Literal["rapido", "equilibrio", "inteligente", "prompt"] = "equilibrio"
+    # Cuánto piensa el modelo elegido antes de contestar. None = lo suyo
+    # (Opus medio, Haiku y Sonnet bajo). Solo aplica al motor claude.
+    nivel: Literal["bajo", "medio", "alto"] | None = None
     # Cómo entró: por voz o escrito. Lo guarda la Idea (contrato).
     origen: Literal["voz", "texto"] = "texto"
 
@@ -310,7 +313,7 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # El tipo ya está decidido (idea, y se guardó): pensar solo cambia lo que
     # Remi CONTESTA. En diálogo, «Guardada. La miramos en dos días.» a todo
     # lo que digas no es una conversación.
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo) if mensaje.think else None
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel) if mensaje.think else None
     if pensado is None:
         return _respuesta_fija("idea", "Guardada. La miramos en dos días.")
     return RespuestaMensaje(
@@ -347,7 +350,7 @@ def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
 def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
     """Una pregunta se contesta y no deja nada: ni idea en la Bandeja, ni
     tarea, ni sesión. Sin modelo no hay con qué contestar, y se dice."""
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo) if mensaje.think else None
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel) if mensaje.think else None
     if pensado is None:
         return _respuesta_fija("pregunta", "Sin pensar no puedo contestarte eso. No guardé nada.")
     return RespuestaMensaje(
@@ -396,7 +399,7 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # Si pensó, lo que Remi contesta es lo que escribió el modelo. El
     # paso_minimo de la tarea nace universal igual: la respuesta de una
     # conversación no es un paso mínimo. Sin modelo, la frase de siempre.
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo) if mensaje.think else None
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel) if mensaje.think else None
     paso_minimo = PASO_MINIMO_INICIAL
     texto = pensado.paso_minimo if pensado else frase_remi(mensaje.texto)
     voz = _voz_de(texto, mensaje) if pensado else texto

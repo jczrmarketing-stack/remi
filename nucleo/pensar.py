@@ -15,7 +15,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -223,6 +223,23 @@ def modo(pedido: str | None) -> Modo:
     if pedido is not None:
         print(f"[pensar] modo desconocido {pedido!r}: uso {MODO_POR_DEFECTO}", file=sys.stderr)
     return MODOS[MODO_POR_DEFECTO]
+
+
+# El nivel de la ventanita («Opus 5.5 · Medio»): cuánto piensa antes de
+# contestar el modelo elegido. Solo toca al elegido; si cae al anterior, ese
+# va con lo suyo. Con razonamiento el techo sube a 60 s, que es el de Opus:
+# el peor caso de la cadena sigue en PEOR_CASO_SEGUNDOS.
+NIVELES = ("bajo", "medio", "alto")
+_TOKENS_POR_NIVEL = {"bajo": (0, 1500), "medio": (8000, 16000), "alto": (16000, 24000)}
+TECHO_CON_RAZONAMIENTO = 60.0
+
+
+def con_nivel(m: Modo, nivel: str | None) -> Modo:
+    if nivel not in _TOKENS_POR_NIVEL:
+        return m
+    razonamiento, salida = _TOKENS_POR_NIVEL[nivel]
+    techo = m.techo_segundos if razonamiento == 0 else max(m.techo_segundos, TECHO_CON_RAZONAMIENTO)
+    return replace(m, razonamiento_tokens=razonamiento, salida_tokens=salida, techo_segundos=techo)
 
 
 def cadena_de_modos(elegido: Modo) -> list[Modo]:
@@ -543,6 +560,7 @@ def pensar(
     motor_pedido: str | None = None,
     modo_pedido: str | None = None,
     sistema: str | None = None,
+    nivel: str | None = None,
 ) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
@@ -557,7 +575,7 @@ def pensar(
     elif elegido == "ollama":
         pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice))
     else:
-        pensado = _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido))
+        pensado = _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel)
 
     # El turno de Juan Camilo se guarda siempre que se pensó; el de Remi,
     # solo si contestó.
@@ -685,11 +703,16 @@ def _pensar_con_ollama(frase: str, instrucciones: str, entradas: int) -> Pensado
 
 
 def _pensar_con_claude(
-    frase: str, instrucciones: str, indice: list[db.EntradaIndice], elegido: Modo | None = None
+    frase: str,
+    instrucciones: str,
+    indice: list[db.EntradaIndice],
+    elegido: Modo | None = None,
+    nivel: str | None = None,
 ) -> Pensado | None:
-    """El modo elegido; si falla o se pasa de su techo, el anterior."""
+    """El modo elegido (con su nivel); si falla o se pasa de su techo, el anterior."""
     elegido = MODOS[MODO_POR_DEFECTO] if elegido is None else elegido
     cadena = cadena_de_modos(elegido)
+    cadena[0] = con_nivel(cadena[0], nivel)
     for i, m in enumerate(cadena):
         pensado = _una_llamada_claude(m, frase, instrucciones, indice)
         if pensado is not None:
