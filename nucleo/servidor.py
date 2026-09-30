@@ -19,6 +19,7 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
+import bandeja
 import clasificar
 import correcciones
 import db
@@ -862,6 +863,52 @@ def historial_tarea(tarea_id: UUID) -> Historial:
     try:
         sesiones = db.listar_sesiones_cerradas_tarea(conexion, tarea_id)
         return Historial(sesiones=sesiones, total_min=sum(s.real_min for s in sesiones))
+    finally:
+        conexion.close()
+
+
+# — La Bandeja (Fase 3): revisar en frío lo que enfrió 48 h (ley 6) —
+
+
+class IdeaBandeja(BaseModel):
+    idea: Idea
+    fria: bool
+
+
+class RevisionIdea(BaseModel):
+    decision: Literal["soltar", "mantener", "tarea"]
+
+
+class RevisionHecha(BaseModel):
+    idea: Idea
+    tarea: Tarea | None = None
+
+
+@app.get("/bandeja", response_model=list[IdeaBandeja])
+def listar_bandeja() -> list[IdeaBandeja]:
+    conexion = db.conectar()
+    try:
+        ahora = datetime.now(timezone.utc)
+        return [
+            IdeaBandeja(idea=idea, fria=fria)
+            for idea, fria in bandeja.listar_abiertas(conexion, ahora)
+        ]
+    finally:
+        conexion.close()
+
+
+@app.post("/idea/{idea_id}/revision", response_model=RevisionHecha)
+def revisar_idea(idea_id: UUID, cuerpo: RevisionIdea) -> RevisionHecha:
+    conexion = db.conectar()
+    try:
+        ahora = datetime.now(timezone.utc)
+        try:
+            hecha = bandeja.revisar(conexion, idea_id, cuerpo.decision, ahora)
+        except bandeja.IdeaNoEncontrada:
+            raise HTTPException(status_code=404, detail="no tengo esa idea") from None
+        except bandeja.IdeaNoFria:
+            raise HTTPException(status_code=409, detail="todavía no pasaron las 48 h") from None
+        return RevisionHecha(idea=hecha.idea, tarea=hecha.tarea)
     finally:
         conexion.close()
 
