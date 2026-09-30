@@ -100,6 +100,14 @@ export interface TurnoDelChat {
 }
 
 // La conversación vigente (la de la última hora), para abrir con el chat.
+// Tres líneas al abrir, si hay un proyecto activo. Vacío: no se dice nada.
+export async function dondeQuede(): Promise<string[]> {
+  const respuesta = await fetch(`${URL_NUCLEO}/donde-quede`);
+  if (!respuesta.ok) throw new Error(`El núcleo respondió ${respuesta.status}`);
+  const datos = (await respuesta.json()) as { lineas: string[] };
+  return datos.lineas;
+}
+
 export async function obtenerConversacion(): Promise<TurnoDelChat[]> {
   const respuesta = await fetch(`${URL_NUCLEO}/conversacion`);
   if (!respuesta.ok) throw new Error(`El núcleo respondió ${respuesta.status}`);

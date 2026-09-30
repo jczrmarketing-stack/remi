@@ -9,6 +9,7 @@ import { Campo, type CampoRef } from "./componentes/Campo";
 import { ChipCerebro } from "./componentes/ChipCerebro";
 import { ChipVoz } from "./componentes/ChipVoz";
 import {
+  dondeQuede,
   enviarMensaje,
   guardarEpisodio,
   obtenerConversacion,
@@ -128,10 +129,10 @@ function tamanoReposo(hayHace: boolean, hayUltimaVez: boolean) {
 }
 
 // Qué es un control (nunca un gesto de la píldora) y qué es el campo.
-const SELECTOR_CONTROLES = ".chat, .pie, .semaforo, .boton-cancelar, .bolita, .asa, button, select, a";
+const SELECTOR_CONTROLES = ".chat, .pie, .semaforo__punto, .boton-cancelar, .bolita, .asa, button, select, a";
 const SELECTOR_CUADRO = ".campo";
 // Desde dónde NO se arrastra la ventana: donde hay texto o controles.
-const SELECTOR_SIN_ARRASTRE = ".chat__mensaje, .campo, .pie, .semaforo, .boton-cancelar, .bolita, .asa";
+const SELECTOR_SIN_ARRASTRE = ".chat__mensaje, .campo, .pie, .semaforo__punto, .boton-cancelar, .bolita, .asa";
 
 function clasificarObjetivo(objetivo: EventTarget | null) {
   const elemento = objetivo instanceof HTMLElement ? objetivo : null;
@@ -221,6 +222,11 @@ export default function App() {
   // Mientras la animamos nosotros, los cambios de tamaño no son tuyos: no
   // se guardan.
   const animandoRef = useRef(false);
+  // El verde del semáforo: agrandada al 90 % de la pantalla. Guarda de dónde
+  // venía para volver; mientras está agrandada, su tamaño no se guarda.
+  const [maximizada, setMaximizada] = useState(false);
+  const maximizadaRef = useRef(false);
+  const antesDeAgrandarRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Al arrancar: la píldora del tamaño justo y en el lugar donde la dejaste.
   useEffect(() => {
@@ -287,11 +293,11 @@ export default function App() {
     const ventana = getCurrentWindow();
     let reloj = 0;
     const tamano = ventana.onResized(() => {
-      if (animandoRef.current || accionesRef.current.estado === "reposo") return;
+      if (animandoRef.current || maximizadaRef.current || accionesRef.current.estado === "reposo") return;
       window.clearTimeout(reloj);
       reloj = window.setTimeout(() => {
         void tamanoActual().then((t) => {
-          if (animandoRef.current || accionesRef.current.estado === "reposo") return;
+          if (animandoRef.current || maximizadaRef.current || accionesRef.current.estado === "reposo") return;
           fijarTamanoChat(t);
           registrar("tamaño", { motivo: "a mano", w: Math.round(t.width), h: Math.round(t.height) });
         });
@@ -339,12 +345,21 @@ export default function App() {
     if (!expandido) return;
     const miGeneracion = generacionRef.current;
     obtenerConversacion()
-      .then((turnos) => {
+      .then(async (turnos) => {
         if (generacionRef.current !== miGeneracion) return;
+        if (turnos.length > 0) {
+          setMensajes((actuales) =>
+            // Si ya hay mensajes de esta apertura (llegaron antes que la
+            // historia), la historia va antes y no se duplica nada.
+            actuales.length > 0 ? actuales : turnos.map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto })),
+          );
+          return;
+        }
+        // Sin charla reciente: tres líneas del proyecto activo. Sin proyecto, silencio.
+        const lineas = await dondeQuede().catch(() => [] as string[]);
+        if (generacionRef.current !== miGeneracion || lineas.length === 0) return;
         setMensajes((actuales) =>
-          // Si ya hay mensajes de esta apertura (llegaron antes que la
-          // historia), la historia va antes y no se duplica nada.
-          actuales.length > 0 ? actuales : turnos.map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto })),
+          actuales.length > 0 ? actuales : [{ id: nuevoId(), rol: "remi", texto: lineas.join("\n\n") }],
         );
       })
       .catch(() => undefined);
@@ -921,6 +936,54 @@ export default function App() {
     window.addEventListener("mouseup", limpiar);
   }, []);
 
+  // Verde: agrandar al 90 % de la pantalla, centrada; otro click vuelve al
+  // tamaño y lugar de antes.
+  const alternarAgrandar = useCallback(async () => {
+    const ventana = getCurrentWindow();
+    animandoRef.current = true;
+    cambioDeTamanoRef.current = performance.now();
+    try {
+      if (maximizadaRef.current && antesDeAgrandarRef.current) {
+        const antes = antesDeAgrandarRef.current;
+        await ventana.setPosition(new LogicalPosition(antes.x, antes.y));
+        await ventana.setSize(new LogicalSize(antes.width, antes.height));
+        maximizadaRef.current = false;
+        setMaximizada(false);
+        registrar("tamaño", { motivo: "restaurar", w: Math.round(antes.width), h: Math.round(antes.height) });
+        return;
+      }
+      const pantalla = await pantallaActual();
+      if (!pantalla) return;
+      const [fisica, f, tam] = await Promise.all([ventana.outerPosition(), ventana.scaleFactor(), tamanoActual()]);
+      antesDeAgrandarRef.current = { x: fisica.x / f, y: fisica.y / f, width: tam.width, height: tam.height };
+      const grande = tamanoMaximo(pantalla);
+      await ventana.setPosition(
+        new LogicalPosition(
+          Math.round(pantalla.x + (pantalla.width - grande.width) / 2),
+          Math.round(pantalla.y + (pantalla.height - grande.height) / 2),
+        ),
+      );
+      await ventana.setSize(new LogicalSize(grande.width, grande.height));
+      maximizadaRef.current = true;
+      setMaximizada(true);
+      registrar("tamaño", { motivo: "agrandar", w: grande.width, h: grande.height });
+    } finally {
+      window.setTimeout(() => {
+        animandoRef.current = false;
+      }, MS_GUARDAR_VENTANA + 100);
+    }
+  }, []);
+
+  // Al volver a la píldora, deja de estar agrandada: la próxima vez abre del
+  // tamaño guardado.
+  useEffect(() => {
+    if (expandido || !maximizadaRef.current) return;
+    maximizadaRef.current = false;
+    setMaximizada(false);
+    const antes = antesDeAgrandarRef.current;
+    if (antes) void getCurrentWindow().setPosition(new LogicalPosition(antes.x, antes.y));
+  }, [expandido]);
+
   // — Acciones del chat —
 
   const copiar = useCallback(async (contenido: string) => {
@@ -1002,7 +1065,7 @@ export default function App() {
   if (estado === "reposo") {
     return (
       <div className="ventanita ventanita--reposo" onMouseDown={alPresionar}>
-        <Semaforo />
+        <Semaforo enPildora onVerde={abrirChat} />
         <div className="punto-zona">
           <StatusDot estado="reposo" />
         </div>
@@ -1019,7 +1082,12 @@ export default function App() {
 
   return (
     <div className={`ventanita ventanita--chat ventanita--${estado}`} onMouseDown={alPresionar}>
-      <Semaforo />
+      <Semaforo
+        enPildora={false}
+        onMinimizar={volverAReposo}
+        onVerde={() => void alternarAgrandar()}
+        maximizada={maximizada}
+      />
       <BotonCancelar onCancelar={() => cancelar("x")} />
       <div
         className="bolita"

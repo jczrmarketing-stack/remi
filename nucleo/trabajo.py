@@ -9,16 +9,20 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import sys
 import threading
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+import clasificar
 import db
 import estado_libro
 import libros
 from modelos import Idea
+
+_DONDE = re.compile(r"\bdonde qued(?:e|amos|aste)\b")
 
 HORAS_DE_ENFRIAMIENTO = 48
 MINUTOS_ENTRE_ESTADOS = 10
@@ -50,6 +54,91 @@ def _anotar_sin_ficha(ruta: str, ahora: datetime) -> bool:
     finally:
         conexion.close()
     return True
+
+
+def es_donde_quede(texto: str) -> bool:
+    return bool(_DONDE.search(clasificar.normalizar(texto)))
+
+
+def donde_quede(texto: str) -> str | None:
+    """Tres líneas, o una si no hay proyecto. None si no era esa pregunta."""
+    if not es_donde_quede(texto):
+        return None
+    libro = _libro_nombrado(texto) or _libro_reciente()
+    if libro is None:
+        return "No tengo un proyecto abierto."
+    return "\n\n".join(_tres_lineas(libro))
+
+
+def lineas_donde_quede() -> list[str]:
+    """Al abrir la ventanita. Vacío si no hay proyecto: no se dice nada."""
+    libro = _libro_reciente()
+    if libro is None:
+        return []
+    return _tres_lineas(libro)
+
+
+def _libro_nombrado(texto: str) -> libros.Libro | None:
+    limpio = clasificar.normalizar(texto)
+    mejor: libros.Libro | None = None
+    mejor_largo = -1
+    for libro in libros.listar():
+        formas = {libro.tema, libro.tema.replace("-", " ")}
+        for forma in formas:
+            if not forma:
+                continue
+            if re.search(rf"(?<![a-z0-9]){re.escape(forma)}(?![a-z0-9])", limpio) and len(forma) > mejor_largo:
+                mejor = libro
+                mejor_largo = len(forma)
+    return mejor
+
+
+def _libro_reciente() -> libros.Libro | None:
+    conexion = db.conectar()
+    try:
+        fila = conexion.execute(
+            """
+            SELECT tema FROM trabajo_eventos
+            WHERE tema IS NOT NULL
+            ORDER BY fecha DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    finally:
+        conexion.close()
+    if fila is None:
+        return None
+    tema = str(fila["tema"])
+    return next((libro for libro in libros.listar() if libro.tema == tema), None)
+
+
+def _tres_lineas(libro: libros.Libro) -> list[str]:
+    estado = estado_libro.leer_estado(libro.archivo)
+    quedaste = decisiones = proximo = ""
+    for linea in estado.splitlines():
+        limpia = linea.strip()
+        baja = clasificar.normalizar(limpia)
+        if baja.startswith("quedaste"):
+            quedaste = limpia
+        elif baja.startswith("decisiones"):
+            decisiones = limpia
+        elif baja.startswith("proximo paso"):
+            proximo = limpia
+    if not quedaste:
+        resumen = " ".join(libro.resumen.split())
+        quedaste = f"Quedaste: {resumen}" if resumen else f"Quedaste en {libro.titulo}."
+    if not decisiones:
+        decisiones = "Decisiones: ninguna anotada."
+    if not proximo:
+        proximo = "Próximo paso: elegir un paso de cinco minutos."
+    return [_veinte(quedaste), _veinte(decisiones), _veinte(proximo)]
+
+
+def _veinte(linea: str) -> str:
+    palabras = linea.split()
+    if len(palabras) <= 20:
+        return " ".join(palabras)
+    return " ".join(palabras[:20]).rstrip(".,;:") + "."
 
 
 def recibir(tipo: str, ruta: str, datos: dict[str, object] | None = None, ahora: datetime | None = None) -> dict[str, object]:

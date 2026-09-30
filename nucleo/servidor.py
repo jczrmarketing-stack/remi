@@ -287,6 +287,16 @@ def recibir_evento(evento: EventoEntrante) -> RespuestaEvento:
     )
 
 
+class DondeQuede(BaseModel):
+    lineas: list[str]
+
+
+@app.get("/donde-quede", response_model=DondeQuede)
+def abrir_donde_quede() -> DondeQuede:
+    """Al abrir la ventanita, si hay un proyecto activo. Si no, silencio."""
+    return DondeQuede(lineas=trabajo.lineas_donde_quede())
+
+
 @app.post("/mensaje", response_model=RespuestaMensaje)
 def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     """Lo que decís no siempre es una tarea. El clasificador (sin IA) decide
@@ -299,7 +309,7 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         return respuesta
     tipo = clasificar.clasificar(mensaje.texto)
     # «buscá…» se contesta (con la web), no se guarda en la Bandeja.
-    if clasificar.pide_busqueda(mensaje.texto):
+    if clasificar.pide_busqueda(mensaje.texto) or trabajo.es_donde_quede(mensaje.texto):
         tipo = "pregunta"
 
     if tipo == "idea":
@@ -382,7 +392,11 @@ def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
 
 def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
     """Una pregunta se contesta y no deja nada: ni idea en la Bandeja, ni
-    tarea, ni sesión. Sin modelo no hay con qué contestar, y se dice."""
+    tarea, ni sesión. Sin modelo no hay con qué contestar, y se dice.
+    «¿Dónde quedé?» no gasta un token: sale del Estado del libro."""
+    donde = trabajo.donde_quede(mensaje.texto)
+    if donde is not None:
+        return RespuestaMensaje(tipo="pregunta", texto=donde, voz=_voz_de(donde, mensaje))
     buscar = clasificar.pide_busqueda(mensaje.texto)
     pensado = (
         pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, buscar=buscar, modelo_ollama=mensaje.modelo_ollama)
