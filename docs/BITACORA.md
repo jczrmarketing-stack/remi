@@ -20,6 +20,60 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · verificación en vivo del punto 5: modelos reales · construido · 54586b4
+
+- **Qué cambió:** con las claves reales de `GROQ_API_KEY` y `OPENROUTER_API_KEY` puestas en
+  `nucleo/.env` (main), probé `pensar.pensar_con_trastienda()` y `pensar._respaldo_de_charla()`
+  contra las APIs de verdad — y los dos ids que había puesto a ojo en el encargo original no
+  existen:
+  1. **Groq: `kimi-k2` no está en la cuenta.** La clave es válida (`GET /models` da 200), pero
+     entre los 11 modelos que sí tiene no hay ningún Kimi — están `openai/gpt-oss-20b`,
+     `openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `allam-2-7b`, `openai/gpt-oss-safeguard-20b` y
+     un puñado de audio/guardrails. Cambié la trastienda a `openai/gpt-oss-120b` (el más
+     grande disponible, para el mismo objetivo de «el que menos inventa» que ya documenta
+     `docs/ROBUSTEZ.md`).
+  2. **OpenRouter: `deepseek-flash` y `deepseek-v4-pro` no son ids reales.** El catálogo
+     (`GET /models`) los tiene con el proveedor adelante: `deepseek/deepseek-v4-flash` y
+     `deepseek/deepseek-v4-pro`. `trastienda()` ya soportaba esto sin tocar el parser —
+     `partition("/")` corta solo en la primera barra, así que `"openrouter/deepseek/deepseek-
+     v4-flash"` en `config/motores.json` da `proveedor="openrouter"`,
+     `modelo="deepseek/deepseek-v4-flash"` correctamente.
+  `config/motores.json`, `TRASTIENDA_POR_DEFECTO` y `RESPALDO_DE_CHARLA` en `nucleo/pensar.py`
+  actualizados; tres asserts en `pruebas/test_pensar.py` que mencionaban los ids viejos,
+  corregidos. 406 pytest, mypy limpio.
+- **Verificado en vivo, de punta a punta, con las claves reales (nunca commiteadas):**
+  `pensar_con_trastienda()` contesta con Groq (`motor_usado='groq'`,
+  `modelo='groq/openai/gpt-oss-120b'`); `_respaldo_de_charla()` contesta con OpenRouter
+  (`motor_usado='openrouter'`, `modelo='openrouter/deepseek/deepseek-v4-pro'`).
+- **Hallazgo aparte, no de código:** mi shell interactiva tenía
+  `OPENROUTER_API_KEY=sk-or-v1-PEGA_TU_KEY_AQUI` (un placeholder, 25 caracteres) como
+  variable de entorno real del perfil — le ganaba al valor bueno de `nucleo/.env` por la
+  regla de precedencia de `_ajuste()` (entorno > archivo), y por eso mi primera verificación
+  dio 401 «User not found» (el mismo mensaje que el incidente de malik-gestion de antes, pero
+  esta vez era mi propia contaminación de entorno, no un token real vencido). Tuve que correr
+  las pruebas con `env -u OPENROUTER_API_KEY` para leer el `.env` de verdad. El núcleo real
+  (`com.remi.nucleo` por `launchd`) no hereda el perfil de shell de Juan Camilo — su plist
+  solo define `PATH` y `HOME` — así que esto no afecta al servicio en producción, solo a
+  pruebas hechas a mano desde una terminal interactiva con ese perfil cargado.
+- **Decisiones que tomé sin preguntar:**
+  1. Elegí `openai/gpt-oss-120b` sobre `openai/gpt-oss-20b` (ambos disponibles) porque el
+     objetivo documentado de la trastienda es «el que menos inventa», y el modelo grande
+     tiene más margen para eso — lo confirmé contestando bien antes de commitear, pero no lo
+     medí contra el chico.
+  2. No toqué `docs/ARQUITECTURA-CEREBRO.md` ni `docs/ROBUSTEZ.md` (siguen mencionando «Kimi
+     K2» en la prosa): son docs que no son míos, y el código ya no depende de ese nombre.
+- **Dudas abiertas:**
+  1. `docs/ROBUSTEZ.md` y `ARQUITECTURA-CEREBRO.md §9` van a seguir diciendo «Kimi K2» hasta
+     que alguien los actualice — la fuente de verdad real ahora es `config/motores.json`.
+  2. No probé si la cuenta de Groq puede pedir acceso a Kimi K2 (algunos modelos de Groq son
+     opt-in/preview) — si en algún momento aparece en `GET /models`, valdría reconsiderar.
+- **Cómo probarlo a mano:** con las claves reales en `nucleo/.env` y
+  `env -u OPENROUTER_API_KEY` (por si el placeholder sigue en el perfil de la shell):
+  `cd nucleo && uv run python3 -c "import pensar; print(pensar.pensar_con_trastienda('hola',
+  pensar.INSTRUCCIONES_RESUMEN))"`.
+
+---
+
 ## 2026-09-30 · notion: GET real, solo de ida, mockups del panel · construido · e3629f6
 
 - **Qué cambió:** tres commits en `main`, pytest completo después de cada uno:
