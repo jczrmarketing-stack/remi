@@ -22,3 +22,9 @@
 .campo:disabled {
   color: var(--ink-muted);
 }
+
+/* Sin marco también con el foco: el cursor que parpadea ya lo dice. El
+   anillo global de foco (estilos.css) es para botones y controles. */
+.campo:focus-visible {
+  outline: none;
+}
