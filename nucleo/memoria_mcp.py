@@ -80,6 +80,8 @@ def guardar(titulo: str, resumen: str, cuerpo: str, tema: str) -> str:
             fecha=datetime.now(timezone.utc),
             cuerpo=cuerpo,
             fuente="conversacion",
+            claves=None,
+            nivel=None,
         )
     except ValidationError:
         return (

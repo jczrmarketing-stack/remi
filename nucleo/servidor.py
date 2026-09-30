@@ -508,6 +508,8 @@ def guardar_una_memoria(cuerpo: MemoriaNueva) -> Memoria:
             fecha=datetime.now(timezone.utc),
             cuerpo=cuerpo.cuerpo,
             fuente=cuerpo.fuente,
+            claves=None,
+            nivel=None,
         )
     except ValidationError:
         raise HTTPException(status_code=422, detail=NO_ENTRA) from None

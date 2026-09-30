@@ -74,7 +74,11 @@ CREATE TABLE IF NOT EXISTS memoria (
     tema TEXT NOT NULL,
     fecha TEXT NOT NULL,
     cuerpo TEXT NOT NULL,
-    fuente TEXT NOT NULL
+    fuente TEXT NOT NULL,
+    -- Palabras clave (3–6, separadas por coma) y nivel de detalle 0–3
+    -- (ARQUITECTURA-CEREBRO §2). Nulos hasta que algo los complete.
+    claves TEXT,
+    nivel INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_memoria_fecha ON memoria(fecha);
@@ -118,10 +122,23 @@ def inicializar_esquema(ruta: Path | None = None) -> None:
     conexion = sqlite3.connect(ruta)
     try:
         conexion.executescript(ESQUEMA)
+        _migrar(conexion)
         conexion.commit()
     finally:
         conexion.close()
     _rutas_con_esquema_listo.add(clave)
+
+
+# Columnas que llegaron después de crear la tabla. CREATE TABLE IF NOT
+# EXISTS no las agrega a una base que ya existía: se agregan acá, una vez.
+_COLUMNAS_NUEVAS = (("memoria", "claves", "TEXT"), ("memoria", "nivel", "INTEGER"))
+
+
+def _migrar(conexion: sqlite3.Connection) -> None:
+    for tabla, columna, tipo in _COLUMNAS_NUEVAS:
+        existentes = {fila[1] for fila in conexion.execute(f"PRAGMA table_info({tabla})")}
+        if columna not in existentes:
+            conexion.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
 
 
 def conectar(ruta: Path | None = None) -> sqlite3.Connection:
@@ -387,13 +404,15 @@ class EntradaIndice:
     resumen: str
     tema: str
     fecha: datetime
+    claves: str | None = None
+    nivel: int | None = None
 
 
 def guardar_memoria(conexion: sqlite3.Connection, memoria: Memoria) -> None:
     conexion.execute(
         """
-        INSERT INTO memoria (id, titulo, resumen, tema, fecha, cuerpo, fuente)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO memoria (id, titulo, resumen, tema, fecha, cuerpo, fuente, claves, nivel)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(memoria.id),
@@ -403,6 +422,8 @@ def guardar_memoria(conexion: sqlite3.Connection, memoria: Memoria) -> None:
             memoria.fecha.isoformat(),
             memoria.cuerpo,
             memoria.fuente,
+            memoria.claves,
+            memoria.nivel,
         ),
     )
     conexion.commit()
@@ -413,7 +434,7 @@ def indice_memoria(conexion: sqlite3.Connection) -> list[EntradaIndice]:
     nombra las columnas una por una y `cuerpo` no está: si alguien lo
     agrega, el índice deja de caber en la mente."""
     filas = conexion.execute(
-        "SELECT id, titulo, resumen, tema, fecha FROM memoria ORDER BY fecha DESC"
+        "SELECT id, titulo, resumen, tema, fecha, claves, nivel FROM memoria ORDER BY fecha DESC"
     ).fetchall()
     return [
         EntradaIndice(
@@ -422,6 +443,8 @@ def indice_memoria(conexion: sqlite3.Connection) -> list[EntradaIndice]:
             resumen=fila["resumen"],
             tema=fila["tema"],
             fecha=datetime.fromisoformat(fila["fecha"]),
+            claves=fila["claves"],
+            nivel=fila["nivel"],
         )
         for fila in filas
     ]
@@ -436,6 +459,8 @@ def _fila_a_memoria(fila: sqlite3.Row) -> Memoria:
         fecha=fila["fecha"],
         cuerpo=fila["cuerpo"],
         fuente=fila["fuente"],
+        claves=fila["claves"],
+        nivel=fila["nivel"],
     )
 
 
@@ -463,6 +488,8 @@ def editar_memoria(
     resumen: str | None = None,
     tema: str | None = None,
     cuerpo: str | None = None,
+    claves: str | None = None,
+    nivel: int | None = None,
 ) -> Memoria | None:
     """Cambia solo lo que venga. None si no existe esa memoria. `fecha` y
     `fuente` no se editan: son de dónde y cuándo vino, no opinión.
@@ -482,10 +509,12 @@ def editar_memoria(
         fecha=actual.fecha,
         cuerpo=actual.cuerpo if cuerpo is None else cuerpo,
         fuente=actual.fuente,
+        claves=actual.claves if claves is None else claves,
+        nivel=actual.nivel if nivel is None else nivel,
     )
     conexion.execute(
-        "UPDATE memoria SET titulo = ?, resumen = ?, tema = ?, cuerpo = ? WHERE id = ?",
-        (nueva.titulo, nueva.resumen, nueva.tema, nueva.cuerpo, str(nueva.id)),
+        "UPDATE memoria SET titulo = ?, resumen = ?, tema = ?, cuerpo = ?, claves = ?, nivel = ? WHERE id = ?",
+        (nueva.titulo, nueva.resumen, nueva.tema, nueva.cuerpo, nueva.claves, nueva.nivel, str(nueva.id)),
     )
     conexion.commit()
     return nueva

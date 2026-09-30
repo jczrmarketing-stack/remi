@@ -37,6 +37,8 @@ def _memoria(titulo="Una cosa", resumen="Con esto me quedé", tema="prueba", cue
         fecha=datetime.now(timezone.utc),
         cuerpo=cuerpo,
         fuente="manual",
+        claves=None,
+        nivel=None,
     )
 
 
@@ -81,6 +83,8 @@ def test_el_indice_viene_de_lo_mas_nuevo_a_lo_mas_viejo(tmp_path, monkeypatch):
                 fecha=datetime(anio, 1, 1, tzinfo=timezone.utc),
                 cuerpo="c",
                 fuente="manual",
+                claves=None,
+                nivel=None,
             ),
         )
     titulos = [e.titulo for e in db.indice_memoria(conexion)]

@@ -39,6 +39,7 @@ class Ficha:
     tema: str
     resumen: str
     cuerpo: str
+    claves: str | None
 
 
 def carpeta() -> Path:
@@ -60,7 +61,19 @@ def leer_ficha(ruta: Path) -> Ficha | None:
             campos[clave.strip()] = valor.strip()
     if not all(campos.get(c) for c in ("titulo", "tema", "resumen")):
         return None
-    return Ficha(ruta.name, campos["titulo"], campos["tema"], campos["resumen"], partes[2].strip())
+    return Ficha(
+        ruta.name,
+        campos["titulo"],
+        campos["tema"],
+        campos["resumen"],
+        partes[2].strip(),
+        campos.get("claves") or None,
+    )
+
+
+# Un libro de proyecto vive en la capa de arriba de la mente (nivel 1: su
+# título y resumen siempre presentes; el cuerpo se baja con `leer`).
+NIVEL_LIBRO_DE_PROYECTO = 1
 
 
 def sembrar() -> dict[str, int]:
@@ -93,17 +106,26 @@ def sembrar() -> dict[str, int]:
                             fecha=datetime.now(timezone.utc),
                             cuerpo=ficha.cuerpo,
                             fuente="manual",
+                            claves=ficha.claves,
+                            nivel=NIVEL_LIBRO_DE_PROYECTO,
                         ),
                     )
                     cuenta["creadas"] += 1
                     continue
 
                 actual = existentes[0]
-                if (actual.titulo, actual.resumen, actual.cuerpo) == (ficha.titulo, ficha.resumen, ficha.cuerpo):
+                ahora = (ficha.titulo, ficha.resumen, ficha.cuerpo, ficha.claves, NIVEL_LIBRO_DE_PROYECTO)
+                if (actual.titulo, actual.resumen, actual.cuerpo, actual.claves, actual.nivel) == ahora:
                     cuenta["iguales"] += 1
                     continue
                 db.editar_memoria(
-                    conexion, actual.id, titulo=ficha.titulo, resumen=ficha.resumen, cuerpo=ficha.cuerpo
+                    conexion,
+                    actual.id,
+                    titulo=ficha.titulo,
+                    resumen=ficha.resumen,
+                    cuerpo=ficha.cuerpo,
+                    claves=ficha.claves,
+                    nivel=NIVEL_LIBRO_DE_PROYECTO,
                 )
                 cuenta["actualizadas"] += 1
             except ValidationError:

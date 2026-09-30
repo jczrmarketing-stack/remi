@@ -68,6 +68,8 @@ class Memoria(BaseModel):
     fecha: datetime
     cuerpo: str
     fuente: Literal["conversacion", "manual", "ollama"]
+    claves: str | None
+    nivel: int | None = Field(ge=0, le=3, default=None)
 
 
 class Entrega(BaseModel):

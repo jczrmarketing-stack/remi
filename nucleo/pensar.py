@@ -122,7 +122,8 @@ ENCABEZADO_INDICE = (
 def _linea_indice(entrada: db.EntradaIndice) -> str:
     corto = str(entrada.id)[:8]
     fecha = entrada.fecha.date().isoformat()
-    return f"[{corto}] {fecha} · {entrada.tema} · {entrada.titulo} — {entrada.resumen}"
+    linea = f"[{corto}] {fecha} · {entrada.tema} · {entrada.titulo} — {entrada.resumen}"
+    return f"{linea} (claves: {entrada.claves})" if entrada.claves else linea
 
 
 def instrucciones_con_indice(indice: list[db.EntradaIndice]) -> str:

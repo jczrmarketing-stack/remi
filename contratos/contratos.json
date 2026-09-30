@@ -42,7 +42,9 @@
     "tema": "string",
     "fecha": "iso",
     "cuerpo": "string",
-    "fuente": "conversacion|manual|ollama"
+    "fuente": "conversacion|manual|ollama",
+    "claves": "string|null",
+    "nivel": "0-3|null"
   },
   "Entrega": {
     "id": "uuid",

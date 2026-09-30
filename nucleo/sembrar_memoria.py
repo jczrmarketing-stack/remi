@@ -61,6 +61,8 @@ def sembrar() -> int:
                     fecha=datetime.now(timezone.utc),
                     cuerpo=semilla["cuerpo"],
                     fuente="manual",
+                    claves=None,
+                    nivel=None,
                 ),
             )
             print(f"sembrada · {semilla['titulo']}")

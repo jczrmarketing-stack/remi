@@ -50,6 +50,8 @@ export interface Memoria {
   fecha: ISODateString;
   cuerpo: string;
   fuente: "conversacion" | "manual" | "ollama";
+  claves: string | null;
+  nivel: number | null;
 }
 
 export interface Entrega {
