@@ -137,10 +137,13 @@ def test_sin_transcript_el_episodio_sale_igual(tmp_path, monkeypatch) -> None:
 
 
 class _Responde(BaseHTTPRequestHandler):
+    ultimo: dict[str, object] = {}
+
     def do_POST(self) -> None:  # noqa: N802
         n = int(self.headers.get("Content-Length", "0"))
         cuerpo = json.loads(self.rfile.read(n) or b"{}")
         type(self).ultimo = cuerpo
+        salida: dict[str, object]
         if cuerpo.get("tipo") == "sesion_inicio":
             salida = {"proyecto": "malik", "contexto": "Proyecto: Malik\nQuedaste: en el mosaico."}
         else:

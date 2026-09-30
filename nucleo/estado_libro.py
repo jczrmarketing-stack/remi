@@ -88,11 +88,11 @@ def normalizar(texto: str) -> str | None:
     return f"{quedaste}\n{decisiones}\n{proximo}"
 
 
-def plano(commits: list[dict[str, str]]) -> str:
+def plano(commits: list[dict[str, object]]) -> str:
     """Cuando no hay modelo: el libro igual dice dónde quedó."""
-    ultimo = commits[-1] if commits else {"mensaje": "", "rama": ""}
-    mensaje = (ultimo.get("mensaje") or "").strip() or "un commit sin mensaje"
-    rama = (ultimo.get("rama") or "").strip()
+    ultimo: dict[str, object] = commits[-1] if commits else {}
+    mensaje = str(ultimo.get("mensaje") or "").strip() or "un commit sin mensaje"
+    rama = str(ultimo.get("rama") or "").strip()
     donde = f"Quedaste en «{mensaje}»"
     if rama:
         donde += f", rama {rama}"
