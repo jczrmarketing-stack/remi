@@ -22,7 +22,7 @@ import estado_libro
 import pensar
 import sembrar_conocimiento
 
-URL_CHANGELOG = "https://docs.claude.com/en/release-notes/claude-code"
+URL_CHANGELOG = "https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md"
 ENCABEZADO = "## Cambios anotados"
 TIMEOUT_SEGUNDOS = 15.0
 
@@ -46,16 +46,52 @@ def _ya_anotado(texto_del_oficio: str) -> str:
     return texto_del_oficio.split(ENCABEZADO, 1)[1]
 
 
+#  el CHANGELOG real de Claude Code mide ~850 KB (todo el historial) y una
+# sola versión reciente puede medir >20 KB (probado en vivo el 1-oct-2026:
+# la primera entrada, 2.1.285, mide 21.267 caracteres) — un límite de 8.000
+# cortaba ANTES de esa entrada y dejaba al modelo con "el changelog está
+# vacío" de verdad, visto en una corrida real. 30.000 deja lugar de sobra
+# para la última versión entera, sin acercarse al costo de mandarlo todo.
+LIMITE_CARACTERES = 30000
+
+
+def _recortar(changelog: str, limite: int = LIMITE_CARACTERES) -> str:
+    """Solo lo más reciente: los cambios más nuevos van primero, así que
+    cortar a un límite de caracteres alcanza para "lo de esta semana"; se
+    corta en un límite de sección («## »), no a mitad de una entrada — pero
+    solo si eso deja algo real: si la primera sección sola ya pasa el
+    límite, un corte crudo (una entrada partida a la mitad) es mejor que
+    dejar al modelo con un changelog vacío."""
+    if len(changelog) <= limite:
+        return changelog
+    recorte = changelog[:limite]
+    ultimo_encabezado = recorte.rfind("\n## ")
+    # Menos de un cuarto del límite aprovechado: el corte por sección
+    # dejaría casi nada (el bug real del 1-oct-2026). Mejor lo crudo.
+    if ultimo_encabezado > limite // 4:
+        return recorte[:ultimo_encabezado]
+    return recorte
+
+
 def traer_changelog(url: str = URL_CHANGELOG) -> str | None:
-    """El texto real de la página. None si no se pudo traer — nunca rompe
-    el refresco: sin fuente, no hay nada que anotar esta semana."""
+    """Las entradas más recientes del changelog real (recortado — ver
+    `_recortar`). None si no se pudo traer: nunca rompe el refresco, sin
+    fuente no hay nada que anotar esta semana."""
     try:
         respuesta = httpx.get(url, timeout=TIMEOUT_SEGUNDOS, follow_redirects=True)
         respuesta.raise_for_status()
-        return respuesta.text
+        return _recortar(respuesta.text)
     except httpx.HTTPError as error:
         print(f"[refresco-claude-code] no pude traer el changelog ({type(error).__name__})", file=sys.stderr)
         return None
+
+
+# «rápido» (20 s) es para el chat, con alguien esperando. Este refresco no
+# tiene a nadie esperando y el prompt es grande (hasta LIMITE_CARACTERES de
+# changelog real): mismo modelo (Haiku), techo propio y más largo — probado
+# en vivo el 1-oct-2026, «rápido» cortaba a los 20 s con un prompt de ~7 k
+# tokens y nunca llegaba a contestar.
+_MODO_REFRESCO = pensar.Modo("refresco-claude-code", "haiku", 120.0, 0, 4000)
 
 
 def _extraer(changelog: str, ya_anotado: str) -> str | None:
@@ -63,7 +99,7 @@ def _extraer(changelog: str, ya_anotado: str) -> str | None:
         f"Changelog:\n{changelog}\n\n---\nYa anotado hasta ahora:\n{ya_anotado.strip() or '(nada todavía)'}"
     )
     try:
-        pensado = pensar._una_llamada_claude(pensar.MODOS["rapido"], pedido, INSTRUCCIONES, [])
+        pensado = pensar._una_llamada_claude(_MODO_REFRESCO, pedido, INSTRUCCIONES, [])
     except Exception as error:  # noqa: BLE001 — sin Haiku, no se anota nada esta semana
         print(f"[refresco-claude-code] Haiku no contestó ({type(error).__name__})", file=sys.stderr)
         return None

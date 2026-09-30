@@ -123,6 +123,32 @@ def test_novedad_inventada_se_rechaza_y_no_se_anota(tmp_path, monkeypatch):
     assert archivo.read_text() == antes
 
 
+def test_recortar_corta_en_un_limite_de_seccion_no_a_mitad():
+    changelog = "# Changelog\n\n## 2.0\n" + ("x" * 50) + "\n\n## 1.9\n" + ("y" * 50) + "\n\n## 1.8\nviejo\n"
+    recortado = refresco._recortar(changelog, limite=40)
+    assert recortado == "# Changelog\n"
+    assert "## 1.9" not in recortado
+
+
+def test_recortar_no_toca_un_changelog_corto():
+    changelog = "# Changelog\n\n## 2.0\nalgo chico\n"
+    assert refresco._recortar(changelog, limite=refresco.LIMITE_CARACTERES) == changelog
+
+
+def test_recortar_si_la_primera_seccion_sola_ya_pasa_el_limite_corta_crudo():
+    """El bug real del 1-oct-2026: la primera versión del changelog real
+    mide 21.267 caracteres, más que el límite viejo de 8.000. Cortar en el
+    último encabezado dejaba «# Changelog» solo — el modelo veía un
+    changelog vacío. Con una sola sección gigante, mejor un corte crudo
+    (una entrada partida) que nada."""
+    seccion_enorme = "x" * 500
+    changelog = "# Changelog\n\n## 2.1.285\n" + seccion_enorme + "\n\n## 2.1.284\notra cosa\n"
+    recortado = refresco._recortar(changelog, limite=100)
+    assert recortado != "# Changelog\n"
+    assert len(recortado) == 100
+    assert "## 2.1.285" in recortado
+
+
 def test_lineas_verificadas_filtra_solo_lo_inventado():
     fuente = "2026-09-28: el changelog dice que Claude Code 2.5 agregó /skill"
     salida = "[2026-09-28] Claude Code 2.5 agregó /skill.\n[2026-09-28] Además integra con N8N."
