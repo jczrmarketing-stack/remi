@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
 import bandeja
+import caminos
 import clasificar
 import correcciones
 import db
@@ -938,6 +939,35 @@ def responder_nudge(nudge_id: UUID, cuerpo: RespuestaNudge) -> Nudge:
         if nudge is None:
             raise HTTPException(status_code=404, detail="no tengo ese nudge")
         return nudge
+    finally:
+        conexion.close()
+
+
+# — Caminos (Fase 3): los hitos del libro de un proyecto —
+
+
+class HitoVisible(BaseModel):
+    texto: str
+    hecho: bool
+
+
+class Camino(BaseModel):
+    hitos: list[HitoVisible]
+    siguiente: HitoVisible | None
+
+
+@app.get("/camino/{tema}", response_model=Camino)
+def camino_de(tema: str) -> Camino:
+    conexion = db.conectar()
+    try:
+        resultado = caminos.hitos_de_tema(conexion, tema)
+        if resultado is None:
+            raise HTTPException(status_code=404, detail="no tengo un libro con ese tema")
+        hitos, siguiente = resultado
+        return Camino(
+            hitos=[HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos],
+            siguiente=HitoVisible(texto=siguiente.texto, hecho=siguiente.hecho) if siguiente else None,
+        )
     finally:
         conexion.close()
 
