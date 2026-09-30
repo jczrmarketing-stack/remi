@@ -20,6 +20,52 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 3d revisión de lo de Grok + semáforo, scroll y lectura · construido · f1cf463
+
+- **Contexto:** los puntos 1–8 de 3d los escribió **Grok directamente en el repo**
+  (`02e4a78`…`01a21ae`), a pedido de Juan Camilo. Choca con el protocolo de arriba («Grok
+  nunca escribe en el repo»): lo anoto, no lo cambio; es decisión de él.
+- **Revisión de 3d (lo que encontré y arreglé):**
+  1. **El núcleo quedó en rojo**: 3 pytest y 3 mypy. `fc4e28e` arregla los tipos.
+  2. **El gancho global no corría el hook propio del repo** (`4263efd`): con `core.hooksPath`
+     puesto, `git rev-parse --git-path hooks/X` devuelve la carpeta global y el gancho se
+     encontraba a sí mismo. Ahora busca en `--git-common-dir`. Ningún repo tenía hooks
+     locales: no se perdió nada.
+  3. **Una sesión de Claude Code sin charla dejaba un episodio vacío** («La sesión cerró.») y
+     **pisaba el Estado del libro** (`5455d4f`). Ahora no deja nada (ARQUITECTURA §6).
+  4. **Desde otra carpeta Claude no podía leer un libro**: `leer` pide el id y el índice
+     solo viaja en el prompt de Remi. Nueva herramienta `indice(tema)` en el MCP (`f1cf463`).
+- **Verificado de verdad:** los commits llegan a `/evento` y el libro de Remi actualizó su
+  Estado; una sesión real de Claude Code en ~/proyectos/remi recibió «Proyecto: Remi…» al
+  abrir y al cerrar dejó un episodio con Ollama; desde /private/tmp Claude leyó UpVisuals
+  por el MCP («USD 3.700»); settings.json conserva el PreToolUse de malik-gestion y la
+  config de escritorio conserva los otros servidores (respaldos `*.antes-3d`).
+- **Ensucié y limpié:** mis dos sesiones de prueba pisaron el Estado del libro de Remi y
+  dejaron dos episodios y dos filas de memoria. Restauré el Estado y borré las tres cosas.
+  Quedan dos sesiones de pocos segundos en la tabla de tiempo.
+- **En paralelo, pedidos de Juan Camilo:** `e3b0019` semáforo de tres puntos con vuelta (rojo
+  oculta y vuelve con el Dock, amarillo a la píldora, verde agranda); `2405642` restaura el
+  «dónde quedé» de Grok que ese commit había borrado por un choque de ediciones; `3f61ca2`
+  sin barra de scroll; `c1df2f9` (11) lectura: tema Claro (tokens «dia» del DS) y biónica
+  con intensidad. Instalé solo la app, sin reiniciar el núcleo mientras Grok trabajaba.
+- **Decisiones que tomé sin preguntar:**
+  1. El verde del semáforo va en `luz`: el DS no tiene verde. Si lo quiere verde de verdad,
+     hay que sumar un token al DS.
+  2. Con biónica, la voz de Remi pasa de Instrument Serif a Geist (sin negrita en serif).
+  3. `indice` no se suma a las puertas de Remi: sigue con leer y guardar.
+- **Dudas abiertas:**
+  1. **La app de escritorio de Claude no tomó la memoria todavía**: está en
+     `claude_desktop_config.json` pero no hay `mcp-server-memoria.log` y `mcp.log` no se
+     escribe desde las 14:39. La app lee la config al abrir: hay que cerrarla y abrirla.
+  2. Libros sin ruta: omniway, shopify-cliente, upvisuals. Repos sin libro: bun-ai-api,
+     cervantes-ai-ml, organic-bot-core (caen en la Bandeja como «proyecto sin ficha»).
+  3. El commit en malik-gestion lo hace Juan Camilo: yo no escribo en esa app.
+- **Cómo probarlo a mano:** commit en malik-gestion → en un minuto cambia `## Estado` de
+  `remi-mente/proyectos/malik.md`; abrir Claude Code ahí → arranca con dónde quedaste;
+  cerrarlo tras charlar → aparece la nota en `remi-mente/episodios/`.
+
+---
+
 ## 2026-09-30 · 3c arreglo: al enviar, el campo queda limpio · construido · e19e1b0
 
 - **Qué cambió:** Juan Camilo avisó que el mensaje se quedaba pegado en el campo. En el log
