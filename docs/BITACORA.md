@@ -20,6 +20,20 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Fase 3 · corrección · 100f468
+
+- **Qué cambió:** nada en el código. Los 3 fallos que la entrada de abajo daba por
+  «preexistentes» no eran de datos faltantes en este Mac: el worktree `remi-fase3` no tenía
+  el symlink `conocimiento -> ../remi-mente` (`.gitignore:26`, no se versiona). Con
+  `ln -s ../remi-mente conocimiento` (sin commitear, es local a este worktree), las 349
+  pruebas pasan en verde.
+- **Decisiones que tomé sin preguntar:** ninguna; corrección de dato, indicada por Juan
+  Camilo.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `cd nucleo && uv run pytest -q` — 349 en verde, cero fallos.
+
+---
+
 ## 2026-09-30 · Fase 3 (Bandeja + caminos + iniciativa) · construido · e3c2dd5
 
 - **Qué cambió:** cuatro archivos nuevos en `nucleo/`, cuatro rutas agregadas al final de
