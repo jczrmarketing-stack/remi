@@ -74,6 +74,11 @@ PEOR_CASO_SEGUNDOS = TIMEOUT_SEGUNDOS + TIMEOUT_RESPALDO_SEGUNDOS
 # (las pruebas lo usan).
 RUTA_CARACTER = Path(__file__).resolve().parent.parent / "conocimiento" / "caracter.md"
 
+# La conversación: cada llamada lleva los últimos 12 turnos de la última
+# hora. Pasada la hora, conversación nueva.
+MAX_TURNOS = 12
+VENTANA_CONVERSACION_MINUTOS = 60
+
 # Solo si el archivo no está: un Remi mínimo, para no quedarse mudo.
 CARACTER_DE_RESPALDO = (
     "Sos Remi, el socio de Juan Camilo. Le hablás de tú, en español de Colombia, "
@@ -350,18 +355,69 @@ def _modelo_real(datos: dict[str, Any], pedido: str) -> str:
     return pedido
 
 
+def _turnos() -> list[db.Turno]:
+    from datetime import datetime, timedelta, timezone
+
+    desde = datetime.now(timezone.utc) - timedelta(minutes=VENTANA_CONVERSACION_MINUTOS)
+    try:
+        conexion = db.conectar()
+    except Exception:
+        return []
+    try:
+        return db.turnos_recientes(conexion, desde, MAX_TURNOS)
+    finally:
+        conexion.close()
+
+
+def _guardar_turno(rol: str, texto: str) -> None:
+    from datetime import datetime, timezone
+
+    try:
+        conexion = db.conectar()
+    except Exception:
+        return
+    try:
+        db.guardar_turno(conexion, rol, texto, datetime.now(timezone.utc))
+    finally:
+        conexion.close()
+
+
+def mensaje_con_historia(frase: str, turnos: list[db.Turno]) -> str:
+    """Lo que viaja como mensaje: la conversación reciente y, al final, lo
+    que Juan Camilo acaba de decir. Sin turnos, la frase sola."""
+    if not turnos:
+        return frase
+    lineas = [
+        f"{'Juan Camilo' if t.rol == 'juan' else 'Remi'}: {t.texto}" for t in turnos
+    ]
+    return (
+        "Conversación de la última hora (lo más viejo primero):\n"
+        + "\n".join(lineas)
+        + f"\n\nAhora Juan Camilo dice:\n{frase}"
+    )
+
+
 def pensar(frase: str, motor_pedido: str | None = None) -> Pensado | None:
-    """Lo que el motor elegido contesta a `frase`. None si el motor no está,
-    falla o no devolvió texto: el que llama sigue por el camino sin IA —
-    nunca se rompe la respuesta por esto."""
+    """Lo que el motor elegido contesta a `frase`, con la conversación de la
+    última hora. None si el motor no está, falla o no devolvió texto: el que
+    llama sigue por el camino sin IA — nunca se rompe la respuesta por esto."""
     indice = _indice()
     instrucciones = instrucciones_con_indice(indice)
+    mensaje = mensaje_con_historia(frase, _turnos())
     elegido = motor(motor_pedido)
     if elegido == "venice":
-        return _pensar_con_venice(frase, instrucciones, len(indice))
-    if elegido == "ollama":
-        return _pensar_con_ollama(frase, instrucciones, len(indice))
-    return _pensar_con_claude(frase, instrucciones, indice)
+        pensado = _pensar_con_venice(mensaje, instrucciones, len(indice))
+    elif elegido == "ollama":
+        pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice))
+    else:
+        pensado = _pensar_con_claude(mensaje, instrucciones, indice)
+
+    # El turno de Juan Camilo se guarda siempre que se pensó; el de Remi,
+    # solo si contestó.
+    _guardar_turno("juan", frase)
+    if pensado is not None:
+        _guardar_turno("remi", pensado.paso_minimo)
+    return pensado
 
 
 # — Los OpenAI-compatibles: Venice y Ollama comparten cliente y lector —

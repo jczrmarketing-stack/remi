@@ -10,7 +10,18 @@ from uuid import UUID
 
 from modelos import Idea, Memoria, Sesion, Tarea
 
-RUTA_DB = Path(os.environ.get("REMI_DB_PATH", str(Path(__file__).resolve().parent / "remi.db")))
+RUTA_DB_POR_DEFECTO = Path(__file__).resolve().parent / "remi.db"
+
+
+def ruta_db() -> Path:
+    """La base, resuelta al conectar y no al importar. Antes quedaba fija
+    en el import, y una prueba heredaba la base temporal de otra: los turnos
+    de una conversación se filtraban en la siguiente (29/09, Fase 3a)."""
+    return Path(os.environ.get("REMI_DB_PATH") or RUTA_DB_POR_DEFECTO)
+
+
+# Compatibilidad: quien lo lea obtiene la ruta de este momento.
+RUTA_DB = ruta_db()
 
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS tareas (
@@ -69,6 +80,18 @@ CREATE TABLE IF NOT EXISTS memoria (
 CREATE INDEX IF NOT EXISTS idx_memoria_fecha ON memoria(fecha);
 CREATE INDEX IF NOT EXISTS idx_memoria_tema ON memoria(tema);
 
+-- La conversación: lo que dijo cada uno, en orden. Remi recuerda la última
+-- hora; pasada, la conversación es nueva. (Lo que vale guardar de verdad
+-- va al estante; esto es solo el hilo.)
+CREATE TABLE IF NOT EXISTS turnos (
+    id TEXT PRIMARY KEY,
+    rol TEXT NOT NULL,
+    texto TEXT NOT NULL,
+    fecha TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_turnos_fecha ON turnos(fecha);
+
 CREATE TABLE IF NOT EXISTS entregas (
     id TEXT PRIMARY KEY,
     cliente TEXT NOT NULL,
@@ -84,10 +107,11 @@ CREATE TABLE IF NOT EXISTS entregas (
 _rutas_con_esquema_listo: set[str] = set()
 
 
-def inicializar_esquema(ruta: Path = RUTA_DB) -> None:
+def inicializar_esquema(ruta: Path | None = None) -> None:
     """El CREATE TABLE/INDEX corre una sola vez por archivo, no en cada
     conectar() — PRAGMA foreign_keys en cambio es por-conexión en SQLite y
     hay que activarlo siempre, eso sí lo hace conectar()."""
+    ruta = ruta_db() if ruta is None else ruta
     clave = str(ruta)
     if clave in _rutas_con_esquema_listo:
         return
@@ -100,7 +124,8 @@ def inicializar_esquema(ruta: Path = RUTA_DB) -> None:
     _rutas_con_esquema_listo.add(clave)
 
 
-def conectar(ruta: Path = RUTA_DB) -> sqlite3.Connection:
+def conectar(ruta: Path | None = None) -> sqlite3.Connection:
+    ruta = ruta_db() if ruta is None else ruta
     inicializar_esquema(ruta)
     conexion = sqlite3.connect(ruta)
     conexion.row_factory = sqlite3.Row
@@ -471,3 +496,35 @@ def borrar_memoria(conexion: sqlite3.Connection, memoria_id: UUID) -> bool:
     cursor = conexion.execute("DELETE FROM memoria WHERE id = ?", (str(memoria_id),))
     conexion.commit()
     return cursor.rowcount > 0
+
+
+# — La conversación —
+
+
+@dataclass(frozen=True)
+class Turno:
+    rol: str  # "juan" o "remi"
+    texto: str
+    fecha: datetime
+
+
+def guardar_turno(conexion: sqlite3.Connection, rol: str, texto: str, fecha: datetime) -> None:
+    from uuid import uuid4
+
+    conexion.execute(
+        "INSERT INTO turnos (id, rol, texto, fecha) VALUES (?, ?, ?, ?)",
+        (str(uuid4()), rol, texto, fecha.isoformat()),
+    )
+    conexion.commit()
+
+
+def turnos_recientes(conexion: sqlite3.Connection, desde: datetime, limite: int) -> list[Turno]:
+    """Los últimos `limite` turnos desde `desde`, del más viejo al más nuevo."""
+    filas = conexion.execute(
+        "SELECT rol, texto, fecha FROM turnos WHERE fecha >= ? ORDER BY fecha DESC LIMIT ?",
+        (desde.isoformat(), limite),
+    ).fetchall()
+    return [
+        Turno(rol=f["rol"], texto=f["texto"], fecha=datetime.fromisoformat(f["fecha"]))
+        for f in reversed(filas)
+    ]
