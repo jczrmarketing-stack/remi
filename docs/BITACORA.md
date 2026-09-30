@@ -20,6 +20,39 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 3b.3–3b.7 mensaje que se queda, animaciones, asistente técnico · construido · 84eb6c5
+
+- **Qué cambió:** pedidos de Juan Camilo tras probar la maqueta. (3) `e6fd150` ninguna
+  respuesta se cierra sola (X, Escape o un click con Remi callado); en diálogo la última
+  respuesta sigue bajo el punto; hablando, el punto late con el volumen real de Kokoro
+  (analizador WebAudio); escuchándote, dos anillos que se cierran hacia el punto; la voz
+  arranca una vez por respuesta. (4) `e67bb8d` Kokoro espera 4 s + 150 ms por palabra (antes
+  5 s fijos: a las 22:13 cayó a Paulina). (5) `fe76503` el modo Prompt es implícito:
+  `nucleo/prompts/tecnico.md` va siempre con el carácter; la CLI lee (Read, Grep, Glob)
+  `~/proyectos` y `~/projects`; nivel «extra»; techos 20/45/60/90 s, ventanita 160 s. (6)
+  `d27a49a` bajo la respuesta: escuchar/parar, copiar, otra respuesta; voz y velocidad junto
+  al chip; el chip elige solo modelo y nivel; atajos visibles tras 3 s de mouse encima. (7)
+  `84eb6c5` voces y motores se vuelven a pedir al abrir. 179 pytest, 52 vitest, 9 cargo.
+- **Verificado sin tocar el mouse:** Remi contestó leyendo `nucleo/pensar.py` y citó la
+  línea (12 s). Un `.env` de prueba no se pudo leer: Read y Grep denegados. **El primer
+  intento lo filtró**: los patrones sin ruta absoluta se resolvían contra la carpeta
+  temporal; se corrigió con `Read(//<carpeta>/**/.env)`. Captura de la ventanita escribiendo:
+  coincide con la maqueta.
+- **Decisiones que tomé sin preguntar:**
+  1. Carpetas legibles: `~/proyectos` y `~/projects` enteras; bloqueados `.env*`, `*.pem`,
+     `*.key`, `*.db`, `*.sqlite`, `credentials*`, `secrets*`.
+  2. Techos más largos para que entre leer código; el peor caso sube a 155 s.
+  3. «Sin pensar» se fue con Prompt: él pidió elegir solo modelo y nivel. Si estaba puesto,
+     se apaga al arrancar.
+  4. Copiar copia solo la respuesta, como Claude.
+- **Dudas abiertas:**
+  1. **Whisper, de 1 s a 18 s en el día**, con 8,7 GB de swap y Colima (1,2 GB) corriendo.
+     No es de Remi; no lo toqué. Un whisper residente evitaría recargar el modelo: encargo aparte.
+  2. Una corrida de pytest falló una vez en 8,7 s y no se repitió en 9 corridas: intermitente,
+     sin identificar. El commit `fe76503` entró con esa corrida en rojo.
+  3. Lista de prueba manual en Notion: «5 · Prueba de cierre de la ventanita», bajo Remi.
+- **Cómo probarlo a mano:** la lista de Notion, casilla por casilla.
+
 ## 2026-09-30 · 3b.1–3b.2 la ventanita como la maqueta de Juan Camilo · construido · a2a866f
 
 - **Qué cambió:** Juan Camilo mandó una maqueta y pidió «solo hagamos que funcione», dejando
