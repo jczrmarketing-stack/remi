@@ -28,3 +28,11 @@
 .campo:focus-visible {
   outline: none;
 }
+
+.campo {
+  scrollbar-width: none;
+}
+
+.campo::-webkit-scrollbar {
+  display: none;
+}

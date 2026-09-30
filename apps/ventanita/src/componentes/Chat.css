@@ -95,3 +95,13 @@
 .chat__opcion:hover {
   border-color: var(--ink-muted);
 }
+
+/* Sin barra de scroll a la vista (Juan Camilo, 30/09): se desplaza igual con
+   la rueda o el trackpad; que se pueda ya se entiende. */
+.chat {
+  scrollbar-width: none;
+}
+
+.chat::-webkit-scrollbar {
+  display: none;
+}
