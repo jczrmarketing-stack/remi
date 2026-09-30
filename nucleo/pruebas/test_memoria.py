@@ -172,7 +172,7 @@ def test_sin_entradas_no_se_anexa_nada(tmp_path, monkeypatch):
     import pensar
 
     # Un encabezado sin líneas debajo invitaría a inventar recuerdos.
-    assert pensar.instrucciones_con_indice([]) == pensar.INSTRUCCIONES
+    assert pensar.instrucciones_con_indice([]) == pensar.caracter()
 
 
 # — El encierro de la CLI —

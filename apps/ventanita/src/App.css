@@ -53,6 +53,15 @@
 
 .voz {
   color: var(--ink);
+  /* Una respuesta de un párrafo no entra siempre: se desplaza adentro,
+     nunca se corta ni empuja los controles fuera de la ventana. */
+  max-height: 100%;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 0 1 auto;
+  text-align: left;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* El recordatorio del motor: aparece con UN movimiento de 250 ms (la

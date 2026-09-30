@@ -90,11 +90,12 @@ const DURACION_APARECER = 250;
 // Un click la cierra antes en cualquier momento. Cuando sí habla, dura lo
 // que dure la locución real (a la velocidad elegida), con un techo por si
 // el sintetizador nunca avisa que terminó.
+// Leer un párrafo lleva tiempo: ~260 ms por palabra, hasta 45 s. Y con el
+// puntero encima de la respuesta no se cierra nunca (ver `sostenido`).
 const MS_POR_PALABRA_HABLANDO = 260;
 const DURACION_HABLANDO_MINIMA = 2500;
-const DURACION_HABLANDO_MAXIMA = 7000;
-const TECHO_LOCUCION_MS = 15000;
-const MAX_PALABRAS_VOZ = 20;
+const DURACION_HABLANDO_MAXIMA = 45000;
+const TECHO_LOCUCION_MS = 60000;
 
 function duracionHablando(frase: string): number {
   const palabras = frase.trim() ? frase.trim().split(/\s+/).length : 0;
@@ -104,11 +105,6 @@ function duracionHablando(frase: string): number {
 // Por debajo de esto es un click; por encima, arrastrás la ventana.
 const UMBRAL_ARRASTRE_PX = 4;
 
-function recortarPalabras(frase: string): string {
-  const palabras = frase.trim().split(/\s+/);
-  if (palabras.length <= MAX_PALABRAS_VOZ) return frase;
-  return palabras.slice(0, MAX_PALABRAS_VOZ - 1).join(" ") + "…";
-}
 
 // Ley 3: sin cadena de culpa. Si el núcleo no responde, Remi lo dice
 // con calma y vuelve a reposo — nunca regaña ni cuenta el fallo.
@@ -123,7 +119,9 @@ export default function App() {
   const [estado, setEstado] = useState<Estado>("reposo");
   const [modo, setModo] = useState<Modo>("texto");
   const [texto, setTexto] = useState("");
+  // `voz` es lo que se dice; `respuestaTexto`, lo que se ve (completo).
   const [voz, setVoz] = useState("");
+  const [respuestaTexto, setRespuestaTexto] = useState("");
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
   const [grabando, setGrabando] = useState(false);
   // Entre cortar la grabación y ver el texto: Remi transcribe (whisper
@@ -336,6 +334,7 @@ export default function App() {
           console.info("[claude] pidió pensar pero el núcleo siguió sin IA (¿falta la clave en nucleo/.env?)");
         }
         setVoz(respuesta.voz);
+        setRespuestaTexto(respuesta.texto || respuesta.voz);
         // Solo un bloque abierto tiene reloj: una idea que enfría y un
         // cierre no tienen nada que medir.
         setSesionInicio(respuesta.sesion?.inicio ?? null);
@@ -356,6 +355,7 @@ export default function App() {
         registrar("enviar:falló", { ms: Math.round(performance.now() - arranque) });
         console.error("no se pudo mandar el mensaje:", error);
         setVoz(fraseDeFallo());
+        setRespuestaTexto(fraseDeFallo());
       } finally {
         enviandoRef.current = false;
         if (generacionRef.current === miGeneracion) setEstado("hablando");
@@ -560,14 +560,14 @@ export default function App() {
 
   const copiar = useCallback(async () => {
     // Lo que dijiste y lo que contestó Remi, tal como se vieron.
-    const contenido = texto.trim() ? `${texto.trim()}\n\n${voz}` : voz;
+    const contenido = texto.trim() ? `${texto.trim()}\n\n${respuestaTexto}` : respuestaTexto;
     const pudo = await copiarAlPortapapeles(contenido);
     if (!pudo) {
       console.warn("[portapapeles] no se pudo copiar");
       return;
     }
     setCopiado(true);
-  }, [texto, voz]);
+  }, [texto, respuestaTexto]);
 
   // Remi habla solo si ESTE mensaje llegó por voz y no está silenciada —
   // mirado una sola vez al entrar — o si pediste leerlo (botón). Si habla,
@@ -598,7 +598,7 @@ export default function App() {
       void hablar(voz, velocidad, vozElegida).then(terminar);
       techo = window.setTimeout(terminar, TECHO_LOCUCION_MS);
     } else if (!sostenido) {
-      techo = window.setTimeout(terminar, duracionHablando(voz));
+      techo = window.setTimeout(terminar, duracionHablando(respuestaTexto));
     }
 
     return () => {
@@ -609,6 +609,7 @@ export default function App() {
   }, [
     estado,
     voz,
+    respuestaTexto,
     origenMensaje,
     velocidad,
     vozElegida,
@@ -821,7 +822,7 @@ export default function App() {
         <p className="num trabajando">transcribiendo</p>
       )}
 
-      {estado === "hablando" && <p className="display-it voz">{recortarPalabras(voz)}</p>}
+      {estado === "hablando" && <p className="display-it voz">{respuestaTexto}</p>}
       {estado === "hablando" && (
         <ControlesVoz
           velocidad={velocidad}

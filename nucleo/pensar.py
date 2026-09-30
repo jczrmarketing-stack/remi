@@ -68,16 +68,29 @@ TIMEOUT_SEGUNDOS = 25.0
 TIMEOUT_RESPALDO_SEGUNDOS = 20.0
 PEOR_CASO_SEGUNDOS = TIMEOUT_SEGUNDOS + TIMEOUT_RESPALDO_SEGUNDOS
 
-INSTRUCCIONES = (
-    "Te dan una frase suelta. Si es una tarea, una idea o un pendiente, respondé "
-    "con UNA sola acción concreta para empezarla, tan chica que se pueda hacer en "
-    "cinco minutos; si la frase es vaga, elegí igual un primer paso razonable y "
-    "nunca pidas más detalles. Si en cambio te preguntan algo que ya sabés, "
-    "contestá la pregunta con lo que sabés. "
-    "Siempre: en español, hablándole de tú, máximo 20 palabras, una sola frase. "
-    "Sin exclamaciones, sin explicar de más, sin listas, sin comillas, sin "
-    "saludos. Respondé solo con esa frase y nada más."
+# El carácter de Remi ES el system prompt (Fase 3a). Vive en el disco, fuera
+# del repo (datos personales), y se lee en CADA mensaje: si Juan Camilo lo
+# edita, Remi cambia sin reiniciar nada. REMI_CARACTER apunta a otro archivo
+# (las pruebas lo usan).
+RUTA_CARACTER = Path(__file__).resolve().parent.parent / "conocimiento" / "caracter.md"
+
+# Solo si el archivo no está: un Remi mínimo, para no quedarse mudo.
+CARACTER_DE_RESPALDO = (
+    "Sos Remi, el socio de Juan Camilo. Le hablás de tú, en español de Colombia, "
+    "corto y directo: primero la respuesta. Nunca urgís, nunca contás fallos, nunca "
+    "inventás datos de sus proyectos: si no está en tu memoria, lo decís."
 )
+
+
+def caracter() -> str:
+    """El carácter, recién leído del disco."""
+    ruta = Path(os.environ.get("REMI_CARACTER") or RUTA_CARACTER)
+    try:
+        texto = ruta.read_text().strip()
+    except OSError:
+        print(f"[pensar] no encuentro {ruta}: uso el carácter de respaldo", file=sys.stderr)
+        return CARACTER_DE_RESPALDO
+    return texto or CARACTER_DE_RESPALDO
 
 # La mente: el índice entero viaja en el system prompt, siempre. Es texto,
 # no una herramienta — mirarlo no cuesta un turno ni una llamada. El cuerpo
@@ -99,12 +112,13 @@ def _linea_indice(entrada: db.EntradaIndice) -> str:
 
 
 def instrucciones_con_indice(indice: list[db.EntradaIndice]) -> str:
-    """Las instrucciones más lo que Remi tiene presente. Sin entradas no se
-    anexa nada: un encabezado solo, sin líneas, invitaría a inventar."""
+    """El carácter más lo que Remi tiene presente. Sin entradas no se anexa
+    nada: un encabezado solo, sin líneas, invitaría a inventar."""
+    base = caracter()
     if not indice:
-        return INSTRUCCIONES
+        return base
     lineas = "\n".join(_linea_indice(entrada) for entrada in indice)
-    return INSTRUCCIONES + ENCABEZADO_INDICE + lineas
+    return base + ENCABEZADO_INDICE + lineas
 
 
 def _indice() -> list[db.EntradaIndice]:
@@ -122,6 +136,8 @@ def _indice() -> list[db.EntradaIndice]:
 
 @dataclass(frozen=True)
 class Pensado:
+    # Lo que el modelo contestó, entero. (El nombre es de cuando Remi solo
+    # devolvía un paso mínimo; desde la Fase 3a es la respuesta completa.)
     paso_minimo: str
     tokens_entrada: int
     tokens_salida: int
@@ -366,7 +382,8 @@ def _llamar_openai_compatible(
                 {"role": "system", "content": instrucciones},
                 {"role": "user", "content": frase},
             ],
-            "max_tokens": 200,
+            # Un párrafo holgado; el carácter define el largo real.
+            "max_tokens": 700,
         },
         timeout=timeout,
     )

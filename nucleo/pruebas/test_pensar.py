@@ -33,7 +33,7 @@ def test_sin_think_no_toca_a_claude(tmp_path, monkeypatch):
     assert creada["tokens"] is None
 
 
-def test_con_think_el_paso_minimo_lo_ordena_claude(tmp_path, monkeypatch):
+def test_con_think_contesta_el_modelo_y_el_paso_minimo_nace_universal(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     servidor = _arrancar_servidor()
     llamadas = []
@@ -52,12 +52,11 @@ def test_con_think_el_paso_minimo_lo_ordena_claude(tmp_path, monkeypatch):
 
     creada = cliente.post("/mensaje", json={"texto": "voy a llamar al banco", "think": True}).json()
     assert llamadas == ["voy a llamar al banco"]
-    assert creada["tarea"]["paso_minimo"] == "Abre la app del banco y busca el teléfono."
+    # Desde la Fase 3a el modelo contesta; el paso_minimo sigue universal.
+    assert creada["tarea"]["paso_minimo"] == servidor.PASO_MINIMO_INICIAL
+    assert creada["texto"] == "Abre la app del banco y busca el teléfono."
     assert creada["voz"] == "Abre la app del banco y busca el teléfono."
     assert creada["tokens"] == {"entrada": 120, "salida": 14, "modelo": "modelo-de-prueba"}
-    # Se guarda con el paso de Claude, no con el universal.
-    hoy = cliente.get("/hoy").json()
-    assert hoy[0]["tarea"]["paso_minimo"] == "Abre la app del banco y busca el teléfono."
 
 
 def test_con_think_pero_claude_no_puede_sigue_sin_ia(tmp_path, monkeypatch):
@@ -72,19 +71,33 @@ def test_con_think_pero_claude_no_puede_sigue_sin_ia(tmp_path, monkeypatch):
     assert creada["tokens"] is None
 
 
-def test_la_voz_de_claude_tambien_se_recorta_a_20_palabras(tmp_path, monkeypatch):
+def test_sin_techo_de_palabras_y_hablado_hasta_tres_frases(tmp_path, monkeypatch):
+    """Fase 3a: el carácter define el largo. En pantalla va entero; en voz
+    alta, solo si entró por voz, hasta 3 frases."""
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     servidor = _arrancar_servidor()
-    largo = " ".join(f"p{i}" for i in range(30))
+    largo = (
+        "Uno dos tres cuatro cinco seis siete ocho nueve diez once doce. "
+        "Trece catorce quince dieciséis diecisiete. Tercera frase. Cuarta frase. Quinta."
+    )
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda _frase, _motor=None: servidor.pensar.Pensado(largo, 1, 1, "m"),
+        lambda _frase, _motor=None: servidor.pensar.Pensado(largo.strip(), 1, 1, "m"),
     )
     cliente = TestClient(servidor.app)
 
-    creada = cliente.post("/mensaje", json={"texto": "arranco con x", "think": True}).json()
-    assert len(creada["voz"].split()) <= servidor.MAX_PALABRAS_VOZ
+    escrita = cliente.post("/mensaje", json={"texto": "arranco con x", "think": True}).json()
+    assert escrita["texto"] == largo.strip()
+    assert escrita["voz"] == largo.strip()
+    assert len(escrita["texto"].split()) > servidor.MAX_PALABRAS_VOZ
+
+    hablada = cliente.post(
+        "/mensaje", json={"texto": "arranco con y", "think": True, "origen": "voz"}
+    ).json()
+    assert hablada["texto"] == largo.strip()
+    assert hablada["voz"].count(".") == 3
+    assert hablada["voz"].endswith("Tercera frase.")
 
 
 # — El módulo pensar.py: va por la CLI de Claude Code, nunca por la API —
@@ -136,7 +149,7 @@ def test_la_frase_va_por_stdin_con_sonnet_y_sin_herramientas(monkeypatch):
     assert comando[comando.index("--model") + 1] == "sonnet"
     assert comando[comando.index("--output-format") + 1] == "json"
     assert comando[comando.index("--tools") + 1] == ""
-    assert comando[comando.index("--system-prompt") + 1] == pensar.INSTRUCCIONES
+    assert comando[comando.index("--system-prompt") + 1] == pensar.instrucciones_con_indice([])
     # La frase entra por stdin, no por argumento (nunca en la lista de procesos).
     assert visto["kwargs"]["input"] == "voy a llamar al banco"
 
@@ -276,7 +289,7 @@ def test_venice_lee_el_texto_y_los_tokens(monkeypatch, tmp_path):
     assert pensado.leyo_memoria is False
     assert visto["clave"] == "clave-de-prueba" and visto["modelo"] == "modelo-x"
     assert visto["frase"] == "tengo el correo lleno"
-    assert visto["instrucciones"].startswith(pensar.INSTRUCCIONES[:40])
+    assert visto["instrucciones"].startswith(pensar.caracter()[:40])
 
 
 def test_venice_con_respuesta_vacia_sigue_sin_ia(monkeypatch, tmp_path):

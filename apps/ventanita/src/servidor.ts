@@ -18,6 +18,9 @@ export interface RespuestaMensaje {
   tipo: TipoMensaje;
   tarea: Tarea | null;
   sesion: Sesion | null;
+  // Lo que se ve, completo.
+  texto: string;
+  // Lo que se dice: igual a texto, salvo por voz (hasta 3 frases).
   voz: string;
   tokens: TokensClaude | null;
 }

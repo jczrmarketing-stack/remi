@@ -55,6 +55,10 @@ app.add_middleware(
 )
 
 MAX_PALABRAS_VOZ = 20
+# Lo que se DICE en voz alta, cuando la respuesta la escribió el modelo: el
+# carácter define el largo, pero hablado un párrafo entero cansa. Lo escrito
+# en pantalla va completo.
+MAX_FRASES_HABLADAS = 3
 
 # Ley 6: lo suelto enfría dos días antes de poder volverse proyecto.
 HORAS_DE_ENFRIAMIENTO = 48
@@ -72,6 +76,16 @@ def recortar_voz(frase: str) -> str:
     if len(palabras) > MAX_PALABRAS_VOZ:
         frase = " ".join(palabras[: MAX_PALABRAS_VOZ - 1]) + "…"
     return frase
+
+
+def para_hablar(texto: str) -> str:
+    """Las primeras MAX_FRASES_HABLADAS frases de `texto`."""
+    import re
+
+    frases = re.split(r"(?<=[.!?…])\s+", texto.strip())
+    if len(frases) <= MAX_FRASES_HABLADAS:
+        return texto.strip()
+    return " ".join(frases[:MAX_FRASES_HABLADAS])
 
 
 def frase_remi(titulo: str) -> str:
@@ -111,6 +125,10 @@ class RespuestaMensaje(BaseModel):
     tipo: clasificar.TipoMensaje
     tarea: Tarea | None = None
     sesion: Sesion | None = None
+    # Lo que se ve en la pantalla, completo.
+    texto: str = ""
+    # Lo que se dice en voz alta: igual a `texto`, salvo que el mensaje haya
+    # entrado por voz y lo haya escrito el modelo — ahí, hasta 3 frases.
     voz: str
     # Solo cuando pensó con Claude. Dato de operación: la ventanita lo manda
     # a su consola, nunca a la pantalla.
@@ -252,12 +270,23 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # lo que digas no es una conversación.
     pensado = pensar.pensar(mensaje.texto, mensaje.motor) if mensaje.think else None
     if pensado is None:
-        return RespuestaMensaje(tipo="idea", voz="Guardada. La miramos en dos días.")
+        return _respuesta_fija("idea", "Guardada. La miramos en dos días.")
     return RespuestaMensaje(
         tipo="idea",
-        voz=recortar_voz(pensado.paso_minimo),
+        texto=pensado.paso_minimo,
+        voz=_voz_de(pensado.paso_minimo, mensaje),
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
     )
+
+
+def _voz_de(respuesta: str, mensaje: MensajeEntrante) -> str:
+    """Si va a sonar (entró por voz), hasta 3 frases; si no, entera."""
+    return para_hablar(respuesta) if mensaje.origen == "voz" else respuesta
+
+
+def _respuesta_fija(tipo: clasificar.TipoMensaje, frase: str, **campos: object) -> RespuestaMensaje:
+    """Las frases de Remi sin modelo: se ven y se dicen igual."""
+    return RespuestaMensaje(tipo=tipo, texto=frase, voz=frase, **campos)  # type: ignore[arg-type]
 
 
 def _cerrar_lo_abierto() -> RespuestaMensaje:
@@ -268,29 +297,28 @@ def _cerrar_lo_abierto() -> RespuestaMensaje:
     try:
         abierta = db.sesion_abierta_mas_reciente(conexion)
         if abierta is None:
-            return RespuestaMensaje(tipo="hecha", voz="No había nada abierto.")
+            return _respuesta_fija("hecha", "No había nada abierto.")
 
         sesion = db.cerrar_sesion(conexion, abierta)
         if sesion is None:
-            return RespuestaMensaje(tipo="hecha", voz="No había nada abierto.")
+            return _respuesta_fija("hecha", "No había nada abierto.")
 
         tarea = db.actualizar_estado_tarea(conexion, sesion.tarea_id, "hecha")
-        return RespuestaMensaje(
-            tipo="hecha",
-            tarea=tarea,
-            sesion=sesion,
-            voz=f"Cerrada. {formatear_duracion(sesion.real_min)}.",
+        return _respuesta_fija(
+            "hecha", f"Cerrada. {formatear_duracion(sesion.real_min)}.", tarea=tarea, sesion=sesion
         )
     finally:
         conexion.close()
 
 
 def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
-    # Si pidió pensar, el paso mínimo lo ordena Claude y es lo que Remi
-    # dice. Si no pidió (o Claude no pudo), todo sigue como siempre, sin IA.
+    # Si pensó, lo que Remi contesta es lo que escribió el modelo. El
+    # paso_minimo de la tarea nace universal igual: la respuesta de una
+    # conversación no es un paso mínimo. Sin modelo, la frase de siempre.
     pensado = pensar.pensar(mensaje.texto, mensaje.motor) if mensaje.think else None
-    paso_minimo = recortar_voz(pensado.paso_minimo) if pensado else PASO_MINIMO_INICIAL
-    voz = paso_minimo if pensado else frase_remi(mensaje.texto)
+    paso_minimo = PASO_MINIMO_INICIAL
+    texto = pensado.paso_minimo if pensado else frase_remi(mensaje.texto)
+    voz = _voz_de(texto, mensaje) if pensado else texto
     tokens = (
         TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo)
         if pensado
@@ -330,7 +358,7 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
     finally:
         conexion.close()
 
-    return RespuestaMensaje(tipo="hoy", tarea=tarea, sesion=sesion, voz=voz, tokens=tokens)
+    return RespuestaMensaje(tipo="hoy", tarea=tarea, sesion=sesion, texto=texto, voz=voz, tokens=tokens)
 
 
 @app.post("/sesion/{sesion_id}/cerrar", response_model=Sesion)
