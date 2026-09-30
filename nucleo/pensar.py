@@ -33,8 +33,8 @@ RUTA_ENV = Path(__file__).resolve().parent / ".env"
 # Motores: "claude" (la membresía Max, por la CLI, con acceso al estante) y
 # los OpenAI-compatibles, que comparten un solo cliente y no tienen
 # herramientas —el índice viaja en el system prompt pero no pueden bajar
-# nada del estante—: "venice" (pago por token) y "ollama" (local, gratis,
-# nada sale del Mac).
+# nada del estante—: "venice" (pago por token), "deepseek" (pago por token)
+# y "ollama" (local, gratis, nada sale del Mac).
 MOTOR_POR_DEFECTO = "claude"
 VENICE_URL = "https://api.venice.ai/api/v1/chat/completions"
 # Los dos que ofrece el chip. El primero es el económico (respaldo si el
@@ -43,6 +43,14 @@ VENICE_URL = "https://api.venice.ai/api/v1/chat/completions"
 MODELOS_VENICE = ("z-ai-glm-5-3-flash", "grok-4-7")
 VENICE_MODELO_POR_DEFECTO = MODELOS_VENICE[0]
 VENICE_TIMEOUT_SEGUNDOS = 20.0
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+# El primero (flash) es para los modos rápido/equilibrio del chip; el
+# segundo (pro) es para inteligente y para Modo Prompt, donde conviene el
+# que menos inventa. Manual, nunca el motor por defecto. Otro id del
+# cliente cae al del entorno, igual que con Venice.
+MODELOS_DEEPSEEK = ("deepseek-flash", "deepseek-v4-pro")
+DEEPSEEK_MODELO_POR_DEFECTO = MODELOS_DEEPSEEK[0]
+DEEPSEEK_TIMEOUT_SEGUNDOS = 20.0
 OLLAMA_BASE = "http://127.0.0.1:11434"
 OLLAMA_URL = f"{OLLAMA_BASE}/v1/chat/completions"
 # gemma3:4b: buen español, ~3,3 GB, cabe holgado en 16 GB y contesta en
@@ -421,7 +429,7 @@ def cadena_de_modos(elegido: Modo) -> list[Modo]:
     return [MODOS[n] for n in reversed(ORDEN_DE_MODOS[: hasta + 1])]
 
 
-MOTORES = ("claude", "venice", "ollama")
+MOTORES = ("claude", "venice", "deepseek", "ollama")
 
 
 def motor(pedido: str | None = None) -> str:
@@ -464,7 +472,8 @@ def motores_disponibles() -> list[MotorDisponible]:
     import shutil
 
     hay_cli = shutil.which(BINARIO) is not None
-    hay_clave = bool(_ajuste("VENICE_API_KEY", ""))
+    hay_clave_venice = bool(_ajuste("VENICE_API_KEY", ""))
+    hay_clave_deepseek = bool(_ajuste("DEEPSEEK_API_KEY", ""))
     modelo_ollama = _ajuste("REMI_OLLAMA_MODELO", OLLAMA_MODELO_POR_DEFECTO)
     bajados = _modelos_de_ollama()
     if bajados is None:
@@ -483,11 +492,21 @@ def motores_disponibles() -> list[MotorDisponible]:
         MotorDisponible(
             id="venice",
             label="Venice (pago)",
-            disponible=hay_clave,
+            disponible=hay_clave_venice,
             detalle=(
                 "GLM Flash o Grok 4.7, sin acceso al estante"
-                if hay_clave
+                if hay_clave_venice
                 else "sin VENICE_API_KEY en nucleo/.env"
+            ),
+        ),
+        MotorDisponible(
+            id="deepseek",
+            label="DeepSeek (pago)",
+            disponible=hay_clave_deepseek,
+            detalle=(
+                "DeepSeek Flash o V4 Pro, sin acceso al estante"
+                if hay_clave_deepseek
+                else "sin DEEPSEEK_API_KEY en nucleo/.env"
             ),
         ),
         MotorDisponible(
@@ -757,6 +776,7 @@ def pensar(
     buscar: bool = False,
     modelo_ollama: str | None = None,
     modelo_venice: str | None = None,
+    modelo_deepseek: str | None = None,
 ) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
@@ -785,6 +805,8 @@ def pensar(
         instrucciones = f"{instrucciones}\n\n{INSTRUCCIONES_BUSQUEDA}"
     if elegido == "venice":
         pensado = _pensar_con_venice(mensaje, instrucciones, len(indice), modelo_venice)
+    elif elegido == "deepseek":
+        pensado = _pensar_con_deepseek(mensaje, instrucciones, len(indice), modelo_deepseek)
     elif elegido == "ollama":
         pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice), modelo_ollama)
     else:
@@ -799,7 +821,7 @@ def pensar(
     return pensado
 
 
-# — Los OpenAI-compatibles: Venice y Ollama comparten cliente y lector —
+# — Los OpenAI-compatibles: Venice, DeepSeek y Ollama comparten cliente y lector —
 
 
 def _llamar_openai_compatible(
@@ -829,6 +851,12 @@ def _llamar_openai_compatible(
 
 def _llamar_venice(clave: str, nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
     return _llamar_openai_compatible(VENICE_URL, clave, nombre_modelo, instrucciones, frase, VENICE_TIMEOUT_SEGUNDOS)
+
+
+def _llamar_deepseek(clave: str, nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
+    return _llamar_openai_compatible(
+        DEEPSEEK_URL, clave, nombre_modelo, instrucciones, frase, DEEPSEEK_TIMEOUT_SEGUNDOS
+    )
 
 
 def _llamar_ollama(nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
@@ -891,6 +919,44 @@ def _pensar_con_venice(
         return None
     print(
         f"[venice] modelo={pensado.modelo} tokens entrada={pensado.tokens_entrada} "
+        f"salida={pensado.tokens_salida} memoria={entradas} leyó=no (sin herramientas)",
+        file=sys.stderr,
+    )
+    return pensado
+
+
+def _modelo_deepseek(pedido: str | None) -> str:
+    """El del chip si es uno de los dos. Si no, el del entorno."""
+    if pedido in MODELOS_DEEPSEEK:
+        return pedido
+    if pedido:
+        print(f"[deepseek] modelo desconocido {pedido!r}: uso el del entorno", file=sys.stderr)
+    return _ajuste("REMI_DEEPSEEK_MODELO", DEEPSEEK_MODELO_POR_DEFECTO)
+
+
+def _pensar_con_deepseek(
+    frase: str, instrucciones: str, entradas: int, modelo_pedido: str | None = None
+) -> Pensado | None:
+    clave = _ajuste("DEEPSEEK_API_KEY", "")
+    if not clave:
+        print("[deepseek] sin DEEPSEEK_API_KEY en nucleo/.env: sigo sin IA", file=sys.stderr)
+        return None
+    nombre_modelo = _modelo_deepseek(modelo_pedido)
+    try:
+        datos = _llamar_deepseek(clave, nombre_modelo, instrucciones, frase)
+    except httpx.HTTPStatusError as error:
+        print(f"[deepseek] la API respondió {error.response.status_code}: sigo sin IA", file=sys.stderr)
+        return None
+    except httpx.HTTPError as error:
+        print(f"[deepseek] sin conexión ({type(error).__name__}): sigo sin IA", file=sys.stderr)
+        return None
+
+    pensado = _leer_respuesta_venice(datos, nombre_modelo, entradas, proveedor="deepseek")
+    if pensado is None:
+        print("[deepseek] respuesta vacía: sigo sin IA", file=sys.stderr)
+        return None
+    print(
+        f"[deepseek] modelo={pensado.modelo} tokens entrada={pensado.tokens_entrada} "
         f"salida={pensado.tokens_salida} memoria={entradas} leyó=no (sin herramientas)",
         file=sys.stderr,
     )

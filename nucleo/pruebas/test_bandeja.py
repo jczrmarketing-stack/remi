@@ -273,7 +273,7 @@ def test_get_pensar_motores(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
     cliente = TestClient(servidor.app)
     motores = cliente.get("/pensar/motores").json()
-    assert [m["id"] for m in motores] == ["claude", "venice", "ollama"]
+    assert [m["id"] for m in motores] == ["claude", "venice", "deepseek", "ollama"]
     assert all({"id", "label", "disponible", "detalle"} <= set(m) for m in motores)
 
 

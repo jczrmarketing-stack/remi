@@ -403,6 +403,97 @@ def test_la_clave_de_venice_no_se_exporta_a_la_cli_de_claude(monkeypatch, tmp_pa
     assert "VENICE_API_KEY" not in pensar._entorno()
 
 
+# — El motor de DeepSeek —
+
+
+def test_deepseek_sin_clave_sigue_sin_ia(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("REMI_PENSADOR", "deepseek")
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    assert pensar.pensar("algo") is None
+
+
+def test_deepseek_nunca_es_el_motor_por_defecto(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave-de-prueba")
+    monkeypatch.delenv("REMI_PENSADOR", raising=False)
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    assert pensar.motor() == "claude"
+
+
+def test_deepseek_lee_el_texto_y_los_tokens(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("REMI_PENSADOR", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave-de-prueba")
+    monkeypatch.setenv("REMI_DEEPSEEK_MODELO", "modelo-x")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    visto = {}
+
+    def falsa_llamada(clave, nombre_modelo, instrucciones, frase):
+        visto.update(clave=clave, modelo=nombre_modelo, instrucciones=instrucciones, frase=frase)
+        return {
+            "model": "modelo-x-1-2",
+            "choices": [{"message": {"content": "  Abrí el correo y respondé el primero.  "}}],
+            "usage": {"prompt_tokens": 1578, "completion_tokens": 9},
+        }
+
+    monkeypatch.setattr(pensar, "_llamar_deepseek", falsa_llamada)
+    pensado = pensar.pensar("tengo el correo lleno")
+    assert pensado is not None
+    assert pensado.paso_minimo == "Abrí el correo y respondé el primero."
+    assert (pensado.tokens_entrada, pensado.tokens_salida) == (1578, 9)
+    assert pensado.modelo == "deepseek/modelo-x-1-2"
+    assert pensado.leyo_memoria is False
+    assert visto["clave"] == "clave-de-prueba" and visto["modelo"] == "modelo-x"
+    assert visto["frase"] == "tengo el correo lleno"
+    assert visto["instrucciones"].startswith(pensar.caracter()[:40])
+
+
+def test_deepseek_el_chip_elige_entre_flash_y_pro(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave-de-prueba")
+    monkeypatch.setenv("REMI_DEEPSEEK_MODELO", "modelo-x")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    visto = {}
+
+    def falsa_llamada(clave, nombre_modelo, instrucciones, frase):
+        visto["modelo"] = nombre_modelo
+        return {"model": nombre_modelo, "choices": [{"message": {"content": "Listo."}}], "usage": {}}
+
+    monkeypatch.setattr(pensar, "_llamar_deepseek", falsa_llamada)
+    pensar.pensar("cómo funciona", "deepseek", modelo_deepseek="deepseek-v4-pro")
+    assert visto["modelo"] == "deepseek-v4-pro"
+    pensar.pensar("cómo funciona", "deepseek", modelo_deepseek="deepseek-flash")
+    assert visto["modelo"] == "deepseek-flash"
+    pensar.pensar("cómo funciona", "deepseek", modelo_deepseek="otro")
+    assert visto["modelo"] == "modelo-x"
+
+
+def test_deepseek_con_respuesta_vacia_sigue_sin_ia(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("REMI_PENSADOR", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    monkeypatch.setattr(pensar, "_llamar_deepseek", lambda *a: {"choices": []})
+    assert pensar.pensar("algo") is None
+
+
+def test_la_clave_de_deepseek_no_se_exporta_a_la_cli_de_claude(monkeypatch, tmp_path):
+    """La clave se lee del .env a un dict; el subproceso de Claude no la ve."""
+    pensar = _importar_pensar()
+    ruta = tmp_path / ".env"
+    ruta.write_text("DEEPSEEK_API_KEY=secreta\nREMI_PENSADOR=claude\n")
+    monkeypatch.setattr(pensar, "RUTA_ENV", ruta)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    assert pensar._ajuste("DEEPSEEK_API_KEY", "") == "secreta"
+    assert "DEEPSEEK_API_KEY" not in pensar._entorno()
+
+
 # — El motor elegido desde la ventanita —
 
 
@@ -419,11 +510,22 @@ def test_los_motores_disponibles_dicen_que_les_falta(monkeypatch, tmp_path):
     pensar = _importar_pensar()
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
     monkeypatch.delenv("VENICE_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.setattr(pensar.shutil if hasattr(pensar, "shutil") else __import__("shutil"), "which", lambda _b: None)
     motores = {m.id: m for m in pensar.motores_disponibles()}
-    assert set(motores) == {"claude", "venice", "ollama"}
+    assert set(motores) == {"claude", "venice", "deepseek", "ollama"}
     assert motores["claude"].disponible is False and "claude" in motores["claude"].detalle
     assert motores["venice"].disponible is False and "VENICE_API_KEY" in motores["venice"].detalle
+    assert motores["deepseek"].disponible is False and "DEEPSEEK_API_KEY" in motores["deepseek"].detalle
+
+
+def test_deepseek_disponible_cuando_hay_clave(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave-de-prueba")
+    motores = {m.id: m for m in pensar.motores_disponibles()}
+    assert motores["deepseek"].disponible is True
+    assert "DeepSeek" in motores["deepseek"].detalle
 
 
 # — Ollama, local —
