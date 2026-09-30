@@ -42,10 +42,10 @@ servidor = MCPServer(
     )
 )
 def leer(id: str) -> str:
-    _marcar_lectura()
     conexion = db.conectar()
     try:
         memoria = _buscar(conexion, id)
+        _marcar_lectura(memoria.tema if memoria else f"?{id}")
         if memoria is None:
             # Ley 3: no hay reto ni «deberías». Se dice qué pasó y qué hacer.
             return (
@@ -103,12 +103,15 @@ def guardar(titulo: str, resumen: str, cuerpo: str, tema: str) -> str:
 MARCA = "REMI_MARCA_LECTURA"
 
 
-def _marcar_lectura() -> None:
+def _marcar_lectura(tema: str) -> None:
+    """Agrega una línea con el tema del libro leído: así el log dice QUÉ
+    leyó, no solo si leyó. Un id que no existía queda como «?id»."""
     ruta = os.environ.get(MARCA)
     if not ruta:
         return
     try:
-        Path(ruta).touch()
+        with Path(ruta).open("a") as archivo:
+            archivo.write(tema + "\n")
     except OSError:
         pass
 

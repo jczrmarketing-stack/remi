@@ -482,3 +482,25 @@ def test_si_sonnet_contesta_no_se_llama_a_haiku(monkeypatch, tmp_path):
     monkeypatch.setattr(pensar.subprocess, "run", falso_run)
     assert pensar.pensar("algo") is not None
     assert modelos == ["sonnet"]
+
+
+def test_el_log_dice_modo_cacheados_y_libros(monkeypatch, capsys):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+
+    def falso_run(comando, **kwargs):
+        # El estante deja la marca con el tema que se leyó.
+        import json as _json
+        ruta_cfg = comando[comando.index("--mcp-config") + 1]
+        marca = _json.loads(open(ruta_cfg).read())["mcpServers"]["memoria"]["env"]["REMI_MARCA_LECTURA"]
+        open(marca, "a").write("upvisuals\n")
+        return _salida_cli(usage={"input_tokens": 4, "output_tokens": 300,
+                                  "cache_read_input_tokens": 5200, "cache_creation_input_tokens": 900})
+
+    monkeypatch.setattr(pensar.subprocess, "run", falso_run)
+    pensado = pensar.pensar("¿qué tengo pendiente con Alfonso?", "claude", "equilibrio")
+    assert pensado is not None and pensado.leyo_memoria
+    linea = [l for l in capsys.readouterr().err.splitlines() if l.startswith("[claude] modo=")][0]
+    for pedazo in ("modo=equilibrio", "entrada=4", "cache_leida=5200", "cache_escrita=900",
+                   "salida=300", "leyó=sí", "libros=upvisuals", "ms="):
+        assert pedazo in linea, pedazo

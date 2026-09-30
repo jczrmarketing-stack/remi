@@ -376,6 +376,15 @@ def _tokens(uso: Any) -> tuple[int, int]:
     )
 
 
+def _tokens_cacheados(uso: Any) -> tuple[int, int]:
+    """Leídos y escritos en la caché, si la CLI lo informa; si no, 0."""
+    if not isinstance(uso, dict):
+        return 0, 0
+    leida = uso.get("cache_read_input_tokens")
+    escrita = uso.get("cache_creation_input_tokens")
+    return (leida if isinstance(leida, int) else 0, escrita if isinstance(escrita, int) else 0)
+
+
 def _modelo_real(datos: dict[str, Any], pedido: str) -> str:
     """El id exacto que usó la CLI, si lo dice; si no, el alias que pedimos."""
     uso_por_modelo = datos.get("modelUsage")
@@ -695,7 +704,8 @@ def _una_llamada_claude(
             # El JSON final de la CLI no dice qué herramientas usó; la marca
             # la deja el propio estante al ser leído. Hay que mirarla antes
             # de que la carpeta temporal desaparezca.
-            leyo = marca.exists()
+            libros = marca.read_text().split() if marca.exists() else []
+            leyo = bool(libros)
     except FileNotFoundError:
         print(f"[claude] no encontré `{BINARIO}` en el PATH: sigo sin IA", file=sys.stderr)
         return None
@@ -723,13 +733,17 @@ def _una_llamada_claude(
         return None
 
     tokens_entrada, tokens_salida = _tokens(datos.get("usage"))
+    cache_leida, cache_escrita = _tokens_cacheados(datos.get("usage"))
     modelo_real = _modelo_real(datos, nombre_modelo)
     ms = (time.perf_counter() - arranque) * 1000
     # La cuenta va a consola, no a la pantalla: es dato de operación.
+    # `entrada` es solo lo no cacheado (así lo informa la CLI); lo que viajó
+    # de verdad es entrada + cache_leida + cache_escrita.
     print(
-        f"[claude] modo={m.nombre} modelo={modelo_real} ms={ms:.0f} tokens entrada={tokens_entrada} "
+        f"[claude] modo={m.nombre} modelo={modelo_real} ms={ms:.0f} "
+        f"tokens entrada={tokens_entrada} cache_leida={cache_leida} cache_escrita={cache_escrita} "
         f"salida={tokens_salida} memoria={len(indice)} "
-        f"leyó={'sí' if leyo else 'no'}",
+        f"leyó={'sí' if leyo else 'no'} libros={','.join(libros) or '-'}",
         file=sys.stderr,
     )
 

@@ -231,6 +231,10 @@ def test_el_estante_deja_marca_al_ser_leido(tmp_path, monkeypatch):
     assert not marca.exists()
     memoria_mcp.leer(str(memoria.id))
     assert marca.exists()
+    # Dice QUÉ libro leyó, no solo que leyó.
+    assert marca.read_text().split() == [memoria.tema]
+    memoria_mcp.leer("no-existe")
+    assert marca.read_text().split() == [memoria.tema, "?no-existe"]
 
 
 def test_guardar_no_deja_marca_de_lectura(tmp_path, monkeypatch):
