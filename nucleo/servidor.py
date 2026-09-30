@@ -19,16 +19,19 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
+import bandeja
+import caminos
 import clasificar
 import correcciones
 import db
 import entregas
 import episodios
+import iniciativa
 import pensar
 import sembrar_conocimiento
 import trabajo
 import tts
-from modelos import Idea, Memoria, Sesion, Tarea
+from modelos import Idea, Memoria, Nudge, Sesion, Tarea
 
 RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
 CONFIG = json.loads(RUTA_CONFIG.read_text())
@@ -881,6 +884,109 @@ def historial_tarea(tarea_id: UUID) -> Historial:
     try:
         sesiones = db.listar_sesiones_cerradas_tarea(conexion, tarea_id)
         return Historial(sesiones=sesiones, total_min=sum(s.real_min for s in sesiones))
+    finally:
+        conexion.close()
+
+
+# — La Bandeja (Fase 3): revisar en frío lo que enfrió 48 h (ley 6) —
+
+
+class IdeaBandeja(BaseModel):
+    idea: Idea
+    fria: bool
+
+
+class RevisionIdea(BaseModel):
+    decision: Literal["soltar", "mantener", "tarea"]
+
+
+class RevisionHecha(BaseModel):
+    idea: Idea
+    tarea: Tarea | None = None
+
+
+@app.get("/bandeja", response_model=list[IdeaBandeja])
+def listar_bandeja() -> list[IdeaBandeja]:
+    conexion = db.conectar()
+    try:
+        ahora = datetime.now(timezone.utc)
+        return [
+            IdeaBandeja(idea=idea, fria=fria)
+            for idea, fria in bandeja.listar_abiertas(conexion, ahora)
+        ]
+    finally:
+        conexion.close()
+
+
+@app.post("/idea/{idea_id}/revision", response_model=RevisionHecha)
+def revisar_idea(idea_id: UUID, cuerpo: RevisionIdea) -> RevisionHecha:
+    conexion = db.conectar()
+    try:
+        ahora = datetime.now(timezone.utc)
+        try:
+            hecha = bandeja.revisar(conexion, idea_id, cuerpo.decision, ahora)
+        except bandeja.IdeaNoEncontrada:
+            raise HTTPException(status_code=404, detail="no tengo esa idea") from None
+        except bandeja.IdeaNoFria:
+            raise HTTPException(status_code=409, detail="todavía no pasaron las 48 h") from None
+        return RevisionHecha(idea=hecha.idea, tarea=hecha.tarea)
+    finally:
+        conexion.close()
+
+
+# — Nudges (Fase 3): lo que la ventanita ya llama —
+
+
+class RespuestaNudge(BaseModel):
+    respuesta: Literal["listo", "ahora_no"]
+
+
+@app.get("/nudges/pendiente", response_model=Nudge | None)
+def nudge_pendiente() -> Nudge | None:
+    conexion = db.conectar()
+    try:
+        return iniciativa.pendiente_o_nuevo(conexion, datetime.now(timezone.utc))
+    finally:
+        conexion.close()
+
+
+@app.post("/nudges/{nudge_id}/respuesta", response_model=Nudge)
+def responder_nudge(nudge_id: UUID, cuerpo: RespuestaNudge) -> Nudge:
+    conexion = db.conectar()
+    try:
+        nudge = iniciativa.responder(conexion, nudge_id, cuerpo.respuesta, datetime.now(timezone.utc))
+        if nudge is None:
+            raise HTTPException(status_code=404, detail="no tengo ese nudge")
+        return nudge
+    finally:
+        conexion.close()
+
+
+# — Caminos (Fase 3): los hitos del libro de un proyecto —
+
+
+class HitoVisible(BaseModel):
+    texto: str
+    hecho: bool
+
+
+class Camino(BaseModel):
+    hitos: list[HitoVisible]
+    siguiente: HitoVisible | None
+
+
+@app.get("/camino/{tema}", response_model=Camino)
+def camino_de(tema: str) -> Camino:
+    conexion = db.conectar()
+    try:
+        resultado = caminos.hitos_de_tema(conexion, tema)
+        if resultado is None:
+            raise HTTPException(status_code=404, detail="no tengo un libro con ese tema")
+        hitos, siguiente = resultado
+        return Camino(
+            hitos=[HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos],
+            siguiente=HitoVisible(texto=siguiente.texto, hecho=siguiente.hecho) if siguiente else None,
+        )
     finally:
         conexion.close()
 
