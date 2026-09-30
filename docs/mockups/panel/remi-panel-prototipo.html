@@ -1,0 +1,345 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Remi Panel</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Panel de Remi — prototipo interactivo. Noche a propósito (una sola piel de color). */
+:root{
+  --ground:#151112;--surface:#1d1718;--surface-2:#26201f;--line:#3a302d;
+  --ink:#f3ebdd;--muted:#a89d8f;--faint:#6b6058;
+  --luz:#fff2c9;--dinero:#ffb020;--brasa:#ff8a3d;--alerta:#ff4d6d;--pensar:#c9a0ff;--baja:#6f6660;
+  --display:"Instrument Serif",Georgia,serif;--sans:"Geist",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1); color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-variant-numeric:tabular-nums;padding-inline:16px;padding-block:0}
+.app{max-width:960px;margin:0 auto;min-height:100%;display:grid;grid-template-rows:auto 1fr}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid #ffd27a;outline-offset:2px}
+
+/* top */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 0 8px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--ground);z-index:5}
+.brand{font-family:var(--display);font-size:28px;letter-spacing:-.02em}
+.brand i{font-style:italic;color:var(--dinero)}
+nav{display:flex;gap:4px}
+nav button{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;color:var(--muted);font-size:14px;font-weight:600;transition:color .15s,background .15s}
+nav button svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+nav button[aria-current="page"]{color:var(--ink);background:var(--surface)}
+.skin{display:flex;gap:2px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px}
+.skin button{padding:5px 10px;border-radius:999px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted)}
+.skin button[aria-pressed="true"]{background:var(--surface-2);color:var(--ink)}
+@media(max-width:700px){nav button span{display:none}.skin{display:none}}
+
+/* views */
+main{position:relative;padding-block:24px 48px}
+.view{display:grid;gap:24px;animation:in .35s var(--ease) both}
+.view[hidden]{display:none}
+@keyframes in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.label{font-size:11px;line-height:16px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.num{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--muted)}
+.num b{color:var(--dinero);font-weight:500}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px}
+
+/* HOY */
+.hero{display:grid;grid-template-columns:168px 1fr;gap:24px;align-items:center;padding:28px;position:relative;overflow:hidden}
+@media(max-width:700px){.hero{grid-template-columns:1fr}}
+.hero h1{font-family:var(--display);font-weight:400;font-size:clamp(34px,5.5vw,56px);line-height:.98;letter-spacing:-.02em;margin:8px 0 14px;text-wrap:balance;transition:opacity .3s,transform .5s var(--ease)}
+.hero .done{font-family:var(--display);font-style:italic;font-size:clamp(26px,4vw,36px);line-height:1.05;color:var(--luz);margin:8px 0 14px;display:none}
+.hero.cerrado h1{display:none}.hero.cerrado .done{display:block;animation:in .5s var(--ease) both}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2);font-size:12px;font-weight:600;color:var(--muted)}
+.chip i{width:6px;height:6px;border-radius:50%;background:var(--baja)}
+.chip.dinero{color:var(--ink)}.chip.dinero i{background:var(--dinero)}
+.chip.mono{font-family:var(--mono);font-weight:500}
+.act{margin-top:18px;display:flex;gap:10px;align-items:center}
+.btn{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;font-size:14px;transition:transform .15s var(--ease),background .15s}
+.btn:active{transform:scale(.97)}
+.btn.main{background:var(--luz);color:#1a1200;border-color:var(--luz)}
+.btn.main:hover{box-shadow:0 0 14px rgba(255,242,201,.45)}
+.led{position:absolute;top:16px;right:18px;width:8px;height:8px;border-radius:50%;background:#3a302d}
+.led.on{background:var(--luz);box-shadow:0 0 12px rgba(255,242,201,.6)}
+
+/* reloj (3 pieles) */
+.reloj{position:relative;width:168px;height:168px;justify-self:center}
+.reloj svg{width:100%;height:100%;display:block}
+.ring{fill:none;stroke:var(--line);stroke-width:7}
+.seg{fill:none;stroke:var(--line);stroke-width:7;transition:stroke .4s}
+.seg.done{stroke:var(--luz)}.seg.now{stroke:var(--dinero)}
+.track{fill:none;stroke:var(--line);stroke-width:2}
+.time{fill:none;stroke:var(--brasa);stroke-width:2.5;transition:stroke-dasharray .9s var(--ease)}
+.needle{stroke:var(--ink);stroke-width:2.5;stroke-linecap:round;transform-origin:70px 70px;transition:transform .9s var(--ease)}
+.hub{fill:var(--ink)}
+.rtxt{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+.halo{fill:var(--luz);opacity:0;transform-origin:70px 70px;transform:scale(.2);transition:opacity .6s,transform .9s var(--ease)}
+.cerrado .halo{opacity:1;transform:scale(1)}
+.cerrado .needle,.cerrado .hub,.cerrado .rtxt,.cerrado .time{opacity:0}
+.cerrado .seg{stroke:var(--luz)}
+/* brasa */
+.reloj.brasa{width:100%;height:auto;align-self:end}
+.ember{height:6px;border-radius:999px;background:var(--line);overflow:hidden}
+.ember i{display:block;height:100%;width:84%;border-radius:999px;background:linear-gradient(90deg,var(--alerta),var(--brasa) 45%,var(--dinero) 80%,var(--luz));transition:width .9s var(--ease)}
+.glow{position:absolute;left:-40px;right:-40px;bottom:-140px;height:220px;pointer-events:none;background:radial-gradient(closest-side,rgba(255,138,61,.5),rgba(255,176,32,.2) 40%,transparent 70%);transition:opacity .9s}
+.hero.cerrado .glow{background:radial-gradient(closest-side,rgba(255,242,201,.55),transparent 70%)}
+.hero.cerrado .ember i{width:100%;background:var(--luz)}
+/* terminal */
+.reloj.terminal{width:auto;height:auto;font-family:var(--mono);font-size:13px;letter-spacing:.12em;color:var(--muted);display:flex;gap:10px;align-items:baseline}
+.reloj.terminal .b{letter-spacing:.18em;color:var(--line)}.reloj.terminal .b b{color:var(--luz);font-weight:500}.reloj.terminal .b i{color:var(--dinero);font-style:normal}
+.reloj.terminal .m{margin-left:auto;color:var(--brasa)}
+body[data-skin="brasa"] .hero{grid-template-columns:1fr;grid-template-rows:1fr auto}
+body[data-skin="terminal"] .hero{grid-template-columns:1fr}
+body[data-skin="terminal"] .hero h1{font-family:var(--mono);font-size:22px;line-height:1.3;font-weight:600;letter-spacing:-.01em}
+body[data-skin="terminal"] .hero h1::before{content:"▸ "}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+@media(max-width:700px){.grid2{grid-template-columns:1fr}}
+.bloques{display:grid;gap:8px;margin-top:12px}
+.bloque{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid transparent}
+.bloque.now{border-color:var(--line);background:var(--surface-2)}
+.bloque .h{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.bloque .p{font-size:14px}
+.bloque .d{width:8px;height:8px;border-radius:50%;background:var(--baja)}
+.bloque.now .d{background:var(--brasa);box-shadow:0 0 10px rgba(255,138,61,.5)}
+.bloque.done .p{color:var(--faint);text-decoration:line-through}
+.bloque.done .d{background:var(--luz)}
+.vence{display:grid;gap:10px;margin-top:12px}
+.vence div{display:flex;justify-content:space-between;font-size:14px;padding:8px 0;border-bottom:1px solid var(--line)}
+.vence div:last-child{border:0}
+.vence .f{font-family:var(--mono);font-size:12px}
+.vence .f.hot{color:var(--alerta)}.vence .f.din{color:var(--dinero)}
+.bignum{font-family:var(--mono);font-size:40px;line-height:44px;font-weight:500;letter-spacing:-.02em;margin:8px 0 4px}
+.bignum small{font-size:14px;color:var(--muted);letter-spacing:0;font-weight:400}
+
+/* PROYECTOS: constelación */
+.const{position:relative;height:360px;overflow:hidden}
+.const svg{width:100%;height:100%}
+.star{cursor:pointer}
+.star circle.body{fill:var(--surface-2);stroke:var(--line);stroke-width:2;transition:transform .4s var(--ease),stroke .2s}
+.star:hover circle.body{stroke:var(--ink)}
+.star.dinero circle.body{stroke:var(--dinero)}
+.star.brasa circle.body{stroke:var(--brasa)}
+.star.pensar circle.body{stroke:var(--pensar)}
+.star text{fill:var(--ink);font-family:var(--display);font-size:18px;text-anchor:middle}
+.star .k{fill:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.06em}
+.star .arc{fill:none;stroke:var(--luz);stroke-width:3;stroke-linecap:round;transition:stroke-dasharray .9s var(--ease)}
+.star.sel circle.body{fill:var(--surface);stroke:var(--luz)}
+.link{stroke:var(--line);stroke-width:1;stroke-dasharray:2 6}
+.camino{transition:opacity .3s}
+.path{display:grid;gap:12px}
+.path h3{font-family:var(--display);font-weight:400;font-size:26px;margin:0;letter-spacing:-.01em}
+.track{display:flex;overflow-x:auto;padding:10px 0}
+.step{position:relative;flex:none;width:118px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.step::before{content:"";position:absolute;top:11px;left:50%;width:100%;height:2px;background:var(--line);transition:background .5s}
+.step:last-child::before{display:none}
+.step.done::before{background:var(--luz)}
+.node{position:relative;z-index:1;width:24px;height:24px;border-radius:50%;border:2px solid var(--line);background:var(--surface);transition:transform .35s var(--ease),background .35s,border-color .35s,box-shadow .35s}
+.step.done .node{background:var(--luz);border-color:var(--luz)}
+.step.now .node{border-color:var(--brasa);box-shadow:0 0 12px rgba(255,138,61,.5);transform:scale(1.25)}
+.step.now .node::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--brasa)}
+.step.din .node{border-color:var(--dinero)}
+.step .l{font-size:12px;text-align:center;color:var(--muted);padding:0 4px;text-wrap:balance}
+.step.now .l{color:var(--ink);font-weight:600}
+.step .f{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.step.din .f{color:var(--dinero)}
+.just{font-family:var(--display);font-style:italic;font-size:24px;color:var(--luz);min-height:30px}
+
+/* METAS */
+.meta{display:grid;grid-template-columns:120px 1fr;gap:20px;align-items:center}
+.meta svg{width:120px;height:120px}
+.meta h3{font-family:var(--display);font-weight:400;font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+.meta .gap{font-size:14px;color:var(--muted);margin-top:6px}
+.meta .gap b{color:var(--ink);font-weight:600}
+.lineas{display:grid;gap:14px;margin-top:12px}
+.linea{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline}
+.linea .bar{grid-column:1/-1;height:6px;border-radius:999px;background:var(--line);overflow:hidden}
+.linea .bar i{display:block;height:100%;border-radius:999px;background:var(--dinero);width:0;transition:width 1.2s var(--ease)}
+.linea .bar.b i{background:var(--pensar)}
+
+/* BANDEJA */
+.ideas{display:grid;gap:8px}
+.idea{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
+.idea i{width:10px;height:10px;border-radius:50%;background:var(--pensar)}
+.idea.top{border-color:var(--pensar);box-shadow:0 0 12px rgba(201,160,255,.25)}
+.idea .p{font-size:15px}.idea .k{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.idea .cap{font-family:var(--display);font-style:italic;color:var(--pensar);font-size:14px}
+
+/* sparks */
+.spark{position:fixed;width:6px;height:6px;border-radius:50%;background:var(--luz);pointer-events:none;box-shadow:0 0 8px var(--luz);animation:fly .9s var(--ease) forwards}
+@keyframes fly{to{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">Re<i>mi</i></div>
+    <nav aria-label="Vistas">
+      <button data-v="hoy" aria-current="page"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M12 8.5v3.8l2.6 1.6"/></svg><span>Hoy</span></button>
+      <button data-v="proy"><svg viewBox="0 0 24 24"><circle cx="6" cy="16" r="2.4"/><circle cx="12" cy="7" r="2.4"/><circle cx="18.5" cy="14" r="2.4"/><path d="M8 14.6l2.6-5M14.2 8.4l2.6 3.6"/></svg><span>Proyectos</span></button>
+      <button data-v="metas"><svg viewBox="0 0 24 24"><path d="M5 18c3-9 9-9 14-12"/><path d="M15 5.5h4.2v4"/></svg><span>Metas</span></button>
+      <button data-v="ideas"><svg viewBox="0 0 24 24"><path d="M9.5 17.5h5M10 20h4"/><path d="M8.2 14.3C6.6 13 6 11.6 6 10a6 6 0 0 1 12 0c0 1.6-.6 3-2.2 4.3"/></svg><span>Bandeja</span></button>
+    </nav>
+    <div class="skin" role="group" aria-label="Piel del reloj">
+      <button data-s="instrumento" aria-pressed="true">instrumento</button>
+      <button data-s="brasa" aria-pressed="false">brasa</button>
+      <button data-s="terminal" aria-pressed="false">terminal</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- HOY -->
+    <section class="view" id="v-hoy">
+      <div class="card hero" id="hero">
+        <span class="led" id="led"></span>
+        <span class="glow" hidden></span>
+        <div class="reloj instrumento" id="reloj"></div>
+        <div>
+          <div class="label">UpVisuals · Fase 1</div>
+          <h1 id="titulo">Terminar el flujo de distribución</h1>
+          <p class="done" id="doneTxt">Cerrado. Siguiente: seguridad crítica.</p>
+          <div class="chips"><span class="chip dinero"><i></i>Entrega vie 3</span><span class="chip mono">$1.000</span><span class="chip mono" id="chipT">42' del bloque</span></div>
+          <div class="act"><button class="btn main" id="cerrar">Cerrar hito</button><button class="btn" id="reset" hidden>Siguiente</button></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="label">Bloques de hoy</div>
+          <div class="bloques">
+            <div class="bloque done"><span class="h">08:00</span><span class="p">Revisión y correo</span><span class="d"></span></div>
+            <div class="bloque now"><span class="h">09:00</span><span class="p">UpVisuals · distribución</span><span class="d"></span></div>
+            <div class="bloque"><span class="h">12:00</span><span class="p">Descanso largo</span><span class="d"></span></div>
+            <div class="bloque"><span class="h">14:00</span><span class="p">Organic Cash · router</span><span class="d"></span></div>
+            <div class="bloque"><span class="h">16:30</span><span class="p">Malik · solo si sobra</span><span class="d"></span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">Vence</div>
+          <div class="vence">
+            <div><span>Factura Omniway</span><span class="f hot">jueves</span></div>
+            <div><span>Entrega Alfonso · Fase 1</span><span class="f din">vie 3 · $1.000</span></div>
+            <div><span>Formulario IRS</span><span class="f">2 oct</span></div>
+          </div>
+          <div class="label" style="margin-top:20px">Esta semana</div>
+          <div class="bignum" id="semana">$1.500 <small>de $2.400</small></div>
+          <div class="num">faltan <b>$900</b> · 2 propuestas Fiverr las cubren</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROYECTOS -->
+    <section class="view" id="v-proy" hidden>
+      <div class="card const">
+        <svg viewBox="0 0 900 340" id="const"></svg>
+      </div>
+      <div class="card camino" id="camino"></div>
+    </section>
+
+    <!-- METAS -->
+    <section class="view" id="v-metas" hidden>
+      <div class="card meta">
+        <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="var(--line)" stroke-width="8"/><circle id="metaArc" cx="60" cy="60" r="50" fill="none" stroke="var(--dinero)" stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" transform="rotate(-90 60 60)" style="transition:stroke-dasharray 1.2s var(--ease)"/><text x="60" y="66" text-anchor="middle" fill="var(--ink)" font-family="Geist Mono" font-size="16" id="metaPct">0%</text></svg>
+        <div>
+          <div class="label">Meta · 12 meses</div>
+          <h3>Vivir solo</h3>
+          <div class="num">necesitas <b>$2.400/mes</b> · vas en $1.500 esta semana</div>
+          <div class="gap">Brecha: <b>$900</b>. La cierran 2 propuestas en Fiverr o 1 cliente nuevo de Organic Cash.</div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="label">Por línea · este mes</div>
+          <div class="lineas">
+            <div class="linea"><span>Software (clientes)</span><span class="num">$3.200</span><div class="bar"><i data-w="72"></i></div></div>
+            <div class="linea"><span>Malik (contenido)</span><span class="num">$1.100</span><div class="bar b"><i data-w="34"></i></div></div>
+          </div>
+          <div class="num" style="margin-top:14px">software 3× más por hora · <b>prioriza clientes</b></div>
+        </div>
+        <div class="card">
+          <div class="label">Meta · 18 meses</div>
+          <h3 style="font-family:var(--display);font-weight:400;font-size:26px;margin:6px 0">Carro</h3>
+          <div class="bignum">$1.100<small>/mes</small></div>
+          <div class="num">empieza cuando "vivir solo" pase de 50 %</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BANDEJA -->
+    <section class="view" id="v-ideas" hidden>
+      <div class="card">
+        <div class="label">Bandeja de ideas · bloque el viernes 16:30</div>
+        <div class="ideas" style="margin-top:12px">
+          <div class="idea top"><i></i><div><div class="p">Router de leads que agenda solo cuando el lead escribe fuera de horario</div><div class="k">organic cash · hoy 9:40</div></div><span class="cap">destacada</span></div>
+          <div class="idea"><i></i><div><div class="p">Remi por Telegram: reenviar chats de Fiverr y que extraiga monto y fecha</div><div class="k">remi · ayer</div></div><span class="k">→ fase 2</span></div>
+          <div class="idea"><i></i><div><div class="p">Plantilla de propuesta en español con precio por fases</div><div class="k">omniway · lun</div></div><span class="k">guardada</span></div>
+          <div class="idea"><i></i><div><div class="p">Vault de Obsidian abierto sobre /proyectos con docs/estado.md por repo</div><div class="k">remi · lun</div></div><span class="k">guardada</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+  var state={skin:"instrumento",cerrado:false,minutos:42,bloque:50,hitos:6,hechos:3};
+  var reloj=document.getElementById("reloj"),hero=document.getElementById("hero");
+  function dialSVG(){
+    var C=377,gap=6,n=state.hitos,seg=(C-gap*n)/n,s='<svg viewBox="0 0 140 140" aria-hidden="true"><circle class="ring" cx="70" cy="70" r="60"/>';
+    for(var i=0;i<n;i++){var cls="seg"+(i<state.hechos?" done":i===state.hechos&&!state.cerrado?" now":"");s+='<circle class="'+cls+'" cx="70" cy="70" r="60" pathLength="'+C+'" stroke-dasharray="'+seg+' '+(C-seg)+'" stroke-dashoffset="'+(-(i*(seg+gap)))+'" transform="rotate(-90 70 70)"/>';}
+    var f=state.minutos/state.bloque;
+    s+='<circle class="track" cx="70" cy="70" r="44"/><circle class="halo" cx="70" cy="70" r="24"/><circle class="time" cx="70" cy="70" r="44" pathLength="100" stroke-dasharray="'+Math.round(f*100)+' 100" transform="rotate(-90 70 70)"/><line class="needle" x1="70" y1="70" x2="70" y2="30" style="transform:rotate('+(360*(1-f))+'deg)"/><circle class="hub" cx="70" cy="70" r="4"/><text class="rtxt" x="70" y="92" text-anchor="middle">'+state.minutos+"'"+'</text></svg>';
+    return s;
+  }
+  function renderReloj(){
+    reloj.className="reloj "+state.skin;
+    hero.querySelector(".glow").hidden=state.skin!=="brasa";
+    if(state.skin==="instrumento"){reloj.innerHTML=dialSVG();}
+    else if(state.skin==="brasa"){reloj.innerHTML='<div class="ember"><i style="width:'+(state.cerrado?100:Math.round(state.minutos/state.bloque*100))+'%"></i></div>';}
+    else{var b="";for(var i=0;i<state.hitos;i++){b+=i<state.hechos||state.cerrado?"<b>■</b>":i===state.hechos?"<i>□</i>":"□";}reloj.innerHTML='<span class="b">'+b+'</span><span>'+state.hechos+'/'+state.hitos+'</span>'+(state.cerrado?"":'<span class="m">'+state.minutos+"'</span>");}
+    hero.classList.toggle("cerrado",state.cerrado);
+  }
+  document.querySelectorAll(".skin button").forEach(function(b){b.addEventListener("click",function(){state.skin=b.dataset.s;document.body.dataset.skin=state.skin;document.querySelectorAll(".skin button").forEach(function(x){x.setAttribute("aria-pressed",x===b)});renderReloj();});});
+  document.body.dataset.skin="instrumento";
+
+  // celebración
+  var cerrar=document.getElementById("cerrar"),reset=document.getElementById("reset"),led=document.getElementById("led"),sem=document.getElementById("semana");
+  cerrar.addEventListener("click",function(){
+    if(state.cerrado)return;
+    var r=cerrar.getBoundingClientRect(),t=reloj.getBoundingClientRect();
+    for(var i=0;i<14;i++){var s=document.createElement("span");s.className="spark";s.style.left=(r.left+r.width/2)+"px";s.style.top=(r.top+r.height/2)+"px";var a=Math.random()*Math.PI*2,d=40+Math.random()*90;s.style.setProperty("--dx",(t.left+t.width/2-r.left-r.width/2+Math.cos(a)*d)+"px");s.style.setProperty("--dy",(t.top+t.height/2-r.top-r.height/2+Math.sin(a)*d)+"px");document.body.appendChild(s);setTimeout(function(x){return function(){x.remove()}}(s),950);}
+    state.hechos++;state.cerrado=true;renderReloj();led.classList.add("on");cerrar.hidden=true;reset.hidden=false;
+    // el camino también se actualiza
+    proj[0].hechos=state.hechos;drawConst();drawPath(0,true);
+  });
+  reset.addEventListener("click",function(){state.cerrado=false;state.minutos=50;document.getElementById("titulo").textContent="Seguridad crítica";document.getElementById("chipT").textContent="50' del bloque";renderReloj();led.classList.remove("on");cerrar.hidden=false;reset.hidden=true;drawPath(0,false);});
+  renderReloj();
+
+  // navegación
+  document.querySelectorAll("nav button").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll("nav button").forEach(function(x){x.removeAttribute("aria-current")});b.setAttribute("aria-current","page");document.querySelectorAll(".view").forEach(function(v){v.hidden=true});var v=document.getElementById("v-"+b.dataset.v);v.hidden=false;v.style.animation="none";void v.offsetWidth;v.style.animation="";if(b.dataset.v==="metas")metas();});});
+
+  // constelación + camino
+  var proj=[
+    {n:"UpVisuals",k:"cliente · vie 3",c:"dinero",r:64,x:250,y:170,hitos:6,hechos:3,pasos:["Contrato firmado","Anticipo recibido","Distribución","Seguridad crítica","Pruebas con Alfonso","Entrega · 18 oct"],din:5},
+    {n:"Organic Cash",k:"propio · bug",c:"brasa",r:52,x:470,y:120,hitos:8,hechos:5,pasos:["Router","Lead nuevo","Lead existente","Paciente activo","Cita hoy","Emergencia","Pruebas","Demo clínica"],din:7},
+    {n:"Omniway",k:"filings · 2 oct",c:"brasa",r:40,x:640,y:230,hitos:4,hechos:2,pasos:["Estado Wyoming","Reporte anual","Formulario IRS","Confirmación"]},
+    {n:"Malik",k:"negocio 2",c:"pensar",r:36,x:760,y:110,hitos:5,hechos:1,pasos:["Cuentas X","Fan accounts","Reddit 1","Reddit 2","Medir"]},
+    {n:"Remi",k:"fase 0",c:"pensar",r:30,x:130,y:290,hitos:6,hechos:0,pasos:["Base","Ventanita","Telegram","Mira esto","Líder","Panel"]}
+  ],sel=0;
+  var svg=document.getElementById("const");
+  function drawConst(){
+    var s='<line class="link" x1="250" y1="170" x2="470" y2="120"/><line class="link" x1="470" y1="120" x2="640" y2="230"/><line class="link" x1="640" y1="230" x2="760" y2="110"/><line class="link" x1="250" y1="170" x2="130" y2="290"/>';
+    proj.forEach(function(p,i){var C=2*Math.PI*(p.r+8),f=p.hechos/p.hitos;s+='<g class="star '+p.c+(i===sel?" sel":"")+'" data-i="'+i+'" tabindex="0" role="button" aria-label="'+p.n+'"><circle class="body" cx="'+p.x+'" cy="'+p.y+'" r="'+p.r+'"/><circle class="arc" cx="'+p.x+'" cy="'+p.y+'" r="'+(p.r+8)+'" pathLength="100" stroke-dasharray="'+Math.round(f*100)+' 100" transform="rotate(-90 '+p.x+' '+p.y+')"/><text x="'+p.x+'" y="'+(p.y+5)+'">'+p.n+'</text><text class="k" x="'+p.x+'" y="'+(p.y+p.r+24)+'">'+p.k+' · '+p.hechos+'/'+p.hitos+'</text></g>';});
+    svg.innerHTML=s;
+    svg.querySelectorAll(".star").forEach(function(g){g.addEventListener("click",function(){sel=+g.dataset.i;drawConst();drawPath(sel,false);});g.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();g.click();}});});
+  }
+  function drawPath(i,just){
+    var p=proj[i],c=document.getElementById("camino"),s='<div class="path"><div style="display:flex;justify-content:space-between;align-items:baseline"><h3>'+p.n+'</h3><span class="num">'+p.hechos+'/'+p.hitos+'</span></div><div class="track">';
+    p.pasos.forEach(function(t,j){var cls="step"+(j<p.hechos?" done":j===p.hechos?" now":"")+(p.din===j?" din":"");s+='<div class="'+cls+'"><span class="node"></span><span class="l">'+t.replace(" · ","<br>")+'</span></div>';});
+    s+='</div><div class="just">'+(just?"Cerrado. Siguiente: "+(p.pasos[p.hechos]||"nada, respira.").toLowerCase()+".":"")+'</div></div>';
+    c.style.opacity=0;setTimeout(function(){c.innerHTML=s;c.style.opacity=1;},150);
+  }
+  drawConst();drawPath(0,false);
+
+  // metas
+  function metas(){setTimeout(function(){document.getElementById("metaArc").setAttribute("stroke-dasharray","62 100");document.getElementById("metaPct").textContent="62%";document.querySelectorAll(".linea .bar i").forEach(function(b){b.style.width=b.dataset.w+"%"});},60);}
+})();
+</script>
+
+</body></html>
