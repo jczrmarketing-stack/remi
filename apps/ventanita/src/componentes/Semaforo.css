@@ -1,18 +1,24 @@
-/* La zona sensible es la esquina (la misma en reposo y expandida). Los
-   puntos aparecen al entrar el mouse ahí, en 150 ms, y se van al salir.
-   Medidas de macOS: 12 px, separados 8. Colores del sistema de diseño:
-   `alerta` para cerrar y `dinero` para ocultar. */
+/* La esquina de arriba a la izquierda. Los puntos aparecen al entrar el
+   mouse ahí, en 150 ms, y se van al salir. Medidas de macOS en el chat
+   (12 px, separados 8); en la píldora, 8 px separados 5, para no tapar la
+   bolita. Rojo `alerta`, amarillo `dinero`, verde: el DS no tiene verde, así
+   que es `luz` (lo que se abre) — maqueta de Juan Camilo, 30/09. */
 .semaforo {
   position: absolute;
   top: 0;
   left: 0;
-  width: 44px;
   height: 32px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-left: var(--space-2);
-  z-index: 2;
+  padding: 0 var(--space-2);
+  z-index: 3;
+}
+
+.semaforo--pildora {
+  height: 100%;
+  gap: 5px;
+  padding: 0 6px;
 }
 
 .semaforo__punto {
@@ -30,18 +36,35 @@
     transform var(--dur-estado) var(--curva);
 }
 
+.semaforo--pildora .semaforo__punto {
+  width: 8px;
+  height: 8px;
+}
+
 .semaforo:hover .semaforo__punto,
 .semaforo__punto:focus-visible {
   opacity: 1;
   transform: none;
 }
 
+.semaforo__punto:disabled {
+  cursor: default;
+}
+
+.semaforo:hover .semaforo__punto:disabled {
+  opacity: 0.35;
+}
+
 .semaforo__punto--cerrar {
   background: var(--alerta);
 }
 
-.semaforo__punto--ocultar {
+.semaforo__punto--minimizar {
   background: var(--dinero);
+}
+
+.semaforo__punto--agrandar {
+  background: var(--luz);
 }
 
 @media (prefers-reduced-motion: reduce) {

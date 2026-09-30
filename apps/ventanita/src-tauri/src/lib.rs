@@ -246,6 +246,18 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, evento| {
+            // Click en el ícono de Remi en el Dock: vuelve la ventana. Sin
+            // esto, el rojo (ocultar) dejaba a Remi escondida hasta el atajo
+            // (Juan Camilo, 30/09: «se esconde y ya no va a salir»).
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = evento {
+                if let Some(ventana) = app_handle.get_webview_window("main") {
+                    log::info!("[ventana] click en el Dock: vuelve la ventana");
+                    let _ = ventana.show();
+                    let _ = ventana.unminimize();
+                    let _ = ventana.set_focus();
+                }
+            }
             // Si la app cierra con el micrófono grabando, no dejar a ffmpeg
             // huérfano: ya pasó, se quedó grabando 50+ minutos y le ganaba
             // el dispositivo a la siguiente grabación.

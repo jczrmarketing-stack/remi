@@ -9,7 +9,6 @@ import { Campo, type CampoRef } from "./componentes/Campo";
 import { ChipCerebro } from "./componentes/ChipCerebro";
 import { ChipVoz } from "./componentes/ChipVoz";
 import {
-  dondeQuede,
   enviarMensaje,
   guardarEpisodio,
   obtenerConversacion,
@@ -345,21 +344,12 @@ export default function App() {
     if (!expandido) return;
     const miGeneracion = generacionRef.current;
     obtenerConversacion()
-      .then(async (turnos) => {
+      .then((turnos) => {
         if (generacionRef.current !== miGeneracion) return;
-        if (turnos.length > 0) {
-          setMensajes((actuales) =>
-            // Si ya hay mensajes de esta apertura (llegaron antes que la
-            // historia), la historia va antes y no se duplica nada.
-            actuales.length > 0 ? actuales : turnos.map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto })),
-          );
-          return;
-        }
-        // Sin charla reciente: tres líneas del proyecto activo. Sin proyecto, silencio.
-        const lineas = await dondeQuede().catch(() => [] as string[]);
-        if (generacionRef.current !== miGeneracion || lineas.length === 0) return;
         setMensajes((actuales) =>
-          actuales.length > 0 ? actuales : [{ id: nuevoId(), rol: "remi", texto: lineas.join("\n\n") }],
+          // Si ya hay mensajes de esta apertura (llegaron antes que la
+          // historia), la historia va antes y no se duplica nada.
+          actuales.length > 0 ? actuales : turnos.map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto })),
         );
       })
       .catch(() => undefined);
