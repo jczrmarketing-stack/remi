@@ -24,6 +24,7 @@ import correcciones
 import db
 import entregas
 import episodios
+import notion
 import pensar
 import sembrar_conocimiento
 import trabajo
@@ -70,6 +71,7 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 app.include_router(entregas.router)
+app.include_router(notion.router)
 
 MAX_PALABRAS_VOZ = 20
 # Lo que se DICE en voz alta, cuando la respuesta la escribió el modelo: el
