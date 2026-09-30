@@ -20,6 +20,24 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 3c arreglo: al enviar, el campo queda limpio · construido · e19e1b0
+
+- **Qué cambió:** Juan Camilo avisó que el mensaje se quedaba pegado en el campo. En el log
+  (23:45): dictó y apretó Enter sin parar el dictado; el mensaje salió, pero la grabación
+  seguía y la transcripción parcial volvía a llenar el campo con todo lo dicho. Ahora Enter
+  con el dictado andando lo para, transcribe lo último y manda el texto entero; una
+  transcripción parcial de una grabación ya parada no escribe nada. Además
+  `detener_escucha_y_transcribir` es async: congelaba la ventana mientras Whisper trabajaba y
+  un toque dado en ese rato arrancaba otro dictado (23:44:48, tres veces). 67 vitest, 11
+  cargo. Instalada.
+- **Decisiones que tomé sin preguntar:** Enter durante el dictado manda, no descarta: lo
+  dictado es lo que querías decir.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** tocar la bolita, dictar, y sin tocarla de nuevo apretar Enter:
+  el mensaje sale entero y el campo queda vacío. Escribir otra cosa y mandarla.
+
+---
+
 ## 2026-09-30 · 3c la ventanita es una sola pantalla de chat · construido · de5aa0c
 
 - **Qué cambió** (un commit por punto; 1–3 juntos porque son la misma pantalla):
