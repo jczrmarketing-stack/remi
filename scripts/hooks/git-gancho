@@ -1,0 +1,24 @@
+#!/bin/sh
+# Gancho global de Remi. Git, con core.hooksPath, deja de mirar .git/hooks:
+# este archivo ocupa cada nombre y, si el repo tiene el suyo, lo corre.
+# post-commit además avisa al núcleo. Un núcleo apagado no imprime nada
+# y no cambia el código de salida del gancho del repo.
+
+nombre=$(basename "$0")
+real=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$0" 2>/dev/null) || exit 0
+dir=$(dirname "$real")
+
+if [ "$nombre" = "post-commit" ]; then
+  python3 "$dir/avisar-commit.py" >/dev/null 2>&1 || true
+fi
+
+local=$(git rev-parse --git-path "hooks/$nombre" 2>/dev/null) || exit 0
+[ -n "$local" ] || exit 0
+[ -f "$local" ] && [ -x "$local" ] || exit 0
+
+real_local=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$local" 2>/dev/null) || exit 0
+# El mismo archivo: no correrlo otra vez (sería un bucle).
+if [ "$real_local" = "$real" ]; then
+  exit 0
+fi
+exec "$local" "$@"
