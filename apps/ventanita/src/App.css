@@ -93,6 +93,13 @@
   color: var(--luz);
 }
 
+/* Lo que además pasó (idea guardada, reloj corriendo): chico, en
+   ink-muted, debajo de la respuesta. No compite con ella (ley 4). */
+.nota-respuesta {
+  color: var(--ink-muted);
+  align-self: flex-start;
+}
+
 /* «transcribiendo»: la lavanda `pensar` es Remi trabajando. */
 .trabajando {
   color: var(--pensar);

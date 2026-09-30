@@ -11,6 +11,7 @@ import {
   obtenerUltimaVezDeHoy,
   obtenerUltimaVezMin,
   type MotorDePensar,
+  type TipoMensaje,
 } from "./servidor";
 import { MS_RECORDATORIO_VISIBLE, tocaRecordar } from "./recordatorio";
 import { animarTamano } from "./movimiento";
@@ -106,6 +107,15 @@ function duracionHablando(frase: string): number {
 const UMBRAL_ARRASTRE_PX = 4;
 
 
+// Qué pasó con lo que dijiste, además de la respuesta. Solo si la escribió
+// el modelo: «Guardada. La miramos en dos días.» ya lo dice sola.
+function notaDe(tipo: TipoMensaje, delModelo: boolean): string | null {
+  if (!delModelo) return null;
+  if (tipo === "idea") return "guardada en la bandeja";
+  if (tipo === "hoy") return "reloj corriendo";
+  return null;
+}
+
 // Ley 3: sin cadena de culpa. Si el núcleo no responde, Remi lo dice
 // con calma y vuelve a reposo — nunca regaña ni cuenta el fallo.
 function fraseDeFallo(): string {
@@ -122,6 +132,10 @@ export default function App() {
   // `voz` es lo que se dice; `respuestaTexto`, lo que se ve (completo).
   const [voz, setVoz] = useState("");
   const [respuestaTexto, setRespuestaTexto] = useState("");
+  // Lo que además pasó con lo que dijiste, cuando la respuesta la escribió
+  // el modelo: «guardada en la bandeja» o «reloj corriendo». Las frases
+  // fijas ya lo dicen solas, así que ahí no hace falta.
+  const [notaRespuesta, setNotaRespuesta] = useState<string | null>(null);
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
   const [grabando, setGrabando] = useState(false);
   // Entre cortar la grabación y ver el texto: Remi transcribe (whisper
@@ -335,6 +349,7 @@ export default function App() {
         }
         setVoz(respuesta.voz);
         setRespuestaTexto(respuesta.texto || respuesta.voz);
+        setNotaRespuesta(notaDe(respuesta.tipo, respuesta.tokens !== null));
         // Solo un bloque abierto tiene reloj: una idea que enfría y un
         // cierre no tienen nada que medir.
         setSesionInicio(respuesta.sesion?.inicio ?? null);
@@ -356,6 +371,7 @@ export default function App() {
         console.error("no se pudo mandar el mensaje:", error);
         setVoz(fraseDeFallo());
         setRespuestaTexto(fraseDeFallo());
+        setNotaRespuesta(null);
       } finally {
         enviandoRef.current = false;
         if (generacionRef.current === miGeneracion) setEstado("hablando");
@@ -823,6 +839,9 @@ export default function App() {
       )}
 
       {estado === "hablando" && <p className="display-it voz">{respuestaTexto}</p>}
+      {estado === "hablando" && notaRespuesta !== null && (
+        <p className="num nota-respuesta">{notaRespuesta}</p>
+      )}
       {estado === "hablando" && (
         <ControlesVoz
           velocidad={velocidad}
