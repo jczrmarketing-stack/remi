@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 
 import db
+import precarga
 import vectores
 
 BINARIO = "claude"
@@ -246,6 +247,16 @@ def _asociados(frase: str) -> list[str]:
         return []
     finally:
         conexion.close()
+
+
+def _precarga() -> tuple[str, str] | None:
+    """(texto, "<tema> razon=<razón>"), o None. Nunca rompe la respuesta:
+    sin precarga, Remi piensa igual, solo que sin el nivel 2 ya puesto."""
+    try:
+        return precarga.bloque()
+    except Exception as error:  # noqa: BLE001 — la precarga es una ayuda, no un requisito
+        print(f"[precarga] no pude precargar ({type(error).__name__}): sigo sin ella", file=sys.stderr)
+        return None
 
 
 @dataclass(frozen=True)
@@ -675,6 +686,13 @@ def pensar(
     asociados = _asociados(frase)
     if asociados:
         instrucciones = instrucciones + ENCABEZADO_ASOCIADOS + ", ".join(asociados)
+    precargado = _precarga()
+    if precargado is not None:
+        texto, registro = precargado
+        instrucciones = instrucciones + texto
+        print(f"[precarga] precargado={registro}", file=sys.stderr)
+    else:
+        print("[precarga] nada que precargar (sin bloque abierto ni libro tocado)", file=sys.stderr)
     turnos, resumen = _conversacion()
     mensaje = mensaje_con_historia(frase, turnos, resumen)
     elegido = motor(motor_pedido)
