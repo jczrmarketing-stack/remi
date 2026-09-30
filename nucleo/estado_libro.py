@@ -1,8 +1,10 @@
 """La sección «Estado» de un libro de proyecto.
 
-El resto del libro no se toca. Ollama la escribe; si no está, Haiku; si
-ninguno contesta, queda un estado plano sacado del commit, para que el
-libro igual cambie.
+El resto del libro no se toca. Haiku la escribe, con el carácter de Remi
+(conocimiento/caracter.md); si no contesta, Ollama de respaldo; si ninguno
+contesta, queda un estado plano sacado del commit, para que el libro igual
+cambie. (Antes era al revés —Ollama primero— y sonaba robótico: encargo del
+30-sep.)
 """
 from __future__ import annotations
 
@@ -51,20 +53,21 @@ def escribir_estado(archivo: Path, texto: str) -> None:
 
 def redactar(pedido: str) -> str | None:
     """Tres líneas, o None si no hubo respuesta usable."""
-    modelo = pensar._ajuste("REMI_OLLAMA_MODELO", pensar.OLLAMA_MODELO_POR_DEFECTO)
+    instrucciones_con_caracter = f"{pensar.caracter()}\n\n{INSTRUCCIONES}"
     try:
-        datos = pensar._llamar_ollama(modelo, INSTRUCCIONES, pedido)
-        pensado = pensar._leer_respuesta_venice(datos, modelo, 0, proveedor="ollama")
+        pensado = pensar._una_llamada_claude(pensar.MODOS["rapido"], pedido, instrucciones_con_caracter, [])
         if pensado:
             limpio = normalizar(pensado.paso_minimo)
             if limpio:
                 return limpio
-    except Exception as error:  # noqa: BLE001 — Ollama caído cae a Haiku
-        print(f"[estado] Ollama no está ({type(error).__name__}): pruebo con Haiku", file=sys.stderr)
+    except Exception as error:  # noqa: BLE001 — Haiku caído cae a Ollama
+        print(f"[estado] Haiku no contestó ({type(error).__name__}): pruebo con Ollama", file=sys.stderr)
+    modelo = pensar._ajuste("REMI_OLLAMA_MODELO", pensar.OLLAMA_MODELO_POR_DEFECTO)
     try:
-        pensado = pensar._una_llamada_claude(pensar.MODOS["rapido"], pedido, INSTRUCCIONES, [])
+        datos = pensar._llamar_ollama(modelo, INSTRUCCIONES, pedido)
+        pensado = pensar._leer_respuesta_venice(datos, modelo, 0, proveedor="ollama")
     except Exception as error:  # noqa: BLE001 — sin modelo queda el estado plano
-        print(f"[estado] Haiku no contestó ({type(error).__name__})", file=sys.stderr)
+        print(f"[estado] Ollama tampoco está ({type(error).__name__})", file=sys.stderr)
         return None
     if pensado is None:
         return None
