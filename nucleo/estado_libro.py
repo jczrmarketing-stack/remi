@@ -54,8 +54,30 @@ def escribir_estado(archivo: Path, texto: str) -> None:
     archivo.write_text(f"---{partes[1]}---{nuevo_cuerpo}")
 
 
+def sin_evidencia_nueva(pedido: str) -> bool:
+    """True si el pedido no trae ningún commit nuevo bajo «Commits nuevos:».
+
+    Sin esto, un llamado suelto a `redactar()` (como el del incidente del
+    30-sep) puede terminar inventando un Estado con la bandeja vacía. Ninguna
+    rutina llama al modelo si esto da True — ni Haiku ni Ollama.
+    """
+    lineas = pedido.splitlines()
+    try:
+        indice = lineas.index("Commits nuevos:")
+    except ValueError:
+        return True
+    resto = [linea for linea in lineas[indice + 1 :] if linea.strip()]
+    return not resto
+
+
 def redactar(pedido: str) -> str | None:
-    """Tres líneas, o None si no hubo respuesta usable."""
+    """Tres líneas, o None si no hubo respuesta usable.
+
+    None también, sin llamar a ningún modelo, si `pedido` no trae commits
+    nuevos (ver `sin_evidencia_nueva`): sin evidencia, el libro no se toca.
+    """
+    if sin_evidencia_nueva(pedido):
+        return None
     instrucciones_con_caracter = f"{pensar.caracter()}\n\n{INSTRUCCIONES}"
     try:
         pensado = pensar._una_llamada_claude(pensar.MODOS["rapido"], pedido, instrucciones_con_caracter, [])

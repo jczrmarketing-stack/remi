@@ -174,3 +174,63 @@ def test_normalizar_acepta_las_tres_lineas() -> None:
         "Quedaste: ahí.\nDecisiones: ninguna nueva.\nPróximo paso: la ficha."
     ) == ("Quedaste: ahí.\nDecisiones: ninguna nueva.\nPróximo paso: la ficha.")
     assert estado_libro.normalizar("solo una frase") is None
+
+
+def test_sin_evidencia_nueva_redactar_no_llama_a_ningun_modelo(monkeypatch) -> None:
+    """El incidente del 30-sep: un pedido con la bandeja de commits vacía no
+    puede terminar en una llamada al modelo — ahí es donde inventa."""
+    llamados: list[str] = []
+
+    def _falso_claude(*_args, **_kwargs):
+        llamados.append("claude")
+        raise AssertionError("no debía llamarse a Claude sin evidencia nueva")
+
+    def _falso_ollama(*_args, **_kwargs):
+        llamados.append("ollama")
+        raise AssertionError("no debía llamarse a Ollama sin evidencia nueva")
+
+    monkeypatch.setattr(estado_libro.pensar, "_una_llamada_claude", _falso_claude)
+    monkeypatch.setattr(estado_libro.pensar, "_llamar_ollama", _falso_ollama)
+
+    pedido_vacio = estado_libro.pedido("Malik", "Quedaste: ahí.\nDecisiones: ninguna.\nPróximo paso: seguir.", [])
+
+    assert estado_libro.sin_evidencia_nueva(pedido_vacio) is True
+    assert estado_libro.redactar(pedido_vacio) is None
+    assert llamados == []
+
+
+def test_con_evidencia_el_pedido_no_esta_vacio() -> None:
+    pedido_con_commit = estado_libro.pedido(
+        "Malik", "", [{"mensaje": "el mosaico", "rama": "main", "archivos": ["a.ts"]}]
+    )
+    assert estado_libro.sin_evidencia_nueva(pedido_con_commit) is False
+
+
+def test_las_instrucciones_prohiben_inventar_fuera_de_la_fuente() -> None:
+    """Defensa en profundidad además de `sin_evidencia_nueva`: aunque sí haya
+    commits, la instrucción al modelo tiene que decirle que no complete con
+    hechos que no estén en la fuente."""
+    baja = estado_libro.INSTRUCCIONES.lower()
+    assert "no inventes" in baja
+    assert "estado anterior" in baja and "commits" in baja
+
+
+def test_redactar_manda_la_instruccion_anti_invento_al_modelo(monkeypatch) -> None:
+    vistos: dict[str, str] = {}
+
+    class _Pensado:
+        paso_minimo = "Quedaste: ahí.\nDecisiones: ninguna nueva.\nPróximo paso: seguir."
+
+    def _capturar_claude(_modo, _pedido, instrucciones, _herramientas):
+        vistos["instrucciones"] = instrucciones
+        return _Pensado()
+
+    monkeypatch.setattr(estado_libro.pensar, "_una_llamada_claude", _capturar_claude)
+
+    pedido_con_commit = estado_libro.pedido(
+        "Malik", "", [{"mensaje": "el mosaico", "rama": "main", "archivos": ["a.ts"]}]
+    )
+    resultado = estado_libro.redactar(pedido_con_commit)
+
+    assert resultado is not None
+    assert "no inventes" in vistos["instrucciones"].lower()
