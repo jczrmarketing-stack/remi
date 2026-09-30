@@ -4,6 +4,12 @@ import { registrar } from "../registro";
 import type { VozDisponible } from "../voz";
 import "./ChipModelo.css";
 
+// «em_alex» → «Alex», por si la lista del núcleo todavía no llegó.
+export function nombreLegible(id: string): string {
+  const sinPrefijo = id.replace(/^[a-z]{2}_/, "");
+  return sinPrefijo.charAt(0).toUpperCase() + sinPrefijo.slice(1);
+}
+
 interface Props {
   velocidad: Velocidad;
   onVelocidad: (velocidad: Velocidad) => void;
@@ -17,7 +23,7 @@ interface Props {
  * Un click en la velocidad pasa a la siguiente (1× → 1,5× → 2×).
  */
 export function AjustesVoz({ velocidad, onVelocidad, voces, voz, onVoz }: Props) {
-  const nombre = voz === VOZ_AUTOMATICA ? "Auto" : (voces.find((v) => v.id === voz)?.label ?? voz);
+  const nombre = voz === VOZ_AUTOMATICA ? "Auto" : (voces.find((v) => v.id === voz)?.label ?? nombreLegible(voz));
   const siguiente = VELOCIDADES[(VELOCIDADES.indexOf(velocidad) + 1) % VELOCIDADES.length];
   return (
     <div className="chip-modelo ajustes-voz">

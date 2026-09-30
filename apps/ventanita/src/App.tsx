@@ -674,6 +674,7 @@ export default function App() {
   // Los motores los nombra el núcleo, con qué le falta a cada uno. Si no
   // contesta, el dropdown muestra el guardado y listo.
   useEffect(() => {
+    if (motores.length > 0 && expandido) return;
     obtenerMotores()
       .then((lista) => {
         setMotores(lista);
@@ -686,7 +687,8 @@ export default function App() {
         }
       })
       .catch(() => setMotores([]));
-  }, [cambiarMotor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cambiarMotor, expandido]);
 
   // Cada media hora, en reposo: «pensás con X», con un solo movimiento, y
   // se va a los 4 s. Se mide desde el último recordatorio, no desde el
@@ -707,11 +709,16 @@ export default function App() {
 
   // Las voces las nombra el núcleo. Si no contesta, el selector queda solo
   // con "Auto" y Remi habla con la voz del sistema: nada que avisar.
+  // Se vuelve a pedir cada vez que se abre, si todavía no llegó: la
+  // ventanita puede arrancar antes que el núcleo (30/09, 22:30: la voz
+  // salía como «em_alex» porque la lista había quedado vacía).
   useEffect(() => {
+    if (vocesDisponibles.length > 0) return;
     obtenerVoces()
       .then(setVocesDisponibles)
       .catch(() => setVocesDisponibles([]));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandido]);
 
   const leerEnVozAlta = useCallback(() => {
     setLecturas((n) => n + 1);
