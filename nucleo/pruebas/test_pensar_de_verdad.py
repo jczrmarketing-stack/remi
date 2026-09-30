@@ -93,7 +93,7 @@ def test_sembrar_es_idempotente_por_tema_y_actualiza_si_cambio(tmp_path, monkeyp
 # — La conversación: 12 turnos de la última hora —
 
 
-def test_con_13_turnos_solo_viajan_12(monkeypatch):
+def test_con_13_turnos_viajan_los_ultimos_10(monkeypatch):
     pensar = _pensar()
     import db
 
@@ -104,12 +104,12 @@ def test_con_13_turnos_solo_viajan_12(monkeypatch):
     conexion.close()
 
     turnos = pensar._turnos()
-    assert len(turnos) == 12
-    # Viajan los 12 más nuevos, del más viejo al más nuevo: el 00 se cae.
-    assert [t.texto for t in turnos] == [f"turno-{i:02d}" for i in range(1, 13)]
+    assert len(turnos) == 10
+    # Viajan literales los 10 más nuevos, del más viejo al más nuevo.
+    assert [t.texto for t in turnos] == [f"turno-{i:02d}" for i in range(3, 13)]
 
     mensaje = pensar.mensaje_con_historia("¿y cuándo arranco?", turnos)
-    assert "turno-00" not in mensaje
+    assert "turno-02" not in mensaje
     assert "turno-12" in mensaje
     assert mensaje.rstrip().endswith("¿y cuándo arranco?")
 

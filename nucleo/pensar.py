@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -83,10 +84,17 @@ PEOR_CASO_SEGUNDOS = sum(m.techo_segundos for m in MODOS.values())
 # (las pruebas lo usan).
 RUTA_CARACTER = Path(__file__).resolve().parent.parent / "conocimiento" / "caracter.md"
 
-# La conversación: cada llamada lleva los últimos 12 turnos de la última
-# hora. Pasada la hora, conversación nueva.
-MAX_TURNOS = 12
-VENTANA_CONVERSACION_MINUTOS = 60
+# La conversación (ARQUITECTURA-CEREBRO §5): los últimos 10 turnos
+# literales más un resumen vivo de todo lo anterior de la misma
+# conversación. Se resume, nunca se corta. Conversación nueva tras 60 min
+# sin turnos (db.MINUTOS_SIN_TURNOS_PARA_CERRAR).
+MAX_TURNOS = 10
+INSTRUCCIONES_RESUMEN = (
+    "Resumís una conversación entre Juan Camilo y Remi, su asistente. Te dan el "
+    "resumen que había y los turnos que acaban de salir de la memoria literal. "
+    "Devolvé el resumen actualizado: decisiones, datos (montos, fechas, nombres), "
+    "pendientes y tono. En español, en prosa, máximo 150 palabras. Solo el resumen."
+)
 
 # Solo si el archivo no está: un Remi mínimo, para no quedarse mudo.
 CARACTER_DE_RESPALDO = (
@@ -382,46 +390,125 @@ def _modelo_real(datos: dict[str, Any], pedido: str) -> str:
     return pedido
 
 
+def _ahora() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _conversacion() -> tuple[list[db.Turno], str]:
+    """Los últimos 10 turnos literales y el resumen de lo anterior, de la
+    conversación vigente. Sin conversación vigente, nada."""
+    try:
+        conexion = db.conectar()
+    except Exception:
+        return [], ""
+    try:
+        vigente = db.conversacion_vigente(conexion, _ahora())
+        if vigente is None:
+            return [], ""
+        return db.turnos_de(conexion, vigente.id)[-MAX_TURNOS:], vigente.resumen
+    finally:
+        conexion.close()
+
+
 def _turnos() -> list[db.Turno]:
-    from datetime import datetime, timedelta, timezone
+    return _conversacion()[0]
 
-    desde = datetime.now(timezone.utc) - timedelta(minutes=VENTANA_CONVERSACION_MINUTOS)
+
+def _guardar_turno(rol: str, texto: str) -> str | None:
     try:
         conexion = db.conectar()
     except Exception:
-        return []
+        return None
     try:
-        return db.turnos_recientes(conexion, desde, MAX_TURNOS)
+        return db.guardar_turno(conexion, rol, texto, _ahora())
     finally:
         conexion.close()
 
 
-def _guardar_turno(rol: str, texto: str) -> None:
-    from datetime import datetime, timezone
-
-    try:
-        conexion = db.conectar()
-    except Exception:
-        return
-    try:
-        db.guardar_turno(conexion, rol, texto, datetime.now(timezone.utc))
-    finally:
-        conexion.close()
+def _lineas(turnos: list[db.Turno]) -> str:
+    return "\n".join(f"{'Juan Camilo' if t.rol == 'juan' else 'Remi'}: {t.texto}" for t in turnos)
 
 
-def mensaje_con_historia(frase: str, turnos: list[db.Turno]) -> str:
-    """Lo que viaja como mensaje: la conversación reciente y, al final, lo
-    que Juan Camilo acaba de decir. Sin turnos, la frase sola."""
-    if not turnos:
+def mensaje_con_historia(frase: str, turnos: list[db.Turno], resumen: str = "") -> str:
+    """Lo que viaja como mensaje: el resumen de lo anterior, los últimos
+    turnos literales y, al final, lo que Juan Camilo acaba de decir."""
+    partes = []
+    if resumen:
+        partes.append(f"Resumen de lo anterior en esta conversación:\n{resumen}")
+    if turnos:
+        partes.append(f"Últimos turnos (lo más viejo primero):\n{_lineas(turnos)}")
+    if not partes:
         return frase
-    lineas = [
-        f"{'Juan Camilo' if t.rol == 'juan' else 'Remi'}: {t.texto}" for t in turnos
-    ]
-    return (
-        "Conversación de la última hora (lo más viejo primero):\n"
-        + "\n".join(lineas)
-        + f"\n\nAhora Juan Camilo dice:\n{frase}"
-    )
+    return "\n\n".join(partes) + f"\n\nAhora Juan Camilo dice:\n{frase}"
+
+
+# — El resumen vivo —
+
+
+def _resumir_con_ollama(resumen: str, salientes: list[db.Turno]) -> str | None:
+    pedido = f"Resumen que había:\n{resumen or '(ninguno)'}\n\nTurnos que salen:\n{_lineas(salientes)}"
+    modelo_ollama = _ajuste("REMI_OLLAMA_MODELO", OLLAMA_MODELO_POR_DEFECTO)
+    try:
+        datos = _llamar_ollama(modelo_ollama, INSTRUCCIONES_RESUMEN, pedido)
+    except httpx.HTTPError as error:
+        print(f"[resumen] Ollama no está ({type(error).__name__}): pruebo con Haiku", file=sys.stderr)
+        return None
+    pensado = _leer_respuesta_venice(datos, modelo_ollama, 0, proveedor="ollama")
+    return pensado.paso_minimo if pensado else None
+
+
+def _resumir_con_haiku(resumen: str, salientes: list[db.Turno]) -> str | None:
+    pedido = f"Resumen que había:\n{resumen or '(ninguno)'}\n\nTurnos que salen:\n{_lineas(salientes)}"
+    pensado = _una_llamada_claude(MODOS["rapido"], pedido, INSTRUCCIONES_RESUMEN, [])
+    return pensado.paso_minimo if pensado else None
+
+
+def resumir(resumen: str, salientes: list[db.Turno]) -> str | None:
+    """Ollama (gemma3:4b, local y gratis); si no está, Haiku."""
+    return _resumir_con_ollama(resumen, salientes) or _resumir_con_haiku(resumen, salientes)
+
+
+def actualizar_resumen(conversacion_id: str, resumidor: "Any" = None) -> bool:
+    """Cada turno que sale de los 10 literales entra al resumen. True si
+    cambió algo. Si el resumidor falla, el resumen queda como estaba y se
+    reintenta la próxima vez: los turnos no se pierden, siguen en la base."""
+    resumidor = resumir if resumidor is None else resumidor
+    conexion = db.conectar()
+    try:
+        fila = conexion.execute(
+            "SELECT resumen, resumidos FROM conversaciones WHERE id = ?", (conversacion_id,)
+        ).fetchone()
+        if fila is None:
+            return False
+        turnos = db.turnos_de(conexion, conversacion_id)
+        hasta = len(turnos) - MAX_TURNOS
+        if hasta <= fila["resumidos"]:
+            return False
+        salientes = turnos[fila["resumidos"] : hasta]
+        nuevo = resumidor(fila["resumen"], salientes)
+        if not nuevo:
+            print("[resumen] no se pudo resumir: queda para la próxima", file=sys.stderr)
+            return False
+        db.guardar_resumen(conexion, conversacion_id, nuevo.strip(), hasta)
+        print(f"[resumen] +{len(salientes)} turnos al resumen ({hasta} en total)", file=sys.stderr)
+        return True
+    finally:
+        conexion.close()
+
+
+def _actualizar_resumen_en_segundo_plano(conversacion_id: str | None) -> None:
+    """Después de contestar, no antes: resumir no puede demorar la respuesta."""
+    if conversacion_id is None:
+        return
+    import threading
+
+    def correr() -> None:
+        try:
+            actualizar_resumen(conversacion_id)
+        except Exception as error:
+            print(f"[resumen] falló ({type(error).__name__}: {error})", file=sys.stderr)
+
+    threading.Thread(target=correr, daemon=True).start()
 
 
 def pensar(frase: str, motor_pedido: str | None = None, modo_pedido: str | None = None) -> Pensado | None:
@@ -430,7 +517,8 @@ def pensar(frase: str, motor_pedido: str | None = None, modo_pedido: str | None 
     llama sigue por el camino sin IA — nunca se rompe la respuesta por esto."""
     indice = _indice()
     instrucciones = instrucciones_con_indice(indice)
-    mensaje = mensaje_con_historia(frase, _turnos())
+    turnos, resumen = _conversacion()
+    mensaje = mensaje_con_historia(frase, turnos, resumen)
     elegido = motor(motor_pedido)
     if elegido == "venice":
         pensado = _pensar_con_venice(mensaje, instrucciones, len(indice))
@@ -441,9 +529,10 @@ def pensar(frase: str, motor_pedido: str | None = None, modo_pedido: str | None 
 
     # El turno de Juan Camilo se guarda siempre que se pensó; el de Remi,
     # solo si contestó.
-    _guardar_turno("juan", frase)
+    conversacion_id = _guardar_turno("juan", frase)
     if pensado is not None:
-        _guardar_turno("remi", pensado.paso_minimo)
+        conversacion_id = _guardar_turno("remi", pensado.paso_minimo)
+    _actualizar_resumen_en_segundo_plano(conversacion_id)
     return pensado
 
 

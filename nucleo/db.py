@@ -96,6 +96,17 @@ CREATE TABLE IF NOT EXISTS turnos (
 
 CREATE INDEX IF NOT EXISTS idx_turnos_fecha ON turnos(fecha);
 
+-- Una conversación: arranca con un turno y termina tras 60 min sin turnos.
+-- Lleva un resumen vivo de lo que ya salió de los últimos 10 turnos
+-- literales (ARQUITECTURA-CEREBRO §5): se resume, nunca se corta.
+CREATE TABLE IF NOT EXISTS conversaciones (
+    id TEXT PRIMARY KEY,
+    inicio TEXT NOT NULL,
+    ultimo TEXT NOT NULL,
+    resumen TEXT NOT NULL DEFAULT '',
+    resumidos INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS entregas (
     id TEXT PRIMARY KEY,
     cliente TEXT NOT NULL,
@@ -131,7 +142,11 @@ def inicializar_esquema(ruta: Path | None = None) -> None:
 
 # Columnas que llegaron después de crear la tabla. CREATE TABLE IF NOT
 # EXISTS no las agrega a una base que ya existía: se agregan acá, una vez.
-_COLUMNAS_NUEVAS = (("memoria", "claves", "TEXT"), ("memoria", "nivel", "INTEGER"))
+_COLUMNAS_NUEVAS = (
+    ("memoria", "claves", "TEXT"),
+    ("memoria", "nivel", "INTEGER"),
+    ("turnos", "conversacion_id", "TEXT"),
+)
 
 
 def _migrar(conexion: sqlite3.Connection) -> None:
@@ -537,23 +552,67 @@ class Turno:
     fecha: datetime
 
 
-def guardar_turno(conexion: sqlite3.Connection, rol: str, texto: str, fecha: datetime) -> None:
+# Pasado esto sin turnos, la conversación terminó y la siguiente es nueva.
+MINUTOS_SIN_TURNOS_PARA_CERRAR = 60
+
+
+@dataclass(frozen=True)
+class Conversacion:
+    id: str
+    resumen: str
+    # Cuántos turnos (desde el primero) ya están dentro del resumen.
+    resumidos: int
+
+
+def conversacion_vigente(conexion: sqlite3.Connection, ahora: datetime) -> Conversacion | None:
+    """La que tuvo un turno en los últimos 60 min. None si no hay."""
+    from datetime import timedelta
+
+    corte = ahora - timedelta(minutes=MINUTOS_SIN_TURNOS_PARA_CERRAR)
+    fila = conexion.execute(
+        "SELECT id, resumen, resumidos FROM conversaciones WHERE ultimo >= ? ORDER BY ultimo DESC LIMIT 1",
+        (corte.isoformat(),),
+    ).fetchone()
+    return Conversacion(fila["id"], fila["resumen"], fila["resumidos"]) if fila else None
+
+
+def guardar_turno(conexion: sqlite3.Connection, rol: str, texto: str, fecha: datetime) -> str:
+    """Guarda el turno en la conversación vigente, o abre una nueva si pasó
+    una hora sin turnos. Devuelve el id de la conversación."""
     from uuid import uuid4
 
+    vigente = conversacion_vigente(conexion, fecha)
+    if vigente is None:
+        conversacion_id = str(uuid4())
+        conexion.execute(
+            "INSERT INTO conversaciones (id, inicio, ultimo) VALUES (?, ?, ?)",
+            (conversacion_id, fecha.isoformat(), fecha.isoformat()),
+        )
+    else:
+        conversacion_id = vigente.id
+        conexion.execute(
+            "UPDATE conversaciones SET ultimo = ? WHERE id = ?", (fecha.isoformat(), conversacion_id)
+        )
     conexion.execute(
-        "INSERT INTO turnos (id, rol, texto, fecha) VALUES (?, ?, ?, ?)",
-        (str(uuid4()), rol, texto, fecha.isoformat()),
+        "INSERT INTO turnos (id, rol, texto, fecha, conversacion_id) VALUES (?, ?, ?, ?, ?)",
+        (str(uuid4()), rol, texto, fecha.isoformat(), conversacion_id),
     )
     conexion.commit()
+    return conversacion_id
 
 
-def turnos_recientes(conexion: sqlite3.Connection, desde: datetime, limite: int) -> list[Turno]:
-    """Los últimos `limite` turnos desde `desde`, del más viejo al más nuevo."""
+def turnos_de(conexion: sqlite3.Connection, conversacion_id: str) -> list[Turno]:
+    """Todos los turnos de una conversación, del primero al último."""
     filas = conexion.execute(
-        "SELECT rol, texto, fecha FROM turnos WHERE fecha >= ? ORDER BY fecha DESC LIMIT ?",
-        (desde.isoformat(), limite),
+        "SELECT rol, texto, fecha FROM turnos WHERE conversacion_id = ? ORDER BY fecha",
+        (conversacion_id,),
     ).fetchall()
-    return [
-        Turno(rol=f["rol"], texto=f["texto"], fecha=datetime.fromisoformat(f["fecha"]))
-        for f in reversed(filas)
-    ]
+    return [Turno(rol=f["rol"], texto=f["texto"], fecha=datetime.fromisoformat(f["fecha"])) for f in filas]
+
+
+def guardar_resumen(conexion: sqlite3.Connection, conversacion_id: str, resumen: str, resumidos: int) -> None:
+    conexion.execute(
+        "UPDATE conversaciones SET resumen = ?, resumidos = ? WHERE id = ?",
+        (resumen, resumidos, conversacion_id),
+    )
+    conexion.commit()
