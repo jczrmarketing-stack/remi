@@ -38,7 +38,7 @@ def test_con_think_contesta_el_modelo_y_el_paso_minimo_nace_universal(tmp_path, 
     servidor = _arrancar_servidor()
     llamadas = []
 
-    def falso_pensar(frase, motor=None, modo=None, nivel=None):
+    def falso_pensar(frase, motor=None, modo=None, nivel=None, **_k):
         llamadas.append(frase)
         return servidor.pensar.Pensado(
             paso_minimo="Abre la app del banco y busca el teléfono.",
@@ -62,7 +62,7 @@ def test_con_think_contesta_el_modelo_y_el_paso_minimo_nace_universal(tmp_path, 
 def test_con_think_pero_claude_no_puede_sigue_sin_ia(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     servidor = _arrancar_servidor()
-    monkeypatch.setattr(servidor.pensar, "pensar", lambda _frase, _motor=None, _modo=None, nivel=None: None)
+    monkeypatch.setattr(servidor.pensar, "pensar", lambda _frase, _motor=None, _modo=None, nivel=None, **_k: None)
     cliente = TestClient(servidor.app)
 
     creada = cliente.post("/mensaje", json={"texto": "voy a llamar al banco", "think": True}).json()
@@ -83,7 +83,7 @@ def test_sin_techo_de_palabras_y_hablado_hasta_tres_frases(tmp_path, monkeypatch
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda _frase, _motor=None, _modo=None, nivel=None: servidor.pensar.Pensado(largo.strip(), 1, 1, "m"),
+        lambda _frase, _motor=None, _modo=None, nivel=None, **_k: servidor.pensar.Pensado(largo.strip(), 1, 1, "m"),
     )
     cliente = TestClient(servidor.app)
 
@@ -533,3 +533,22 @@ def test_el_log_dice_modo_cacheados_y_libros(monkeypatch, capsys):
     for pedazo in ("modo=equilibrio", "entrada=4", "cache_leida=5200", "cache_escrita=900",
                    "salida=300", "leyó=sí", "libros=upvisuals", "ms="):
         assert pedazo in linea, pedazo
+
+
+def test_buscar_solo_cuando_se_pide():
+    import clasificar
+
+    assert clasificar.pide_busqueda("Buscá el precio del dominio remi.co")
+    assert clasificar.pide_busqueda("buscame cómo se instala whisper-server")
+    assert not clasificar.pide_busqueda("¿qué tengo pendiente con Alfonso?")
+    assert not clasificar.pide_busqueda("voy a buscar las llaves")
+
+
+def test_websearch_solo_en_el_mensaje_que_busca(tmp_path):
+    pensar = _importar_pensar()
+    sin = pensar._comando("sonnet", "x", tmp_path / "mcp.json")
+    con = pensar._comando("sonnet", "x", tmp_path / "mcp.json", buscar=True)
+    assert "WebSearch" not in sin[sin.index("--tools") + 1]
+    assert "WebSearch" not in sin[sin.index("--allowedTools") + 1]
+    assert con[con.index("--tools") + 1] == "Read,Grep,Glob,WebSearch"
+    assert "WebSearch" in con[con.index("--allowedTools") + 1]

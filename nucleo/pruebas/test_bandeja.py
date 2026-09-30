@@ -184,7 +184,7 @@ def test_pensar_no_elige_el_tipo(tmp_path, monkeypatch):
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda _frase, _motor=None, _modo=None, nivel=None: servidor.pensar.Pensado("Es una tarea urgentísima, hacela ya.", 1, 1, "m"),
+        lambda _frase, _motor=None, _modo=None, nivel=None, **_k: servidor.pensar.Pensado("Es una tarea urgentísima, hacela ya.", 1, 1, "m"),
     )
     cliente = TestClient(servidor.app)
 
@@ -215,7 +215,7 @@ def test_en_dialogo_una_idea_contesta_pensando(tmp_path, monkeypatch):
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda _frase, _motor=None, _modo=None, nivel=None: servidor.pensar.Pensado("Empezá por una receta, la que más hacés.", 300, 12, "venice/x"),
+        lambda _frase, _motor=None, _modo=None, nivel=None, **_k: servidor.pensar.Pensado("Empezá por una receta, la que más hacés.", 300, 12, "venice/x"),
     )
     cliente = TestClient(servidor.app)
     cuerpo = cliente.post(
@@ -257,7 +257,7 @@ def test_el_motor_viaja_de_la_ventanita_al_pensar(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
     visto = {}
 
-    def falso_pensar(frase, motor=None, modo=None, nivel=None):
+    def falso_pensar(frase, motor=None, modo=None, nivel=None, **_k):
         visto.update(frase=frase, motor=motor)
         return servidor.pensar.Pensado("Una respuesta.", 1, 1, "venice/x")
 
@@ -281,7 +281,7 @@ def test_una_pregunta_se_contesta_y_no_deja_nada(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
     monkeypatch.setattr(
         servidor.pensar, "pensar",
-        lambda _f, _m=None, _modo=None, nivel=None: servidor.pensar.Pensado("La Fase 1 vence el 18 oct.", 1, 1, "sonnet"),
+        lambda _f, _m=None, _modo=None, nivel=None, **_k: servidor.pensar.Pensado("La Fase 1 vence el 18 oct.", 1, 1, "sonnet"),
     )
     cliente = TestClient(servidor.app)
     cuerpo = cliente.post("/mensaje", json={"texto": "¿qué tengo pendiente con Alfonso?", "think": True}).json()

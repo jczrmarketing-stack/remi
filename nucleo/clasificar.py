@@ -87,6 +87,16 @@ def normalizar(texto: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", sin_tildes).strip()
 
 
+# Buscar en la web solo cuando se pide con esas palabras (3c · 8): «buscá
+# el precio…», «buscame dónde…». Sin IA, como el resto: el modelo nunca
+# decide salir a internet por su cuenta.
+_PATRON_BUSQUEDA = re.compile(r"^(?:remi |lucho )?(?:busca|buscame|buscanos|buscalo|busquemos)\b")
+
+
+def pide_busqueda(texto: str) -> bool:
+    return bool(_PATRON_BUSQUEDA.match(normalizar(texto)))
+
+
 def clasificar(texto: str) -> TipoMensaje:
     limpio = normalizar(texto)
     if not limpio:

@@ -130,7 +130,7 @@ def test_pensar_guarda_los_dos_turnos_y_el_segundo_lleva_el_primero(monkeypatch,
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
     vistos = []
 
-    def falso_claude(mensaje, instrucciones, indice, modo=None, nivel=None):
+    def falso_claude(mensaje, instrucciones, indice, modo=None, nivel=None, buscar=False):
         vistos.append(mensaje)
         return pensar.Pensado("Tenés pendiente la Fase 1.", 1, 1, "sonnet")
 
@@ -253,7 +253,7 @@ def test_modo_prompt_arma_un_encargo_sin_guardar_nada(monkeypatch):
 
     visto = {}
 
-    def falso_pensar(frase, motor=None, modo=None, sistema=None, nivel=None):
+    def falso_pensar(frase, motor=None, modo=None, sistema=None, nivel=None, **_k):
         visto.update(frase=frase, modo=modo, sistema=sistema)
         return servidor.pensar.Pensado("QUÉ\nArreglar la X.\n\nDÓNDE\napps/ventanita", 1, 1, "sonnet")
 

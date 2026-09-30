@@ -268,6 +268,9 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         print(f"[mensaje] tipo=encargo ms={ms:.0f} pensó={'sí' if respuesta.tokens else 'no'}", file=sys.stderr, flush=True)
         return respuesta
     tipo = clasificar.clasificar(mensaje.texto)
+    # «buscá…» se contesta (con la web), no se guarda en la Bandeja.
+    if clasificar.pide_busqueda(mensaje.texto):
+        tipo = "pregunta"
 
     if tipo == "idea":
         respuesta = _guardar_idea(mensaje)
@@ -350,7 +353,12 @@ def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
 def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
     """Una pregunta se contesta y no deja nada: ni idea en la Bandeja, ni
     tarea, ni sesión. Sin modelo no hay con qué contestar, y se dice."""
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel) if mensaje.think else None
+    buscar = clasificar.pide_busqueda(mensaje.texto)
+    pensado = (
+        pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, buscar=buscar)
+        if mensaje.think
+        else None
+    )
     if pensado is None:
         return _respuesta_fija("pregunta", "Sin pensar no puedo contestarte eso. No guardé nada.")
     return RespuestaMensaje(

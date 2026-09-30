@@ -430,7 +430,16 @@ def _carpetas_de_codigo() -> list[str]:
     return argumentos
 
 
-def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path) -> list[str]:
+INSTRUCCIONES_BUSQUEDA = (
+    "Esta vez te pidió buscar en la web: usá WebSearch. Contestá en una o dos frases y después "
+    "poné como máximo 3 links, uno por renglón, así: [título corto](https://…) — una línea de "
+    "por qué sirve. Nada más."
+)
+
+
+def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path, buscar: bool = False) -> list[str]:
+    # WebSearch solo en el mensaje que lo pide: nunca queda prendido.
+    herramientas_casa = (*HERRAMIENTAS_DE_LECTURA, "WebSearch") if buscar else HERRAMIENTAS_DE_LECTURA
     return [
         BINARIO,
         "-p",
@@ -444,7 +453,7 @@ def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path) -> list[s
         # settings del usuario, sin sesión en disco. Además, el estante y
         # solo esas dos puertas.
         "--tools",
-        ",".join(HERRAMIENTAS_DE_LECTURA),
+        ",".join(herramientas_casa),
         *_carpetas_de_codigo(),
         "--restricted",
         "--strict-mcp-config",
@@ -454,7 +463,7 @@ def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path) -> list[s
         "--mcp-config",
         str(config_mcp),
         "--allowedTools",
-        ",".join((*HERRAMIENTAS, *HERRAMIENTAS_DE_LECTURA)),
+        ",".join((*HERRAMIENTAS, *herramientas_casa)),
         "--disallowedTools",
         ",".join(reglas_de_no_leer()),
         "--max-turns",
@@ -625,6 +634,7 @@ def pensar(
     modo_pedido: str | None = None,
     sistema: str | None = None,
     nivel: str | None = None,
+    buscar: bool = False,
 ) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
@@ -634,12 +644,19 @@ def pensar(
     turnos, resumen = _conversacion()
     mensaje = mensaje_con_historia(frase, turnos, resumen)
     elegido = motor(motor_pedido)
+    if buscar:
+        # Solo Claude tiene WebSearch: una búsqueda va por Claude aunque el
+        # chip diga Venice u Ollama, y queda dicho en el log.
+        if elegido != "claude":
+            print(f"[pensar] búsqueda pedida con {elegido}: va por Claude", file=sys.stderr)
+        elegido = "claude"
+        instrucciones = f"{instrucciones}\n\n{INSTRUCCIONES_BUSQUEDA}"
     if elegido == "venice":
         pensado = _pensar_con_venice(mensaje, instrucciones, len(indice))
     elif elegido == "ollama":
         pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice))
     else:
-        pensado = _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel)
+        pensado = _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel, buscar)
 
     # El turno de Juan Camilo se guarda siempre que se pensó; el de Remi,
     # solo si contestó.
@@ -772,13 +789,14 @@ def _pensar_con_claude(
     indice: list[db.EntradaIndice],
     elegido: Modo | None = None,
     nivel: str | None = None,
+    buscar: bool = False,
 ) -> Pensado | None:
     """El modo elegido (con su nivel); si falla o se pasa de su techo, el anterior."""
     elegido = MODOS[MODO_POR_DEFECTO] if elegido is None else elegido
     cadena = cadena_de_modos(elegido)
     cadena[0] = con_nivel(cadena[0], nivel)
     for i, m in enumerate(cadena):
-        pensado = _una_llamada_claude(m, frase, instrucciones, indice)
+        pensado = _una_llamada_claude(m, frase, instrucciones, indice, buscar)
         if pensado is not None:
             return pensado
         if i + 1 < len(cadena):
@@ -791,6 +809,7 @@ def _una_llamada_claude(
     frase: str,
     instrucciones: str,
     indice: list[db.EntradaIndice],
+    buscar: bool = False,
 ) -> Pensado | None:
     nombre_modelo = m.modelo
     timeout = m.techo_segundos
@@ -803,7 +822,7 @@ def _una_llamada_claude(
         with tempfile.TemporaryDirectory(prefix="remi-pensar-") as vacio:
             marca = Path(vacio) / "leyo"
             terminado = subprocess.run(
-                _comando(nombre_modelo, instrucciones, _config_mcp(Path(vacio), marca)),
+                _comando(nombre_modelo, instrucciones, _config_mcp(Path(vacio), marca), buscar),
                 input=frase,
                 capture_output=True,
                 text=True,
