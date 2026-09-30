@@ -8,6 +8,7 @@ mientras siga enfriando.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import os
 import re
 import sqlite3
@@ -28,6 +29,26 @@ BOGOTA = ZoneInfo("America/Bogota")
 
 HORAS_DE_ENFRIAMIENTO = 48
 MINUTOS_ENTRE_ESTADOS = 10
+
+
+def es_carpeta_de_proyecto(ruta: str) -> bool:
+    """Un proyecto sin libro solo cuenta si la carpeta está dentro de un repo
+    de git. Abrir Claude Code en la carpeta personal (30/09, 00:47) o en una
+    temporal no es un proyecto: antes dejaba «proyecto sin ficha:
+    /Users/juancamilo» en la Bandeja."""
+    try:
+        carpeta = Path(ruta).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return False
+    casa = Path.home().resolve()
+    if carpeta == casa:
+        return False
+    for actual in (carpeta, *carpeta.parents):
+        if actual == casa or actual == actual.parent:
+            return False
+        if (actual / ".git").exists():
+            return True
+    return False
 
 
 def _anotar_sin_ficha(ruta: str, ahora: datetime) -> bool:
@@ -257,7 +278,7 @@ def recibir(tipo: str, ruta: str, datos: dict[str, object] | None = None, ahora:
     libro = libros.por_ruta(ruta)
     tema = libro.tema if libro else None
     anotado = False
-    if libro is None and ruta.strip():
+    if libro is None and ruta.strip() and es_carpeta_de_proyecto(ruta.strip()):
         anotado = _anotar_sin_ficha(ruta.strip(), momento)
 
     carga = datos or {}
@@ -283,7 +304,9 @@ def recibir(tipo: str, ruta: str, datos: dict[str, object] | None = None, ahora:
     if tema and tipo == "commit":
         _programar_estado(tema, momento)
     contexto = _contexto_de(ruta) if tipo == "sesion_inicio" else None
-    if tipo == "sesion_fin":
+    # El episodio, solo de un proyecto: una sesión en la carpeta personal no
+    # deja nota a nombre de «juancamilo».
+    if tipo == "sesion_fin" and (libro is not None or es_carpeta_de_proyecto(ruta)):
         _programar_cierre(ruta, carga, momento)
 
     return {"proyecto": tema, "anotado": anotado, "contexto": contexto}

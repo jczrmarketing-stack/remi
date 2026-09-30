@@ -1,3 +1,4 @@
+from pathlib import Path
 """POST /evento: la carpeta elige el libro. Sin libro, una nota en la Bandeja."""
 import importlib
 import sys
@@ -50,7 +51,10 @@ def test_un_commit_en_la_carpeta_cae_en_su_libro(tmp_path, monkeypatch):
 def test_sin_ficha_entra_a_la_bandeja_una_sola_vez(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
     cliente = TestClient(servidor.app)
-    cuerpo = {"tipo": "commit", "ruta": "/Users/juan/projects/desconocido", "datos": {}}
+    # Un proyecto sin libro es un repo de git de verdad.
+    repo = tmp_path / "desconocido"
+    (repo / ".git").mkdir(parents=True)
+    cuerpo = {"tipo": "commit", "ruta": str(repo), "datos": {}}
 
     primera = cliente.post("/evento", json=cuerpo)
     segunda = cliente.post("/evento", json=cuerpo)
@@ -65,4 +69,23 @@ def test_sin_ficha_entra_a_la_bandeja_una_sola_vez(tmp_path, monkeypatch):
         textos = [fila["texto"] for fila in conexion.execute("SELECT texto FROM ideas")]
     finally:
         conexion.close()
-    assert textos == ["proyecto sin ficha: /Users/juan/projects/desconocido"]
+    assert textos == [f"proyecto sin ficha: {repo}"]
+
+
+def test_la_carpeta_personal_y_una_sin_git_no_son_proyectos(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    suelta = tmp_path / "suelta"
+    suelta.mkdir()
+    for ruta in (str(Path.home()), str(suelta)):
+        for tipo in ("sesion_inicio", "sesion_fin", "commit"):
+            respuesta = cliente.post("/evento", json={"tipo": tipo, "ruta": ruta, "datos": {}})
+            assert respuesta.json()["anotado"] is False
+    import db
+
+    conexion = db.conectar()
+    try:
+        assert conexion.execute("SELECT COUNT(*) FROM ideas").fetchone()[0] == 0
+    finally:
+        conexion.close()
+    assert not (tmp_path / "boveda" / "episodios").exists() or list((tmp_path / "boveda" / "episodios").glob("*.md")) == []
