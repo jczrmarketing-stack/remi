@@ -16,7 +16,7 @@ echo "Remi · desinstalando"
 
 # `bootout` vuelve antes de que el agente termine de irse: sin esperar,
 # el script decía «bajado» con el servicio todavía arriba.
-for etiqueta in "$ETIQUETA_APP" "$ETIQUETA"; do
+for etiqueta in "$ETIQUETA_APP" "$ETIQUETA" "com.remi.whisper"; do
   plist="$HOME/Library/LaunchAgents/$etiqueta.plist"
   if launchctl list "$etiqueta" > /dev/null 2>&1; then
     launchctl bootout "gui/$UID/$etiqueta" 2>/dev/null \

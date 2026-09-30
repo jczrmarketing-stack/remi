@@ -60,6 +60,6 @@ echo
 
 echo "Instalada la de: $(git -C "$RAIZ" log --oneline -1)"
 echo "«Remi» resuelve a: $(osascript -e 'POSIX path of (path to application "Remi")' 2>/dev/null || echo '?')"
-launchctl list | grep -E "com\.remi\.(nucleo|ventanita)" | grep -v application || true
+launchctl list | grep -E "com\.remi\.(nucleo|ventanita|whisper)" | grep -v application || true
 LIBRE="$(df -H /System/Volumes/Data | tail -1 | awk '{print $4}')"
 echo "Espacio libre: $LIBRE"

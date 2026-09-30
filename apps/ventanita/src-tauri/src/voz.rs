@@ -8,7 +8,7 @@ use std::process::{Child, ChildStderr, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
@@ -83,6 +83,10 @@ pub struct AvisoSilencio {
 struct ConfigVoz {
     ffmpeg_bin: String,
     whisper_cli_bin: String,
+    // Whisper residente (agente com.remi.whisper). Si falta o no contesta,
+    // se usa whisper-cli como antes.
+    #[serde(default)]
+    whisper_server_url: Option<String>,
     modelo: String,
     idioma: String,
     dispositivo_audio: String,
@@ -579,6 +583,56 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
         }
     }
 
+    let arranque = Instant::now();
+    let texto = match config.whisper_server_url.as_deref().map(|url| transcribir_con_servidor(url, ruta_wav)) {
+        Some(Ok(texto)) => {
+            log::info!("[voz] whisper residente: {} ms", arranque.elapsed().as_millis());
+            texto
+        }
+        otro => {
+            if let Some(Err(error)) = otro {
+                log::warn!("[voz] whisper residente no contestó ({error}): uso whisper-cli");
+            }
+            let texto = transcribir_con_cli(&config, ruta_wav)?;
+            log::info!("[voz] whisper-cli: {} ms", arranque.elapsed().as_millis());
+            texto
+        }
+    };
+
+    let texto = texto.trim().to_string();
+    if es_solo_ruido(&texto) {
+        log::warn!("[voz] whisper solo devolvió ruido: {texto:?}");
+        return Err("no se entendió nada de lo grabado".to_string());
+    }
+    if texto.chars().count() < LARGO_MINIMO_TRANSCRIPCION {
+        log::warn!("[voz] transcripción de {} caracteres, la descarto: {texto:?}", texto.chars().count());
+        return Err("no se entendió nada de lo grabado".to_string());
+    }
+    Ok(texto)
+}
+
+// El modelo ya cargado en el agente com.remi.whisper: ~1 s por frase en vez
+// de recargar 1,6 GB cada vez. Por curl, sin sumar un cliente HTTP a Rust.
+fn transcribir_con_servidor(url: &str, ruta_wav: &Path) -> Result<String, String> {
+    let salida = Command::new("/usr/bin/curl")
+        .args(["-s", "-f", "--max-time", "60", "-F"])
+        .arg(format!("file=@{}", ruta_wav.display()))
+        .args(["-F", "response_format=text", "-F", "temperature=0.0"])
+        .arg(format!("{}/inference", url.trim_end_matches('/')))
+        .output()
+        .map_err(|e| format!("no pude correr curl: {e}"))?;
+    if !salida.status.success() {
+        return Err(format!("curl salió con {}", salida.status));
+    }
+    // El servidor parte el texto en renglones por segmento: se unen.
+    let texto = String::from_utf8_lossy(&salida.stdout)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    Ok(texto)
+}
+
+fn transcribir_con_cli(config: &ConfigVoz, ruta_wav: &Path) -> Result<String, String> {
     let base_salida = ruta_temporal("");
 
     let salida = Command::new(&config.whisper_cli_bin)
@@ -616,16 +670,6 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
     let ruta_txt = base_salida.with_extension("txt");
     let texto = fs::read_to_string(&ruta_txt).unwrap_or_default();
     let _ = fs::remove_file(&ruta_txt);
-
-    let texto = texto.trim().to_string();
-    if es_solo_ruido(&texto) {
-        log::warn!("[voz] whisper solo devolvió ruido: {texto:?}");
-        return Err("no se entendió nada de lo grabado".to_string());
-    }
-    if texto.chars().count() < LARGO_MINIMO_TRANSCRIPCION {
-        log::warn!("[voz] transcripción de {} caracteres, la descarto: {texto:?}", texto.chars().count());
-        return Err("no se entendió nada de lo grabado".to_string());
-    }
     Ok(texto)
 }
 

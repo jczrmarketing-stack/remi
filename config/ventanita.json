@@ -9,6 +9,8 @@
     "whisper_cli_bin": "/opt/homebrew/bin/whisper-cli",
     "modelo": "/Users/juancamilo/Library/Application Support/com.pais.handy/models/ggml-large-v3-turbo.bin",
     "idioma": "es",
-    "dispositivo_audio": "2"
+    "dispositivo_audio": "2",
+    "whisper_server_url": "http://127.0.0.1:4401",
+    "$comment_whisper_server": "Whisper residente (agente com.remi.whisper, lo instala scripts/instalar.sh). Si no contesta, se usa whisper_cli_bin como antes."
   }
 }

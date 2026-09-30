@@ -138,6 +138,58 @@ plutil -lint "$PLIST" > /dev/null
 launchctl bootstrap "gui/$UID" "$PLIST" 2>/dev/null || launchctl load "$PLIST"
 echo "  núcleo: instalado"
 
+# — Whisper residente: el modelo cargado una sola vez —
+# whisper-cli recargaba 1,6 GB por frase: 1,6–2,8 s con la Mac tranquila y
+# hasta 18 s con memoria apretada (30/09, 22:13). El servidor lo deja en
+# memoria y transcribe en ~1 s por HTTP local. Si no está, la ventanita cae
+# a whisper-cli sola.
+ETIQUETA_WHISPER="com.remi.whisper"
+PLIST_WHISPER="$HOME/Library/LaunchAgents/$ETIQUETA_WHISPER.plist"
+WHISPER_SERVER="$(command -v whisper-server || echo /opt/homebrew/bin/whisper-server)"
+MODELO_WHISPER="$(python3 -c "import json;print(json.load(open('$RAIZ/config/ventanita.json'))['voz']['modelo'])")"
+PUERTO_WHISPER="$(python3 -c "import json,urllib.parse as u;print(u.urlparse(json.load(open('$RAIZ/config/ventanita.json'))['voz']['whisper_server_url']).port)")"
+bajar_agente "$ETIQUETA_WHISPER" "$PLIST_WHISPER" || true
+if [[ -x "$WHISPER_SERVER" && -f "$MODELO_WHISPER" ]]; then
+  cat > "$PLIST_WHISPER" <<PLISTWEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$ETIQUETA_WHISPER</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>$WHISPER_SERVER</string>
+		<string>-m</string>
+		<string>$MODELO_WHISPER</string>
+		<string>-l</string>
+		<string>es</string>
+		<string>-sns</string>
+		<string>-nth</string>
+		<string>0.5</string>
+		<string>--host</string>
+		<string>127.0.0.1</string>
+		<string>--port</string>
+		<string>$PUERTO_WHISPER</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>$LOGS/whisper.log</string>
+	<key>StandardErrorPath</key>
+	<string>$LOGS/whisper.log</string>
+</dict>
+</plist>
+PLISTWEOF
+  plutil -lint "$PLIST_WHISPER" > /dev/null
+  launchctl bootstrap "gui/$UID" "$PLIST_WHISPER" 2>/dev/null || launchctl load "$PLIST_WHISPER"
+  echo "  whisper: residente en 127.0.0.1:$PUERTO_WHISPER"
+else
+  echo "  whisper: sin whisper-server o sin modelo — la ventanita usa whisper-cli" >&2
+fi
+
 # — Segundo agente: abrir Remi al iniciar sesión —
 # Sin KeepAlive a propósito: si cerrás la ventanita, se queda cerrada hasta
 # el próximo inicio de sesión. El núcleo sí se relevanta; la app es tuya.
