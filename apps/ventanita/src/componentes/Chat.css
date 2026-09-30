@@ -105,3 +105,24 @@
 .chat::-webkit-scrollbar {
   display: none;
 }
+
+/* Lectura biónica (3d · 11): la voz de Remi pasa a Geist, porque Instrument
+   Serif no tiene negrita y el DS prohíbe la negrita en serif. Ancla 700–800;
+   el resto en 400, al 85 %–55 % de la tinta; interlineado 1,6–1,8. Las
+   perillas las pone Chat.tsx según la intensidad. */
+.chat[data-bionica="si"] .chat__remi {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-size: 16px;
+  line-height: var(--bio-interlineado, 1.7);
+}
+
+.chat[data-bionica="si"] .bio-ancla {
+  font-weight: var(--bio-peso, 750);
+  color: var(--ink);
+}
+
+.chat[data-bionica="si"] .bio-resto {
+  font-weight: 400;
+  color: color-mix(in srgb, var(--ink) var(--bio-tinta, 70%), var(--surface));
+}

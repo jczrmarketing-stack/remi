@@ -1,0 +1,75 @@
+.lectura {
+  position: relative;
+}
+
+.lectura__chip {
+  appearance: none;
+  background: transparent;
+  font: inherit;
+}
+
+/* El panel sube desde el chip, sobre la conversación. Borde, no sombra. */
+.lectura__panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--space-2));
+  width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  z-index: 4;
+}
+
+.lectura__fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.lectura__fila--columna {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.lectura__fila[data-apagada="si"] {
+  opacity: 0.45;
+}
+
+.lectura__etiqueta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-muted);
+}
+
+.lectura__segmentos {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.lectura__segmento {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.lectura__segmento[data-activo="si"] {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.lectura__interruptor,
+.lectura__panel input[type="range"] {
+  accent-color: var(--brasa);
+  cursor: pointer;
+}

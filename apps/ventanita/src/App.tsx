@@ -8,6 +8,8 @@ import { Chat, type Mensaje } from "./componentes/Chat";
 import { Campo, type CampoRef } from "./componentes/Campo";
 import { ChipCerebro } from "./componentes/ChipCerebro";
 import { ChipVoz } from "./componentes/ChipVoz";
+import { ChipLectura } from "./componentes/ChipLectura";
+import { useLectura } from "./lectura";
 import {
   dondeQuede,
   enviarMensaje,
@@ -179,6 +181,8 @@ export default function App() {
   const [ahoraMs, setAhoraMs] = useState(() => Date.now());
   const [ultimaVezDeHoy, setUltimaVezDeHoy] = useState<number | null>(null);
 
+  // Tema Noche/Claro y lectura biónica (3d · 11).
+  const [lectura, cambiarLectura] = useLectura();
   const campoRef = useRef<CampoRef>(null);
   // Lo que había en el campo antes de dictar: lo dictado se suma detrás.
   const baseDictadoRef = useRef("");
@@ -1107,6 +1111,7 @@ export default function App() {
         onCallar={callar}
         onCopiar={copiar}
         onReintentar={reintentar}
+        bionica={lectura.bionica ? lectura.intensidad : null}
         onEnlace={(url) => {
           // Los links de una búsqueda (3c · 8) se abren en el navegador.
           registrar("enlace", { url });
@@ -1148,15 +1153,18 @@ export default function App() {
 
       <div className="pie">
         <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
-        <ChipVoz
-          voz={vozElegida}
-          velocidad={velocidad}
-          voces={vocesDisponibles}
-          onElegir={(nuevaVoz, nuevaVelocidad) => {
-            cambiarVoz(nuevaVoz);
-            cambiarVelocidad(nuevaVelocidad);
-          }}
-        />
+        <div className="pie__derecha">
+          <ChipLectura lectura={lectura} onCambiar={cambiarLectura} />
+          <ChipVoz
+            voz={vozElegida}
+            velocidad={velocidad}
+            voces={vocesDisponibles}
+            onElegir={(nuevaVoz, nuevaVelocidad) => {
+              cambiarVoz(nuevaVoz);
+              cambiarVelocidad(nuevaVelocidad);
+            }}
+          />
+        </div>
       </div>
     </div>
   );

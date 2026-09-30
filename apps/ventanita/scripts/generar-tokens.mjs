@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Genera src/tokens.css desde design/tokens.json (tema Noche).
+// Genera src/tokens.css desde design/tokens.json: tema Noche en :root y
+// tema Día (el «Claro» de la ventanita, 3d · 11) en :root[data-tema="claro"].
 // No editar a mano: correr `npm run generar:tokens` de nuevo.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -37,6 +38,18 @@ function generar() {
   lineas.push("");
   for (const t of tokens.radius.tokens) {
     lineas.push(`  --${t.name}: ${t.value};`);
+  }
+  lineas.push("}");
+  lineas.push("");
+
+  // Tema Claro: los mismos nombres con los valores «dia» del DS.
+  lineas.push('/* Tema Claro: los valores «dia» del Design System. */');
+  lineas.push(':root[data-tema="claro"] {');
+  for (const t of tokens.color.tokens) {
+    if (t.value.dia) lineas.push(`  --${t.name}: ${t.value.dia};`);
+  }
+  for (const t of tokens.shadow.tokens) {
+    if (t.value.dia) lineas.push(`  --${t.name}: ${t.value.dia};`);
   }
   lineas.push("}");
   lineas.push("");

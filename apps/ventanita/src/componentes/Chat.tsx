@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { type CSSProperties, Fragment, useEffect, useRef } from "react";
+import { partirBionica, perillasBionica } from "../bionica";
 import { partirRespuesta, type Parte } from "../markdown";
 import { Encargo } from "./Encargo";
 import { AccionesRespuesta } from "./AccionesRespuesta";
@@ -19,14 +20,37 @@ interface Props {
   onCopiar: (texto: string) => Promise<boolean>;
   onReintentar: () => void;
   onEnlace: (url: string) => void;
+  // Lectura biónica: la intensidad (0–1), o null si está apagada. Solo en lo
+  // que escribe Remi; nunca en botones, campos ni en la tarjeta de código.
+  bionica?: number | null;
 }
 
-function Partes({ partes, onEnlace }: { partes: Parte[]; onEnlace: (url: string) => void }) {
+function Bionico({ texto }: { texto: string }) {
+  return (
+    <>
+      {partirBionica(texto).map((trozo, i) =>
+        trozo.tipo === "ancla" ? (
+          <b key={i} className="bio-ancla">
+            {trozo.texto}
+          </b>
+        ) : trozo.tipo === "resto" ? (
+          <span key={i} className="bio-resto">
+            {trozo.texto}
+          </span>
+        ) : (
+          <Fragment key={i}>{trozo.texto}</Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
+function Partes({ partes, onEnlace, bionica }: { partes: Parte[]; onEnlace: (url: string) => void; bionica: boolean }) {
   return (
     <>
       {partes.map((parte, i) =>
         parte.tipo === "texto" ? (
-          <span key={i}>{parte.texto}</span>
+          <span key={i}>{bionica ? <Bionico texto={parte.texto} /> : parte.texto}</span>
         ) : (
           <a
             key={i}
@@ -56,7 +80,7 @@ function MensajeDeRemi({ mensaje, ultimo, ...acciones }: Omit<Props, "mensajes">
           <Encargo key={i} texto={bloque.texto} />
         ) : (
           <p key={i} className="display-it chat__remi">
-            <Partes partes={bloque.partes} onEnlace={acciones.onEnlace} />
+            <Partes partes={bloque.partes} onEnlace={acciones.onEnlace} bionica={acciones.bionica != null} />
           </p>
         ),
       )}
@@ -92,8 +116,17 @@ export function Chat({ mensajes, ...acciones }: Props) {
     fondo.current?.scrollIntoView({ block: "end" });
   }, [mensajes]);
 
+  const perillas = acciones.bionica != null ? perillasBionica(acciones.bionica) : null;
+  const estilo = perillas
+    ? ({
+        "--bio-peso": perillas.pesoAncla,
+        "--bio-tinta": `${perillas.tintaResto}%`,
+        "--bio-interlineado": perillas.interlineado,
+      } as CSSProperties)
+    : undefined;
+
   return (
-    <div className="chat" aria-live="polite">
+    <div className="chat" aria-live="polite" data-bionica={perillas ? "si" : "no"} style={estilo}>
       {mensajes.map((mensaje, i) =>
         mensaje.rol === "juan" ? (
           <div key={mensaje.id} className="chat__mensaje chat__mensaje--juan">

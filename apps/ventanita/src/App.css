@@ -214,3 +214,9 @@
 .ventanita--chat:hover .asa {
   opacity: 0.8;
 }
+
+.pie__derecha {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

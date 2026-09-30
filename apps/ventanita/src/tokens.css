@@ -42,3 +42,28 @@
   --radius-lg: 24px;
   --radius-pill: 999px;
 }
+
+/* Tema Claro: los valores «dia» del Design System. */
+:root[data-tema="claro"] {
+  --ground: #f6f1e9;
+  --surface: #ffffff;
+  --surface-2: #efe8de;
+  --line: #d9cfc3;
+  --ink: #1a1412;
+  --ink-muted: #6b6054;
+  --ink-faint: #9a8f83;
+  --luz: #8a6a12;
+  --on-luz: #ffffff;
+  --dinero: #9a5b00;
+  --on-dinero: #ffffff;
+  --brasa: #c2410c;
+  --on-brasa: #ffffff;
+  --alerta: #c1223f;
+  --pensar: #6d4fd6;
+  --baja: #8a7f74;
+  --dormido: #c9bfb2;
+  --focus-ring: #8a4b00;
+  --glow-luz: 0 0 0 4px rgba(138, 106, 18, 0.18);
+  --glow-brasa: 0 0 0 4px rgba(194, 65, 12, 0.18);
+  --glow-pensar: 0 0 0 4px rgba(109, 79, 214, 0.18);
+}

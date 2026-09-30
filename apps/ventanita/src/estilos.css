@@ -34,6 +34,16 @@
   src: url("./fuentes/geist-500.woff2") format("woff2");
 }
 
+/* 700–800: solo el ancla de la lectura biónica (3d · 11). Fuente variable,
+   subconjunto latino (con tildes y ñ), de Google Fonts. */
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  src: url("./fuentes/geist-variable-latin.woff2") format("woff2");
+}
+
 @font-face {
   font-family: "Geist Mono";
   font-style: normal;
