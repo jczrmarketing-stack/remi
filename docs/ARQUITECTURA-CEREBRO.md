@@ -115,9 +115,18 @@ SQLite y la página de Notion. Un libro, tres vistas.
 | **Equilibrio** (por defecto) | Claude Sonnet por Max | Casi todo. 3–5 s. |
 | **Inteligente** | Claude Opus por Max, con razonamiento | Decisiones, estrategia, planes. 8–15 s. |
 
-**El trabajo de trastienda lo hace el modelo local, gratis:** embeddings, palabras clave,
-resumen vivo de la conversación, consolidación, borradores. Claude solo piensa la respuesta.
-Así el límite semanal de Max se gasta en lo que vale. Venice queda fuera salvo elección manual.
+**Chips por proveedor (30-sep, plan de robustez):** Claude (al frente, siempre; Haiku/Sonnet/Opus
+según el nivel), Groq (gratis: Llama 4, Kimi K2), OpenRouter (DeepSeek Flash en equilibrio,
+DeepSeek V4-Pro en inteligente y Prompt, respaldo Kimi K2 / Qwen3-Coder; `models` con caída
+automática y `provider.sort=price`), Venice (manual, pago), Ollama (sin red). Los modelos viven
+en `config/motores.json`, nunca en código. **Respaldo del cerebro**: si Max devuelve límite o
+`claude -p` falla, el turno se reintenta por OpenRouter · DeepSeek V4-Pro y la respuesta lleva
+`motor_usado`; la ventanita muestra el chip real.
+
+**La trastienda es gratis y ya no la hace el modelo más flojo:** resumen vivo, claves, títulos
+de episodios y consolidación corren en Groq · Kimi K2 → OpenRouter · DeepSeek Flash → Ollama.
+Los embeddings siguen locales (Ollama). Así el límite semanal de Max se gasta en la voz de Remi,
+y los Estados de la bóveda los escribe un modelo serio, con la verificación mecánica de siempre.
 
 ## 10. Lo que viaja en cada llamada (presupuesto de contexto)
 
@@ -175,3 +184,54 @@ o una sesión en esa carpeta cae en su libro.
 - Dispersión: commits en 3 proyectos en una hora → frena (iniciativa, §8).
 - Tiempo real por proyecto, de commits + sesiones (ley 1).
 - Promesas: «le mando a Alfonso el viernes» se extrae y se recuerda.
+
+## 13. Los oficios: lo que Remi sabe hacer (30-sep, 1 a. m.)
+
+La memoria (§2) guarda lo que pasó. Los **oficios** guardan cómo se hace. Son libros del mismo
+estante, con `tipo: oficio`, en `remi-mente/oficios/`: título + resumen + claves siempre en la
+mente (nivel 1); el cuerpo se abre cuando la conversación toca el tema (nivel 2/3), y la
+asociación por vectores (§3) los trae aunque no los nombres.
+
+| Oficio | Papel en el cerebro |
+|---|---|
+| claude-code | Remi es la **puerta de los prompts**: conoce el estado del proyecto (libro) y elige pieza, modelo y forma. Se refresca cada semana desde el changelog oficial (tarea nocturna del domingo). |
+| prompting | Forma fija de todo encargo. Sin «listo cuando» no sale. |
+| stack | Convenciones + **libro de errores** (episodios con `fuente: error`: síntoma, causa, cura), alimentado desde el cierre de sesiones de Claude Code. Se consulta antes de proponer un arreglo. |
+| proyectos-sop | Propio vs cliente, paso a paso. Cada libro de proyecto lleva `paso_sop:` para saber dónde está. |
+| clientes + mi-voz | «Me escribió X» → lectura (teoría de juegos), riesgos, respuesta en su voz, guardarraíles. **Remi nunca envía.** Mi-voz se construye con mensajes reales. |
+
+**Aprender de las correcciones**: cuando Juan Camilo dice «no, así no», Remi propone una regla
+de una línea para el oficio correspondiente y la guarda con su «sí». Es el único camino por el
+que los oficios cambian solos.
+
+**Banco de pruebas (3f) ampliado**: no compara solo modelos; compara configuraciones (con/sin
+oficio, nivel, modelo) sobre 10 tareas reales de Juan Camilo. Métricas: tokens, tiempo, nota
+1–5 suya. Gana el dato.
+
+**Orden actualizado**: 3a ✅ · 3b ✅ · 3c ✅ · 3d ✅ · 3e ✅ · esta noche: C (vectores, consolidación), 2 (celebración, maquetas del panel), 3 (rituales, hilos, promesas, iniciativa) · mañana: **S oficios v1** (carga por tema, puerta de prompts, «me escribió X», libro de errores) + isla de reposo · después: 3f banco de pruebas · Fase 4 (Notion ida y vuelta, Telegram, calendario) · panel Hoy.
+
+
+## 14. Robustez: rápida, con pocas alucinaciones, sin mantenimiento (30-sep, mediodía)
+
+La revisión completa está en `docs/ROBUSTEZ.md`. Lo que cambia en la arquitectura:
+
+- **Plan B en todo lo que sale del Mac.** Cada proveedor externo: timeout, un reintento,
+  respaldo, una línea de log. Nada rompe el turno. El cerebro tiene respaldo (§9).
+- **`scripts/doctor.sh`**: un comando que revisa las 10 piezas (núcleo, whisper, kokoro, ollama,
+  LaunchAgents, bóveda git limpia, llaves en `.env`, última copia cifrada, último episodio,
+  disco). El vigía lo corre cada mañana y avisa por Telegram solo si algo falla.
+- **Notion solo de ida** por ahora (§7 se aplaza en su mitad de vuelta): Remi → Notion como
+  vitrina. La vuelta de campos de operación se activa al mes de uso real.
+- **Estados solo desde evidencia literal.** Mensajes de commit y frases del transcript; sin cita
+  no hay línea. Es la regla única. La verificación de entidades corre también como test.
+- **Reporte de la noche por Telegram**: «anoche cambié esto en N libros», con diff corto de la
+  bóveda. Un invento se revierte con `git revert` en `remi-mente`.
+- **Velocidad medida, no supuesta.** Metas: texto < 4 s, voz < 8 s. Palancas por orden: Haiku
+  en rápido; no abrir el MCP por turno cuando la precarga ya trae la memoria; streaming para que
+  Kokoro hable desde la primera frase; Kokoro caliente. El banco de pruebas (3f) da los números.
+- **Siete días sin funciones nuevas** después de cerrar las terminales del 30-sep. Solo bugs de
+  uso real, dichos en la ventanita y anotados en el libro de errores.
+
+**Orden desde el 30-sep**: hoy T1 (motores + respaldo + trastienda), T2 (Fase 3), T3 (Notion de
+ida), T4 (Telegram + reporte nocturno) · mañana doctor.sh + banco de pruebas · siete días de uso
+con un cliente · después, solo si se extrañaron: panel Hoy, vuelta de Notion, calendario.
