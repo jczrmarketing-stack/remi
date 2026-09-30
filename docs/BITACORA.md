@@ -20,6 +20,73 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Fase C · 1–2 claves + consolidación nocturna (con un segundo incidente en vivo) · construido · e79225a
+
+- **Qué cambió:**
+  1. `a3b3e44` `nucleo/claves.py`: `claves:` (3–6 palabras) en el frontmatter de libros,
+     oficios y episodios que no las tenían — Haiku una vez, con la misma regla anti-invento de
+     `estado_libro.py` más un filtro programático nuevo (`filtrar_inventadas`): cualquier
+     clave que el modelo devuelva y no aparezca literal (sin acentos/mayúsculas) en
+     título+resumen+cuerpo se descarta antes de escribir nada. Corrido de verdad: 7 proyectos
+     y 2 episodios recibieron claves reales; las 4 áreas y `oficios/README.md` quedaron sin
+     tocar porque son placeholders («Completar: …») sin texto real del que sacar nada — el
+     filtro funcionó como se esperaba, no como falla.
+  2. `e79225a` `nucleo/noche.py` + `scripts/noche.sh` + LaunchAgent `com.remi.noche` a las
+     4:00 (instalado y corriendo — `launchctl list | grep remi.noche`). Episodios del día →
+     Estado del libro tocado (solo con evidencia real); fusiona episodios repetidos del mismo
+     día y libro (mismo resumen exacto); recalcula vectores de lo que cambió; reordena la
+     mente (`sembrar_conocimiento.nivel_de`: nivel 1 si el libro se tocó en 7 días, si no
+     nivel 2 — nunca se borra nada, ARQUITECTURA §2).
+- **Incidente en vivo, encontrado probando el punto 2 (lo digo completo, no lo escondo):**
+  corrí `noche.sh` a mano dos veces seguidas para conseguir el log real que pedía el encargo.
+  Las dos veces, la rutina volvió a mirar los mismos dos episodios de hoy sobre
+  `organic-cash-malik` (ya viejos: describen algo ya resuelto) y **pisó el «Próximo paso» que
+  Juan Camilo acababa de confirmar a mano** («terminar el editor de flujos y el flujo de Lead
+  Nuevo», commit `257c906`). La primera pasada lo cambió por una paráfrasis de los episodios;
+  la segunda **inventó texto que no está en ninguna fuente real** («N8N», «WAL», «Opción B
+  confirmada por vos», «Nodo 1 / Nodo 2») — verificado con `grep` contra los dos episodios: no
+  aparece ninguna de esas palabras. La instrucción anti-invento de `estado_libro.redactar`
+  (texto libre al modelo) no alcanzó para evitarlo esta segunda vez; a diferencia de
+  `claves.py`, acá no hay un filtro programático porque el Estado es prosa, no una lista de
+  palabras sueltas.
+- **Arreglo real, no solo el parche del archivo:** `noche.py` ahora descarta cualquier
+  episodio más viejo (mtime) que la última escritura del Estado del libro — un episodio solo
+  cuenta como evidencia si es más nuevo que la corrección que podría pisar. Test de regresión
+  con el escenario exacto del incidente (`test_no_toca_un_episodio_mas_viejo_que_la_ultima_escritura_del_estado`).
+  Verificado en vivo: una tercera corrida de `noche.sh` contra los mismos episodios devolvió
+  `resultado=sin_evidencia_nueva` y no tocó el archivo. `organic-cash.md` quedó repuesto a mano
+  (commit `001b709` en la bóveda) con el texto exacto que Juan Camilo había confirmado.
+- **Verificado de verdad:** `noche.log` real (vía `launchctl kickstart`, no simulado) con las
+  tres corridas completas; 248 pytest, mypy limpio (51 módulos); `git log` de la bóveda
+  muestra los commits automáticos de cada paso.
+- **Decisiones que tomé sin preguntar:**
+  1. El guardia por mtime es más fuerte que exigir «commits nuevos hoy»: también cubre el caso
+     de una corrección manual hecha hoy mismo, que es justo lo que pisó el incidente.
+  2. `areas/` entra a `claves.py` (ya entraba a `vectores.py` de un encargo anterior) aunque el
+     encargo solo nombraba libros/oficios/episodios: mismo criterio que la vez pasada.
+  3. La fusión de episodios repetidos solo actúa con resumen **exactamente** igual (normalizado
+     por espacios/mayúsculas/acentos) — no intenta adivinar «parecido». Es deliberadamente
+     conservador después de lo de arriba.
+- **Dudas abiertas:**
+  1. **El fondo del problema no está cerrado, solo mitigado.** El guardia por mtime evita que
+     un episodio viejo pise una corrección reciente, pero si el `redactar()` de una noche
+     normal recibe evidencia real y de todos modos parafrasea de más o inventa un detalle
+     colateral, nada lo detecta hoy — no hay equivalente al `filtrar_inventadas` de
+     `claves.py` para prosa libre. Vale la pena, antes de confiar en esto sin mirar, sumar
+     algo que compare nombres propios/números del Estado nuevo contra las fuentes (commits o
+     episodios) y avise si aparece uno que no estaba.
+  2. `noche.log` no se escribe si el script corre interactivo desde una sesión de Claude Code
+     (mismo patrón que `copia.sh`: el `tee` solo entra con TTY, y sin TTY solo escribe si
+     `launchd` redirige el proceso). No es un bug nuevo, ya lo tenía `copia.sh`; lo dejo
+     anotado porque me confundió un rato.
+- **Cómo probarlo a mano:** `cd nucleo && uv run python claves.py` (idempotente, no repite si
+  ya hay claves); `launchctl kickstart -k gui/$(id -u)/com.remi.noche` y mirar
+  `~/Library/Logs/Remi/noche.log`; escribir un episodio de prueba con fecha de hoy, tocar a
+  mano el Estado del mismo libro después, y confirmar que una corrida de `noche.sh` posterior
+  dice `sin_evidencia_nueva` para ese tema.
+
+---
+
 ## 2026-09-30 · reparación del incidente de los Estados + vectores de Fase C · construido · 961aeb6
 
 - **Qué cambió** (encargo corto de Juan Camilo, cinco puntos, un commit cada uno):
