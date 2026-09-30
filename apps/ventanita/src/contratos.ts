@@ -36,7 +36,7 @@ export interface Sesion {
 
 export interface Nudge {
   id: UUID;
-  tipo: "cuerpo" | "ritual" | "encoger";
+  tipo: "cuerpo" | "ritual" | "encoger" | "rumbo";
   voz: string;
   salida_amable: boolean;
   respuesta: "listo" | "ahora_no" | null;

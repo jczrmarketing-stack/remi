@@ -30,7 +30,7 @@
   },
   "Nudge": {
     "id": "uuid",
-    "tipo": "cuerpo|ritual|encoger",
+    "tipo": "cuerpo|ritual|encoger|rumbo",
     "voz": "string",
     "salida_amable": true,
     "respuesta": "listo|ahora_no|null"

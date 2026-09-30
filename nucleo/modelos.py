@@ -52,7 +52,7 @@ class Nudge(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: UUID
-    tipo: Literal["cuerpo", "ritual", "encoger"]
+    tipo: Literal["cuerpo", "ritual", "encoger", "rumbo"]
     voz: str
     salida_amable: bool = True
     respuesta: Literal["listo", "ahora_no"] | None
