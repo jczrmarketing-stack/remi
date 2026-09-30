@@ -121,6 +121,57 @@ def test_al_cerrar_escribe_episodio_y_actualiza_el_libro(tmp_path, monkeypatch) 
     assert "Esto se queda." in libro
 
 
+def test_el_titulo_y_el_resumen_se_cortan_en_la_primera_frase(tmp_path, monkeypatch) -> None:
+    repo = tmp_path / "malik"
+    repo.mkdir()
+    _libro(tmp_path, repo)
+    transcript = tmp_path / "sesion.jsonl"
+    transcript.write_text(
+        json.dumps({"type": "user", "message": {"role": "user", "content": "Seguí con la ficha."}}) + "\n"
+    )
+    servidor = _arrancar(tmp_path, monkeypatch)
+    import cierre
+
+    monkeypatch.setattr(
+        cierre,
+        "redactar",
+        lambda _pedido: {
+            "Qué se hizo": (
+                "Se investigó el fallo de autenticación de la API de Claude. Se confirmó "
+                "que el token había vencido."
+            ),
+            "Decisiones": "ninguna nueva",
+            "Pendientes": "ninguno",
+            "Primer paso de mañana": (
+                "Enviar una solicitud de soporte técnico a Claude para investigar la causa "
+                "del error 401. estudio: o freno:"
+            ),
+        },
+    )
+    cliente = TestClient(servidor.app)
+    respuesta = cliente.post(
+        "/evento",
+        json={
+            "tipo": "sesion_fin",
+            "ruta": str(repo),
+            "datos": {"session_id": "abc", "transcript_path": str(transcript)},
+        },
+    )
+
+    assert respuesta.status_code == 200
+    episodio = next((tmp_path / "boveda" / "episodios").glob("*.md"))
+    nota = episodio.read_text()
+    frontmatter = "\n".join(nota.splitlines()[:4])
+    assert 'titulo: "Se investigó el fallo de autenticación de la API de Claude."' in frontmatter
+    assert "…" not in frontmatter
+    assert "Se confirmó" not in frontmatter
+    assert "estudio: o freno:" not in frontmatter
+    assert (
+        'resumen: "Enviar una solicitud de soporte técnico a Claude para investigar la causa del error 401."'
+        in frontmatter
+    )
+
+
 def test_un_problema_resuelto_deja_ademas_un_episodio_de_error(tmp_path, monkeypatch) -> None:
     repo = tmp_path / "malik"
     repo.mkdir()

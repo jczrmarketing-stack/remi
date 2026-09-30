@@ -132,9 +132,9 @@ def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None
         secciones = plano(charla, titulo_libro)
     cuerpo = _render(secciones)
     local = ahora.astimezone(BOGOTA)
-    titulo = episodios._recortar(episodios._una_linea(secciones["Qué se hizo"]), 80) or f"Sesión {tema}"
+    titulo = episodios._recortar(_primera_frase(secciones["Qué se hizo"]), 80) or f"Sesión {tema}"
     resumen = episodios._recortar(
-        episodios._una_linea(secciones["Primer paso de mañana"]), 240
+        _primera_frase(secciones["Primer paso de mañana"]), 240
     ) or "Retomar el hilo, cinco minutos."
     carpeta = episodios.carpeta_episodios()
     carpeta.mkdir(parents=True, exist_ok=True)
@@ -271,6 +271,24 @@ def _texto_de(content: object) -> str:
         elif isinstance(bloque, dict) and bloque.get("type") == "text":
             partes.append(str(bloque.get("text") or "").strip())
     return "\n".join(parte for parte in partes if parte)
+
+
+_FIN_DE_FRASE = re.compile(r"[.!?](?:\s|$)")
+
+
+def _primera_frase(texto: str) -> str:
+    """La primera frase completa de una sección, en una sola línea.
+
+    El modelo a veces contesta más de una frase, o deja una segunda opción
+    suelta («estudio: o freno:») sin puntuar como frase — tomar solo la
+    primera evita que esa cola entre al título o al resumen. Sin un punto
+    claro, devuelve el texto entero (una sección corta de una sola frase no
+    tiene por qué llevar punto final)."""
+    una_linea = episodios._una_linea(texto)
+    encontrado = _FIN_DE_FRASE.search(una_linea)
+    if encontrado is None:
+        return una_linea
+    return una_linea[: encontrado.end()].strip()
 
 
 def _render(secciones: dict[str, str]) -> str:
