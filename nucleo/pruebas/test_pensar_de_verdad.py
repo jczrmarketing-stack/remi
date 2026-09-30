@@ -160,3 +160,83 @@ def test_sin_pensar_no_llama_al_modelo(monkeypatch):
         respuesta = cliente.post("/mensaje", json={"texto": texto, "think": False})
         assert respuesta.status_code == 200
         assert respuesta.json()["tokens"] is None
+
+
+# — Cerebro v1: 10 literales + resumen vivo —
+
+
+def _catorce_turnos(db):
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    for i in range(14):
+        conversacion = db.guardar_turno(
+            conexion, "juan" if i % 2 == 0 else "remi", f"turno-{i:02d}", ahora - timedelta(minutes=14 - i)
+        )
+    conexion.close()
+    return conversacion
+
+
+def test_con_14_turnos_viajan_10_literales_y_el_resumen(monkeypatch):
+    pensar = _pensar()
+    import db
+
+    conversacion = _catorce_turnos(db)
+    vistos = []
+
+    def resumidor(resumen, salientes):
+        vistos.append([t.texto for t in salientes])
+        return "Hablaron de Alfonso: Fase 1 de USD 5.000, arranca pagada completa."
+
+    assert pensar.actualizar_resumen(conversacion, resumidor) is True
+    # Salieron de los 10 literales los 4 primeros, y solo esos se resumieron.
+    assert vistos == [["turno-00", "turno-01", "turno-02", "turno-03"]]
+    # Volver a llamar sin turnos nuevos no resume de nuevo.
+    assert pensar.actualizar_resumen(conversacion, resumidor) is False
+
+    turnos, resumen = pensar._conversacion()
+    assert [t.texto for t in turnos] == [f"turno-{i:02d}" for i in range(4, 14)]
+    mensaje = pensar.mensaje_con_historia("¿y cuándo arranco?", turnos, resumen)
+    assert "Fase 1 de USD 5.000" in mensaje
+    for i in range(4, 14):
+        assert f"turno-{i:02d}" in mensaje
+    for i in range(4):
+        assert f"turno-{i:02d}" not in mensaje
+    assert mensaje.rstrip().endswith("¿y cuándo arranco?")
+
+
+def test_si_el_resumidor_falla_no_se_pierde_nada(monkeypatch):
+    pensar = _pensar()
+    import db
+
+    conversacion = _catorce_turnos(db)
+    assert pensar.actualizar_resumen(conversacion, lambda r, s: None) is False
+    # Queda para la próxima: con un resumidor que anda, entran los mismos 4.
+    vistos = []
+    pensar.actualizar_resumen(conversacion, lambda r, s: (vistos.append(len(s)), "ok")[1])
+    assert vistos == [4]
+
+
+def test_el_resumen_lo_hace_ollama_y_si_no_esta_haiku(monkeypatch):
+    pensar = _pensar()
+    llamados = []
+    monkeypatch.setattr(pensar, "_resumir_con_ollama", lambda r, s: (llamados.append("ollama"), None)[1])
+    monkeypatch.setattr(pensar, "_resumir_con_haiku", lambda r, s: (llamados.append("haiku"), "de Haiku")[1])
+    assert pensar.resumir("", []) == "de Haiku"
+    assert llamados == ["ollama", "haiku"]
+
+    llamados.clear()
+    monkeypatch.setattr(pensar, "_resumir_con_ollama", lambda r, s: (llamados.append("ollama"), "de Ollama")[1])
+    assert pensar.resumir("", []) == "de Ollama"
+    assert llamados == ["ollama"]
+
+
+def test_tras_60_minutos_sin_turnos_la_conversacion_es_nueva(monkeypatch):
+    _pensar()
+    import db
+
+    antes = datetime.now(timezone.utc) - timedelta(minutes=90)
+    conexion = db.conectar()
+    vieja = db.guardar_turno(conexion, "juan", "hace hora y media", antes)
+    nueva = db.guardar_turno(conexion, "juan", "ahora", datetime.now(timezone.utc))
+    conexion.close()
+    assert vieja != nueva
