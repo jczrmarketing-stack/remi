@@ -1,0 +1,46 @@
+/* Los dos chips del pie: texto con un <select> nativo invisible encima.
+   Se ve el texto; el menú es el de macOS. Sin sombra: borde line. */
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition:
+    color var(--dur-estado) var(--curva),
+    border-color var(--dur-estado) var(--curva);
+}
+
+.chip:hover {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+
+.chip:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.chip__texto {
+  white-space: nowrap;
+}
+
+.chip__flecha {
+  opacity: 0.7;
+}
+
+.chip select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+  font: inherit;
+}

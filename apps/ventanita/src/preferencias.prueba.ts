@@ -31,26 +31,48 @@ describe("el motor guardado", () => {
   });
 });
 
-describe("el chip de modelo", () => {
-  it("cada modelo va y vuelve igual", async () => {
-    const { CEREBROS, cerebroDe, eleccionDe } = await import("./preferencias");
-    for (const c of CEREBROS) expect(cerebroDe(eleccionDe(c))).toBe(c);
+describe("el chip de cerebro", () => {
+  it("cada elección va y vuelve igual por el <select>", async () => {
+    const { deValor, valorDe } = await import("./preferencias");
+    for (const e of [
+      { motor: "claude", modelo: "opus", nivel: "extra" },
+      { motor: "ollama", modelo: "gemma3:4b" },
+      { motor: "venice" },
+    ] as const) {
+      expect(deValor(valorDe(e))).toEqual(e);
+    }
+    expect(deValor("claude:gpt:alto")).toBeNull();
   });
 
-  it("lo guardado de antes se lee como su modelo", async () => {
-    const { cerebroDe } = await import("./preferencias");
-    expect(cerebroDe({ motor: "claude", modo: "inteligente", sinPensar: false })).toBe("opus");
-    expect(cerebroDe({ motor: "ollama", modo: "equilibrio", sinPensar: false })).toBe("ollama");
-    // Prompt y «sin pensar» ya no existen: se leen como su modelo.
-    expect(cerebroDe({ motor: "claude", modo: "rapido", sinPensar: true })).toBe("haiku");
-    expect(cerebroDe({ motor: "claude", modo: "prompt", sinPensar: false })).toBe("sonnet");
+  it("el chip dice «Sonnet · medio», y extra se lee máx", async () => {
+    const { etiquetaDe } = await import("./preferencias");
+    expect(etiquetaDe({ motor: "claude", modelo: "sonnet", nivel: "medio" })).toBe("Sonnet · medio");
+    expect(etiquetaDe({ motor: "claude", modelo: "opus", nivel: "extra" })).toBe("Opus · máx");
+    expect(etiquetaDe({ motor: "ollama", modelo: "gemma3:4b" })).toBe("gemma3:4b");
   });
 
-  it("solo Anthropic tiene nivel, y Opus arranca en medio", async () => {
-    const { tieneNivel, nivelPorDefecto } = await import("./preferencias");
-    expect(tieneNivel("venice")).toBe(false);
-    expect(tieneNivel("haiku")).toBe(true);
-    expect(nivelPorDefecto("opus")).toBe("medio");
-    expect(nivelPorDefecto("sonnet")).toBe("bajo");
+  it("se recuerda la elección, salvo Venice (pago)", async () => {
+    const { fijarCerebro, obtenerCerebro } = await import("./preferencias");
+    fijarCerebro({ motor: "claude", modelo: "haiku", nivel: "alto" });
+    expect(obtenerCerebro()).toEqual({ motor: "claude", modelo: "haiku", nivel: "alto" });
+    fijarCerebro({ motor: "venice" });
+    expect(obtenerCerebro()).toEqual({ motor: "claude", modelo: "sonnet", nivel: "bajo" });
+  });
+
+  it("sin elección guardada, sale de lo de antes", async () => {
+    localStorage.setItem("remi.pensar.modo", "inteligente");
+    const { obtenerCerebro } = await import("./preferencias");
+    expect(obtenerCerebro()).toEqual({ motor: "claude", modelo: "opus", nivel: "medio" });
+  });
+
+  it("lo que viaja: Sonnet medio va como equilibrio + medio; Ollama con su modelo", async () => {
+    const { paraEnviar } = await import("./preferencias");
+    expect(paraEnviar({ motor: "claude", modelo: "sonnet", nivel: "medio" })).toEqual({
+      motor: "claude",
+      modo: "equilibrio",
+      nivel: "medio",
+      modeloOllama: null,
+    });
+    expect(paraEnviar({ motor: "ollama", modelo: "llama3" }).modeloOllama).toBe("llama3");
   });
 });

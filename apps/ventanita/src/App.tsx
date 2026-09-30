@@ -5,11 +5,12 @@ import { Semaforo } from "./componentes/Semaforo";
 import { BotonCancelar } from "./componentes/BotonCancelar";
 import { Chat, type Mensaje } from "./componentes/Chat";
 import { Campo, type CampoRef } from "./componentes/Campo";
-import { ChipModelo } from "./componentes/ChipModelo";
+import { ChipCerebro } from "./componentes/ChipCerebro";
 import { AjustesVoz } from "./componentes/AjustesVoz";
 import {
   enviarMensaje,
   obtenerConversacion,
+  obtenerModelosOllama,
   obtenerMotores,
   obtenerUltimaVezDeHoy,
   type MotorDePensar,
@@ -28,28 +29,20 @@ import { copiarAlPortapapeles } from "./portapapeles";
 import { formatearDuracion, formatearHace, registrarInteraccion, ultimaInteraccion } from "./tiempo";
 import {
   alternarSilencio,
-  type Cerebro,
-  cerebroDe,
-  eleccionDe,
+  CEREBRO_POR_DEFECTO,
+  type EleccionCerebro,
   estaSilenciado,
   estaSinPensar,
-  fijarModo,
-  fijarMotor,
-  fijarNivel,
+  etiquetaDe,
+  fijarCerebro,
   fijarSinPensar,
   fijarVelocidad,
   fijarVoz,
-  MOTOR_POR_DEFECTO,
-  type ModoPensar,
-  type Nivel,
-  nivelPorDefecto,
-  obtenerModo,
-  obtenerMotor,
-  obtenerNivel,
+  obtenerCerebro,
   obtenerVelocidad,
   obtenerVoz,
+  paraEnviar,
   type PreferenciaVoz,
-  tieneNivel,
   type Velocidad,
 } from "./preferencias";
 import {
@@ -137,24 +130,14 @@ export default function App() {
   const [velocidad, setVelocidad] = useState<Velocidad>(() => obtenerVelocidad());
   const [vozElegida, setVozElegida] = useState<PreferenciaVoz>(() => obtenerVoz());
   const [vocesDisponibles, setVocesDisponibles] = useState<VozDisponible[]>([]);
-  // «sin pensar» y el modo Prompt ya no se eligen: si quedaron de antes,
-  // se apagan al arrancar.
-  const [sinPensar] = useState(() => {
+  // Con qué piensa: el chip de cerebro (motor, modelo y nivel). «sin
+  // pensar» ya no se elige: si quedó puesto de antes, se apaga.
+  const [cerebro, setCerebro] = useState<EleccionCerebro>(() => {
     if (estaSinPensar()) fijarSinPensar(false);
-    return false;
+    return obtenerCerebro();
   });
-  const [modoPensar, setModoPensar] = useState<ModoPensar>(() => {
-    const guardado = obtenerModo();
-    if (guardado !== "prompt") return guardado;
-    fijarModo("equilibrio");
-    return "equilibrio";
-  });
-  const [motor, setMotor] = useState(() => obtenerMotor());
   const [motores, setMotores] = useState<MotorDePensar[]>([]);
-  const [nivel, setNivel] = useState<Nivel>(
-    () => obtenerNivel() ?? nivelPorDefecto(cerebroDe({ motor: obtenerMotor(), modo: obtenerModo(), sinPensar: false })),
-  );
-  const cerebro: Cerebro = cerebroDe({ motor, modo: modoPensar, sinPensar });
+  const [modelosOllama, setModelosOllama] = useState<string[]>([]);
   const [recordatorio, setRecordatorio] = useState<string | null>(null);
   const ultimoRecordatorioRef = useRef(Date.now());
   const [ultimaInteraccionMs, setUltimaInteraccionMs] = useState<number | null>(() => ultimaInteraccion());
@@ -167,8 +150,8 @@ export default function App() {
   // El último mensaje que mandaste, para «otra respuesta».
   const ultimoEnviadoRef = useRef<{ texto: string; origen: OrigenMensaje } | null>(null);
 
-  const accionesRef = useRef({ grabando, modo, estado, silenciado, texto, motor, modoPensar, nivel, velocidad, vozElegida });
-  accionesRef.current = { grabando, modo, estado, silenciado, texto, motor, modoPensar, nivel, velocidad, vozElegida };
+  const accionesRef = useRef({ grabando, modo, estado, silenciado, texto, cerebro, velocidad, vozElegida });
+  accionesRef.current = { grabando, modo, estado, silenciado, texto, cerebro, velocidad, vozElegida };
 
   // Cada vuelta a reposo (o cancelación) sube esto: lo que estaba en vuelo
   // y vuelve después queda viejo y no pisa nada.
@@ -323,18 +306,17 @@ export default function App() {
       }
       ultimoEnviadoRef.current = { texto: limpio, origen };
       setEstado("pensando");
-      const { motor: motorElegido, modoPensar: modoElegido, nivel: nivelElegido } = accionesRef.current;
+      const elegido = paraEnviar(accionesRef.current.cerebro);
       const arranque = performance.now();
-      registrar("enviar", { palabras: limpio.split(/\s+/).length, origen, motor: motorElegido, modo: modoElegido, reintento });
+      registrar("enviar", {
+        palabras: limpio.split(/\s+/).length,
+        origen,
+        cerebro: etiquetaDe(accionesRef.current.cerebro),
+        reintento,
+      });
       let respuesta: Awaited<ReturnType<typeof enviarMensaje>> | null = null;
       try {
-        respuesta = await enviarMensaje(limpio, {
-          think: true,
-          motor: motorElegido,
-          modo: modoElegido,
-          nivel: motorElegido === "claude" ? nivelElegido : null,
-          origen,
-        });
+        respuesta = await enviarMensaje(limpio, { think: true, ...elegido, origen });
       } catch (error) {
         console.error("no se pudo mandar el mensaje:", error);
       } finally {
@@ -580,43 +562,30 @@ export default function App() {
     setVozElegida(nueva);
   }, []);
 
-  const cambiarMotor = useCallback((nuevo: string) => {
-    fijarMotor(nuevo);
-    setMotor(nuevo);
+  const elegirCerebro = useCallback((nueva: EleccionCerebro) => {
+    fijarCerebro(nueva);
+    setCerebro(nueva);
   }, []);
 
-  const cambiarCerebro = useCallback((nuevo: Cerebro) => {
-    const eleccion = eleccionDe(nuevo);
-    fijarMotor(eleccion.motor);
-    setMotor(eleccion.motor);
-    fijarModo(eleccion.modo);
-    setModoPensar(eleccion.modo);
-    if (tieneNivel(nuevo)) {
-      const n = nivelPorDefecto(nuevo);
-      fijarNivel(n);
-      setNivel(n);
-    }
-  }, []);
-
-  const cambiarNivel = useCallback((nuevo: Nivel) => {
-    fijarNivel(nuevo);
-    setNivel(nuevo);
-  }, []);
-
+  // Qué motores hay y qué modelos tiene Ollama: se pide al abrir. Si el
+  // elegido hoy no está (Ollama apagado, Venice sin clave), no se manda a
+  // ciegas para fallar: vuelve a Claude, y queda dicho.
   useEffect(() => {
-    if (motores.length > 0 && expandido) return;
+    if (!expandido) return;
     obtenerMotores()
       .then((lista) => {
         setMotores(lista);
-        const actual = lista.find((m) => m.id === accionesRef.current.motor);
+        const actual = lista.find((m) => m.id === accionesRef.current.cerebro.motor);
         if (actual && !actual.disponible) {
           registrar("motor:noDisponible", { motor: actual.id, detalle: actual.detalle });
-          cambiarMotor(MOTOR_POR_DEFECTO);
+          setCerebro(CEREBRO_POR_DEFECTO);
         }
       })
       .catch(() => setMotores([]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cambiarMotor, expandido]);
+    obtenerModelosOllama()
+      .then(setModelosOllama)
+      .catch(() => setModelosOllama([]));
+  }, [expandido]);
 
   useEffect(() => {
     if (vocesDisponibles.length > 0) return;
@@ -632,14 +601,13 @@ export default function App() {
       const ahora = Date.now();
       if (!tocaRecordar(ultimoRecordatorioRef.current, ahora, accionesRef.current.estado === "reposo")) return;
       ultimoRecordatorioRef.current = ahora;
-      const actual = accionesRef.current.motor;
-      const etiqueta = motores.find((m) => m.id === actual)?.label ?? actual;
-      registrar("recordatorio:motor", { motor: actual });
+      const etiqueta = etiquetaDe(accionesRef.current.cerebro);
+      registrar("recordatorio:motor", { cerebro: etiqueta });
       setRecordatorio(`pensás con ${etiqueta}`);
       window.setTimeout(() => setRecordatorio(null), MS_RECORDATORIO_VISIBLE);
     }, 60 * 1000);
     return () => window.clearInterval(id);
-  }, [motores]);
+  }, []);
 
   // — Gestos —
 
@@ -899,14 +867,7 @@ export default function App() {
       />
 
       <div className="pie">
-        <ChipModelo
-          cerebro={cerebro}
-          nivel={nivel}
-          motores={motores}
-          deshabilitado={false}
-          onCerebro={cambiarCerebro}
-          onNivel={cambiarNivel}
-        />
+        <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
         <AjustesVoz
           velocidad={velocidad}
           onVelocidad={cambiarVelocidad}

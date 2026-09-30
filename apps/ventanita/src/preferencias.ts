@@ -109,59 +109,94 @@ export function fijarModo(modo: ModoPensar): void {
   guardar(CLAVE_MODO, modo);
 }
 
-// — El chip «Opus 5.5 · Medio» (maqueta de Juan Camilo, 30/09/2026) —
-// Un solo lugar elige con qué piensa Remi. Por debajo sigue siendo lo mismo
-// de antes (motor + modo + «sin pensar»): el chip solo lo nombra distinto.
-// El modo Prompt ya no se elige: Remi es siempre el asistente técnico
-// (30/09/2026). Tampoco «sin pensar»: solo se eligen modelo y nivel.
-export const CEREBROS = ["haiku", "sonnet", "opus", "venice", "ollama"] as const;
-export type Cerebro = (typeof CEREBROS)[number];
+// — El chip de cerebro (3c · 4) —
+// Un solo menú elige el motor y lo que ese motor ofrece: Claude (por Max)
+// con modelo × nivel de razonamiento; Ollama con su lista real; Venice.
+// El modo Prompt y «sin pensar» ya no se eligen (3b.5/3b.6).
+export const MODELOS_CLAUDE = ["haiku", "sonnet", "opus"] as const;
+export type ModeloClaude = (typeof MODELOS_CLAUDE)[number];
 
+// «extra» se muestra «máx»: es el mismo valor que ya entiende el núcleo.
 export const NIVELES = ["bajo", "medio", "alto", "extra"] as const;
 export type Nivel = (typeof NIVELES)[number];
 
-interface Eleccion {
-  motor: Motor;
+export type EleccionCerebro =
+  | { motor: "claude"; modelo: ModeloClaude; nivel: Nivel }
+  | { motor: "ollama"; modelo: string }
+  | { motor: "venice" };
+
+export const CEREBRO_POR_DEFECTO: EleccionCerebro = { motor: "claude", modelo: "sonnet", nivel: "bajo" };
+
+const MODO_DE: Record<ModeloClaude, ModoPensar> = { haiku: "rapido", sonnet: "equilibrio", opus: "inteligente" };
+const NOMBRE_MODELO: Record<ModeloClaude, string> = { haiku: "Haiku", sonnet: "Sonnet", opus: "Opus" };
+export const NOMBRE_NIVEL: Record<Nivel, string> = { bajo: "bajo", medio: "medio", alto: "alto", extra: "máx" };
+
+/** Cómo va en el <select> y en el guardado: «claude:sonnet:medio», «ollama:gemma3:4b», «venice». */
+export function valorDe(e: EleccionCerebro): string {
+  if (e.motor === "claude") return `claude:${e.modelo}:${e.nivel}`;
+  if (e.motor === "ollama") return `ollama:${e.modelo}`;
+  return "venice";
+}
+
+export function deValor(valor: string | null): EleccionCerebro | null {
+  if (!valor) return null;
+  if (valor === "venice") return { motor: "venice" };
+  if (valor.startsWith("ollama:") && valor.length > "ollama:".length) {
+    return { motor: "ollama", modelo: valor.slice("ollama:".length) };
+  }
+  const [motor, modelo, nivel] = valor.split(":");
+  if (
+    motor === "claude" &&
+    (MODELOS_CLAUDE as readonly string[]).includes(modelo) &&
+    (NIVELES as readonly string[]).includes(nivel)
+  ) {
+    return { motor: "claude", modelo: modelo as ModeloClaude, nivel: nivel as Nivel };
+  }
+  return null;
+}
+
+/** Lo que muestra el chip: «Sonnet · medio», «gemma3:4b», «Venice». */
+export function etiquetaDe(e: EleccionCerebro): string {
+  if (e.motor === "claude") return `${NOMBRE_MODELO[e.modelo]} · ${NOMBRE_NIVEL[e.nivel]}`;
+  if (e.motor === "ollama") return e.modelo;
+  return "Venice";
+}
+
+/** Lo que viaja al núcleo con cada mensaje. */
+export function paraEnviar(e: EleccionCerebro): {
+  motor: string;
   modo: ModoPensar;
-  sinPensar: boolean;
+  nivel: Nivel | null;
+  modeloOllama: string | null;
+} {
+  if (e.motor === "claude") return { motor: "claude", modo: MODO_DE[e.modelo], nivel: e.nivel, modeloOllama: null };
+  if (e.motor === "ollama") return { motor: "ollama", modo: MODO_POR_DEFECTO, nivel: null, modeloOllama: e.modelo };
+  return { motor: "venice", modo: MODO_POR_DEFECTO, nivel: null, modeloOllama: null };
 }
 
-const MODO_DE_CLAUDE: Partial<Record<Cerebro, ModoPensar>> = {
-  haiku: "rapido",
-  sonnet: "equilibrio",
-  opus: "inteligente",
-};
-
-// Lo guardado de antes (Prompt, sin pensar) se lee como su modelo.
-export function cerebroDe({ motor, modo }: Eleccion): Cerebro {
-  if (motor === "venice" || motor === "ollama") return motor;
-  if (modo === "rapido") return "haiku";
-  if (modo === "inteligente") return "opus";
-  return "sonnet";
-}
-
-export function eleccionDe(cerebro: Cerebro): Eleccion {
-  if (cerebro === "venice" || cerebro === "ollama") return { motor: cerebro, modo: MODO_POR_DEFECTO, sinPensar: false };
-  return { motor: MOTOR_POR_DEFECTO, modo: MODO_DE_CLAUDE[cerebro] ?? MODO_POR_DEFECTO, sinPensar: false };
-}
-
-// Solo los modelos de Anthropic tienen nivel. Opus arranca en medio (lo que
-// ya hacía: piensa antes); Haiku y Sonnet, en bajo.
-export function tieneNivel(cerebro: Cerebro): boolean {
-  return cerebro === "haiku" || cerebro === "sonnet" || cerebro === "opus";
-}
-
-export function nivelPorDefecto(cerebro: Cerebro): Nivel {
-  return cerebro === "opus" ? "medio" : "bajo";
-}
-
+const CLAVE_CEREBRO = "remi.pensar.cerebro";
 const CLAVE_NIVEL = "remi.pensar.nivel";
 
-export function obtenerNivel(): Nivel | null {
-  const guardado = leer(CLAVE_NIVEL);
-  return (NIVELES as readonly string[]).includes(guardado ?? "") ? (guardado as Nivel) : null;
+/**
+ * La elección guardada. Si no hay (primera vez con 3c), sale de lo que
+ * quedó de antes: motor + modo + nivel. Venice no se hereda nunca: es pago
+ * y se elige a mano cada vez (decisión de 2i, se mantiene).
+ */
+export function obtenerCerebro(): EleccionCerebro {
+  const guardado = deValor(leer(CLAVE_CEREBRO));
+  if (guardado) return guardado.motor === "venice" ? CEREBRO_POR_DEFECTO : guardado;
+  const motor = leer(CLAVE_MOTOR);
+  if (motor === "ollama") return { motor: "ollama", modelo: "gemma3:4b" };
+  const modo = leer(CLAVE_MODO);
+  const modelo: ModeloClaude = modo === "rapido" ? "haiku" : modo === "inteligente" ? "opus" : "sonnet";
+  const nivel = leer(CLAVE_NIVEL);
+  return {
+    motor: "claude",
+    modelo,
+    nivel: (NIVELES as readonly string[]).includes(nivel ?? "") ? (nivel as Nivel) : modelo === "opus" ? "medio" : "bajo",
+  };
 }
 
-export function fijarNivel(nivel: Nivel): void {
-  guardar(CLAVE_NIVEL, nivel);
+export function fijarCerebro(e: EleccionCerebro): void {
+  guardar(CLAVE_CEREBRO, valorDe(e));
 }

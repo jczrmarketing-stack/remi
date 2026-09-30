@@ -2,7 +2,7 @@ import { Volume2 } from "lucide-react";
 import { VELOCIDADES, VOZ_AUTOMATICA, type PreferenciaVoz, type Velocidad } from "../preferencias";
 import { registrar } from "../registro";
 import type { VozDisponible } from "../voz";
-import "./ChipModelo.css";
+import "./Chips.css";
 
 // «em_alex» → «Alex», por si la lista del núcleo todavía no llegó.
 export function nombreLegible(id: string): string {
