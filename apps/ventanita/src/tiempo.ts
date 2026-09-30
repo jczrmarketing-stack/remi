@@ -30,6 +30,16 @@ export function formatearDuracion(minutos: number): string {
   return resto > 0 ? `${horas} h ${String(resto).padStart(2, "0")}` : `${horas} h`;
 }
 
+// Reloj de una línea bajo el chat (3f · 4): «0:31» — h:mm compacto, en
+// `num` (Geist Mono). Mismo dato que formatearDuracion, otra forma: acá
+// cabe en una línea junto a «la última vez».
+export function formatearReloj(totalMinutos: number): string {
+  const enteros = Math.max(0, Math.floor(totalMinutos));
+  const horas = Math.floor(enteros / 60);
+  const minutos = enteros % 60;
+  return `${horas}:${String(minutos).padStart(2, "0")}`;
+}
+
 // «recién» · «hace 6 min» · «hace 1 h 40» · «hace 3 h» · «hace 2 d».
 export function formatearHace(desde: number, ahora: number = Date.now()): string {
   const minutos = Math.max(0, Math.floor((ahora - desde) / 60000));

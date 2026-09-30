@@ -1,4 +1,4 @@
-import type { Sesion, Tarea } from "./contratos";
+import type { Entrega, Sesion, Tarea } from "./contratos";
 import { URL_NUCLEO } from "./config";
 
 // Solo viene cuando pensó con Claude. Dato de operación: va a la consola,
@@ -191,6 +191,19 @@ export async function cerrarTarea(tareaId: string): Promise<number | null> {
     if (!respuesta.ok) return null;
     const tarea = (await respuesta.json()) as Tarea;
     return tarea.real_min ?? 0;
+  } catch {
+    return null;
+  }
+}
+
+// Piel dinero (3f · 3): si el proyecto de la tarea abierta tiene una
+// entrega viva (no pagada, con monto), Remi se pinta de `dinero` en vez de
+// `brasa`. null ante cualquier falla: sin entrega no cambia nada, no rompe.
+export async function obtenerEntregaDeProyecto(proyectoId: string): Promise<Entrega | null> {
+  try {
+    const respuesta = await fetch(`${URL_NUCLEO}/entregas/de-proyecto/${proyectoId}`);
+    if (!respuesta.ok) return null;
+    return (await respuesta.json()) as Entrega | null;
   } catch {
     return null;
   }

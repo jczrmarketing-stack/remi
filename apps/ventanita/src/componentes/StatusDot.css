@@ -38,6 +38,13 @@
   box-shadow: var(--glow-brasa);
 }
 
+/* Piel dinero (3f · 3): el bloque hablado es de una entrega que paga.
+   Reemplaza el color, sin inventar un glow: el DS solo tiene tres. */
+.status-dot[data-estado="hablando"][data-dinero="si"] {
+  background: var(--dinero);
+  box-shadow: none;
+}
+
 /* Fase F · 1 (30/09/2026): la bolita vuelve a significar con el color del
    DS — escuchando luz, pensando pensar (lavanda), hablando brasa, reposo
    baja. Es lo único que cambia de color; el tamaño de la maqueta de

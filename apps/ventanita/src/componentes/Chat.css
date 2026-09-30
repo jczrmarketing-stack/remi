@@ -207,3 +207,17 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* Reloj de una línea (3f · 4): «0:31 · la última vez 1:20», mono. Brasa el
+   bloque en curso; dinero cuando la entrega paga (3f · 3). */
+.chat__reloj {
+  align-self: flex-start;
+}
+
+.chat__reloj--brasa {
+  color: var(--brasa);
+}
+
+.chat__reloj--dinero {
+  color: var(--dinero);
+}

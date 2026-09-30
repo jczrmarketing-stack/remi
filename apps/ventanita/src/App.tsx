@@ -16,11 +16,14 @@ import {
   enviarMensaje,
   guardarEpisodio,
   obtenerConversacion,
+  obtenerEntregaDeProyecto,
   obtenerModelosOllama,
   obtenerMotores,
   obtenerUltimaVezDeHoy,
+  obtenerUltimaVezMin,
   type MotorDePensar,
 } from "./servidor";
+import type { Entrega } from "./contratos";
 import { MS_RECORDATORIO_VISIBLE, tocaRecordar } from "./recordatorio";
 import { animarTamano } from "./movimiento";
 import {
@@ -159,6 +162,12 @@ export default function App() {
   // Lo que está en el campo de abajo.
   const [texto, setTexto] = useState("");
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  // Piel dinero (3f · 3): la entrega viva del proyecto del bloque abierto,
+  // si tiene una. null la mayoría del tiempo: hoy nada le pone proyecto_id
+  // a una tarea todavía (ver nucleo/servidor.py) — queda listo para cuando sí.
+  const [entregaDelBloque, setEntregaDelBloque] = useState<Entrega | null>(null);
+  // Reloj de una línea (3f · 4): cuánto tardó la última vez esta misma tarea.
+  const [ultimaVezDelBloqueMin, setUltimaVezDelBloqueMin] = useState<number | null>(null);
   const [grabando, setGrabando] = useState(false);
   const [transcribiendo, setTranscribiendo] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
@@ -398,6 +407,34 @@ export default function App() {
       })
       .catch(() => undefined);
   }, [expandido]);
+
+  // Piel dinero (3f · 3): el bloque abierto es el de la última respuesta de
+  // Remi que abrió una tarea (`tipo: "hoy"`) y sigue sin cerrar — el mismo
+  // criterio que «Hecha» en Chat.tsx. Si esa tarea tiene proyecto y ese
+  // proyecto tiene una entrega viva, la bolita y el Reloj se pintan dinero.
+  useEffect(() => {
+    const ultimo = mensajes[mensajes.length - 1];
+    const bloqueAbierto = ultimo?.tarea && ultimo.tarea.estado === "hoy" ? ultimo.tarea : null;
+    if (!bloqueAbierto) {
+      setEntregaDelBloque(null);
+      setUltimaVezDelBloqueMin(null);
+      return;
+    }
+    let vivo = true;
+    if (bloqueAbierto.proyecto_id) {
+      obtenerEntregaDeProyecto(bloqueAbierto.proyecto_id).then((entrega) => {
+        if (vivo) setEntregaDelBloque(entrega);
+      });
+    } else {
+      setEntregaDelBloque(null);
+    }
+    obtenerUltimaVezMin(bloqueAbierto.id).then((min) => {
+      if (vivo) setUltimaVezDelBloqueMin(min);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [mensajes]);
 
   // — La voz de Remi —
 
@@ -1088,6 +1125,9 @@ export default function App() {
     [guardarPegado],
   );
 
+  // Paga de verdad: tiene monto y no está ya cobrada.
+  const esDinero = entregaDelBloque != null && entregaDelBloque.monto != null && entregaDelBloque.estado !== "pagada";
+
   const escuchar = useCallback(
     (frase: string) => {
       registrar("escuchar", { palabras: frase.split(/\s+/).length });
@@ -1137,7 +1177,7 @@ export default function App() {
         aria-label={grabando ? "Parar de escuchar" : "Hablarle a Remi (dos toques: conversación)"}
         title={grabando ? (modo === "dialogo" ? "Terminar la conversación" : "Parar y ver el texto") : "Un toque: dictar · dos: conversar"}
       >
-        <StatusDot estado={estado} escuchandoVoz={grabando} medirVoz={estadoDeVoz} />
+        <StatusDot estado={estado} escuchandoVoz={grabando} medirVoz={estadoDeVoz} dinero={esDinero} />
         {grabando && modo === "dialogo" && <p className="num modo-escucha">conversación</p>}
         {transcribiendo && <p className="num trabajando">transcribiendo</p>}
       </div>
@@ -1150,6 +1190,8 @@ export default function App() {
         onReintentar={reintentar}
         onCerrarBloque={cerrarTarea}
         bionica={lectura.bionica ? lectura.intensidad : null}
+        ultimaVezMin={ultimaVezDelBloqueMin}
+        dinero={esDinero}
         onEnlace={(url) => {
           // Los links de una búsqueda (3c · 8) se abren en el navegador.
           registrar("enlace", { url });
