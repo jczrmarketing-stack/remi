@@ -63,8 +63,6 @@ Formato de una entrada construida:
 - **Cómo probarlo a mano:** un click, escribir «¿qué tengo pendiente con Alfonso?», Enter;
   después «¿y cuándo arranco?».
 
----
-
 ## 2026-09-29 · 2i.12 clicks fantasma y motor por defecto · construido · e4ccba1
 
 - **Qué cambió:** (1) `a09e0f7`: cada click deja isTrusted, detail, screenX/Y y los ms desde
