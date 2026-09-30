@@ -20,6 +20,62 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 3c la ventanita es una sola pantalla de chat · construido · de5aa0c
+
+- **Qué cambió** (un commit por punto; 1–3 juntos porque son la misma pantalla):
+  - `1ae3fc7` (1–3) chat: bolita arriba, conversación en el medio (Remi a la izquierda en
+    Instrument Serif itálica, Juan Camilo a la derecha en Geist ink-muted con borde brasa
+    suave), historia de la conversación vigente (`GET /conversacion`), campo sin caja
+    (Enter envía, Shift+Enter salta). La bolita: un toque dicta, con el texto en el campo
+    mientras hablás (`transcribir_parcial`, cada 1,5 s); dos toques, conversación de voz.
+    Pensando: un arco que gira. Encargo como tarjeta mono con Copiar.
+  - `fd55ddb` (4) chip de cerebro: Claude modelo × bajo/medio/alto/máx, `ollama list` real
+    (`GET /pensar/ollama`), Venice (pago). `d388193` (5) chip de voz «Alex · 1,5×».
+  - `9e70bd3` (6) redimensionable (esquina), movible, mín 360×240, máx 90 % de la pantalla;
+    recuerda tamaño y lugar. `tauri.conf.json` tocado (y `build.rs`).
+  - `b7a958c` + `e980201` (7) charla pegada de más de 1500 caracteres → Sí/No →
+    `remi-mente/episodios/AAAA-MM-DD-titulo.md` + fila en memoria. `a6b44ac` + `8ac30db` (8)
+    «buscá…» habilita WebSearch solo en ese mensaje; links clicables. `e06dc7b` (9) Whisper
+    residente. `de5aa0c` (10) `nucleo/probar_bloqueos.py`.
+  - Arreglos vistos al probar: `e7052f2` el campo sin anillo de foco; `77999d1` las
+    alucinaciones de Whisper no llegan al chat; `4996c0c` la tarjeta de encargo toma solo sus
+    secciones.
+  - 193 pytest, 67 vitest, 11 cargo, tsc y mypy limpios. Instalada con `actualizar.sh`.
+- **Medido:**
+
+  | Qué | Antes | Ahora |
+  |---|---|---|
+  | Transcribir la misma frase de 5 s | whisper-cli 1,6–2,8 s (18 s con swap) | whisper-server 1,0 s |
+  | Memoria fija de Whisper | 0 | 1,7 GB |
+  | Búsqueda web con Haiku | — | 13,5 s, 3 links |
+  | Resumir una charla con gemma3:4b | — | 5,2 s |
+
+- **Verificado sin tocar el mouse:** en una maqueta de navegador (Tauri simulado, núcleo
+  real, fuera del repo): «hola» a la derecha y la respuesta a la izquierda; un encargo real
+  de Sonnet como tarjeta; la pregunta de pegar; la bolita escuchando. Un wav a medio grabar
+  por ffmpeg (cabecera 0xFFFFFFFF y trozo LIST) se transcribe con la cabecera arreglada.
+  Bloqueos: seis de seis denegados (Read, Grep, Read con WebSearch, en las dos carpetas).
+- **Decisiones que tomé sin preguntar:**
+  1. **Venice sigue sin recordarse** aunque el encargo diga «se recuerda la elección»: es
+     pago y la regla de 2i era elegirlo a mano cada vez. Todo lo demás se recuerda.
+  2. «máx» es el nivel que el núcleo llama `extra` (32000 tokens): no cambié el nombre
+     interno. Por defecto, «Sonnet · bajo».
+  3. La voz «auto» pasa a Alex: el chip tiene que nombrar una voz.
+  4. Escape con algo en curso lo corta y deja el chat abierto; sin nada en curso, o con la X,
+     vuelve a la píldora. Un click en el fondo del chat no hace nada (antes cerraba).
+  5. El tema del episodio se elige entre los que ya existen, con su título: gemma inventaba
+     «remimarketing» y ponía «remi» a una charla de Alfonso.
+  6. El Reloj y la nota «a la bandeja» no están en el chat.
+  7. `/mensaje` ahora recibe `origen`: por voz se dicen hasta 3 frases y el chat muestra todo.
+- **Dudas abiertas:**
+  1. **Ollama (gemma3:4b) contesta resúmenes en inglés** en conversación de voz (22:28 y
+     22:33 del 30/09): el modelo chico con la historia larga. No lo toqué.
+  2. La pintura real de la ventana (redimensionar, recordar el lugar, la bolita latiendo)
+     solo la puede ver Juan Camilo: lista en Notion «5 · Prueba de la ventanita (3c · chat)».
+  3. El episodio real en la bóveda no lo escribí yo: es el último criterio de listo, para que
+     lo pegue él.
+- **Cómo probarlo a mano:** la lista de Notion, casilla por casilla.
+
 ## 2026-09-30 · 3b.3–3b.7 mensaje que se queda, animaciones, asistente técnico · construido · 84eb6c5
 
 - **Qué cambió:** pedidos de Juan Camilo tras probar la maqueta. (3) `e6fd150` ninguna
