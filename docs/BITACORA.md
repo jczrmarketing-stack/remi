@@ -20,6 +20,62 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · Fase S (oficios v1) · 5 refresco semanal del oficio Claude Code · construido · d2841da
+
+- **Qué cambió:** `nucleo/refresco_claude_code.py` nuevo, `scripts/refresco-claude-code.sh` +
+  LaunchAgent `com.remi.refresco-claude-code` (domingos 5:00, después de la copia de las 3:00
+  y la consolidación de las 4:00; sumado también a `desinstalar.sh`, que hasta hoy tampoco
+  bajaba `com.remi.noche` — lo agregué de paso). Trae `CHANGELOG.md` real de
+  `raw.githubusercontent.com/anthropics/claude-code` (~850 KB completo, se recorta a lo más
+  reciente), Haiku extrae solo lo que no esté ya bajo «## Cambios anotados» en
+  `oficios/claude-code.md`, y cada línea propuesta se verifica con
+  `estado_libro.entidades_sospechosas`/`_invento` **contra el changelog real que se trajo**,
+  no contra la respuesta del modelo — la diferencia importa: es la misma idea del incidente
+  del 30-sep pero aplicada a la fuente correcta.
+- **Encontré y arreglé un bug real probando en vivo, no simulado:**
+  1. La URL que había puesto de entrada (`docs.claude.com/en/release-notes/claude-code`)
+     redirige a un changelog en GitHub — la cambié a la fuente cruda
+     (`raw.githubusercontent.com/.../CHANGELOG.md`), más liviana y sin HTML.
+  2. **Primer intento real: el modelo contestó «me aparece que el changelog está vacío»** y
+     mi código, sin darse cuenta, anotó esa frase confundida como si fuera una línea válida
+     (no tenía ninguna entidad verificable que rechazar, así que pasó la verificación
+     anti-invento sin problema — la verificación mecánica no cubre este tipo de fallo).
+     Causa real: el límite de recorte (8.000 caracteres) cortaba ANTES de terminar la
+     primera versión del changelog real, que sola mide 21.267 caracteres — el modelo recibía
+     literalmente `# Changelog\n` y nada más. Lo vi en la bóveda real, lo revertí con
+     `git revert` de verdad (`2eb0354`), y arreglé el recorte: 30.000 caracteres, y si ni así
+     entra la primera sección entera, un corte crudo (una entrada partida a la mitad) en vez
+     de dejar casi nada.
+  3. **Con el prompt más grande, «rápido» (Haiku, techo de 20 s) no llegaba a contestar** —
+     ese techo es para el chat con alguien esperando. Este refresco no tiene a nadie
+     esperando: le puse un modo propio, mismo modelo, 120 s.
+  4. Con las dos cosas arregladas, corrí el refresco real una tercera vez: 45 líneas reales
+     anotadas (todo el changelog de la versión 2.1.285, porque «ya anotado» estaba vacío —
+     la próxima corrida semanal va a ser incremental de verdad). Ninguna rechazada por
+     invento; verifiqué a ojo contra el changelog real que ninguna es inventada.
+  5. Tests nuevos que cubren exactamente este bug
+     (`test_recortar_si_la_primera_seccion_sola_ya_pasa_el_limite_corta_crudo`), no solo el
+     caso feliz. 314 pytest, mypy limpio (61 módulos).
+- **Decisiones que tomé sin preguntar:**
+  1. Corrí el refresco real tres veces contra la bóveda de producción (no una copia): es
+     exactamente lo que el LaunchAgent va a hacer solo los domingos, y probarlo así fue lo
+     que encontró el bug real — con un mock no hubiera aparecido.
+  2. El primer resultado (la frase confundida) lo reverti con git en vez de sobreescribirlo a
+     mano: es la prueba de que el punto 2 del encargo anterior (git en la bóveda) sirve para
+     esto exactamente.
+- **Dudas abiertas:**
+  1. 45 líneas en la primera corrida es mucho para leer — es el costo de arrancar desde
+     «(vacío)». Si se quiere, se puede podar a mano lo que no importa; las corridas de acá en
+     adelante van a ser cortas.
+  2. No até la salida del changelog a ninguna paginación real de «solo los últimos 7 días»:
+     el recorte es por tamaño, no por fecha. Si en una semana floja Claude Code no saca
+     ninguna versión nueva, el recorte de todos modos manda la última versión entera (ya
+     anotada) y Haiku debería decir NADA — no lo probé con ese escenario exacto.
+- **Cómo probarlo a mano:** `cd nucleo && uv run python refresco_claude_code.py`; mirar
+  `remi-mente/oficios/claude-code.md` y `git log` en la bóveda.
+
+---
+
 ## 2026-10-01 · Fase S (oficios v1) · 4 aprender de las correcciones · construido · 7d79a4f
 
 - **Qué cambió:** `nucleo/correcciones.py` nuevo. Sin IA para detectar ni para redactar la
