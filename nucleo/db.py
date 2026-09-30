@@ -148,6 +148,18 @@ CREATE TABLE IF NOT EXISTS trabajo_estado_en (
     tema TEXT PRIMARY KEY,
     fecha TEXT NOT NULL
 );
+
+-- Sesiones de Claude Code, para el tiempo de la semana. Sin fila de
+-- inicio no se inventa una duración aunque llegue el cierre.
+CREATE TABLE IF NOT EXISTS trabajo_claude (
+    session_id TEXT PRIMARY KEY,
+    tema TEXT,
+    ruta TEXT NOT NULL,
+    inicio TEXT NOT NULL,
+    fin TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_trabajo_claude_tema ON trabajo_claude(tema);
 """
 
 

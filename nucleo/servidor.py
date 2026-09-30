@@ -309,7 +309,11 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         return respuesta
     tipo = clasificar.clasificar(mensaje.texto)
     # «buscá…» se contesta (con la web), no se guarda en la Bandeja.
-    if clasificar.pide_busqueda(mensaje.texto) or trabajo.es_donde_quede(mensaje.texto):
+    if (
+        clasificar.pide_busqueda(mensaje.texto)
+        or trabajo.es_donde_quede(mensaje.texto)
+        or trabajo.es_cuanto(mensaje.texto)
+    ):
         tipo = "pregunta"
 
     if tipo == "idea":
@@ -397,6 +401,9 @@ def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
     donde = trabajo.donde_quede(mensaje.texto)
     if donde is not None:
         return RespuestaMensaje(tipo="pregunta", texto=donde, voz=_voz_de(donde, mensaje))
+    cuanto = trabajo.cuanto_le_meti(mensaje.texto)
+    if cuanto is not None:
+        return RespuestaMensaje(tipo="pregunta", texto=cuanto, voz=_voz_de(cuanto, mensaje))
     buscar = clasificar.pide_busqueda(mensaje.texto)
     pensado = (
         pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, buscar=buscar, modelo_ollama=mensaje.modelo_ollama)
@@ -477,7 +484,7 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
         inicio=datetime.now(timezone.utc),
         fin=None,
         real_min=0,
-        app_contexto=None,
+        app_contexto=trabajo.tema_activo(),
     )
 
     conexion = db.conectar()

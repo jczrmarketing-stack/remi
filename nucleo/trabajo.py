@@ -15,6 +15,7 @@ import sys
 import threading
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import clasificar
 import db
@@ -23,6 +24,7 @@ import libros
 from modelos import Idea
 
 _DONDE = re.compile(r"\bdonde qued(?:e|amos|aste)\b")
+BOGOTA = ZoneInfo("America/Bogota")
 
 HORAS_DE_ENFRIAMIENTO = 48
 MINUTOS_ENTRE_ESTADOS = 10
@@ -54,6 +56,114 @@ def _anotar_sin_ficha(ruta: str, ahora: datetime) -> bool:
     finally:
         conexion.close()
     return True
+
+
+def es_cuanto(texto: str) -> bool:
+    return "cuanto le meti" in clasificar.normalizar(texto)
+
+
+def cuanto_le_meti(texto: str, ahora: datetime | None = None) -> str | None:
+    """El número de la semana, o None si no era esa pregunta."""
+    if not es_cuanto(texto):
+        return None
+    libro = _libro_nombrado(texto)
+    if libro is None:
+        return "No sé de qué proyecto."
+    nombre = libro.titulo.split("—")[0].split(" - ")[0].strip() or libro.tema
+    minutos = minutos_esta_semana(libro.tema, ahora)
+    if minutos <= 0:
+        return f"A {nombre} esta semana no tengo tiempo medido."
+    return f"A {nombre} esta semana: {_formato(minutos)}."
+
+
+def minutos_esta_semana(tema: str, ahora: datetime | None = None) -> int:
+    """Claude Code más los bloques de Remi, de lunes a ahora, hora de Bogotá."""
+    momento = ahora or datetime.now(timezone.utc)
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    desde = _lunes(momento)
+    conexion = db.conectar()
+    try:
+        filas = list(
+            conexion.execute(
+                "SELECT inicio, fin FROM trabajo_claude WHERE tema = ?", (tema,)
+            ).fetchall()
+        )
+        filas += list(
+            conexion.execute(
+                "SELECT inicio, fin FROM sesiones WHERE app_contexto = ?", (tema,)
+            ).fetchall()
+        )
+    finally:
+        conexion.close()
+    return sum(_solape(fila["inicio"], fila["fin"], desde, momento) for fila in filas)
+
+
+def tema_activo() -> str | None:
+    libro = _libro_reciente()
+    return libro.tema if libro else None
+
+
+def _lunes(momento: datetime) -> datetime:
+    local = momento.astimezone(BOGOTA)
+    cero = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return (cero - timedelta(days=cero.weekday())).astimezone(timezone.utc)
+
+
+def _solape(inicio_iso: str, fin_iso: str | None, desde: datetime, hasta: datetime) -> int:
+    inicio = datetime.fromisoformat(str(inicio_iso))
+    if inicio.tzinfo is None:
+        inicio = inicio.replace(tzinfo=timezone.utc)
+    if fin_iso:
+        fin = datetime.fromisoformat(str(fin_iso))
+        if fin.tzinfo is None:
+            fin = fin.replace(tzinfo=timezone.utc)
+    else:
+        fin = hasta
+    a = max(inicio, desde)
+    b = min(fin, hasta)
+    if b <= a:
+        return 0
+    return int((b - a).total_seconds() // 60)
+
+
+def _formato(minutos: int) -> str:
+    """Igual que servidor.formatear_duracion: «40 min» o «1 h 40»."""
+    if minutos < 60:
+        return f"{minutos} min"
+    horas, resto = divmod(minutos, 60)
+    return f"{horas} h {resto:02d}" if resto else f"{horas} h"
+
+
+def _abrir_claude(
+    conexion: sqlite3.Connection,
+    datos: dict[str, object],
+    tema: str | None,
+    ruta: str,
+    ahora: datetime,
+) -> None:
+    sesion = str(datos.get("session_id") or "").strip()
+    if not sesion:
+        return
+    conexion.execute(
+        """
+        INSERT INTO trabajo_claude (session_id, tema, ruta, inicio, fin)
+        VALUES (?, ?, ?, ?, NULL)
+        ON CONFLICT(session_id) DO NOTHING
+        """,
+        (sesion, tema, ruta, ahora.isoformat()),
+    )
+
+
+def _cerrar_claude(conexion: sqlite3.Connection, datos: dict[str, object], ahora: datetime) -> None:
+    """Sin la fila de inicio, no se inventa cuánto duró."""
+    sesion = str(datos.get("session_id") or "").strip()
+    if not sesion:
+        return
+    conexion.execute(
+        "UPDATE trabajo_claude SET fin = ? WHERE session_id = ? AND fin IS NULL",
+        (ahora.isoformat(), sesion),
+    )
 
 
 def es_donde_quede(texto: str) -> bool:
@@ -162,6 +272,10 @@ def recibir(tipo: str, ruta: str, datos: dict[str, object] | None = None, ahora:
         )
         if tema and tipo == "commit":
             _guardar_commit(conexion, tema, carga, momento)
+        if tipo == "sesion_inicio":
+            _abrir_claude(conexion, carga, tema, ruta, momento)
+        elif tipo == "sesion_fin":
+            _cerrar_claude(conexion, carga, momento)
         conexion.commit()
     finally:
         conexion.close()
