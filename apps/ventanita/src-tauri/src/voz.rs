@@ -535,9 +535,12 @@ pub fn cancelar_escucha(estado: tauri::State<EstadoGrabacion>, origen: String) -
 /// `origen` dice QUIÉN cortó: "click", "silencio:fin", "silencio:sin_voz",
 /// "escape" o "timeout". Lo sabe la ventanita, no acá, y sin eso el log no
 /// alcanza para entender un gesto que salió mal.
-#[tauri::command]
+// Async: corre fuera del hilo de la ventana. Síncrono, la congelaba mientras
+// Whisper transcribía, y un toque dado en ese rato llegaba después y
+// arrancaba otro dictado (30/09, 23:44:48, tres veces seguidas).
+#[tauri::command(async)]
 pub fn detener_escucha_y_transcribir(
-    estado: tauri::State<EstadoGrabacion>,
+    estado: tauri::State<'_, EstadoGrabacion>,
     origen: String,
 ) -> Result<String, String> {
     let grabacion = estado

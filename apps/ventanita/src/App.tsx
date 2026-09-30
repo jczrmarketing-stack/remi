@@ -181,6 +181,12 @@ export default function App() {
   const campoRef = useRef<CampoRef>(null);
   // Lo que había en el campo antes de dictar: lo dictado se suma detrás.
   const baseDictadoRef = useRef("");
+  // Sube al empezar y al parar cada grabación. Una transcripción parcial
+  // que vuelve de otra grabación (o de una ya parada) no escribe nada: el
+  // 30/09 a las 23:45 el campo se volvía a llenar con lo ya enviado.
+  const grabacionIdRef = useRef(0);
+  // Enter con el dictado andando: al terminar de transcribir, se manda.
+  const enviarAlTranscribirRef = useRef(false);
   // El último mensaje que mandaste, para «otra respuesta».
   const ultimoEnviadoRef = useRef<{ texto: string; origen: OrigenMensaje } | null>(null);
 
@@ -469,6 +475,7 @@ export default function App() {
     setModo(modoNuevo);
     setEstado("escuchando");
     setGrabando(true);
+    grabacionIdRef.current += 1;
     baseDictadoRef.current = accionesRef.current.texto;
     const cortarSolo = modoNuevo === "dialogo";
     grabacionDesdeRef.current = performance.now();
@@ -503,6 +510,7 @@ export default function App() {
       const enDialogo = accionesRef.current.modo === "dialogo";
       const miGeneracion = generacionRef.current;
       registrar("parada", { origen, modo: accionesRef.current.modo });
+      grabacionIdRef.current += 1;
       grabacionDesdeRef.current = null;
       setGrabando(false);
       setTranscribiendo(true);
@@ -518,15 +526,34 @@ export default function App() {
           await enviar(transcripcion, "voz");
           return;
         }
-        // Dictado: el texto queda en el campo, para leerlo o corregirlo.
+        // Dictado: el texto queda en el campo, para leerlo o corregirlo. Si
+        // apretaste Enter mientras dictabas, se manda entero y el campo queda
+        // limpio.
         const base = baseDictadoRef.current.trim();
-        setTexto(base ? `${base} ${transcripcion}` : transcripcion);
+        const completo = base ? `${base} ${transcripcion}` : transcripcion;
+        if (enviarAlTranscribirRef.current) {
+          enviarAlTranscribirRef.current = false;
+          setModo("texto");
+          await enviar(completo, "texto");
+          return;
+        }
+        setTexto(completo);
         setModo("texto");
         setEstado("escuchando");
         campoRef.current?.enfocar();
       } catch (error) {
         if (generacionRef.current !== miGeneracion) return;
         setTranscribiendo(false);
+        // Si no se entendió nada y habías apretado Enter, se manda lo que
+        // ya estaba escrito.
+        if (enviarAlTranscribirRef.current) {
+          enviarAlTranscribirRef.current = false;
+          setModo("texto");
+          if (baseDictadoRef.current.trim()) {
+            await enviar(baseDictadoRef.current, "texto");
+            return;
+          }
+        }
         setTexto(baseDictadoRef.current);
         registrar("sinTranscripcion", { origen, enDialogo });
         console.error("no se pudo transcribir:", error);
@@ -566,9 +593,10 @@ export default function App() {
     const id = window.setInterval(() => {
       if (enVuelo) return;
       enVuelo = true;
+      const deEsta = grabacionIdRef.current;
       transcribirParcial()
         .then((parcial) => {
-          if (!vivo || !parcial || !accionesRef.current.grabando) return;
+          if (!vivo || !parcial || grabacionIdRef.current !== deEsta) return;
           const base = baseDictadoRef.current.trim();
           setTexto(base ? `${base} ${parcial}` : parcial);
         })
@@ -587,6 +615,8 @@ export default function App() {
     (origen: "escape" | "x") => {
       const { grabando: grabandoActual, estado: estadoActual } = accionesRef.current;
       registrar("cancelar", { origen, estado: estadoActual, grabando: grabandoActual });
+      enviarAlTranscribirRef.current = false;
+      grabacionIdRef.current += 1;
       if (grabandoActual) {
         void cancelarEscucha(origen).catch(() => undefined);
       }
@@ -1020,7 +1050,15 @@ export default function App() {
         ref={campoRef}
         valor={texto}
         onCambio={setTexto}
-        onEnviar={() => void enviar(texto, "texto")}
+        onEnviar={() => {
+          // Enter mientras dictás: para, transcribe lo último y manda todo.
+          if (accionesRef.current.grabando && accionesRef.current.modo === "voz") {
+            enviarAlTranscribirRef.current = true;
+            void detenerYTranscribir("enter");
+            return;
+          }
+          void enviar(texto, "texto");
+        }}
         onPegarLargo={preguntarSiGuardo}
       />
 

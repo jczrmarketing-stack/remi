@@ -17,6 +17,7 @@ export type OrigenParada =
   | "escape"
   | "timeout"
   | "atajo"
+  | "enter"
   | "x";
 
 // La X y Escape: corta y borra el audio sin transcribir.
