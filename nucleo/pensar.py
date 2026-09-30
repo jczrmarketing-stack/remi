@@ -217,7 +217,7 @@ def motores_disponibles() -> list[MotorDisponible]:
         ),
         MotorDisponible(
             id="venice",
-            label="Venice (por token)",
+            label="Venice (pago)",
             disponible=hay_clave,
             detalle=(
                 f"{_ajuste('REMI_VENICE_MODELO', VENICE_MODELO_POR_DEFECTO)}, sin acceso al estante"

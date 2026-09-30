@@ -23,6 +23,7 @@ import {
   fijarMotor,
   fijarVelocidad,
   fijarVoz,
+  MOTOR_POR_DEFECTO,
   obtenerMotor,
   obtenerVelocidad,
   obtenerVoz,
@@ -514,9 +515,18 @@ export default function App() {
   // contesta, el dropdown muestra el guardado y listo.
   useEffect(() => {
     obtenerMotores()
-      .then(setMotores)
+      .then((lista) => {
+        setMotores(lista);
+        // Si el motor guardado hoy no está (Ollama apagado, sin clave), no
+        // se manda a ciegas para fallar: vuelve a Claude, y queda dicho.
+        const actual = lista.find((m) => m.id === accionesRef.current.motor);
+        if (actual && !actual.disponible) {
+          registrar("motor:noDisponible", { motor: actual.id, detalle: actual.detalle });
+          cambiarMotor(MOTOR_POR_DEFECTO);
+        }
+      })
       .catch(() => setMotores([]));
-  }, []);
+  }, [cambiarMotor]);
 
   // Cada media hora, en reposo: «pensás con X», con un solo movimiento, y
   // se va a los 4 s. Se mide desde el último recordatorio, no desde el

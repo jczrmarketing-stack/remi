@@ -68,8 +68,13 @@ export function fijarVoz(voz: PreferenciaVoz): void {
 export type Motor = string;
 export const MOTOR_POR_DEFECTO: Motor = "claude";
 
+// Venice es pago: se elige a mano cada vez, nunca queda como valor por
+// defecto ni vuelve por arrastre de una preferencia vieja.
+const MOTORES_QUE_NO_SE_HEREDAN: readonly Motor[] = ["venice"];
+
 export function obtenerMotor(): Motor {
-  return leer(CLAVE_MOTOR) ?? MOTOR_POR_DEFECTO;
+  const guardado = leer(CLAVE_MOTOR) ?? MOTOR_POR_DEFECTO;
+  return MOTORES_QUE_NO_SE_HEREDAN.includes(guardado) ? MOTOR_POR_DEFECTO : guardado;
 }
 
 export function fijarMotor(motor: Motor): void {
