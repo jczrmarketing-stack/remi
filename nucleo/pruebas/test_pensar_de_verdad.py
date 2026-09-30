@@ -240,3 +240,45 @@ def test_tras_60_minutos_sin_turnos_la_conversacion_es_nueva(monkeypatch):
     nueva = db.guardar_turno(conexion, "juan", "ahora", datetime.now(timezone.utc))
     conexion.close()
     assert vieja != nueva
+
+
+
+# — Modo Prompt (3b) —
+
+
+def test_modo_prompt_arma_un_encargo_sin_guardar_nada(monkeypatch):
+    for nombre in ("servidor", "pensar", "db", "modelos"):
+        sys.modules.pop(nombre, None)
+    import servidor
+
+    visto = {}
+
+    def falso_pensar(frase, motor=None, modo=None, sistema=None):
+        visto.update(frase=frase, modo=modo, sistema=sistema)
+        return servidor.pensar.Pensado("QUÉ\nArreglar la X.\n\nDÓNDE\napps/ventanita", 1, 1, "sonnet")
+
+    monkeypatch.setattr(servidor.pensar, "pensar", falso_pensar)
+    cliente = TestClient(servidor.app)
+    cuerpo = cliente.post(
+        "/mensaje",
+        json={"texto": "voy a arreglar la x de la ventanita", "think": True, "modo": "prompt"},
+    ).json()
+    assert cuerpo["tipo"] == "encargo"
+    assert cuerpo["texto"].startswith("QUÉ")
+    assert cuerpo["voz"] == "Listo, lo tenés para copiar."
+    assert cuerpo["tarea"] is None
+    # Aunque dice «voy a…», no abrió un bloque: el modo Prompt no clasifica.
+    assert visto["modo"] == "equilibrio"
+    assert "LISTO CUANDO" in visto["sistema"]
+    import db
+    conexion = db.conectar()
+    assert conexion.execute("select count(*) from tareas").fetchone()[0] == 0
+    assert conexion.execute("select count(*) from ideas").fetchone()[0] == 0
+    conexion.close()
+
+
+def test_el_encargo_usa_su_system_prompt_con_la_mente(monkeypatch):
+    pensar = _pensar()
+    prompt = pensar.instrucciones_con_indice([], pensar.sistema_encargo())
+    assert "LISTO CUANDO" in prompt and "NO TOCAR" in prompt
+    assert pensar.caracter()[:40] not in prompt

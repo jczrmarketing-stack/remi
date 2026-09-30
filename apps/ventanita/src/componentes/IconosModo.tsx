@@ -39,5 +39,12 @@ export function IconoModo({ modo }: { modo: ModoPensar }) {
           <path d="M8 1.5c.6 3.4 1.9 4.9 5.5 6.5-3.6 1.6-4.9 3.1-5.5 6.5-.6-3.4-1.9-4.9-5.5-6.5 3.6-1.6 4.9-3.1 5.5-6.5z" />
         </svg>
       );
+    case "prompt":
+      // Un prompt de terminal: «>_». Es para Claude Code.
+      return (
+        <svg {...COMUN}>
+          <path d="M3 4.5 6.5 8 3 11.5M8.5 12h4.5" />
+        </svg>
+      );
   }
 }

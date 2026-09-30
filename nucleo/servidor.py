@@ -119,7 +119,9 @@ class MensajeEntrante(BaseModel):
     motor: Literal["claude", "venice", "ollama"] | None = None
     # Rápido (Haiku), equilibrio (Sonnet, por defecto) o inteligente (Opus
     # con razonamiento). Solo aplica al motor claude.
-    modo: Literal["rapido", "equilibrio", "inteligente"] = "equilibrio"
+    # «prompt» no es un cerebro sino un formato: arma un encargo para Claude
+    # Code con Sonnet (equilibrio) y no clasifica ni guarda nada.
+    modo: Literal["rapido", "equilibrio", "inteligente", "prompt"] = "equilibrio"
     # Cómo entró: por voz o escrito. Lo guarda la Idea (contrato).
     origen: Literal["voz", "texto"] = "texto"
 
@@ -133,7 +135,8 @@ class TokensClaude(BaseModel):
 class RespuestaMensaje(BaseModel):
     # Lo decide el clasificador, nunca el modelo: pensar solo reformula la
     # voz. Una idea no crea tarea ni sesión, y un cierre no crea nada.
-    tipo: clasificar.TipoMensaje
+    # «encargo» es el modo Prompt, que no pasa por el clasificador.
+    tipo: clasificar.TipoMensaje | Literal["encargo"]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
     # Lo que se ve en la pantalla, completo.
@@ -235,6 +238,11 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     """Lo que decís no siempre es una tarea. El clasificador (sin IA) decide
     si enfría en la Bandeja, si abre un bloque o si cierra el que estaba."""
     arranque = time.perf_counter()
+    if mensaje.modo == "prompt":
+        respuesta = _armar_encargo(mensaje)
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=encargo ms={ms:.0f} pensó={'sí' if respuesta.tokens else 'no'}", file=sys.stderr, flush=True)
+        return respuesta
     tipo = clasificar.clasificar(mensaje.texto)
 
     if tipo == "idea":
@@ -288,6 +296,29 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
         tipo="idea",
         texto=pensado.paso_minimo,
         voz=_voz_de(pensado.paso_minimo, mensaje),
+        tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
+    )
+
+
+def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
+    """Modo Prompt: lo dicho vuelve ordenado como un encargo de UNA tarea
+    para Claude Code. No se clasifica ni se guarda en la Bandeja: es un
+    texto para copiar. Lo arma Sonnet con nucleo/prompts/encargo.md y los
+    libros del proyecto que toque."""
+    if not mensaje.think:
+        return RespuestaMensaje(
+            tipo="encargo", texto="Sin pensar no puedo armar el encargo.", voz="Sin pensar no puedo armar el encargo."
+        )
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, "equilibrio", pensar.sistema_encargo())
+    if pensado is None:
+        return RespuestaMensaje(
+            tipo="encargo", texto="No pude armar el encargo. Probá de nuevo.", voz="No pude armar el encargo."
+        )
+    return RespuestaMensaje(
+        tipo="encargo",
+        texto=pensado.paso_minimo,
+        # Un encargo no se lee en voz alta: se copia.
+        voz="Listo, lo tenés para copiar.",
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
     )
 

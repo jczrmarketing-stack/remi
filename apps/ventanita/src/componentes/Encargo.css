@@ -1,0 +1,47 @@
+.encargo {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Geist Mono sobre surface-2 (el cuadro de la ventanita es surface), con
+   borde `line`: se lee como un bloque aparte, sin sombra. */
+.encargo__texto {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.encargo__copiar {
+  align-self: flex-end;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color var(--dur-estado) var(--curva);
+}
+
+.encargo__copiar:hover,
+.encargo__copiar[data-hecho="si"] {
+  color: var(--ink);
+}

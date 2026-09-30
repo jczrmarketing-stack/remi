@@ -9,12 +9,14 @@ const ETIQUETA: Record<ModoPensar, string> = {
   rapido: "Rápido",
   equilibrio: "Equilibrio",
   inteligente: "Inteligente",
+  prompt: "Prompt",
 };
 
 const DETALLE: Record<ModoPensar, string> = {
   rapido: "Haiku · 1–3 s",
   equilibrio: "Sonnet · el de siempre",
   inteligente: "Opus · piensa antes",
+  prompt: "encargo para Claude Code",
 };
 
 interface Props {

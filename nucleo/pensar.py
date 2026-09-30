@@ -134,10 +134,28 @@ def _linea_indice(entrada: db.EntradaIndice) -> str:
     return f"{linea} (claves: {entrada.claves})" if entrada.claves else linea
 
 
-def instrucciones_con_indice(indice: list[db.EntradaIndice]) -> str:
-    """El carácter más lo que Remi tiene presente. Sin entradas no se anexa
-    nada: un encabezado solo, sin líneas, invitaría a inventar."""
-    base = caracter()
+# El modo «Prompt» (3b): arma un encargo de una tarea para Claude Code.
+# Su system prompt vive en el repo (no tiene datos personales) y se lee en
+# cada llamada, como el carácter.
+RUTA_ENCARGO = Path(__file__).resolve().parent / "prompts" / "encargo.md"
+
+
+def sistema_encargo() -> str:
+    try:
+        return RUTA_ENCARGO.read_text().strip()
+    except OSError:
+        print(f"[pensar] no encuentro {RUTA_ENCARGO}: uso uno mínimo", file=sys.stderr)
+        return (
+            "Devolvé lo que te dicen como UN encargo de UNA tarea para Claude Code, "
+            "en español y sin markdown, con las secciones QUÉ, DÓNDE, LISTO CUANDO y NO TOCAR."
+        )
+
+
+def instrucciones_con_indice(indice: list[db.EntradaIndice], base: str | None = None) -> str:
+    """El carácter (o el system prompt que se pida, como el del encargo) más
+    lo que Remi tiene presente. Sin entradas no se anexa nada: un encabezado
+    solo, sin líneas, invitaría a inventar."""
+    base = caracter() if base is None else base
     if not indice:
         return base
     lineas = "\n".join(_linea_indice(entrada) for entrada in indice)
@@ -520,12 +538,17 @@ def _actualizar_resumen_en_segundo_plano(conversacion_id: str | None) -> None:
     threading.Thread(target=correr, daemon=True).start()
 
 
-def pensar(frase: str, motor_pedido: str | None = None, modo_pedido: str | None = None) -> Pensado | None:
+def pensar(
+    frase: str,
+    motor_pedido: str | None = None,
+    modo_pedido: str | None = None,
+    sistema: str | None = None,
+) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
     llama sigue por el camino sin IA — nunca se rompe la respuesta por esto."""
     indice = _indice()
-    instrucciones = instrucciones_con_indice(indice)
+    instrucciones = instrucciones_con_indice(indice, sistema)
     turnos, resumen = _conversacion()
     mensaje = mensaje_con_historia(frase, turnos, resumen)
     elegido = motor(motor_pedido)

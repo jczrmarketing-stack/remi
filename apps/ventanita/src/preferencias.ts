@@ -94,7 +94,9 @@ export function fijarSinPensar(apagado: boolean): void {
 }
 
 // Rápido (Haiku), equilibrio (Sonnet) o inteligente (Opus con razonamiento).
-export const MODOS = ["rapido", "equilibrio", "inteligente"] as const;
+// «prompt» no es un cerebro sino un formato: lo que decís vuelve como un
+// encargo de una tarea para Claude Code.
+export const MODOS = ["rapido", "equilibrio", "inteligente", "prompt"] as const;
 export type ModoPensar = (typeof MODOS)[number];
 export const MODO_POR_DEFECTO: ModoPensar = "equilibrio";
 

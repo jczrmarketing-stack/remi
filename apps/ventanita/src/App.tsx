@@ -7,6 +7,7 @@ import { ControlesVoz } from "./componentes/ControlesVoz";
 import { Semaforo } from "./componentes/Semaforo";
 import { BotonCancelar } from "./componentes/BotonCancelar";
 import { SelectorModo } from "./componentes/SelectorModo";
+import { Encargo } from "./componentes/Encargo";
 import {
   enviarMensaje,
   obtenerMotores,
@@ -61,7 +62,7 @@ import {
 // Qué es un control (nunca un gesto) y qué es el cuadro (gesto si está
 // vacío y la racha sigue viva). Los botones del cuadro —el toggle de
 // pensar— cuentan como control aunque estén dentro del cuadro.
-const SELECTOR_CONTROLES = ".controles-voz, .semaforo, .selector-modo, button, select";
+const SELECTOR_CONTROLES = ".controles-voz, .semaforo, .selector-modo, .encargo, button, select";
 const SELECTOR_CUADRO = ".prompt-terminal";
 
 function clasificarObjetivo(objetivo: EventTarget | null) {
@@ -142,6 +143,9 @@ export default function App() {
   // el modelo: «guardada en la bandeja» o «reloj corriendo». Las frases
   // fijas ya lo dicen solas, así que ahí no hace falta.
   const [notaRespuesta, setNotaRespuesta] = useState<string | null>(null);
+  // De qué tipo fue la última respuesta: un encargo se muestra distinto
+  // (bloque mono + Copiar) y no se cierra solo.
+  const [tipoRespuesta, setTipoRespuesta] = useState<TipoMensaje | null>(null);
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
   const [grabando, setGrabando] = useState(false);
   // Entre cortar la grabación y ver el texto: Remi transcribe (whisper
@@ -380,6 +384,7 @@ export default function App() {
         setVoz(respuesta.voz);
         setRespuestaTexto(respuesta.texto || respuesta.voz);
         setNotaRespuesta(notaDe(respuesta.tipo, respuesta.tokens !== null));
+        setTipoRespuesta(respuesta.tipo);
         // Solo un bloque abierto tiene reloj: una idea que enfría y un
         // cierre no tienen nada que medir.
         setSesionInicio(respuesta.sesion?.inicio ?? null);
@@ -402,6 +407,7 @@ export default function App() {
         setVoz(fraseDeFallo());
         setRespuestaTexto(fraseDeFallo());
         setNotaRespuesta(null);
+        setTipoRespuesta(null);
       } finally {
         enviandoRef.current = false;
         if (generacionRef.current === miGeneracion) setEstado("hablando");
@@ -621,9 +627,13 @@ export default function App() {
     if (estado !== "hablando") return;
 
     let vigente = true;
+    // Un encargo se copia: no se cierra solo, ni al terminar de decir
+    // «Listo, lo tenés para copiar». Queda hasta click afuera, Escape o la X.
+    const queda = tipoRespuesta === "encargo";
     const terminar = () => {
       if (!vigente) return;
       vigente = false;
+      if (queda) return;
       if (accionesRef.current.modo === "dialogo") {
         setTexto("");
         setVoz("");
@@ -639,7 +649,7 @@ export default function App() {
     if (habla) {
       void hablar(voz, velocidad, vozElegida).then(terminar);
       techo = window.setTimeout(terminar, TECHO_LOCUCION_MS);
-    } else if (!sostenido) {
+    } else if (!sostenido && !queda) {
       techo = window.setTimeout(terminar, duracionHablando(respuestaTexto));
     }
 
@@ -652,6 +662,7 @@ export default function App() {
     estado,
     voz,
     respuestaTexto,
+    tipoRespuesta,
     origenMensaje,
     velocidad,
     vozElegida,
@@ -878,7 +889,8 @@ export default function App() {
         <p className="num trabajando">transcribiendo</p>
       )}
 
-      {estado === "hablando" && <p className="display-it voz">{respuestaTexto}</p>}
+      {estado === "hablando" && tipoRespuesta === "encargo" && <Encargo texto={respuestaTexto} />}
+      {estado === "hablando" && tipoRespuesta !== "encargo" && <p className="display-it voz">{respuestaTexto}</p>}
       {estado === "hablando" && notaRespuesta !== null && (
         <p className="num nota-respuesta">{notaRespuesta}</p>
       )}
