@@ -28,11 +28,34 @@ from modelos import Memoria
 servidor = MCPServer(
     "memoria",
     instructions=(
-        "El estante de Remi: lo que Juan Camilo le contó. El índice ya está en tu "
-        "contexto; usá `leer` con el id de la entrada que haga falta y `guardar` "
-        "cuando aparezca algo que valga la pena recordar."
+        "El estante de Remi: lo que Juan Camilo le contó. Si el índice no está en "
+        "tu contexto, pedilo con `indice`; usá `leer` con el id de la entrada que "
+        "haga falta y `guardar` cuando aparezca algo que valga la pena recordar."
     ),
 )
+
+
+@servidor.tool(
+    description=(
+        "Qué hay en el estante: una línea por cosa, con su id, tema, título y "
+        "resumen. Usala si no tenés el índice en tu contexto (fuera de Remi, en "
+        "cualquier sesión de Claude). Con `tema` filtra, por ejemplo «upvisuals»."
+    )
+)
+def indice(tema: str = "") -> str:
+    # Remi trae el índice en su prompt; Claude Code desde otra carpeta no, y
+    # sin esto no tenía de dónde sacar el id que pide `leer` (3d · 6,
+    # revisión del 30/09).
+    conexion = db.conectar()
+    try:
+        entradas = db.indice_memoria(conexion)
+    finally:
+        conexion.close()
+    filtro = tema.strip().lower()
+    elegidas = [e for e in entradas if not filtro or e.tema.lower() == filtro]
+    if not elegidas:
+        return f"No hay nada con el tema «{tema}»." if filtro else "El estante está vacío."
+    return "\n".join(f"{str(e.id)[:8]} · {e.tema} · {e.titulo} — {e.resumen}" for e in elegidas)
 
 
 @servidor.tool(

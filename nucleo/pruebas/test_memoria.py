@@ -258,7 +258,10 @@ def test_guardar_no_deja_marca_de_lectura(tmp_path, monkeypatch):
 # — El servidor MCP habla MCP de verdad —
 
 
-def test_el_servidor_mcp_anuncia_exactamente_dos_herramientas(tmp_path, monkeypatch):
+def test_el_servidor_mcp_anuncia_exactamente_tres_herramientas(tmp_path, monkeypatch):
+    # leer y guardar son las dos puertas de Remi (su CLI solo permite esas,
+    # ver test_el_comando_abre_el_estante_y_solo_el_estante). `indice` es para
+    # las demás sesiones de Claude, que no traen el índice en el prompt (3d · 6).
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     import pensar
 
@@ -293,7 +296,7 @@ def test_el_servidor_mcp_anuncia_exactamente_dos_herramientas(tmp_path, monkeypa
         respuesta = json.loads(linea)
         if respuesta.get("id") == 2:
             nombres = sorted(h["name"] for h in respuesta["result"]["tools"])
-    assert nombres == ["guardar", "leer"]
+    assert nombres == ["guardar", "indice", "leer"]
 
 
 # — La semilla —
@@ -339,3 +342,33 @@ def test_endpoints_del_estante(tmp_path, monkeypatch):
     assert cliente.delete(f"/memoria/{memoria_id}").status_code == 204
     assert cliente.delete(f"/memoria/{memoria_id}").status_code == 404
     assert cliente.get(f"/memoria/{memoria_id}").status_code == 404
+
+
+def test_el_indice_del_mcp_da_los_ids_fuera_de_remi(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    import importlib
+
+    import db
+    import memoria_mcp
+
+    importlib.reload(memoria_mcp)
+    db.inicializar_esquema()
+    conexion = db.conectar()
+    try:
+        from datetime import datetime, timezone
+        from uuid import uuid4
+
+        from modelos import Memoria
+
+        db.guardar_memoria(
+            conexion,
+            Memoria(id=uuid4(), titulo="UpVisuals", resumen="Fase 2 USD 3.700", tema="upvisuals",
+                    fecha=datetime.now(timezone.utc), cuerpo="x", fuente="manual", claves=None, nivel=1),
+        )
+    finally:
+        conexion.close()
+    todo = memoria_mcp.indice()
+    assert "upvisuals · UpVisuals — Fase 2 USD 3.700" in todo
+    identificador = todo.split(" · ")[0]
+    assert "UpVisuals" in memoria_mcp.leer(identificador)
+    assert memoria_mcp.indice("malik") == "No hay nada con el tema «malik»."
