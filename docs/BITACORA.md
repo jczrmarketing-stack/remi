@@ -20,6 +20,56 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Fase 3 (Bandeja + caminos + iniciativa) · construido · e3c2dd5
+
+- **Qué cambió:** cuatro archivos nuevos en `nucleo/`, cuatro rutas agregadas al final de
+  `servidor.py`, un commit por tarea (`8bf8107`, `34b48db`, `af62968`, `e3c2dd5`).
+  1. `nucleo/bandeja.py` — `GET /bandeja` (ideas abiertas con `fria: bool`) y
+     `POST /idea/{id}/revision` (`soltar|mantener|tarea`); revisar antes de las 48 h es 409;
+     nunca `DELETE`.
+  2. `nucleo/iniciativa.py` — motor por reglas (`rumbo`, `cuerpo`, `ritual`, `encoger`), sin
+     IA, con presupuesto de silencio (5/día, 45 min entre dos, nada con Claude Code abierto
+     salvo `rumbo`). Reloj siempre inyectado, nunca `datetime.now()` adentro.
+  3. `GET /nudges/pendiente` y `POST /nudges/{id}/respuesta` en `servidor.py` — mismo
+     contrato que ya llama la ventanita de `f-ventanita`. Idempotente.
+  4. `nucleo/caminos.py` — `GET /camino/{tema}` lee `## Camino` de un libro; marca `[x]` de
+     forma reactiva (al leer, no al cerrar una tarea) cuando hay una tarea `hecha` con el
+     mismo título.
+- **Decisiones que tomé sin preguntar:**
+  1. `entregas.proyecto_id` (contrato) no está atado a ningún `Proyecto` real — esa tabla no
+     existe en el núcleo. La regla `rumbo` lo usa tal cual, como si fuera el `tema` string
+     del libro (el mismo texto de `sesiones.app_contexto`), solo para poder comparar contra
+     el bloque abierto. Funciona porque hoy nada crea entregas de verdad; se cae el día que
+     alguien intente crear una con un `proyecto_id` real.
+  2. El presupuesto de silencio y el timestamp de cada nudge no viven en el contrato
+     `Nudge` (no tiene `creada_en`, y cambiarlo es decisión de arquitectura que no me
+     correspondía tomar sola). Los guardo en dos tablas propias de `iniciativa.py`
+     (`iniciativa_nudges`, `iniciativa_silencios`), por fuera del esquema de `db.py`.
+  3. Elegí NO tocar `trabajo.lineas_donde_quede()` para meter el siguiente hito ahí: el
+     encargo lo pedía, pero la frontera decía «archivos nuevos + agregar rutas al final de
+     servidor.py», y esa función vive en `trabajo.py`, ya escrito. Lo dejo en duda abierta
+     en vez de estirar la frontera sin preguntar.
+  4. Marcar `[x]` quedó reactivo (se revisa al pedir `GET /camino/{tema}`, no al cerrar la
+     tarea) por la misma razón: cerrar una tarea pasa por `_cerrar_lo_abierto()` y por
+     `POST /tarea/{id}/estado`, dos funciones ya escritas en `servidor.py` que no son «el
+     final del archivo».
+- **Dudas abiertas:**
+  1. `/donde-quede` no incluye el siguiente hito todavía — está en `GET /camino/{tema}`,
+     separado. Si se quiere ahí también, hace falta decidir si se toca `trabajo.py` (fuera
+     de mi frontera) o se resuelve desde la ventanita pidiendo las dos rutas.
+  2. El puente real entre `Entrega` y un proyecto (ítem 1 arriba) sigue sin existir. Cuando
+     haya una forma real de crear entregas, hay que revisar `iniciativa._regla_rumbo`.
+  3. `Nudge` sin `creada_en` me obligó a las tablas propias de la duda 2 arriba. Si en algún
+     momento el contrato suma ese campo, `iniciativa_nudges` se puede borrar entera.
+- **Cómo probarlo a mano:**
+  1. `cd nucleo && uv run pytest -q && uv run mypy .` — 346 en verde (los 3 que fallan ya
+     fallaban antes de esta fase: oficios/vectores de `remi-mente`, sin datos en este Mac).
+  2. `uv run python servidor.py`, y en otra terminal: `curl -s localhost:4400/bandeja`,
+     `curl -s localhost:4400/nudges/pendiente`, `curl -s localhost:4400/camino/<tema-real>`.
+  3. La ventanita de `f-ventanita` sigue mostrando el Nudge sin ningún cambio en `apps/`.
+
+---
+
 ## 2026-10-01 · Fase S (oficios v1) · 5 refresco semanal del oficio Claude Code · construido · d2841da
 
 - **Qué cambió:** `nucleo/refresco_claude_code.py` nuevo, `scripts/refresco-claude-code.sh` +
