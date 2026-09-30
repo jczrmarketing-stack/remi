@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 
 import db
+import vectores
 
 BINARIO = "claude"
 # Las claves viven en nucleo/.env (fuera del repo). Se leen a un dict y NUNCA
@@ -219,6 +220,30 @@ def _indice() -> list[db.EntradaIndice]:
         return []
     try:
         return db.indice_memoria(conexion)
+    finally:
+        conexion.close()
+
+
+ENCABEZADO_ASOCIADOS = (
+    "\n\nEsto quizá tenga que ver (son solo títulos — asociación por vector, "
+    "ARQUITECTURA-CEREBRO §3; no supongas de qué tratan, si hace falta "
+    "preguntá o bajalos con `leer`): "
+)
+
+
+def _asociados(frase: str) -> list[str]:
+    """3–5 títulos de la bóveda parecidos a `frase`. Sin Ollama arriba o sin
+    vectores todavía, Remi piensa sin asociados — nunca se cae por esto."""
+    try:
+        conexion = db.conectar()
+    except Exception as error:
+        print(f"[asociar] no pude leer la memoria ({type(error).__name__}): sigo sin asociados", file=sys.stderr)
+        return []
+    try:
+        return vectores.asociar(conexion, frase)
+    except Exception as error:  # noqa: BLE001 — sin Ollama no hay asociados, no hay crash
+        print(f"[asociar] no pude asociar ({type(error).__name__}): sigo sin asociados", file=sys.stderr)
+        return []
     finally:
         conexion.close()
 
@@ -647,6 +672,9 @@ def pensar(
     llama sigue por el camino sin IA — nunca se rompe la respuesta por esto."""
     indice = _indice()
     instrucciones = instrucciones_con_indice(indice, sistema)
+    asociados = _asociados(frase)
+    if asociados:
+        instrucciones = instrucciones + ENCABEZADO_ASOCIADOS + ", ".join(asociados)
     turnos, resumen = _conversacion()
     mensaje = mensaje_con_historia(frase, turnos, resumen)
     elegido = motor(motor_pedido)
