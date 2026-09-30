@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel · Hoy — Propuesta B · Riel horizontal</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#151112; --surface:#1d1718; --surface-2:#26201f; --line:#3a302d;
+  --ink:#f3ebdd; --ink-muted:#a89d8f; --ink-faint:#6b6058;
+  --luz:#fff2c9; --on-luz:#1a1200; --dinero:#ffb020; --brasa:#ff8a3d; --on-brasa:#1a0a00;
+  --pensar:#c9a0ff; --baja:#6f6660;
+  --serif:'Instrument Serif',Georgia,serif; --sans:'Geist',system-ui,sans-serif; --mono:'Geist Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;padding:40px 24px;min-height:100vh}
+.wrap{max-width:720px;margin:0 auto}
+.tarjeta{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:32px;display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap}
+.principal{flex:1 1 320px;min-width:0}
+.label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px}
+.tarea{font-family:var(--serif);font-size:clamp(28px,4vw,38px);line-height:1.12;margin:0 0 24px}
+.pieles{display:flex;gap:6px;margin-bottom:12px}
+.mini-btn{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-muted);background:none;border:1px solid var(--line);border-radius:999px;padding:4px 12px;cursor:pointer}
+.mini-btn[aria-pressed="true"]{color:var(--on-brasa);background:var(--brasa);border-color:var(--brasa)}
+.pista{height:6px;background:var(--surface-2);border-radius:999px;border:1px solid var(--line);position:relative;margin-bottom:8px}
+.fuego{position:absolute;left:0;top:0;bottom:0;width:38%;background:var(--brasa);border-radius:999px}
+.punta{position:absolute;left:38%;top:50%;width:9px;height:9px;border-radius:999px;background:var(--dinero);transform:translate(-50%,-50%);box-shadow:0 0 10px 3px rgba(255,176,32,.5)}
+.cifras{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--ink-muted)}
+.cifras b{color:var(--dinero);font-weight:500}
+.piel-terminal, .piel-instrumento{display:none;align-items:center;gap:10px}
+.piel-terminal.activa, .piel-instrumento.activa{display:flex}
+.terminal-cifras{font-family:var(--mono);font-size:26px;color:var(--dinero)}
+.lateral{flex:0 0 220px;border-left:1px solid var(--line);padding-left:24px}
+.lateral .titulo{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:12px}
+.fila{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-muted);padding:8px 0;border-bottom:1px solid var(--line)}
+.fila:last-child{border-bottom:none}
+.fila i{width:6px;height:6px;border-radius:999px;flex:none}
+.fila .hora{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
+@media (max-width:560px){.lateral{border-left:none;border-top:1px solid var(--line);padding-left:0;padding-top:20px;flex-basis:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tarjeta">
+    <div class="principal">
+      <div class="label">Lunes · una sola cosa ahora</div>
+      <h1 class="tarea">Terminar el contrato de la Fase 1</h1>
+      <div class="pieles" role="group" aria-label="Piel del Reloj">
+        <button class="mini-btn" type="button" data-piel="brasa" aria-pressed="true">Brasa</button>
+        <button class="mini-btn" type="button" data-piel="terminal" aria-pressed="false">Terminal</button>
+      </div>
+      <div class="piel-brasa activa" data-piel-panel="brasa" style="display:block">
+        <div class="pista"><div class="fuego"></div><div class="punta"></div></div>
+        <div class="cifras"><span>0:31</span><span>la última vez: <b>1:20</b></span></div>
+      </div>
+      <div class="piel-terminal" data-piel-panel="terminal">
+        <div class="terminal-cifras">00:31:12</div>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--ink-muted)">la última vez: <b>1:20</b></span>
+      </div>
+    </div>
+    <div class="lateral">
+      <div class="titulo">Además hoy</div>
+      <div class="fila"><i style="background:var(--dinero)"></i>Factura a Alfonso<span class="hora">3:00 p</span></div>
+      <div class="fila"><i style="background:var(--brasa)"></i>Bandeja (ritual)<span class="hora">8:30 p</span></div>
+      <div class="fila"><i style="border:1px solid var(--ink-faint)"></i>Mañana: llamada banco<span class="hora">—</span></div>
+    </div>
+  </div>
+</div>
+<script>
+document.querySelectorAll('.mini-btn').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.mini-btn').forEach(function(x){x.setAttribute('aria-pressed','false')});
+    b.setAttribute('aria-pressed','true');
+    var cual = b.getAttribute('data-piel');
+    document.querySelector('[data-piel-panel="brasa"]').style.display = cual==='brasa' ? 'block':'none';
+    var term = document.querySelector('[data-piel-panel="terminal"]');
+    term.classList.toggle('activa', cual==='terminal');
+  });
+});
+</script>
+</body>
+</html>

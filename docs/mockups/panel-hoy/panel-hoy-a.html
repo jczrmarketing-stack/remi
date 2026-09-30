@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel · Hoy — Propuesta A · Instrumento centrado</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#151112; --surface:#1d1718; --surface-2:#26201f; --line:#3a302d;
+  --ink:#f3ebdd; --ink-muted:#a89d8f; --ink-faint:#6b6058;
+  --luz:#fff2c9; --on-luz:#1a1200; --dinero:#ffb020; --brasa:#ff8a3d; --on-brasa:#1a0a00;
+  --pensar:#c9a0ff; --baja:#6f6660; --focus-ring:#ffd27a;
+  --serif:'Instrument Serif',Georgia,serif; --sans:'Geist',system-ui,sans-serif; --mono:'Geist Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;padding:48px 24px;min-height:100vh}
+.wrap{max-width:640px;margin:0 auto;text-align:center}
+.label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:32px}
+.tarea{font-family:var(--serif);font-size:clamp(34px,6vw,52px);line-height:1.08;letter-spacing:-.01em;margin:0 0 48px}
+.reloj-caja{display:flex;flex-direction:column;align-items:center;gap:16px;margin-bottom:48px}
+.pieles{display:flex;gap:8px;justify-content:center}
+.mini-btn{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-muted);background:none;border:1px solid var(--line);border-radius:999px;padding:5px 14px;cursor:pointer}
+.mini-btn[aria-pressed="true"]{color:var(--on-brasa);background:var(--brasa);border-color:var(--brasa)}
+.piel{display:none;flex-direction:column;align-items:center;gap:10px}
+.piel.activa{display:flex}
+.dial-nota{font-family:var(--mono);font-size:12px;color:var(--ink-muted)}
+.dial-nota b{color:var(--brasa);font-weight:500}
+.terminal-cifras{font-family:var(--mono);font-size:40px;color:var(--dinero);letter-spacing:.03em}
+.barra{width:280px}
+.pista{height:8px;background:var(--surface-2);border-radius:999px;border:1px solid var(--line);position:relative}
+.fuego{position:absolute;left:0;top:0;bottom:0;width:38%;background:var(--brasa);border-radius:999px}
+.punta{position:absolute;left:38%;top:50%;width:10px;height:10px;border-radius:999px;background:var(--dinero);transform:translate(-50%,-50%);box-shadow:0 0 12px 3px rgba(255,176,32,.5)}
+.filas{border-top:1px solid var(--line);padding-top:16px;text-align:left}
+.fila{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--ink-muted);padding:10px 0;border-bottom:1px solid var(--line)}
+.fila:last-child{border-bottom:none}
+.fila i{width:7px;height:7px;border-radius:999px;flex:none}
+.fila .hora{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="label">Lunes · una sola cosa ahora</div>
+  <h1 class="tarea">Terminar el contrato de la Fase 1</h1>
+
+  <div class="reloj-caja">
+    <div class="pieles" role="group" aria-label="Piel del Reloj">
+      <button class="mini-btn" type="button" data-piel="instrumento" aria-pressed="true">Instrumento</button>
+      <button class="mini-btn" type="button" data-piel="brasa" aria-pressed="false">Brasa</button>
+      <button class="mini-btn" type="button" data-piel="terminal" aria-pressed="false">Terminal</button>
+    </div>
+
+    <div class="piel activa" data-piel-panel="instrumento">
+      <svg viewBox="0 0 140 140" width="140" height="140" role="img" aria-label="Reloj de dial, 31 minutos de 1:20">
+        <circle cx="70" cy="70" r="60" fill="var(--surface-2)" stroke="var(--line)" stroke-width="2"/>
+        <path d="M 70 70 L 70 12 A 58 58 0 0 1 111 100 Z" fill="var(--brasa)" opacity="0.28"/>
+        <line x1="70" y1="70" x2="103" y2="97" stroke="var(--dinero)" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="70" cy="70" r="5" fill="var(--dinero)"/>
+      </svg>
+      <div class="dial-nota">0:31 · <b>la última vez: 1:20</b></div>
+    </div>
+
+    <div class="piel" data-piel-panel="brasa">
+      <div class="barra"><div class="pista"><div class="fuego"></div><div class="punta"></div></div></div>
+      <div class="dial-nota">0:31 · <b>la última vez: 1:20</b></div>
+    </div>
+
+    <div class="piel" data-piel-panel="terminal">
+      <div class="terminal-cifras">00:31:12</div>
+      <div class="dial-nota">SESIÓN · <b>la última vez: 1:20</b></div>
+    </div>
+  </div>
+
+  <div class="filas">
+    <div class="fila"><i style="background:var(--dinero)"></i>Enviar factura a Alfonso<span class="hora">3:00 p</span></div>
+    <div class="fila"><i style="background:var(--brasa)"></i>Revisar Bandeja (ritual)<span class="hora">8:30 p</span></div>
+    <div class="fila"><i style="border:1px solid var(--ink-faint)"></i>Mañana asoma: llamada banco<span class="hora">—</span></div>
+  </div>
+</div>
+<script>
+document.querySelectorAll('.mini-btn').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.mini-btn').forEach(function(x){x.setAttribute('aria-pressed','false')});
+    b.setAttribute('aria-pressed','true');
+    var cual = b.getAttribute('data-piel');
+    document.querySelectorAll('.piel').forEach(function(p){
+      p.classList.toggle('activa', p.getAttribute('data-piel-panel') === cual);
+    });
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel · Hoy — Propuesta C · Hiperfoco, casi nada</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#151112; --surface:#1d1718; --surface-2:#26201f; --line:#3a302d;
+  --ink:#f3ebdd; --ink-muted:#a89d8f; --ink-faint:#6b6058;
+  --dinero:#ffb020; --brasa:#ff8a3d; --on-brasa:#1a0a00;
+  --serif:'Instrument Serif',Georgia,serif; --sans:'Geist',system-ui,sans-serif; --mono:'Geist Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.wrap{max-width:460px;width:100%;text-align:center}
+.label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:20px}
+.tarea{font-family:var(--serif);font-style:italic;font-size:clamp(20px,3.4vw,26px);line-height:1.3;color:var(--ink-muted);margin:0 0 40px}
+.pieles{display:flex;gap:6px;justify-content:center;margin-bottom:24px}
+.mini-btn{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);background:none;border:1px solid var(--line);border-radius:999px;padding:4px 12px;cursor:pointer}
+.mini-btn[aria-pressed="true"]{color:var(--on-brasa);background:var(--brasa);border-color:var(--brasa)}
+.terminal-cifras{font-family:var(--mono);font-size:clamp(48px,10vw,72px);color:var(--dinero);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.dial-wrap{display:none}
+.dial-wrap.activa{display:flex;justify-content:center}
+.terminal-wrap{display:none}
+.terminal-wrap.activa{display:block}
+.nota{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:12px}
+.nota b{color:var(--brasa);font-weight:500}
+.proximo{margin-top:48px;padding-top:24px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-muted)}
+.proximo b{color:var(--ink);font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="label">Lunes · una sola cosa</div>
+  <p class="tarea">Terminar el contrato de la Fase 1</p>
+
+  <div class="pieles" role="group" aria-label="Piel del Reloj">
+    <button class="mini-btn" type="button" data-piel="terminal" aria-pressed="true">Terminal</button>
+    <button class="mini-btn" type="button" data-piel="instrumento" aria-pressed="false">Instrumento</button>
+  </div>
+
+  <div class="terminal-wrap activa" data-piel-panel="terminal">
+    <div class="terminal-cifras">00:31:12</div>
+    <div class="nota">la última vez: <b>1:20</b></div>
+  </div>
+
+  <div class="dial-wrap" data-piel-panel="instrumento">
+    <svg viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Reloj de dial, 31 minutos de 1:20">
+      <circle cx="50" cy="50" r="42" fill="var(--surface-2)" stroke="var(--line)" stroke-width="2"/>
+      <path d="M 50 50 L 50 9 A 41 41 0 0 1 79 71 Z" fill="var(--brasa)" opacity="0.28"/>
+      <line x1="50" y1="50" x2="73" y2="69" stroke="var(--dinero)" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="50" cy="50" r="3.5" fill="var(--dinero)"/>
+    </svg>
+  </div>
+
+  <div class="proximo">Después: <b>revisar Bandeja</b> a las 8:30 p. Nada más existe hasta entonces.</div>
+</div>
+<script>
+document.querySelectorAll('.mini-btn').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.mini-btn').forEach(function(x){x.setAttribute('aria-pressed','false')});
+    b.setAttribute('aria-pressed','true');
+    var cual = b.getAttribute('data-piel');
+    document.querySelectorAll('[data-piel-panel]').forEach(function(p){
+      p.classList.toggle('activa', p.getAttribute('data-piel-panel') === cual);
+    });
+  });
+});
+</script>
+</body>
+</html>
