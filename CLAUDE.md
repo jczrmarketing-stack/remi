@@ -6,7 +6,7 @@ Remi (apodo: Lucho) es el asistente personal para TDAH de Juan Camilo. Una sola 
 
 1. **Design System "Remi"** (artefacto en claude.ai) → fuente única de tokens visuales. Su export vive en `design/tokens.json`; jamás escribas un hex a mano.
 2. **Biblia de Remi** (artefacto en claude.ai) → fuente única de leyes, pantallas, arquitectura y estado de fases.
-3. **Este repo** → ejecuta lo que dicen 1 y 2. Notion es espejo de solo lectura.
+3. **Este repo** → ejecuta lo que dicen 1 y 2. Notion es la vitrina y la operación, de ida y vuelta: lo que Juan Camilo cambie ahí en campos de operación (estado, próxima acción, fecha, monto) vuelve a Remi; la prosa del libro sale solo de la máquina.
 
 ## Qué es Remi
 
