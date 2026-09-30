@@ -20,6 +20,41 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Fase C · 3 el libro de errores (oficio stack) · construido · ad302a3
+
+- **Qué cambió:** `nucleo/cierre.py`. Al cerrar una sesión de Claude Code, si el transcript
+  tiene un patrón de problema resuelto («la causa era», «se arregló», «fallaba porque» —
+  `PATRON_ERROR`, insensible a mayúsculas), además del episodio normal se escribe un segundo
+  episodio con `fuente: error` y `claves: [error, <tema>]` en el frontmatter, con cuatro
+  secciones: Síntoma, Causa, Cura, Archivo. `redactar_error()` se lo pide a Haiku con la misma
+  disciplina anti-invento (si un dato no aparece claro en la charla, escribe «sin dato» en vez
+  de completar); si las cuatro secciones salen «sin dato», no se escribe ningún episodio de
+  error — mejor ninguno que uno vacío. `oficios/stack.md` ya documentaba que Remi busca ahí
+  antes de proponer un arreglo nuevo; esto es lo que lo alimenta.
+- **Verificado de verdad:** test con un transcript sintético que dice «la causa era que el
+  webhook no reintentaba tras un 500» produce un segundo `.md` con `fuente: error`,
+  `claves: [error, malik]` y las cuatro secciones con los datos del transcript (no inventados:
+  se pasaron por el mock del test, pero el test también prueba que sin el patrón de error no
+  se llama ni una vez a `redactar_error`). 258 pytest, mypy limpio.
+- **Decisiones que tomé sin preguntar:**
+  1. El episodio de error usa el mismo mecanismo de commit automático de la bóveda
+     (`boveda_git.snapshot_antes/despues`) que el episodio normal — un segundo par de commits,
+     no uno solo, para que quede claro en `git log` que son dos escrituras distintas.
+  2. Si `redactar_error` devuelve `None` (Haiku caído, o no sacó ningún dato real), no hay
+     respaldo con Ollama ni con un episodio «plano»: para un libro de errores, ningún dato es
+     mejor que un dato a medias.
+- **Dudas abiertas:**
+  1. El patrón de detección es de texto exacto («la causa era», «se arregló», «fallaba
+     porque»); una sesión que resuelve un problema con otras palabras («ya quedó», «era por»)
+     no deja episodio de error. Se puede ampliar cuando se vea un caso real que se escape.
+  2. No hay todavía nada que LEA el libro de errores antes de proponer un arreglo (lo que
+     `oficios/stack.md` promete) — esto solo lo escribe. Es un punto aparte, no pedido hoy.
+- **Cómo probarlo a mano:** cerrar una sesión de Claude Code real donde se haya dicho «la
+  causa era…» o «se arregló…»; mirar `remi-mente/episodios/` — tiene que aparecer, además del
+  episodio normal, uno con `error` en el nombre y `fuente: error` en el frontmatter.
+
+---
+
 ## 2026-09-30 · fix urgente: verificación mecánica anti-invento en el Estado · construido · 3d580b1
 
 - **Por qué:** el coordinador paró el encargo en curso al ver el incidente que ya había
