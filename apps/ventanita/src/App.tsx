@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { LogicalPosition, LogicalSize, currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { StatusDot } from "./componentes/StatusDot";
 import { Semaforo } from "./componentes/Semaforo";
@@ -1008,7 +1009,11 @@ export default function App() {
         onCallar={callar}
         onCopiar={copiar}
         onReintentar={reintentar}
-        onEnlace={(url) => registrar("enlace", { url })}
+        onEnlace={(url) => {
+          // Los links de una búsqueda (3c · 8) se abren en el navegador.
+          registrar("enlace", { url });
+          void openUrl(url).catch((error) => console.error("no pude abrir el link:", error));
+        }}
       />
 
       <Campo
