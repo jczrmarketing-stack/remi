@@ -45,9 +45,14 @@ def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None
     libro = libros.por_ruta(ruta)
     tema = libro.tema if libro else (episodios.slug(Path(ruta).name) or "sesion")
     titulo_libro = libro.titulo if libro else (Path(ruta).name or "sesión")
-    charla = leer_charla(str(datos.get("transcript_path") or ""))
+    ruta_transcript = str(datos.get("transcript_path") or "")
+    charla = leer_charla(ruta_transcript)
     if not charla.strip():
-        print(f"[cierre] sesión sin charla en {tema}: no deja episodio", file=sys.stderr)
+        motivo = "sin transcript_path" if not ruta_transcript else "transcript sin turnos legibles"
+        print(
+            f"[cierre] sesión sin charla en {tema} ({motivo}, ruta={ruta_transcript or '—'}): no deja episodio",
+            file=sys.stderr,
+        )
         return None
     secciones = redactar(f"Proyecto: {titulo_libro}\n\n{charla}") if charla.strip() else None
     por = "modelo" if secciones else "plano"

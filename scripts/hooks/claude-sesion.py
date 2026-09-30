@@ -24,7 +24,18 @@ def _post(tipo: str, ruta: str, datos: dict[str, object]) -> dict[str, object] |
     try:
         with urllib.request.urlopen(pedido, timeout=2) as respuesta:
             crudo = respuesta.read().decode("utf-8", errors="replace")
-    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
+    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as error:
+        # Si el núcleo está caído al cerrar la sesión, el episodio se pierde
+        # en silencio (ARQUITECTURA §12: "el hook le avisa solo"). Dejamos
+        # rastro en el log de la ventanita para poder diagnosticarlo, en vez
+        # de que la carpeta de episodios simplemente quede vacía sin motivo.
+        try:
+            log = os.path.expanduser("~/Library/Logs/Remi/ventanita.log")
+            os.makedirs(os.path.dirname(log), exist_ok=True)
+            with open(log, "a") as archivo:
+                archivo.write(f"[gancho] {tipo} no llegó al núcleo ({type(error).__name__}): {error}\n")
+        except OSError:
+            pass
         return None
     try:
         datos_respuesta = json.loads(crudo) if crudo.strip() else {}
