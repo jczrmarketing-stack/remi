@@ -20,6 +20,79 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · merge f-fase3 + f-notion + f-telegram · construido · c2bc091
+
+- **Qué cambió:** tres merges a `main`, sin squash, un `git commit` cada uno, pytest completo
+  después de cada uno:
+  1. `a958fae` **f-fase3** (Bandeja, caminos, iniciativa — `nucleo/bandeja.py`,
+     `caminos.py`, `iniciativa.py`, rutas de nudges en `servidor.py`). Conflicto solo en
+     `docs/BITACORA.md` (append-only: combiné las dos listas de entradas, la más nueva
+     arriba). `nucleo/servidor.py` se automergeó limpio.
+  2. `97b42bf` **f-notion** (`nucleo/notion.py`, `notion_sync.py`, LaunchAgent
+     `com.remi.notion` cada 15 min). Primer conflicto real en el bloque de imports de
+     `nucleo/servidor.py` (`import iniciativa` de la rama anterior vs `import notion` de
+     esta), resuelto a mano dejando las dos líneas en orden alfabético; el resto del archivo
+     se automergeó.
+  3. `c2bc091` **f-telegram** (`nucleo/telegram.py`, cliente de la Bot API, `arrancar_hilo()`
+     en el startup, `POST /telegram/avisar`). Conflicto en `docs/BITACORA.md` (mismo patrón,
+     combiné) y de nuevo en el bloque de imports/`include_router` de `servidor.py`
+     (`notion.router` de la rama anterior vs `telegram.router` de esta): quedaron las dos
+     líneas.
+  pytest después de cada merge: 372→384→399 (subió con cada rama, como se esperaba). Al
+  final: mypy limpio (76 módulos), 86 vitest, `cargo check` limpio en `src-tauri` (mismo
+  warning preexistente de `pico_reciente`, no nuevo).
+- **`scripts/actualizar.sh`:** corrió sobre `c2bc091`; el log del actualizador confirma
+  «Instalada la de: c2bc091 merge: f-telegram (Fase 4 — Telegram) en main». `launchctl list`
+  muestra `com.remi.notion` corriendo (`com.remi.nucleo` también se reinició con el código
+  nuevo, vía `scripts/instalar.sh`).
+- **Verificación del hilo de Telegram:** el log (`~/Library/Logs/Remi/nucleo.log`) no dice
+  nada al arrancar con éxito — es a propósito, `arrancar_hilo()` solo loguea el caso sin
+  token; el éxito es silencioso. Lo verifiqué distinto: `lsof` sobre el PID real de
+  `com.remi.nucleo` mostró una conexión TCP `ESTABLISHED` hacia `2001:67c:4e8::/48`, el
+  bloque IPv6 de Telegram Messenger Inc (confirmado con `whois`) — el hilo está vivo y
+  conectando de verdad.
+- **Encontrado en la verificación, no en el merge:**
+  1. Un proceso viejo (`uv run uvicorn servidor:app --port 4402`, del worktree
+     `remi-telegram`, PID 27450/27452, arrancado a mano hace rato, sin relación con
+     `launchd`) seguía corriendo y competía por el mismo `TELEGRAM_TOKEN`: el núcleo real de
+     4400 recibía `409 Conflict` en `getUpdates`. Lo maté (`kill 27450 27452`) — era un
+     sobrante de desarrollo, no un servicio.
+  2. Aun así, el `409 Conflict` sigue apareciendo en el log varios minutos después de matar
+     ese proceso. Confirmé que no hay ningún otro proceso local usando ese token
+     (`ps -ef` limpio de `uvicorn`/`servidor:app` salvo el de 4400) y que el bot no tiene un
+     webhook configurado (`getWebhookInfo` → `url: ""`). Conclusión: hay otro cliente
+     haciendo long polling contra el mismo bot desde fuera de esta máquina — otra instalación
+     de Remi, un servidor, u otro dispositivo con el mismo `TELEGRAM_TOKEN`. No es algo que
+     se arregle desde acá; se lo dejo a Juan Camilo (dato abierto abajo).
+  3. Aproveché este chequeo para mirar `notion.log`: `com.remi.notion` corrió y llegó a
+     `api.notion.com`, pero `notion.buscar_base()` usa `POST /blocks/{id}/children`
+     (agregar bloques) en vez de `GET /blocks/{id}/children` (listarlos) para buscar la base
+     de datos existente — 400 Bad Request. Bug real de `f-notion`, no lo toqué: el encargo
+     era mergear y verificar que el agente corra, no depurar su lógica.
+- **Decisiones que tomé sin preguntar:**
+  1. Maté el proceso de 4402: estaba activamente rompiendo la verificación que el encargo
+     pedía (el 409 en el núcleo real), no tenía dueño (`launchd` no lo maneja) y era
+     claramente un sobrante de una sesión de desarrollo anterior sobre una rama ya mergeada.
+  2. En los dos conflictos de imports, alfabético (`iniciativa` antes de `notion` antes de
+     `telegram`) por consistencia con el resto del bloque de imports, que ya iba alfabético.
+- **Dudas abiertas:**
+  1. **El 409 de Telegram sigue sin resolverse** — hay otro poller vivo en algún lado con el
+     mismo token. Hasta que Juan Camilo lo identifique y lo baje, el bot de este Mac va a
+     seguir reintentando sin conectar de verdad (no rompe el núcleo, solo no contesta
+     mensajes).
+  2. `notion.buscar_base()` usa el verbo/endpoint equivocado de la API de Notion (ver arriba)
+     — sin arreglarlo, `com.remi.notion` nunca va a sincronizar nada, solo va a fallar cada
+     15 min con 400. Encargo aparte.
+  3. Igual que en la entrada de la trastienda: `docs/ARQUITECTURA-CEREBRO.md` y
+     `docs/ROBUSTEZ.md` siguen sin commitear en este árbol — no los toqué, no son míos.
+- **Cómo probarlo a mano:** `git -C ~/proyectos/remi log --oneline -1` → `c2bc091`;
+  `git -C ~/proyectos/remi branch --merged main` → incluye `f-fase3`, `f-notion`,
+  `f-telegram`; `launchctl list | grep com.remi.notion`; `tail -f
+  ~/Library/Logs/Remi/nucleo.log` mientras se le manda `/start` al bot desde Telegram (una
+  vez resuelto el poller externo) para ver la línea `[telegram] /start de chat_id=…`.
+
+---
+
 ## 2026-09-30 · trastienda (config/motores.json) + respaldo de charla · construido · a57484d
 
 - **Qué cambió:** `nucleo/pensar.py` — `config/motores.json` define la trastienda, una lista
