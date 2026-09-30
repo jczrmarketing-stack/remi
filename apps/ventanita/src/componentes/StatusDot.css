@@ -38,21 +38,18 @@
   box-shadow: var(--glow-brasa);
 }
 
-/* Maqueta de Juan Camilo (30/09/2026): contestando, el punto es grande y
-   crema, sin brillo; pensando, mediano y gris. Él dirige: esto pisa al
-   brasa/pensar del DS en la ventanita. */
+/* Fase F · 1 (30/09/2026): la bolita vuelve a significar con el color del
+   DS — escuchando luz, pensando pensar (lavanda), hablando brasa, reposo
+   baja. Es lo único que cambia de color; el tamaño de la maqueta de
+   Juan Camilo (grande hablando, mediano pensando) sigue igual. */
 .status-dot[data-estado="hablando"] {
   width: 48px;
   height: 48px;
-  background: var(--ink);
-  box-shadow: none;
 }
 
 .status-dot[data-estado="pensando"] {
   width: 28px;
   height: 28px;
-  background: var(--ink-muted);
-  box-shadow: none;
 }
 
 /* El pulso respira: un halo (glow-luz, sin tocar) que crece y decrece
@@ -159,7 +156,7 @@
   inset: -5px;
   border-radius: var(--radius-pill);
   border: 1.5px solid transparent;
-  border-top-color: var(--ink-muted);
+  border-top-color: var(--pensar);
   animation: cargando 1100ms linear infinite;
 }
 
