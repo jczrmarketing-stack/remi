@@ -25,6 +25,9 @@ export interface Mensaje {
   // eso el chat sabe que hay algo abierto y muestra «Hecha» debajo.
   tarea?: Tarea | null;
   sesion?: Sesion | null;
+  // Retomar (3f · 7): los últimos 3 mensajes de la conversación vigente al
+  // abrir, antes de que digas nada nuevo — se ven, pero en ink-muted.
+  historial?: boolean;
 }
 
 interface Props {
@@ -169,7 +172,7 @@ function MensajeDeRemi({ mensaje, ultimo, ...acciones }: Omit<Props, "mensajes">
         bloque.tipo === "encargo" ? (
           <Encargo key={i} texto={bloque.texto} />
         ) : (
-          <p key={i} className="display-it chat__remi">
+          <p key={i} className={`display-it chat__remi${mensaje.historial ? " ink-muted" : ""}`}>
             <Partes partes={bloque.partes} onEnlace={acciones.onEnlace} bionica={acciones.bionica != null} />
           </p>
         ),
@@ -232,7 +235,7 @@ export function Chat({ mensajes, ...acciones }: Props) {
       {mensajes.map((mensaje, i) =>
         mensaje.rol === "juan" ? (
           <div key={mensaje.id} className="chat__mensaje chat__mensaje--juan">
-            <p className="body-sm chat__juan">{mensaje.texto}</p>
+            <p className={`body-sm chat__juan${mensaje.historial ? " ink-muted" : ""}`}>{mensaje.texto}</p>
           </div>
         ) : (
           <MensajeDeRemi key={mensaje.id} mensaje={mensaje} ultimo={i === mensajes.length - 1} {...acciones} />

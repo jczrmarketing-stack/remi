@@ -105,6 +105,9 @@ const TAMANO_REPOSO_MINIMO = TAMANO_ISLA_MINIMA;
 const MS_GUARDAR_VENTANA = 400;
 const REFRESCO_HACE_MS = 30000;
 const DURACION_APARECER = 250;
+// Retomar (3f · 7): al abrir en texto, solo los últimos 3 mensajes de la
+// conversación vigente, sin nada nuevo dicho todavía.
+const MENSAJES_DE_RETOMAR = 3;
 // Techo de una locución, por si el sintetizador nunca avisa que terminó.
 const TECHO_LOCUCION_MS = 60000;
 // Mientras dictás, cada cuánto se pide lo que vas diciendo.
@@ -401,7 +404,11 @@ export default function App() {
           setMensajes((actuales) =>
             // Si ya hay mensajes de esta apertura (llegaron antes que la
             // historia), la historia va antes y no se duplica nada.
-            actuales.length > 0 ? actuales : turnos.map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto })),
+            actuales.length > 0
+              ? actuales
+              : turnos
+                  .slice(-MENSAJES_DE_RETOMAR)
+                  .map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto, historial: true })),
           );
           return;
         }

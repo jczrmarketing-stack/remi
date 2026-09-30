@@ -119,6 +119,10 @@ body {
   font-variant-numeric: tabular-nums;
   margin: 0;
 }
+/* Texto secundario: retomar (3f · 7), «hace», notas, atajos. */
+.ink-muted {
+  color: var(--ink-muted);
+}
 
 /* El reduced-motion del pulso vive en StatusDot.css, junto a la
    animación real (::after) — acá no queda nada que apagar. */
