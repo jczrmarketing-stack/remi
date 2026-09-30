@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalPosition, LogicalSize, currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { StatusDot } from "./componentes/StatusDot";
 import { Semaforo } from "./componentes/Semaforo";
 import { BotonCancelar } from "./componentes/BotonCancelar";
@@ -67,6 +67,18 @@ import {
   type Racha,
 } from "./gestos";
 import { enchufarConsola, registrar } from "./registro";
+import {
+  fijarPosicion,
+  fijarTamanoChat,
+  limitarTamano,
+  obtenerPosicion,
+  obtenerTamanoChat,
+  posicionQueEntra,
+  TAMANO_MINIMO,
+  tamanoMaximo,
+  type Pantalla,
+  type Tamano,
+} from "./ventana";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import "./estilos.css";
 import "./App.css";
@@ -77,8 +89,9 @@ import "./App.css";
 const TAMANO_REPOSO_MINIMO = { width: 120, height: 44 };
 const TAMANO_REPOSO_CON_HACE = { width: 120, height: 64 };
 const TAMANO_REPOSO_ULTIMA_VEZ = { width: 210, height: 64 };
-// Abierta es el chat (3c): una sola pantalla.
-const TAMANO_CHAT = { width: 420, height: 520 };
+// Abierta es el chat (3c): una sola pantalla, del tamaño que la dejaste
+// (ventana.ts). Guardar tamaño y lugar espera a que dejes de mover.
+const MS_GUARDAR_VENTANA = 400;
 const REFRESCO_HACE_MS = 30000;
 const DURACION_APARECER = 250;
 // Techo de una locución, por si el sintetizador nunca avisa que terminó.
@@ -88,16 +101,35 @@ const MS_PARCIAL = 1500;
 // Por debajo de esto es un click; por encima, arrastrás la ventana.
 const UMBRAL_ARRASTRE_PX = 4;
 
+// La pantalla donde está la ventana, en puntos (el área sin menú ni Dock).
+async function pantallaActual(): Promise<Pantalla | null> {
+  try {
+    const monitor = await currentMonitor();
+    if (!monitor) return null;
+    const f = monitor.scaleFactor;
+    const { position, size } = monitor.workArea;
+    return { x: position.x / f, y: position.y / f, width: size.width / f, height: size.height / f };
+  } catch {
+    return null;
+  }
+}
+
+async function tamanoActual(): Promise<Tamano> {
+  const ventana = getCurrentWindow();
+  const [fisico, f] = await Promise.all([ventana.innerSize(), ventana.scaleFactor()]);
+  return { width: fisico.width / f, height: fisico.height / f };
+}
+
 function tamanoReposo(hayHace: boolean, hayUltimaVez: boolean) {
   if (hayUltimaVez) return TAMANO_REPOSO_ULTIMA_VEZ;
   return hayHace ? TAMANO_REPOSO_CON_HACE : TAMANO_REPOSO_MINIMO;
 }
 
 // Qué es un control (nunca un gesto de la píldora) y qué es el campo.
-const SELECTOR_CONTROLES = ".chat, .pie, .semaforo, .boton-cancelar, .bolita, button, select, a";
+const SELECTOR_CONTROLES = ".chat, .pie, .semaforo, .boton-cancelar, .bolita, .asa, button, select, a";
 const SELECTOR_CUADRO = ".campo";
 // Desde dónde NO se arrastra la ventana: donde hay texto o controles.
-const SELECTOR_SIN_ARRASTRE = ".chat__mensaje, .campo, .pie, .semaforo, .boton-cancelar, .bolita";
+const SELECTOR_SIN_ARRASTRE = ".chat__mensaje, .campo, .pie, .semaforo, .boton-cancelar, .bolita, .asa";
 
 function clasificarObjetivo(objetivo: EventTarget | null) {
   const elemento = objetivo instanceof HTMLElement ? objetivo : null;
@@ -178,34 +210,103 @@ export default function App() {
   const reposoRef = useRef({ hayHace, hayUltimaVez });
   reposoRef.current = { hayHace, hayUltimaVez };
 
+  // Mientras la animamos nosotros, los cambios de tamaño no son tuyos: no
+  // se guardan.
+  const animandoRef = useRef(false);
+
+  // Al arrancar: la píldora del tamaño justo y en el lugar donde la dejaste.
   useEffect(() => {
     const ventana = getCurrentWindow();
-    const { width, height } = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
-    registrar("tamaño", { motivo: "montar", w: width, h: height });
+    const reposo = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
+    registrar("tamaño", { motivo: "montar", w: reposo.width, h: reposo.height });
     cambioDeTamanoRef.current = performance.now();
     void (async () => {
+      await ventana.setResizable(false);
       await ventana.setMinSize(new LogicalSize(TAMANO_REPOSO_MINIMO.width, TAMANO_REPOSO_MINIMO.height));
-      await ventana.setMaxSize(new LogicalSize(TAMANO_CHAT.width, TAMANO_CHAT.height));
-      await ventana.setSize(new LogicalSize(width, height));
+      await ventana.setMaxSize(null);
+      await ventana.setSize(new LogicalSize(reposo.width, reposo.height));
+      const guardada = obtenerPosicion();
+      if (guardada) {
+        const lugar = posicionQueEntra(guardada, reposo, await pantallaActual());
+        registrar("posición", { motivo: "montar", x: lugar.x, y: lugar.y });
+        await ventana.setPosition(new LogicalPosition(lugar.x, lugar.y));
+      }
     })();
   }, []);
 
+  // Abrir: del tamaño que la dejaste (entre 360×240 y el 90 % de la
+  // pantalla), corrida si hace falta para que entre entera. Cerrar: vuelve
+  // a la píldora desde el tamaño que tenga.
   useEffect(() => {
     if (expandidoAnteriorRef.current === expandido) return;
     expandidoAnteriorRef.current = expandido;
     const ventana = getCurrentWindow();
     const reposo = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
-    const desde = expandido ? reposo : TAMANO_CHAT;
-    const hasta = expandido ? TAMANO_CHAT : reposo;
-    registrar("tamaño", { motivo: expandido ? "expandir" : "encoger", w: hasta.width, h: hasta.height });
-    cambioDeTamanoRef.current = performance.now();
-    void animarTamano(ventana, desde, hasta, DURACION_APARECER).then(() => {
+    void (async () => {
+      animandoRef.current = true;
       cambioDeTamanoRef.current = performance.now();
-    });
+      if (expandido) {
+        const pantalla = await pantallaActual();
+        const hasta = limitarTamano(obtenerTamanoChat(), pantalla);
+        if (pantalla) {
+          const maximo = tamanoMaximo(pantalla);
+          await ventana.setMaxSize(new LogicalSize(maximo.width, maximo.height));
+          const [fisica, f] = await Promise.all([ventana.outerPosition(), ventana.scaleFactor()]);
+          const ahora = { x: fisica.x / f, y: fisica.y / f };
+          const lugar = posicionQueEntra(ahora, hasta, pantalla);
+          if (lugar.x !== Math.round(ahora.x) || lugar.y !== Math.round(ahora.y)) {
+            await ventana.setPosition(new LogicalPosition(lugar.x, lugar.y));
+          }
+        }
+        registrar("tamaño", { motivo: "expandir", w: hasta.width, h: hasta.height });
+        await animarTamano(ventana, reposo, hasta, DURACION_APARECER);
+        await ventana.setMinSize(new LogicalSize(TAMANO_MINIMO.width, TAMANO_MINIMO.height));
+        await ventana.setResizable(true);
+      } else {
+        await ventana.setResizable(false);
+        await ventana.setMinSize(new LogicalSize(TAMANO_REPOSO_MINIMO.width, TAMANO_REPOSO_MINIMO.height));
+        const desde = await tamanoActual();
+        registrar("tamaño", { motivo: "encoger", w: reposo.width, h: reposo.height });
+        await animarTamano(ventana, desde, reposo, DURACION_APARECER);
+      }
+      cambioDeTamanoRef.current = performance.now();
+      animandoRef.current = false;
+    })();
   }, [expandido]);
 
+  // Lo que muevas o agrandes a mano se guarda, cuando dejás de moverlo.
   useEffect(() => {
-    if (expandido) return;
+    const ventana = getCurrentWindow();
+    let reloj = 0;
+    const tamano = ventana.onResized(() => {
+      if (animandoRef.current || accionesRef.current.estado === "reposo") return;
+      window.clearTimeout(reloj);
+      reloj = window.setTimeout(() => {
+        void tamanoActual().then((t) => {
+          if (animandoRef.current || accionesRef.current.estado === "reposo") return;
+          fijarTamanoChat(t);
+          registrar("tamaño", { motivo: "a mano", w: Math.round(t.width), h: Math.round(t.height) });
+        });
+      }, MS_GUARDAR_VENTANA);
+    });
+    let relojLugar = 0;
+    const lugar = ventana.onMoved(({ payload }) => {
+      window.clearTimeout(relojLugar);
+      relojLugar = window.setTimeout(() => {
+        void ventana.scaleFactor().then((f) => fijarPosicion({ x: payload.x / f, y: payload.y / f }));
+      }, MS_GUARDAR_VENTANA);
+    });
+    return () => {
+      window.clearTimeout(reloj);
+      window.clearTimeout(relojLugar);
+      void tamano.then((dejar) => dejar());
+      void lugar.then((dejar) => dejar());
+    };
+  }, []);
+
+  useEffect(() => {
+    // Durante la animación de cerrar, el tamaño lo pone ella.
+    if (expandido || animandoRef.current) return;
     const { width, height } = tamanoReposo(hayHace, hayUltimaVez);
     cambioDeTamanoRef.current = performance.now();
     void getCurrentWindow().setSize(new LogicalSize(width, height));
@@ -865,6 +966,22 @@ export default function App() {
         onEnviar={() => void enviar(texto, "texto")}
         onPegarLargo={() => undefined}
       />
+
+      <div
+        className="asa"
+        aria-hidden="true"
+        title="Arrastrá para cambiar el tamaño"
+        onMouseDown={(evento) => {
+          if (evento.button !== 0) return;
+          evento.preventDefault();
+          evento.stopPropagation();
+          void getCurrentWindow().startResizeDragging("SouthEast");
+        }}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M9 1 L1 9 M9 5 L5 9" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+        </svg>
+      </div>
 
       <div className="pie">
         <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
