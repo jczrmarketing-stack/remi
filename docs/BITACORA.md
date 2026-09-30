@@ -20,6 +20,39 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · motor DeepSeek · construido · 1fd9d29
+
+- **Qué cambió:** `nucleo/pensar.py` — motor `deepseek`, mismo camino que Venice:
+  `DEEPSEEK_URL` (OpenAI-compatible, `https://api.deepseek.com/chat/completions`),
+  `MODELOS_DEEPSEEK = ("deepseek-flash", "deepseek-v4-pro")`, `_modelo_deepseek`,
+  `_llamar_deepseek` (reusa `_llamar_openai_compatible`), `_pensar_con_deepseek` (reusa
+  `_leer_respuesta_venice` con `proveedor="deepseek"`), y una rama nueva en `motor()`/`pensar()`.
+  `motores_disponibles()` lo suma a la lista de `/pensar/motores`: aparece solo si
+  `DEEPSEEK_API_KEY` está en `nucleo/.env`. `nucleo/pruebas/test_pensar.py` — ocho pruebas
+  nuevas espejo de las de Venice (sin clave, nunca default, lee texto/tokens, el chip elige
+  entre flash y pro, respuesta vacía, la clave no se exporta a la CLI de Claude, y las dos de
+  `motores_disponibles`). `nucleo/pruebas/test_bandeja.py` — el orden esperado de
+  `/pensar/motores` ahora incluye `deepseek`.
+- **Decisiones que tomé sin preguntar:**
+  1. `deepseek-flash` es el modelo por defecto si el chip no manda uno (mismo criterio que
+     Venice: el primero de la tupla es el económico/respaldo). `deepseek-v4-pro` para
+     inteligente y Modo Prompt queda documentado en el comentario de `MODELOS_DEEPSEEK`, pero
+     la frontera de este encargo era `nucleo/pensar.py` + tests, sin tocar `apps/` ni
+     `servidor.py`: hoy no hay ningún camino real que pida `modelo_deepseek="deepseek-v4-pro"`
+     automáticamente por modo — `pensar()` ya acepta el parámetro (igual que `modelo_venice`),
+     pero falta que el chip (o `servidor.py`, fuera de esta frontera) lo mande. Hasta entonces,
+     manual solo es posible desde `pensar.pensar(..., modelo_deepseek=...)` directo.
+  2. Mismos filtros de salida (`sin_markdown`, ≤60 palabras) sin tocar nada: son de
+     `servidor.py` y aplican al `paso_minimo` de cualquier motor por igual.
+- **Dudas abiertas:**
+  1. El chip de la ventanita no tiene todavía un selector `modelo_deepseek` (como sí tiene
+     para Venice): encargo aparte que sí tocaría `apps/` y `servidor.py`.
+- **Cómo probarlo a mano:** `cd nucleo && uv run pytest pruebas/test_pensar.py
+  pruebas/test_bandeja.py -v`; con `DEEPSEEK_API_KEY` real en `nucleo/.env`,
+  `curl -s 127.0.0.1:4400/pensar/motores | jq` debe listar `deepseek` con `disponible: true`.
+
+---
+
 ## 2026-09-30 · estado del 30-sep 12:00
 
 - **Instalado:** `main` en `c194103` (merge de `f-ventanita` en `284ef5b` + dos commits de
