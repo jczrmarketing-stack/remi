@@ -20,6 +20,44 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Fase C · 4 precarga del proyecto activo · construido · dbe3186
+
+- **Qué cambió:** `nucleo/precarga.py` nuevo. Antes de cada respuesta (`pensar.pensar()`), se
+  suma a las instrucciones el nivel 2 (el Estado, o el resumen si el libro todavía no tiene
+  Estado) del proyecto activo — sin que el modelo tenga que llamar a `leer`. Proyecto activo,
+  en orden: (1) bloque abierto — la sesión de trabajo sin cerrar más reciente ya guarda el tema
+  en `app_contexto` al abrirse la tarea; (2) app en primer plano por NSWorkspace — **todavía no
+  existe esa señal en el núcleo** (es Fase F · 13, sin construir; lo dejo como hueco real, no
+  no lo inventé); (3) el último libro tocado (`trabajo_eventos`, lo mismo que usa
+  `trabajo._libro_reciente()` para «¿dónde quedé?»). Log: `[precarga] precargado=<tema>
+  razon=<bloque_abierto|ultimo_tocado>`, o «nada que precargar» si no hay ninguna señal.
+- **Verificado en vivo, no solo con tests:** reinstalé el núcleo real y le pregunté «¿en qué
+  estoy trabajando ahora?» con `think=true`. El log dice `precargado=remi razon=ultimo_tocado`
+  y `leyó=no` en la misma línea del log de Claude — no bajó nada del estante. La respuesta
+  describió bien el trabajo real de hoy (la verificación anti-invento, la consolidación
+  nocturna) sin inventar nada ajeno. Más 4 tests reales en `test_precarga.py` (bloque abierto
+  gana al último tocado; sin ninguna señal no hay nada que precargar; sin Estado todavía usa
+  el resumen del libro). 262 pytest, mypy limpio (54 módulos).
+- **Decisiones que tomé sin preguntar:**
+  1. `estado_libro` se importa DENTRO de `precarga.resumen_nivel2()`, no arriba del archivo:
+     arriba crea un ciclo real (`pensar → precarga → estado_libro → pensar`) que Python tolera
+     en la práctica pero es frágil; adentro de la función lo evita del todo. Lo probé
+     importando cada módulo por separado como punto de entrada (`pensar`, `estado_libro`,
+     `noche`) antes de confiar en que no rompía nada.
+  2. La precarga nunca rompe la respuesta: cualquier excepción se atrapa y Remi piensa igual,
+     solo que sin el nivel 2 puesto (mismo criterio que `_asociados`).
+- **Dudas abiertas:**
+  1. **Falta NSWorkspace de verdad** (Fase F · 13): sin eso, «app en primer plano» no es una
+     señal real todavía — hoy el orden efectivo es bloque abierto → último tocado, nada más.
+  2. «Bloque abierto» hoy depende de que exista una `Sesion` con `fin IS NULL`; una Tarea
+     abierta sin sesión (o cuya sesión ya se cerró) no cuenta como bloque — es el mismo
+     concepto que ya usa el resto del núcleo, no inventé uno nuevo.
+- **Cómo probarlo a mano:** con el núcleo corriendo, `curl -s -X POST
+  http://127.0.0.1:4400/mensaje -d '{"texto":"¿en qué estoy trabajando ahora?","think":true}'`
+  y `grep '\[precarga\]' ~/Library/Logs/Remi/nucleo.log`.
+
+---
+
 ## 2026-09-30 · Fase C · 3 el libro de errores (oficio stack) · construido · ad302a3
 
 - **Qué cambió:** `nucleo/cierre.py`. Al cerrar una sesión de Claude Code, si el transcript
