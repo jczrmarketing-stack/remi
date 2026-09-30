@@ -30,6 +30,7 @@ import iniciativa
 import notion
 import pensar
 import sembrar_conocimiento
+import telegram
 import trabajo
 import tts
 from modelos import Idea, Memoria, Nudge, Sesion, Tarea
@@ -60,6 +61,7 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
             sembrar_conocimiento.sembrar_oficios()
         except Exception as error:  # nunca tumbar el arranque por esto
             print(f"[oficios] no pude sembrar ({type(error).__name__}: {error})", file=sys.stderr)
+    telegram.arrancar_hilo()
     yield
 
 
@@ -75,6 +77,7 @@ app.add_middleware(
 )
 app.include_router(entregas.router)
 app.include_router(notion.router)
+app.include_router(telegram.router)
 
 MAX_PALABRAS_VOZ = 20
 # Lo que se DICE en voz alta, cuando la respuesta la escribió el modelo: el

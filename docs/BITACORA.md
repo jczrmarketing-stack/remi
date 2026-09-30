@@ -110,6 +110,59 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Fase 4 Telegram · construido · 830f5ab
+
+- **Qué cambió:** `nucleo/telegram.py` (nuevo) — cliente mínimo sobre la Bot API con httpx,
+  sin librerías de Telegram. `getUpdates` en long polling (timeout 30) en un hilo daemon que
+  arranca en el startup de `servidor.py` si hay `TELEGRAM_TOKEN`; sin token, no arranca y lo
+  dice una vez en el log, el núcleo sigue igual. Solo contesta al `TELEGRAM_CHAT_ID`
+  configurado; cualquier otro chat se ignora en silencio, y sin `CHAT_ID` el primer `/start`
+  solo queda en el log con el chat_id para copiarlo al `.env`. Un texto con la forma de
+  `entregas.parsear_entrega` («entrega para X el D de MES por N») crea la entrega por la
+  misma vía que `POST /entregas` y confirma «Entrega para X: D de MES, $N»; cualquier otro
+  texto pasa por la misma función que `/mensaje` (origen=texto, modo=rapido, think=true,
+  clasificador y Bandeja incluidos) y la respuesta sale sin markdown y hasta 3 frases
+  (`servidor.para_hablar`). `POST /telegram/avisar` es la única puerta de salida hacia el
+  teléfono — la llaman el motor de iniciativa y el vigía de `f-fase3` cuando se mergee, no
+  este módulo — y respeta el silencio 23:00–7:00 en `America/Bogota` salvo `urgente: true`.
+  `servidor.py`: un import, `telegram.arrancar_hilo()` en el startup y
+  `app.include_router(telegram.router)`. `nucleo/pruebas/test_telegram.py`: 15 pruebas, todas
+  con transporte falso, sin red.
+- **Decisiones que tomé sin preguntar:**
+  1. `REMI_TELEGRAM=0` apaga el hilo aunque haya `TELEGRAM_TOKEN`, mismo patrón que
+     `REMI_TTS_PRECALENTAR` y `REMI_SEMBRAR_CONOCIMIENTO` — sin esto, correr `pytest` en la
+     máquina de Juan Camilo con el `.env` real puesto dispararía long polling de verdad
+     contra Telegram en cada corrida de pruebas. No hace falta tocarlo en producción: el bot
+     arranca igual.
+  2. La branch venía en `7610eb1`, antes de que `nucleo/entregas.py` y el resto de
+     `f-ventanita` se mergearan a `main` — hice `git merge main` (fast-forward) al principio
+     para poder leer y usar `entregas.parsear_entrega`, con permiso explícito de Juan Camilo.
+  3. Con `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` ausentes leo primero `os.environ`, y si no está,
+     `nucleo/.env` (mismo parser que `pensar._leer_env`) — igual que el resto del núcleo lee
+     `VENICE_API_KEY`.
+- **Dudas abiertas:**
+  1. `entrega.proyecto_id` sale de un uuid5 determinístico por tema (`_proyecto_id_de_tema`
+     en `entregas.py`, ya existente) porque todavía no hay Proyecto con id propio — una
+     entrega creada desde el teléfono, sin `tema`, cae siempre en `sin-proyecto`.
+  2. `POST /telegram/avisar` no lo probé contra el bot real (`curl` al `127.0.0.1:4400` con el
+     núcleo corriendo y el teléfono de Juan Camilo a mano) — queda para que lo pruebe él.
+- **Cómo probarlo a mano:**
+  1. En `nucleo/.env`: `TELEGRAM_TOKEN=<el de @lucho777_bot>` y, tras mandarle `/start` al
+     bot y ver el chat_id en el log del núcleo, `TELEGRAM_CHAT_ID=<ese número>`.
+  2. `cd nucleo && uv run python servidor.py` — sin token, el log dice «sin TELEGRAM_TOKEN…
+     el bot no arranca»; con token puesto, arranca el hilo sin loguear nada más.
+  3. Escribirle al bot «idea: probar Telegram» — Remi contesta corto y la idea aparece en la
+     Bandeja (`GET /hoy` no la lista; queda en la tabla `ideas`).
+  4. Escribirle «entrega para Alfonso el 18 de octubre por 5.000» — contesta «Entrega para
+     Alfonso: 18 de octubre, $5.000» y `curl 127.0.0.1:4400/entregas` la lista.
+  5. `curl -X POST 127.0.0.1:4400/telegram/avisar -H 'Content-Type: application/json' -d
+     '{"texto":"prueba"}'` — llega al teléfono si no son las 23:00–7:00; con
+     `{"texto":"prueba","urgente":true}` llega igual de noche.
+  6. `cd nucleo && uv run pytest -q && uv run mypy telegram.py servidor.py` — 336 pruebas y
+     mypy en verde.
+
+---
+
 ## 2026-09-30 · estado del 30-sep 12:00
 
 - **Instalado:** `main` en `c194103` (merge de `f-ventanita` en `284ef5b` + dos commits de
