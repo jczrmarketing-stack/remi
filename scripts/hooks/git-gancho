@@ -12,8 +12,13 @@ if [ "$nombre" = "post-commit" ]; then
   python3 "$dir/avisar-commit.py" >/dev/null 2>&1 || true
 fi
 
-local=$(git rev-parse --git-path "hooks/$nombre" 2>/dev/null) || exit 0
-[ -n "$local" ] || exit 0
+# El del repo vive en su .git/hooks. Ojo: con core.hooksPath puesto,
+# `git rev-parse --git-path hooks/X` devuelve ESTA carpeta global, no la del
+# repo, y el gancho se encontraba a sí mismo y no corría nada (30/09). Se
+# arma la ruta desde el directorio común del repo (vale para worktrees).
+comun=$(git rev-parse --git-common-dir 2>/dev/null) || exit 0
+[ -n "$comun" ] || exit 0
+local="$comun/hooks/$nombre"
 [ -f "$local" ] && [ -x "$local" ] || exit 0
 
 real_local=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$local" 2>/dev/null) || exit 0
