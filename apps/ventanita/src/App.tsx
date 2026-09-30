@@ -22,12 +22,15 @@ import {
   alternarSilencio,
   estaSilenciado,
   estaSinPensar,
+  fijarModo,
   fijarMotor,
   fijarSinPensar,
   fijarVelocidad,
   fijarVoz,
   MOTOR_POR_DEFECTO,
+  obtenerModo,
   obtenerMotor,
+  type ModoPensar,
   obtenerVelocidad,
   obtenerVoz,
   type PreferenciaVoz,
@@ -149,6 +152,8 @@ export default function App() {
   // después de cada envío — nunca queda prendido de fondo gastando tokens.
   // Remi piensa siempre. «sin pensar» lo apaga y queda puesto (persistido).
   const [sinPensar, setSinPensar] = useState(() => estaSinPensar());
+  // Rápido / equilibrio / inteligente: viaja en cada mensaje.
+  const [modoPensar, setModoPensar] = useState<ModoPensar>(() => obtenerModo());
   // Con qué motor, elegido a conciencia en el dropdown y guardado.
   const [motor, setMotor] = useState(() => obtenerMotor());
   const [motores, setMotores] = useState<MotorDePensar[]>([]);
@@ -178,8 +183,8 @@ export default function App() {
 
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
   const textoVacio = texto.trim() === "";
-  const accionesRef = useRef({ grabando, modo, estado, silenciado, sinPensar, textoVacio, motor });
-  accionesRef.current = { grabando, modo, estado, silenciado, sinPensar, textoVacio, motor };
+  const accionesRef = useRef({ grabando, modo, estado, silenciado, sinPensar, textoVacio, motor, modoPensar });
+  accionesRef.current = { grabando, modo, estado, silenciado, sinPensar, textoVacio, motor, modoPensar };
 
   // Cada vez que se vuelve a reposo a mano (click o Escape), esto sube:
   // si un fetch/invoke que ya estaba en vuelo resuelve DESPUÉS, se nota
@@ -330,9 +335,15 @@ export default function App() {
       setEstado("pensando");
       const arranque = performance.now();
       const motorElegido = accionesRef.current.motor;
-      registrar("enviar", { palabras: limpio.split(/\s+/).length, think, motor: think ? motorElegido : "-" });
+      const modoElegido = accionesRef.current.modoPensar;
+      registrar("enviar", {
+        palabras: limpio.split(/\s+/).length,
+        think,
+        motor: think ? motorElegido : "-",
+        modo: think ? modoElegido : "-",
+      });
       try {
-        const respuesta = await enviarMensaje(limpio, think, motorElegido);
+        const respuesta = await enviarMensaje(limpio, think, motorElegido, modoElegido);
         if (generacionRef.current !== miGeneracion) return; // cancelado mientras esperaba
         registrar("respuesta", {
           tipo: respuesta.tipo,
@@ -884,6 +895,12 @@ export default function App() {
           motores={motores}
           motor={motor}
           onMotor={cambiarMotor}
+          modoPensar={modoPensar}
+          onModoPensar={(nuevo) => {
+            fijarModo(nuevo);
+            setModoPensar(nuevo);
+            registrar("modo", { elegido: nuevo });
+          }}
         />
       )}
     </div>

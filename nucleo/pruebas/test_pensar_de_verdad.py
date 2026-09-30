@@ -130,7 +130,7 @@ def test_pensar_guarda_los_dos_turnos_y_el_segundo_lleva_el_primero(monkeypatch,
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
     vistos = []
 
-    def falso_claude(mensaje, instrucciones, indice):
+    def falso_claude(mensaje, instrucciones, indice, modo=None):
         vistos.append(mensaje)
         return pensar.Pensado("Tenés pendiente la Fase 1.", 1, 1, "sonnet")
 

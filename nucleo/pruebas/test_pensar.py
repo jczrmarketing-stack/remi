@@ -21,7 +21,7 @@ def test_sin_think_no_toca_a_claude(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     servidor = _arrancar_servidor()
 
-    def explota(_frase, _motor=None):
+    def explota(_frase, _motor=None, _modo=None):
         raise AssertionError("no debía pensar con Claude")
 
     monkeypatch.setattr(servidor.pensar, "pensar", explota)
@@ -38,7 +38,7 @@ def test_con_think_contesta_el_modelo_y_el_paso_minimo_nace_universal(tmp_path, 
     servidor = _arrancar_servidor()
     llamadas = []
 
-    def falso_pensar(frase, motor=None):
+    def falso_pensar(frase, motor=None, modo=None):
         llamadas.append(frase)
         return servidor.pensar.Pensado(
             paso_minimo="Abre la app del banco y busca el teléfono.",
@@ -62,7 +62,7 @@ def test_con_think_contesta_el_modelo_y_el_paso_minimo_nace_universal(tmp_path, 
 def test_con_think_pero_claude_no_puede_sigue_sin_ia(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     servidor = _arrancar_servidor()
-    monkeypatch.setattr(servidor.pensar, "pensar", lambda _frase, _motor=None: None)
+    monkeypatch.setattr(servidor.pensar, "pensar", lambda _frase, _motor=None, _modo=None: None)
     cliente = TestClient(servidor.app)
 
     creada = cliente.post("/mensaje", json={"texto": "voy a llamar al banco", "think": True}).json()
@@ -83,7 +83,7 @@ def test_sin_techo_de_palabras_y_hablado_hasta_tres_frases(tmp_path, monkeypatch
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda _frase, _motor=None: servidor.pensar.Pensado(largo.strip(), 1, 1, "m"),
+        lambda _frase, _motor=None, _modo=None: servidor.pensar.Pensado(largo.strip(), 1, 1, "m"),
     )
     cliente = TestClient(servidor.app)
 
@@ -179,15 +179,55 @@ def test_nunca_hereda_la_clave_de_api(monkeypatch):
     assert entorno["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "1500"
 
 
-def test_modelo_configurable(monkeypatch):
+def test_el_modo_cambia_el_model(monkeypatch):
     pensar = _importar_pensar()
-    monkeypatch.setenv("REMI_CLAUDE_MODELO", "sonnet")
-    visto = {}
-    monkeypatch.setattr(
-        pensar.subprocess, "run", lambda comando, **k: (visto.update(c=comando), _salida_cli())[1]
-    )
-    pensar.pensar("algo")
-    assert visto["c"][visto["c"].index("--model") + 1] == "sonnet"
+    vistos = []
+
+    def espiar(comando, **kwargs):
+        vistos.append((comando[comando.index("--model") + 1], kwargs["env"]))
+        return _salida_cli()
+
+    monkeypatch.setattr(pensar.subprocess, "run", espiar)
+    casos = (("rapido", "haiku"), ("equilibrio", "sonnet"), ("inteligente", "opus"), (None, "sonnet"))
+    for modo, esperado in casos:
+        vistos.clear()
+        pensar.pensar("algo", "claude", modo)
+        modelo, entorno = vistos[0]
+        assert modelo == esperado, modo
+        # Solo inteligente razona.
+        assert (entorno["MAX_THINKING_TOKENS"] != "0") == (modo == "inteligente"), modo
+
+
+def test_inteligente_cae_a_equilibrio_y_despues_a_rapido(monkeypatch):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    modelos = []
+
+    def falso_run(comando, **kwargs):
+        m = comando[comando.index("--model") + 1]
+        modelos.append(m)
+        if m != "haiku":
+            raise subprocess.TimeoutExpired(cmd="claude", timeout=kwargs["timeout"])
+        return _salida_cli(result="Rápido contestó.")
+
+    monkeypatch.setattr(pensar.subprocess, "run", falso_run)
+    pensado = pensar.pensar("algo", "claude", "inteligente")
+    assert pensado is not None and pensado.paso_minimo == "Rápido contestó."
+    assert modelos == ["opus", "sonnet", "haiku"]
+
+
+def test_rapido_no_cae_a_nada(monkeypatch):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    modelos = []
+
+    def falla(comando, **kwargs):
+        modelos.append(comando[comando.index("--model") + 1])
+        raise subprocess.TimeoutExpired(cmd="claude", timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(pensar.subprocess, "run", falla)
+    assert pensar.pensar("algo", "claude", "rapido") is None
+    assert modelos == ["haiku"]
 
 
 def test_error_de_la_cli_no_se_convierte_en_la_voz_de_remi(monkeypatch):
@@ -214,7 +254,7 @@ def test_si_tarda_demasiado_sigue_sin_ia(monkeypatch):
     pensar = _importar_pensar()
 
     def lenta(*_a, **_k):
-        raise subprocess.TimeoutExpired(cmd="claude", timeout=pensar.TIMEOUT_SEGUNDOS)
+        raise subprocess.TimeoutExpired(cmd="claude", timeout=8)
 
     monkeypatch.setattr(pensar.subprocess, "run", lenta)
     assert pensar.pensar("algo") is None
@@ -412,7 +452,6 @@ def test_motores_disponibles_incluye_ollama_y_dice_que_le_falta(monkeypatch, tmp
 def test_si_sonnet_tarda_o_falla_contesta_haiku(monkeypatch, tmp_path):
     pensar = _importar_pensar()
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
-    monkeypatch.delenv("REMI_CLAUDE_MODELO", raising=False)
     monkeypatch.setattr(pensar, "_indice", lambda: [])
     modelos = []
 
@@ -426,13 +465,13 @@ def test_si_sonnet_tarda_o_falla_contesta_haiku(monkeypatch, tmp_path):
     monkeypatch.setattr(pensar.subprocess, "run", falso_run)
     pensado = pensar.pensar("algo")
     assert pensado is not None and pensado.paso_minimo == "Respuesta de respaldo."
-    assert modelos == [("sonnet", pensar.TIMEOUT_SEGUNDOS), ("haiku", pensar.TIMEOUT_RESPALDO_SEGUNDOS)]
+    # equilibrio (25 s) cae a rápido (8 s).
+    assert modelos == [("sonnet", 25.0), ("haiku", 8.0)]
 
 
 def test_si_sonnet_contesta_no_se_llama_a_haiku(monkeypatch, tmp_path):
     pensar = _importar_pensar()
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
-    monkeypatch.delenv("REMI_CLAUDE_MODELO", raising=False)
     monkeypatch.setattr(pensar, "_indice", lambda: [])
     modelos = []
 

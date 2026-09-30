@@ -50,23 +50,32 @@ HERRAMIENTAS = ("mcp__memoria__leer", "mcp__memoria__guardar")
 # Con una sola vuelta no le alcanza para leer del estante y después
 # responder. Tres son: pide la lectura, la recibe, contesta.
 MAX_VUELTAS = "3"
-# Sonnet: pensar de verdad (Fase 3a). Si tarda más de su tiempo o falla,
-# se reintenta con Haiku, que contesta en ~2 s. REMI_CLAUDE_MODELO cambia el
-# principal; vale cualquier alias que acepte la CLI.
-MODELO_POR_DEFECTO = "sonnet"
-MODELO_RESPALDO = "haiku"
-# El techo cuenta TODA la salida, y ahí entra el JSON de las llamadas a las
-# herramientas: con 200, `guardar` una idea de verdad se corta a la mitad y
-# la CLI devuelve "exceeded the 200 output token maximum" sin guardar nada.
-# 1500 alcanza para bajar algo del estante, guardar algo nuevo y contestar;
-# la frase de Remi la sigue recortando el servidor a 20 palabras.
-MAX_TOKENS_SALIDA = "1500"
-# Sonnet tiene 25 s; si no llega, Haiku tiene 20 s más. El peor caso es la
-# suma, y la ventanita espera por encima de eso (pruebas/test_timeouts.py
-# ata los números).
-TIMEOUT_SEGUNDOS = 25.0
-TIMEOUT_RESPALDO_SEGUNDOS = 20.0
-PEOR_CASO_SEGUNDOS = TIMEOUT_SEGUNDOS + TIMEOUT_RESPALDO_SEGUNDOS
+# Tres modos (ARQUITECTURA-CEREBRO §9), todos por la sesión de Max. Cada uno
+# con su techo de tiempo; si el elegido falla o se pasa, cae al anterior
+# (inteligente → equilibrio → rápido) y queda en el log.
+@dataclass(frozen=True)
+class Modo:
+    nombre: str
+    modelo: str
+    techo_segundos: float
+    # Opus piensa antes de contestar; los otros dos no. El razonamiento
+    # cuenta como salida, así que su techo de salida es mucho más alto.
+    razonamiento_tokens: int
+    salida_tokens: int
+
+
+MODOS: dict[str, Modo] = {
+    "rapido": Modo("rapido", "haiku", 8.0, 0, 1500),
+    "equilibrio": Modo("equilibrio", "sonnet", 25.0, 0, 1500),
+    "inteligente": Modo("inteligente", "opus", 60.0, 8000, 16000),
+}
+ORDEN_DE_MODOS = ("rapido", "equilibrio", "inteligente")
+MODO_POR_DEFECTO = "equilibrio"
+# Compatibilidad con quien lo lea: el modelo del modo por defecto.
+MODELO_POR_DEFECTO = MODOS[MODO_POR_DEFECTO].modelo
+# El peor caso: inteligente agota sus 60 s, equilibrio sus 25 y rápido sus
+# 8. La ventanita espera por encima de eso (pruebas/test_timeouts.py).
+PEOR_CASO_SEGUNDOS = sum(m.techo_segundos for m in MODOS.values())
 
 # El carácter de Remi ES el system prompt (Fase 3a). Vive en el disco, fuera
 # del repo (datos personales), y se lee en CADA mensaje: si Juan Camilo lo
@@ -177,7 +186,22 @@ def _ajuste(clave: str, por_defecto: str) -> str:
 
 
 def modelo() -> str:
-    return _ajuste("REMI_CLAUDE_MODELO", MODELO_POR_DEFECTO)
+    """El modelo del modo por defecto (lo muestra el dropdown de motores)."""
+    return MODOS[MODO_POR_DEFECTO].modelo
+
+
+def modo(pedido: str | None) -> Modo:
+    if pedido in MODOS:
+        return MODOS[pedido]
+    if pedido is not None:
+        print(f"[pensar] modo desconocido {pedido!r}: uso {MODO_POR_DEFECTO}", file=sys.stderr)
+    return MODOS[MODO_POR_DEFECTO]
+
+
+def cadena_de_modos(elegido: Modo) -> list[Modo]:
+    """El elegido y, si falla, los anteriores: inteligente → equilibrio → rápido."""
+    hasta = ORDEN_DE_MODOS.index(elegido.nombre)
+    return [MODOS[n] for n in reversed(ORDEN_DE_MODOS[: hasta + 1])]
 
 
 MOTORES = ("claude", "venice", "ollama")
@@ -258,16 +282,18 @@ def motores_disponibles() -> list[MotorDisponible]:
     ]
 
 
-def _entorno() -> dict[str, str]:
+def _entorno(m: Modo | None = None) -> dict[str, str]:
     """El entorno del subproceso, sin credenciales de API. Si Milo tiene una
     clave exportada, la CLI la usaría y eso se factura por fuera del plan —
     justo lo que hay que evitar."""
     entorno = dict(os.environ)
     for clave in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"):
         entorno.pop(clave, None)
-    # El razonamiento cuenta contra el techo de salida: apagado, 200 alcanzan.
-    entorno["MAX_THINKING_TOKENS"] = "0"
-    entorno["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = MAX_TOKENS_SALIDA
+    # El razonamiento cuenta contra el techo de salida: solo inteligente lo
+    # prende, y por eso su techo de salida es mucho más alto.
+    m = MODOS[MODO_POR_DEFECTO] if m is None else m
+    entorno["MAX_THINKING_TOKENS"] = str(m.razonamiento_tokens)
+    entorno["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(m.salida_tokens)
     return entorno
 
 
@@ -397,7 +423,7 @@ def mensaje_con_historia(frase: str, turnos: list[db.Turno]) -> str:
     )
 
 
-def pensar(frase: str, motor_pedido: str | None = None) -> Pensado | None:
+def pensar(frase: str, motor_pedido: str | None = None, modo_pedido: str | None = None) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
     llama sigue por el camino sin IA — nunca se rompe la respuesta por esto."""
@@ -410,7 +436,7 @@ def pensar(frase: str, motor_pedido: str | None = None) -> Pensado | None:
     elif elegido == "ollama":
         pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice))
     else:
-        pensado = _pensar_con_claude(mensaje, instrucciones, indice)
+        pensado = _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido))
 
     # El turno de Juan Camilo se guarda siempre que se pensó; el de Remi,
     # solo si contestó.
@@ -536,23 +562,29 @@ def _pensar_con_ollama(frase: str, instrucciones: str, entradas: int) -> Pensado
 # — Claude (la membresía Max, por la CLI) —
 
 
-def _pensar_con_claude(frase: str, instrucciones: str, indice: list[db.EntradaIndice]) -> Pensado | None:
-    """Sonnet primero; si tarda más de su tiempo o falla, Haiku."""
-    principal = modelo()
-    pensado = _una_llamada_claude(principal, TIMEOUT_SEGUNDOS, frase, instrucciones, indice)
-    if pensado is not None or principal == MODELO_RESPALDO:
-        return pensado
-    print(f"[claude] {principal} no contestó: pruebo con {MODELO_RESPALDO}", file=sys.stderr)
-    return _una_llamada_claude(MODELO_RESPALDO, TIMEOUT_RESPALDO_SEGUNDOS, frase, instrucciones, indice)
+def _pensar_con_claude(
+    frase: str, instrucciones: str, indice: list[db.EntradaIndice], elegido: Modo | None = None
+) -> Pensado | None:
+    """El modo elegido; si falla o se pasa de su techo, el anterior."""
+    elegido = MODOS[MODO_POR_DEFECTO] if elegido is None else elegido
+    cadena = cadena_de_modos(elegido)
+    for i, m in enumerate(cadena):
+        pensado = _una_llamada_claude(m, frase, instrucciones, indice)
+        if pensado is not None:
+            return pensado
+        if i + 1 < len(cadena):
+            print(f"[claude] modo={m.nombre} no contestó: caigo a {cadena[i + 1].nombre}", file=sys.stderr)
+    return None
 
 
 def _una_llamada_claude(
-    nombre_modelo: str,
-    timeout: float,
+    m: Modo,
     frase: str,
     instrucciones: str,
     indice: list[db.EntradaIndice],
 ) -> Pensado | None:
+    nombre_modelo = m.modelo
+    timeout = m.techo_segundos
     import time
 
     arranque = time.perf_counter()
@@ -567,7 +599,7 @@ def _una_llamada_claude(
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                env=_entorno(),
+                env=_entorno(m),
                 cwd=vacio,
             )
             # El JSON final de la CLI no dice qué herramientas usó; la marca
@@ -605,7 +637,7 @@ def _una_llamada_claude(
     ms = (time.perf_counter() - arranque) * 1000
     # La cuenta va a consola, no a la pantalla: es dato de operación.
     print(
-        f"[claude] modelo={modelo_real} ms={ms:.0f} tokens entrada={tokens_entrada} "
+        f"[claude] modo={m.nombre} modelo={modelo_real} ms={ms:.0f} tokens entrada={tokens_entrada} "
         f"salida={tokens_salida} memoria={len(indice)} "
         f"leyó={'sí' if leyo else 'no'}",
         file=sys.stderr,

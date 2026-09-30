@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { registrar } from "../registro";
 import type { MotorDePensar } from "../servidor";
+import type { ModoPensar } from "../preferencias";
 import "./PromptTerminal.css";
 
 interface Props {
@@ -16,6 +17,10 @@ interface Props {
   motores: MotorDePensar[];
   motor: string;
   onMotor: (motor: string) => void;
+  // Rápido / equilibrio / inteligente (solo con Claude). Selector mínimo:
+  // el definitivo, la flechita junto al punto, llega en 3b.
+  modoPensar: ModoPensar;
+  onModoPensar: (modo: ModoPensar) => void;
 }
 
 export function PromptTerminal({
@@ -29,6 +34,8 @@ export function PromptTerminal({
   motores,
   motor,
   onMotor,
+  modoPensar,
+  onModoPensar,
 }: Props) {
   const elegido = motores.find((m) => m.id === motor);
   const campoRef = useRef<HTMLTextAreaElement>(null);
@@ -93,6 +100,20 @@ export function PromptTerminal({
             </option>
           ))}
         </select>
+        {motor === "claude" && (
+          <select
+            className="prompt-terminal__motor"
+            aria-label="Modo de pensar"
+            title="Rápido: Haiku, 1–2 s · Equilibrio: Sonnet · Inteligente: Opus con razonamiento"
+            value={modoPensar}
+            disabled={deshabilitado}
+            onChange={(evento) => onModoPensar(evento.target.value as ModoPensar)}
+          >
+            <option value="rapido">rápido</option>
+            <option value="equilibrio">equilibrio</option>
+            <option value="inteligente">inteligente</option>
+          </select>
+        )}
         {/* Los gestos también se cuentan acá: dos clicks = hablar, tres =
             dialogar. Antes había que adivinarlos. */}
         <button

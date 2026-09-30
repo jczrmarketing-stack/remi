@@ -6,6 +6,7 @@ const CLAVE_VELOCIDAD = "remi.voz.velocidad";
 const CLAVE_VOZ = "remi.voz.elegida";
 const CLAVE_MOTOR = "remi.pensar.motor";
 const CLAVE_SIN_PENSAR = "remi.pensar.apagado";
+const CLAVE_MODO = "remi.pensar.modo";
 
 export const VELOCIDADES = [1, 1.5, 2] as const;
 export type Velocidad = (typeof VELOCIDADES)[number];
@@ -90,4 +91,18 @@ export function estaSinPensar(): boolean {
 
 export function fijarSinPensar(apagado: boolean): void {
   guardar(CLAVE_SIN_PENSAR, apagado ? "1" : "0");
+}
+
+// Rápido (Haiku), equilibrio (Sonnet) o inteligente (Opus con razonamiento).
+export const MODOS = ["rapido", "equilibrio", "inteligente"] as const;
+export type ModoPensar = (typeof MODOS)[number];
+export const MODO_POR_DEFECTO: ModoPensar = "equilibrio";
+
+export function obtenerModo(): ModoPensar {
+  const guardado = leer(CLAVE_MODO);
+  return (MODOS as readonly string[]).includes(guardado ?? "") ? (guardado as ModoPensar) : MODO_POR_DEFECTO;
+}
+
+export function fijarModo(modo: ModoPensar): void {
+  guardar(CLAVE_MODO, modo);
 }
