@@ -414,6 +414,14 @@ def _fila_a_memoria(fila: sqlite3.Row) -> Memoria:
     )
 
 
+def memorias_por_tema(conexion: sqlite3.Connection, tema: str) -> list[Memoria]:
+    """Las entradas de un tema, la más vieja primero."""
+    filas = conexion.execute(
+        "SELECT * FROM memoria WHERE tema = ? ORDER BY fecha", (tema,)
+    ).fetchall()
+    return [_fila_a_memoria(fila) for fila in filas]
+
+
 def leer_memoria(conexion: sqlite3.Connection, memoria_id: UUID) -> Memoria | None:
     """Bajar una del estante, entera. None si no está."""
     fila = conexion.execute(

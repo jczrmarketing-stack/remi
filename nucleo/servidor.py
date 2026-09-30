@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, ValidationError
 import clasificar
 import db
 import pensar
+import sembrar_conocimiento
 import tts
 from modelos import Idea, Memoria, Sesion, Tarea
 
@@ -40,6 +41,13 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     la app, no del import (REMI_TTS_PRECALENTAR=0 lo apaga)."""
     if os.environ.get("REMI_TTS_PRECALENTAR", "1") != "0":
         threading.Thread(target=tts.precalentar, daemon=True).start()
+    # Las fichas de proyecto al estante, al arrancar: así el índice tiene
+    # una línea por proyecto. Si falla, el núcleo arranca igual.
+    if os.environ.get("REMI_SEMBRAR_CONOCIMIENTO", "1") != "0":
+        try:
+            sembrar_conocimiento.sembrar()
+        except Exception as error:  # nunca tumbar el arranque por esto
+            print(f"[conocimiento] no pude sembrar ({type(error).__name__}: {error})", file=sys.stderr)
     yield
 
 
