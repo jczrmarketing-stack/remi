@@ -20,6 +20,30 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 3b.1–3b.2 la ventanita como la maqueta de Juan Camilo · construido · a2a866f
+
+- **Qué cambió:** Juan Camilo mandó una maqueta y pidió «solo hagamos que funcione», dejando
+  los arreglos robustos para después. (1) `a34ef5e` el núcleo acepta `nivel` (bajo, medio,
+  alto) por mensaje: 0, 8000 o 16000 tokens de razonamiento para el modelo elegido; techo de
+  60 s con razonamiento, el peor caso de la cadena sigue en 93 s. (2) `a2a866f` la ventanita:
+  chip «Opus 5.5 · Medio» bajo el cuadro con Haiku 4.5, Sonnet 5.5, Opus 5.5, Venice, Ollama,
+  Prompt y Sin pensar (`ChipModelo.tsx`); escribiendo mide 420×210 y contestando crece con el
+  texto hasta 520; contestando, punto grande crema; pensando, punto gris con lo que dijiste;
+  nota, controles de voz y Reloj solo con el mouse encima. Se van la flechita de modo, el
+  dropdown de motor y el botón «sin pensar». 179 pytest, 51 vitest, tsc y mypy limpios.
+- **Decisiones que tomé sin preguntar:**
+  1. **La maqueta pisa al DS en la ventanita**, porque él dirige: contestar va en `ink` y no
+     en `brasa`, pensar en `ink-muted` y no en `pensar`, la respuesta a 20 px y no a 24.
+  2. **El punto gris es «pensando»** con su frase debajo: lo leí así porque el texto de la
+     maqueta está en minúsculas, como lo dicho por él.
+  3. **Menús nativos de macOS** para el chip: se abren fuera de la ventana de 210 px.
+  4. Al cambiar de modelo el nivel vuelve al suyo: Opus medio, Haiku y Sonnet bajo.
+- **Dudas abiertas:** no pude ver los estados expandidos en pantalla sin tocar el mouse;
+  solo verifiqué el reposo y que el núcleo nuevo rechaza un nivel inválido.
+- **Cómo probarlo a mano:** un click: cuadro, chip y atajos. Abrir el chip y elegir Opus y
+  Alto. Escribir una pregunta: punto gris con lo escrito, después punto crema con la
+  respuesta; pasar el mouse para ver los controles.
+
 ## 2026-09-29 · 3b arreglo: el punto al centro de la píldora · construido · 08ee4fc
 
 - **Qué cambió:** con el «dale» de Juan Camilo, se arregla la fila ❌ «Punto en la píldora» de
