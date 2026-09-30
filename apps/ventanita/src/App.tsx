@@ -39,6 +39,7 @@ import {
   type VozDisponible,
 } from "./voz";
 import { copiarAlPortapapeles } from "./portapapeles";
+import { partirRespuesta } from "./markdown";
 import { formatearDuracion, formatearHace, registrarInteraccion, ultimaInteraccion } from "./tiempo";
 import {
   alternarSilencio,
@@ -805,11 +806,22 @@ export default function App() {
       if (evento.key.toLowerCase() === "m" && evento.metaKey && evento.shiftKey) {
         evento.preventDefault();
         setSilenciado(alternarSilencio());
+        return;
+      }
+      // ⌘⇧C (3f · 8): copia el encargo cuando la respuesta activa es la
+      // tarjeta de prompt (partirRespuesta lo marca como tipo "encargo").
+      if (evento.key.toLowerCase() === "c" && evento.metaKey && evento.shiftKey) {
+        const ultimo = mensajes[mensajes.length - 1];
+        if (!ultimo || ultimo.rol !== "remi") return;
+        const encargo = partirRespuesta(ultimo.texto).find((bloque) => bloque.tipo === "encargo");
+        if (!encargo) return;
+        evento.preventDefault();
+        void copiarAlPortapapeles(encargo.texto).then((pudo) => registrar("encargo:copiar-atajo", { pudo }));
       }
     }
     window.addEventListener("keydown", alTeclado);
     return () => window.removeEventListener("keydown", alTeclado);
-  }, [cancelar]);
+  }, [cancelar, mensajes]);
 
   // — Preferencias —
 
