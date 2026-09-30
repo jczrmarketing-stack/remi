@@ -129,6 +129,25 @@ CREATE TABLE IF NOT EXISTS trabajo_eventos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_trabajo_eventos_fecha ON trabajo_eventos(fecha);
+
+-- Commits que todavía no entraron al Estado del libro. `incluido` pasa a 1
+-- cuando esa tanda ya se escribió. El tope de 10 min vive en trabajo_estado_en.
+CREATE TABLE IF NOT EXISTS trabajo_commits (
+    id TEXT PRIMARY KEY,
+    tema TEXT NOT NULL,
+    mensaje TEXT NOT NULL,
+    rama TEXT NOT NULL,
+    archivos TEXT NOT NULL,
+    fecha TEXT NOT NULL,
+    incluido INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_trabajo_commits_tema ON trabajo_commits(tema, incluido);
+
+CREATE TABLE IF NOT EXISTS trabajo_estado_en (
+    tema TEXT PRIMARY KEY,
+    fecha TEXT NOT NULL
+);
 """
 
 

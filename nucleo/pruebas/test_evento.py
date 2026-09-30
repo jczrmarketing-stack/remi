@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 def _arrancar(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path / "libros"))
+    # Este archivo prueba a qué libro cae el evento, no la redacción del Estado.
+    monkeypatch.setenv("REMI_ESTADO", "0")
     for nombre in ("servidor", "db", "trabajo", "libros"):
         sys.modules.pop(nombre, None)
     import db
