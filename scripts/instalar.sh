@@ -234,6 +234,50 @@ plutil -lint "$PLIST_COPIA" > /dev/null
 launchctl bootstrap "gui/$UID" "$PLIST_COPIA" 2>/dev/null || launchctl load "$PLIST_COPIA"
 echo "  copia:  todas las noches a las 3:00 (config/copia.json)"
 
+# — La consolidación nocturna (Fase C · 2): a las 4:00, después de la copia —
+# Episodios del día → Estado de los libros tocados, fusiona episodios
+# repetidos, recalcula vectores y reordena la mente (ARQUITECTURA-CEREBRO §6).
+# Log en noche.log.
+ETIQUETA_NOCHE="com.remi.noche"
+PLIST_NOCHE="$HOME/Library/LaunchAgents/$ETIQUETA_NOCHE.plist"
+bajar_agente "$ETIQUETA_NOCHE" "$PLIST_NOCHE" || true
+cat > "$PLIST_NOCHE" <<PLISTNEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$ETIQUETA_NOCHE</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>$RAIZ/scripts/noche.sh</string>
+	</array>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>4</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>$RUTA</string>
+		<key>HOME</key>
+		<string>$HOME</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>$LOGS/noche.log</string>
+	<key>StandardErrorPath</key>
+	<string>$LOGS/noche.log</string>
+</dict>
+</plist>
+PLISTNEOF
+plutil -lint "$PLIST_NOCHE" > /dev/null
+launchctl bootstrap "gui/$UID" "$PLIST_NOCHE" 2>/dev/null || launchctl load "$PLIST_NOCHE"
+echo "  noche:  consolidación todas las noches a las 4:00"
+
 # — El vigía (3e): cada minuto le pega a /salud; 5 min caído → aviso —
 ETIQUETA_VIGIA="com.remi.vigia"
 PLIST_VIGIA="$HOME/Library/LaunchAgents/$ETIQUETA_VIGIA.plist"

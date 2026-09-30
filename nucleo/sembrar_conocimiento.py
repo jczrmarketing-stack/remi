@@ -72,8 +72,20 @@ def leer_ficha(ruta: Path) -> Ficha | None:
 
 
 # Un libro de proyecto vive en la capa de arriba de la mente (nivel 1: su
-# título y resumen siempre presentes; el cuerpo se baja con `leer`).
-NIVEL_LIBRO_DE_PROYECTO = 1
+# título y resumen siempre presentes) mientras esté activo; si nadie lo toca
+# en una semana baja a nivel 2 (se puede seguir pidiendo, ya no ocupa la capa
+# de arriba) — ARQUITECTURA-CEREBRO §2, «olvidar = bajar de nivel, nunca
+# borrar». La consolidación nocturna (`noche.py`) vuelve a sembrar cada
+# noche para que esto se reordene solo, con el mtime del día.
+NIVEL_RECIENTE = 1
+NIVEL_ANTIGUO = 2
+DIAS_RECIENTE = 7
+
+
+def nivel_de(ruta: Path) -> int:
+    """Nivel 1 si el archivo se tocó (mtime) en los últimos 7 días; si no, 2."""
+    dias = (datetime.now(timezone.utc).timestamp() - ruta.stat().st_mtime) / 86400
+    return NIVEL_RECIENTE if dias <= DIAS_RECIENTE else NIVEL_ANTIGUO
 
 
 def sembrar() -> dict[str, int]:
@@ -93,6 +105,7 @@ def sembrar() -> dict[str, int]:
                 cuenta["saltadas"] += 1
                 continue
 
+            nivel = nivel_de(ruta)
             existentes = db.memorias_por_tema(conexion, ficha.tema)
             try:
                 if not existentes:
@@ -107,14 +120,14 @@ def sembrar() -> dict[str, int]:
                             cuerpo=ficha.cuerpo,
                             fuente="manual",
                             claves=ficha.claves,
-                            nivel=NIVEL_LIBRO_DE_PROYECTO,
+                            nivel=nivel,
                         ),
                     )
                     cuenta["creadas"] += 1
                     continue
 
                 actual = existentes[0]
-                ahora = (ficha.titulo, ficha.resumen, ficha.cuerpo, ficha.claves, NIVEL_LIBRO_DE_PROYECTO)
+                ahora = (ficha.titulo, ficha.resumen, ficha.cuerpo, ficha.claves, nivel)
                 if (actual.titulo, actual.resumen, actual.cuerpo, actual.claves, actual.nivel) == ahora:
                     cuenta["iguales"] += 1
                     continue
@@ -125,7 +138,7 @@ def sembrar() -> dict[str, int]:
                     resumen=ficha.resumen,
                     cuerpo=ficha.cuerpo,
                     claves=ficha.claves,
-                    nivel=NIVEL_LIBRO_DE_PROYECTO,
+                    nivel=nivel,
                 )
                 cuenta["actualizadas"] += 1
             except ValidationError:
