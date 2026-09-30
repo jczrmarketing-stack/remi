@@ -1,7 +1,6 @@
 .acciones-respuesta {
-  align-self: center;
-  width: 100%;
-  max-width: 320px;
+  align-self: flex-start;
+  margin-left: calc(-1 * var(--space-2));
   display: flex;
   gap: var(--space-1);
   flex-shrink: 0;

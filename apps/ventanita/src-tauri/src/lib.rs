@@ -122,7 +122,8 @@ pub fn run() {
             voz::iniciar_escucha,
             voz::activar_corte_por_silencio,
             voz::cancelar_escucha,
-            voz::detener_escucha_y_transcribir
+            voz::detener_escucha_y_transcribir,
+            voz::transcribir_parcial
         ])
         // Todo a un archivo: los `log::info!` de Rust y, desde el otro
         // lado, la consola del webview (ver src/registro.ts). Sin esto, lo

@@ -1,0 +1,97 @@
+/* El chat ocupa el medio de la ventana y se desplaza solo. Sin globos con
+   relleno: la diferencia la hacen la familia, el color y el lado. */
+.chat {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: auto;
+}
+
+.chat__mensaje {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 88%;
+}
+
+.chat__mensaje--remi {
+  align-self: flex-start;
+  text-align: left;
+}
+
+.chat__mensaje--juan {
+  align-self: flex-end;
+  text-align: right;
+}
+
+/* Remi: su voz, en ink. 20 px como en 3b: las respuestas son de párrafo. */
+.chat__remi {
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 26px;
+  white-space: pre-line;
+  margin: 0;
+}
+
+/* Juan Camilo: Geist, ink-muted, con el borde derecho en brasa suave. */
+.chat__juan {
+  color: var(--ink-muted);
+  white-space: pre-wrap;
+  padding-right: var(--space-2);
+  border-right: 2px solid color-mix(in srgb, var(--brasa) 45%, transparent);
+  margin: 0;
+}
+
+.chat__enlace {
+  color: var(--luz);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--luz) 40%, transparent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.chat__enlace:hover {
+  text-decoration-color: var(--luz);
+}
+
+/* Las acciones de cada respuesta: se ven con el mouse encima; la última,
+   siempre. */
+.chat__mensaje--remi .acciones-respuesta {
+  opacity: 0;
+  transition: opacity var(--dur-estado) var(--curva);
+}
+
+.chat__mensaje--remi:hover .acciones-respuesta,
+.chat__mensaje--remi[data-ultimo="si"] .acciones-respuesta,
+.chat__mensaje--remi .acciones-respuesta:focus-within {
+  opacity: 1;
+}
+
+.chat__pregunta {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.chat__opcion {
+  appearance: none;
+  min-width: 64px;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color var(--dur-estado) var(--curva);
+}
+
+.chat__opcion:hover {
+  border-color: var(--ink-muted);
+}

@@ -611,6 +611,59 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
     Ok(texto)
 }
 
+// — Lo que vas diciendo, mientras lo decís (3c · 2) —
+// Copia lo grabado hasta ahora, arregla la cabecera (ffmpeg la completa
+// recién al cerrar) y lo manda al Whisper residente. Solo con el servidor:
+// recargar el modelo cada 1,5 s con whisper-cli sería peor que no mostrar
+// nada. Async: corre fuera del hilo de la ventana.
+const PARCIAL_MINIMO_BYTES: usize = 16_000 * 2; // 1 s de audio a 16 kHz mono
+
+#[tauri::command(async)]
+pub fn transcribir_parcial(estado: tauri::State<'_, EstadoGrabacion>) -> Result<String, String> {
+    let ruta = {
+        let guarda = estado.0.lock().map_err(|e| e.to_string())?;
+        match guarda.as_ref() {
+            Some(grabacion) => grabacion.ruta_wav.clone(),
+            None => return Err("no hay grabación".to_string()),
+        }
+    };
+    let config = leer_config_voz()?;
+    let Some(url) = config.whisper_server_url.as_deref() else {
+        return Err("sin whisper residente".to_string());
+    };
+    let mut bytes = fs::read(&ruta).map_err(|e| format!("no pude leer lo grabado: {e}"))?;
+    let Some(inicio_datos) = cabecera_completa(&mut bytes) else {
+        return Err("el wav todavía no tiene datos".to_string());
+    };
+    if bytes.len() - inicio_datos < PARCIAL_MINIMO_BYTES {
+        return Err("muy poco audio todavía".to_string());
+    }
+    let copia = ruta_temporal("-parcial.wav");
+    fs::write(&copia, &bytes).map_err(|e| e.to_string())?;
+    let texto = transcribir_con_servidor(url, &copia);
+    let _ = fs::remove_file(&copia);
+    let texto = texto?;
+    Ok(if es_solo_ruido(&texto) { String::new() } else { texto })
+}
+
+/// Arregla los tamaños RIFF y data de un wav a medio escribir. Devuelve dónde
+/// empiezan las muestras, o None si todavía no está el trozo «data».
+fn cabecera_completa(bytes: &mut [u8]) -> Option<usize> {
+    if bytes.len() < 12 || &bytes[0..4] != b"RIFF" {
+        return None;
+    }
+    let pos = bytes.windows(4).position(|v| v == b"data")?;
+    let inicio = pos + 8;
+    if bytes.len() < inicio {
+        return None;
+    }
+    let riff = (bytes.len() - 8) as u32;
+    let datos = (bytes.len() - inicio) as u32;
+    bytes[4..8].copy_from_slice(&riff.to_le_bytes());
+    bytes[pos + 4..pos + 8].copy_from_slice(&datos.to_le_bytes());
+    Some(inicio)
+}
+
 // El modelo ya cargado en el agente com.remi.whisper: ~1 s por frase en vez
 // de recargar 1,6 GB cada vez. Por curl, sin sumar un cliente HTTP a Rust.
 fn transcribir_con_servidor(url: &str, ruta_wav: &Path) -> Result<String, String> {
@@ -691,6 +744,21 @@ mod pruebas {
 
     fn muestras_por_ventana() -> usize {
         (16_000.0 * VENTANA_SEGUNDOS) as usize
+    }
+
+    #[test]
+    fn la_cabecera_de_un_wav_a_medio_escribir_se_arregla() {
+        let mut bytes = b"RIFF\xff\xff\xff\xffWAVEfmt ".to_vec();
+        bytes.extend_from_slice(&[0u8; 20]);
+        bytes.extend_from_slice(b"LIST\x04\0\0\0abcd");
+        bytes.extend_from_slice(b"data\xff\xff\xff\xff");
+        bytes.extend_from_slice(&[1u8; 10]);
+        let inicio = cabecera_completa(&mut bytes).unwrap();
+        assert_eq!(bytes.len() - inicio, 10);
+        assert_eq!(u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize, bytes.len() - 8);
+        let pos = inicio - 8;
+        assert_eq!(u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap()), 10);
+        assert_eq!(cabecera_completa(&mut b"RIFF".to_vec()), None);
     }
 
     #[test]

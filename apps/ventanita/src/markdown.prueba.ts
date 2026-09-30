@@ -25,3 +25,39 @@ describe("limpiarMarkdown", () => {
     expect(limpiarMarkdown("snake_case_de_una_variable")).toBe("snake_case_de_una_variable");
   });
 });
+
+describe("el chat: links y encargos", () => {
+  it("la respuesta de la búsqueda real trae tres links clicables", async () => {
+    const { partesConEnlaces } = await import("./markdown");
+    const partes = partesConEnlaces(
+      "Está en GitHub.\n\n[whisper.cpp en GitHub](https://github.com/ggerganov/whisper.cpp) — el repo oficial",
+    );
+    expect(partes).toEqual([
+      { tipo: "texto", texto: "Está en GitHub.\n\n" },
+      { tipo: "enlace", texto: "whisper.cpp en GitHub", url: "https://github.com/ggerganov/whisper.cpp" },
+      { tipo: "texto", texto: " — el repo oficial" },
+    ]);
+  });
+
+  it("un link suelto también", async () => {
+    const { partesConEnlaces } = await import("./markdown");
+    expect(partesConEnlaces("mirá https://x.co/a y listo")).toEqual([
+      { tipo: "texto", texto: "mirá " },
+      { tipo: "enlace", texto: "https://x.co/a", url: "https://x.co/a" },
+      { tipo: "texto", texto: " y listo" },
+    ]);
+  });
+
+  it("un encargo sale como tarjeta desde QUÉ", async () => {
+    const { partirRespuesta } = await import("./markdown");
+    const bloques = partirRespuesta("Listo, acá va.\n\nQUÉ\nUna X.\n\nDÓNDE\nApp.tsx\n\nLISTO CUANDO\n- se ve");
+    expect(bloques[0]).toMatchObject({ tipo: "texto" });
+    expect(bloques[1]).toEqual({ tipo: "encargo", texto: "QUÉ\nUna X.\n\nDÓNDE\nApp.tsx\n\nLISTO CUANDO\n- se ve" });
+  });
+
+  it("un bloque ``` también es tarjeta, y QUÉ sin LISTO CUANDO no", async () => {
+    const { partirRespuesta } = await import("./markdown");
+    expect(partirRespuesta("Pegá esto:\n```\nnpm test\n```")[1]).toEqual({ tipo: "encargo", texto: "npm test" });
+    expect(partirRespuesta("QUÉ\nes esto").every((b) => b.tipo === "texto")).toBe(true);
+  });
+});

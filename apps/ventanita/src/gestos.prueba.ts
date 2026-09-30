@@ -402,3 +402,36 @@ describe("la respuesta escrita se queda (3b)", () => {
     expect(decision.accion.tipo).toBe("nada");
   });
 });
+
+describe("la bolita del chat", () => {
+  const base = { estado: "escuchando" as const, modo: "texto" as const, grabando: false, toqueAnterior: null, grabacionDesde: null };
+
+  it("un toque dicta; otro toque más tarde para y transcribe", async () => {
+    const { decidirBolita } = await import("./gestos");
+    expect(decidirBolita({ ...base, ahora: 1000 })).toEqual({ tipo: "dictar" });
+    expect(
+      decidirBolita({ ...base, modo: "voz", grabando: true, ahora: 4000, toqueAnterior: 1000, grabacionDesde: 1000 }),
+    ).toEqual({ tipo: "pararDictado" });
+  });
+
+  it("dos toques pegados: conversación de voz sobre la misma grabación", async () => {
+    const { decidirBolita } = await import("./gestos");
+    expect(
+      decidirBolita({ ...base, modo: "voz", grabando: true, ahora: 1300, toqueAnterior: 1000, grabacionDesde: 1000 }),
+    ).toEqual({ tipo: "pasarADialogo" });
+  });
+
+  it("en conversación, un toque tardío la termina; uno pegado no", async () => {
+    const { decidirBolita } = await import("./gestos");
+    const dialogo = { ...base, modo: "dialogo" as const, grabando: true, grabacionDesde: 1000 };
+    expect(decidirBolita({ ...dialogo, ahora: 1500, toqueAnterior: 1300 }).tipo).toBe("nada");
+    expect(decidirBolita({ ...dialogo, ahora: 6000, toqueAnterior: 1300 })).toEqual({ tipo: "terminarDialogo" });
+  });
+
+  it("pensando no hace nada; hablando, calla; un fantasma se ignora", async () => {
+    const { decidirBolita } = await import("./gestos");
+    expect(decidirBolita({ ...base, estado: "pensando", ahora: 1000 }).tipo).toBe("nada");
+    expect(decidirBolita({ ...base, estado: "hablando", ahora: 1000 })).toEqual({ tipo: "callar" });
+    expect(decidirBolita({ ...base, ahora: 1030, toqueAnterior: 1000 }).tipo).toBe("nada");
+  });
+});

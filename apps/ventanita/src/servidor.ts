@@ -52,13 +52,19 @@ export async function obtenerMotores(): Promise<MotorDePensar[]> {
 
 // think: opt-in por mensaje a pensar. Apagado, el núcleo no gasta un token.
 // motor: con cuál, elegido a conciencia en el dropdown.
-export async function enviarMensaje(
-  texto: string,
-  think = false,
-  motor: string | null = null,
-  modo: string | null = null,
-  nivel: string | null = null,
-): Promise<RespuestaMensaje> {
+// Con qué piensa este mensaje (el chip de cerebro) y cómo entró.
+export interface OpcionesMensaje {
+  think: boolean;
+  motor: string;
+  modo?: string | null;
+  nivel?: string | null;
+  modeloOllama?: string | null;
+  // Por voz, lo que se dice son hasta 3 frases; el chat muestra todo.
+  origen?: "voz" | "texto";
+}
+
+export async function enviarMensaje(texto: string, opciones: OpcionesMensaje): Promise<RespuestaMensaje> {
+  const { think, motor, modo, nivel, modeloOllama, origen } = opciones;
   const controlador = new AbortController();
   const limite = setTimeout(() => controlador.abort(), TIMEOUT_NUCLEO_MS);
   try {
@@ -71,6 +77,8 @@ export async function enviarMensaje(
         motor: think ? motor : null,
         ...(think && modo ? { modo } : {}),
         ...(think && nivel ? { nivel } : {}),
+        ...(think && modeloOllama ? { modelo_ollama: modeloOllama } : {}),
+        ...(origen ? { origen } : {}),
       }),
       signal: controlador.signal,
     });
@@ -78,6 +86,54 @@ export async function enviarMensaje(
       throw new Error(`El núcleo respondió ${respuesta.status}`);
     }
     return (await respuesta.json()) as RespuestaMensaje;
+  } finally {
+    clearTimeout(limite);
+  }
+}
+
+// — El chat (3c) —
+
+export interface TurnoDelChat {
+  rol: "juan" | "remi";
+  texto: string;
+  fecha: string;
+}
+
+// La conversación vigente (la de la última hora), para abrir con el chat.
+export async function obtenerConversacion(): Promise<TurnoDelChat[]> {
+  const respuesta = await fetch(`${URL_NUCLEO}/conversacion`);
+  if (!respuesta.ok) throw new Error(`El núcleo respondió ${respuesta.status}`);
+  return (await respuesta.json()) as TurnoDelChat[];
+}
+
+// Lo que da `ollama list`. Vacío si Ollama no está.
+export async function obtenerModelosOllama(): Promise<string[]> {
+  const respuesta = await fetch(`${URL_NUCLEO}/pensar/ollama`);
+  if (!respuesta.ok) throw new Error(`El núcleo respondió ${respuesta.status}`);
+  return (await respuesta.json()) as string[];
+}
+
+export interface EpisodioGuardado {
+  titulo: string;
+  tema: string;
+  resumen: string;
+  archivo: string;
+  resumido_por: string;
+}
+
+// Una charla pegada, resumida y guardada en remi-mente/episodios/.
+export async function guardarEpisodio(texto: string): Promise<EpisodioGuardado> {
+  const controlador = new AbortController();
+  const limite = setTimeout(() => controlador.abort(), TIMEOUT_NUCLEO_MS);
+  try {
+    const respuesta = await fetch(`${URL_NUCLEO}/episodio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto }),
+      signal: controlador.signal,
+    });
+    if (!respuesta.ok) throw new Error(`El núcleo respondió ${respuesta.status}`);
+    return (await respuesta.json()) as EpisodioGuardado;
   } finally {
     clearTimeout(limite);
   }

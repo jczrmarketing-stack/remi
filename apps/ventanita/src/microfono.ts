@@ -29,6 +29,12 @@ export function activarCortePorSilencio(): Promise<void> {
   return invoke("activar_corte_por_silencio");
 }
 
+// Lo dicho hasta ahora, sin parar la grabación (Whisper residente). Vacío
+// o error si todavía no hay nada que entender: se ignora.
+export function transcribirParcial(): Promise<string> {
+  return invoke("transcribir_parcial");
+}
+
 export function detenerEscuchaYTranscribir(origen: OrigenParada): Promise<string> {
   return invoke("detener_escucha_y_transcribir", { origen });
 }

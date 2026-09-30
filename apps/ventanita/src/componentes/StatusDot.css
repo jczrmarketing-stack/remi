@@ -150,3 +150,26 @@
     opacity: 0;
   }
 }
+
+/* Pensando (3c): cargando. Un arco de luz que gira alrededor de la bolita
+   gris, sin que ella se mueva. */
+.status-dot[data-estado="pensando"]::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid transparent;
+  border-top-color: var(--ink-muted);
+  animation: cargando 1100ms linear infinite;
+}
+
+@keyframes cargando {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot[data-estado="pensando"]::after {
+    animation: none;
+    border-color: var(--line);
+  }
+}

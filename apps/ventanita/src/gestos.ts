@@ -264,3 +264,47 @@ export function decidirTrasVacia(vaciasSeguidas: number): TrasVacia {
   if (vaciasSeguidas >= MAX_VACIAS_SEGUIDAS) return { tipo: "reposo" };
   return { tipo: "rearmar", enMs: MS_ANTES_DE_REARMAR };
 }
+
+// — La bolita dentro del chat (3c) —
+// Es el único control de voz. Un toque dicta (el texto va al campo); un
+// segundo toque pegado al primero lo vuelve conversación de voz, sobre la
+// misma grabación (como el 3.er click de la píldora: sin esperar a ver si
+// viene otro). Después del segundo, la grabación sigue hasta el silencio.
+export const MS_DOBLE_TOQUE = 450;
+
+export type AccionBolita =
+  | { tipo: "dictar" }
+  | { tipo: "pasarADialogo" }
+  | { tipo: "pararDictado" }
+  | { tipo: "terminarDialogo" }
+  | { tipo: "callar" }
+  | { tipo: "nada"; razon: string };
+
+export interface EntradaBolita {
+  estado: Estado;
+  modo: Modo;
+  grabando: boolean;
+  ahora: number;
+  // Cuándo fue el toque anterior (null = no hubo).
+  toqueAnterior: number | null;
+  // Cuándo arrancó la grabación en curso.
+  grabacionDesde: number | null;
+}
+
+export function decidirBolita(e: EntradaBolita): AccionBolita {
+  const desdeAnterior = e.toqueAnterior === null ? Infinity : e.ahora - e.toqueAnterior;
+  if (desdeAnterior < MS_FANTASMA_SEGUIDO) return { tipo: "nada", razon: "toque fantasma" };
+  if (e.estado === "pensando") return { tipo: "nada", razon: "Remi está pensando (Escape para cancelar)" };
+  if (e.estado === "hablando") return { tipo: "callar" };
+  if (!e.grabando) return { tipo: "dictar" };
+  const desdeGrabacion = e.grabacionDesde === null ? Infinity : e.ahora - e.grabacionDesde;
+  if (e.modo === "voz" && desdeAnterior < MS_DOBLE_TOQUE && desdeGrabacion < MS_DOBLE_TOQUE) {
+    return { tipo: "pasarADialogo" };
+  }
+  if (e.modo === "dialogo") {
+    // Un toque justo después del doble es el mismo gesto, no un «terminá».
+    if (desdeGrabacion < MS_GRACIA) return { tipo: "nada", razon: "gracia de la conversación recién abierta" };
+    return { tipo: "terminarDialogo" };
+  }
+  return { tipo: "pararDictado" };
+}
