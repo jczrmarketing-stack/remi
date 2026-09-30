@@ -357,7 +357,42 @@ fn es_solo_ruido(texto: &str) -> bool {
             | "risas"
             | "ruido"
             | "suspiro"
-    )
+    ) || es_alucinacion(&limpio)
+}
+
+// Lo que Whisper «oye» en el silencio: cierres de video de YouTube con los
+// que se entrenó. El 30/09 entraron al chat como si Juan Camilo los hubiera
+// dicho («Gracias por ver el video.», «¡Suscríbete al canal!»). Solo si es
+// la transcripción entera: una frase real que los nombre pasa igual.
+const ALUCINACIONES: &[&str] = &[
+    "suscribete al canal",
+    "suscribete",
+    "gracias por ver el video",
+    "gracias por ver",
+    "gracias por ver el video suscribete al canal",
+    "no olvides suscribirte",
+    "subtitulos realizados por la comunidad de amaraorg",
+    "subtitulos por la comunidad de amaraorg",
+    "thanks for watching",
+    "thank you for watching",
+];
+
+fn es_alucinacion(texto: &str) -> bool {
+    let normal: String = texto
+        .to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'á' => 'a',
+            'é' => 'e',
+            'í' => 'i',
+            'ó' => 'o',
+            'ú' | 'ü' => 'u',
+            otro => otro,
+        })
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+        .collect();
+    let normal = normal.split_whitespace().collect::<Vec<_>>().join(" ");
+    ALUCINACIONES.contains(&normal.as_str())
 }
 
 // ffmpeg imprime un banner enorme antes del error real; nos quedamos con
@@ -744,6 +779,15 @@ mod pruebas {
 
     fn muestras_por_ventana() -> usize {
         (16_000.0 * VENTANA_SEGUNDOS) as usize
+    }
+
+    #[test]
+    fn las_alucinaciones_de_whisper_son_ruido() {
+        assert!(es_solo_ruido("¡Suscríbete al canal!"));
+        assert!(es_solo_ruido(" Gracias por ver el video."));
+        assert!(es_solo_ruido("Subtítulos realizados por la comunidad de Amara.org"));
+        assert!(!es_solo_ruido("Gracias por ver el video de Alfonso, mandale el alcance"));
+        assert!(!es_solo_ruido("dos cosas que"));
     }
 
     #[test]
