@@ -20,6 +20,39 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · Fase S (oficios v1) · 3 «me escribió un cliente» · construido · 65eed02
+
+- **Qué cambió:** `clasificar.es_texto_de_cliente()` detecta frases exactas («me escribió»,
+  «me dijo», «el cliente dice», sin IA, mismo estilo que el resto de `clasificar.py`) antes
+  del clasificador de tareas/ideas en `POST /mensaje` — no pasa por la Bandeja ni abre un
+  bloque, porque es una lectura, no un pedido de Juan Camilo. `pensar.sistema_cliente()`
+  (con `nucleo/prompts/cliente.md` nuevo) carga los oficios `clientes`, `proyectos-sop` y
+  `mi-voz` enteros (nivel 2) más el proyecto activo, y pide las cuatro partes del oficio
+  `clientes`: LECTURA, RIESGOS, RESPUESTA RECOMENDADA, LÍMITES, con el guardarraíl explícito
+  al final («esto es un borrador, vos lo mandás»). `servidor._leer_cliente()` nunca guarda
+  nada en `ideas` ni `tareas`. Test real: «me escribió Alfonso: necesito el generador de
+  imágenes para el viernes» trae las cuatro partes, con el límite de red mockeado; y un test
+  que confirma que el núcleo no tiene NINGUNA función para mandar algo afuera (no hay
+  `enviar_cliente`, `enviar_whatsapp`, etc. — Fase 4 no existe todavía, así que Remi no puede
+  enviar, no es solo que el prompt se lo pida). 282 pytest, mypy limpio (57 módulos).
+- **Decisiones que tomé sin preguntar:**
+  1. Sumé `"cliente"` al `Literal` de `tipo` en `RespuestaMensaje` (no es uno de los cinco
+     contratos sagrados de `contratos.json`, es la respuesta interna de la API — cambiarlo no
+     es la decisión de arquitectura que sí sería tocar un contrato).
+  2. La detección es por frase exacta, no por largo de texto pegado: ya existe
+     `episodios.LARGO_MINIMO` (1500) para «¿guardo esta charla como episodio?», y mezclar los
+     dos criterios hubiera hecho que cualquier paste largo se leyera como cliente aunque no
+     lo fuera.
+- **Dudas abiertas:**
+  1. Una frase como «¿qué me dijo el cliente la semana pasada?» podría dispararlo por error
+     (matchea «me dijo» sin ser un mensaje pegado de un tercero): no lo probé de verdad en
+     esta sesión, es un falso positivo teórico a vigilar en uso real.
+- **Cómo probarlo a mano:** en la ventanita, con pensar activado: «me escribió Alfonso: necesito
+  el generador de imágenes para el viernes» → salen las cuatro secciones y la línea del
+  borrador al final.
+
+---
+
 ## 2026-10-01 · Fase S (oficios v1) · 1–2 los oficios entran a la mente + puerta de prompts · construido · 81346ed
 
 - **Qué cambió:**
