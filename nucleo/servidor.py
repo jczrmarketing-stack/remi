@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
 import clasificar
+import correcciones
 import db
 import episodios
 import pensar
@@ -170,7 +171,7 @@ class RespuestaMensaje(BaseModel):
     # Lo decide el clasificador, nunca el modelo: pensar solo reformula la
     # voz. Una idea no crea tarea ni sesión, y un cierre no crea nada.
     # «encargo» es el modo Prompt, que no pasa por el clasificador.
-    tipo: clasificar.TipoMensaje | Literal["encargo", "cliente"]
+    tipo: clasificar.TipoMensaje | Literal["encargo", "cliente", "correccion"]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
     # Lo que se ve en la pantalla, completo.
@@ -312,6 +313,29 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         respuesta = _armar_encargo(mensaje)
         ms = (time.perf_counter() - arranque) * 1000
         print(f"[mensaje] tipo=encargo ms={ms:.0f} pensó={'sí' if respuesta.tokens else 'no'}", file=sys.stderr, flush=True)
+        return respuesta
+    ahora_correccion = datetime.now(timezone.utc)
+    aplicada = correcciones.revisar_confirmacion(mensaje.texto, ahora_correccion)
+    if aplicada is not None:
+        oficio, regla = aplicada
+        respuesta = RespuestaMensaje(
+            tipo="correccion",
+            texto=f"Guardado en el oficio «{oficio}»: {regla}",
+            voz="Guardado, gracias.",
+        )
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=correccion ms={ms:.0f} accion=guardada oficio={oficio}", file=sys.stderr, flush=True)
+        return respuesta
+    propuesta = correcciones.proponer(mensaje.texto, ahora_correccion)
+    if propuesta is not None:
+        oficio, regla = propuesta
+        respuesta = RespuestaMensaje(
+            tipo="correccion",
+            texto=f"¿Guardo esto en el oficio «{oficio}»?\n«{regla}»",
+            voz="¿Guardo esta regla?",
+        )
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=correccion ms={ms:.0f} accion=propuesta oficio={oficio}", file=sys.stderr, flush=True)
         return respuesta
     if clasificar.es_texto_de_cliente(mensaje.texto):
         # No pasa por el clasificador de tareas/ideas: es una lectura para

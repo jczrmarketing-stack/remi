@@ -160,6 +160,16 @@ CREATE TABLE IF NOT EXISTS trabajo_claude (
 );
 
 CREATE INDEX IF NOT EXISTS idx_trabajo_claude_tema ON trabajo_claude(tema);
+
+-- «Aprender de las correcciones» (Biblia Parte VI): una regla propuesta,
+-- una por conversación, esperando el sí de Juan Camilo. Sin confirmación
+-- no se guarda nada — y no confirmar jamás se cuenta como fallo (ley 3).
+CREATE TABLE IF NOT EXISTS propuestas_correccion (
+    conversacion_id TEXT PRIMARY KEY,
+    oficio TEXT NOT NULL,
+    regla TEXT NOT NULL,
+    fecha TEXT NOT NULL
+);
 """
 
 
@@ -659,4 +669,38 @@ def guardar_resumen(conexion: sqlite3.Connection, conversacion_id: str, resumen:
         "UPDATE conversaciones SET resumen = ?, resumidos = ? WHERE id = ?",
         (resumen, resumidos, conversacion_id),
     )
+    conexion.commit()
+
+
+@dataclass(frozen=True)
+class PropuestaCorreccion:
+    conversacion_id: str
+    oficio: str
+    regla: str
+
+
+def proponer_correccion(conexion: sqlite3.Connection, conversacion_id: str, oficio: str, regla: str, fecha: datetime) -> None:
+    """Una propuesta reemplaza a la anterior de la misma conversación: solo
+    puede haber una esperando confirmación a la vez."""
+    conexion.execute(
+        """
+        INSERT INTO propuestas_correccion (conversacion_id, oficio, regla, fecha)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(conversacion_id) DO UPDATE SET oficio = excluded.oficio, regla = excluded.regla, fecha = excluded.fecha
+        """,
+        (conversacion_id, oficio, regla, fecha.isoformat()),
+    )
+    conexion.commit()
+
+
+def propuesta_pendiente(conexion: sqlite3.Connection, conversacion_id: str) -> PropuestaCorreccion | None:
+    fila = conexion.execute(
+        "SELECT conversacion_id, oficio, regla FROM propuestas_correccion WHERE conversacion_id = ?",
+        (conversacion_id,),
+    ).fetchone()
+    return PropuestaCorreccion(fila["conversacion_id"], fila["oficio"], fila["regla"]) if fila else None
+
+
+def borrar_propuesta(conexion: sqlite3.Connection, conversacion_id: str) -> None:
+    conexion.execute("DELETE FROM propuestas_correccion WHERE conversacion_id = ?", (conversacion_id,))
     conexion.commit()
