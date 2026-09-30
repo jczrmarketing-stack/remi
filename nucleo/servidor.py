@@ -24,11 +24,12 @@ import clasificar
 import correcciones
 import db
 import episodios
+import iniciativa
 import pensar
 import sembrar_conocimiento
 import trabajo
 import tts
-from modelos import Idea, Memoria, Sesion, Tarea
+from modelos import Idea, Memoria, Nudge, Sesion, Tarea
 
 RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
 CONFIG = json.loads(RUTA_CONFIG.read_text())
@@ -909,6 +910,34 @@ def revisar_idea(idea_id: UUID, cuerpo: RevisionIdea) -> RevisionHecha:
         except bandeja.IdeaNoFria:
             raise HTTPException(status_code=409, detail="todavía no pasaron las 48 h") from None
         return RevisionHecha(idea=hecha.idea, tarea=hecha.tarea)
+    finally:
+        conexion.close()
+
+
+# — Nudges (Fase 3): lo que la ventanita ya llama —
+
+
+class RespuestaNudge(BaseModel):
+    respuesta: Literal["listo", "ahora_no"]
+
+
+@app.get("/nudges/pendiente", response_model=Nudge | None)
+def nudge_pendiente() -> Nudge | None:
+    conexion = db.conectar()
+    try:
+        return iniciativa.pendiente_o_nuevo(conexion, datetime.now(timezone.utc))
+    finally:
+        conexion.close()
+
+
+@app.post("/nudges/{nudge_id}/respuesta", response_model=Nudge)
+def responder_nudge(nudge_id: UUID, cuerpo: RespuestaNudge) -> Nudge:
+    conexion = db.conectar()
+    try:
+        nudge = iniciativa.responder(conexion, nudge_id, cuerpo.respuesta, datetime.now(timezone.utc))
+        if nudge is None:
+            raise HTTPException(status_code=404, detail="no tengo ese nudge")
+        return nudge
     finally:
         conexion.close()
 
