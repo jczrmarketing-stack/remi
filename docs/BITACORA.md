@@ -20,6 +20,31 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 3d los cuatro proyectos de hoy, conectados · construido · 1c710ce
+
+- **Qué cambió** (en la bóveda `remi-mente/proyectos/`, que no está en git): Juan Camilo
+  pidió que Remi siga sus cuatro proyectos actuales: Organic Cash, Malik Gestión, BeaM y
+  UpVisuals (Alfonso).
+  1. **BeaM no tenía libro**: `beam.md` nuevo, con ruta `~/beam` y lo que dice su landing
+     («Sell from your screen. Instantly.»: link → el cliente ve tu pantalla en vivo; Next.js +
+     Supabase + LiveKit en Vercel; migración 0005 sin aplicar).
+  2. **Organic Cash** suma `~/organic-bot-core` a sus rutas.
+  3. **UpVisuals queda sin ruta**: no hay carpeta de código en ningún lado (el trabajo arranca
+     cuando se paga la Fase 1). Cuando exista, va en su `ruta:`.
+  4. Para que «dónde quedaste» diga algo real ya, mandé a `/evento` el último commit de cada
+     repo (solo lectura de git): Malik, Organic Cash y BeaM tienen su `## Estado` escrito por
+     Ollama.
+- **Verificado:** cada carpeta y sus subcarpetas caen en su libro; BeaM entró a la memoria al
+  reiniciar el núcleo; el contexto que recibiría Claude Code en cada carpeta sale bien.
+- **Decisiones que tomé sin preguntar:** no commiteo nada en Malik (37 archivos sin
+  commitear) ni en Organic Cash (17): es trabajo en curso de otras sesiones.
+- **Dudas abiertas:** omniway y shopify-cliente siguen en la bóveda sin ruta; no son de los
+  cuatro de hoy. No los borré.
+- **Cómo probarlo a mano:** abrir Claude Code en `~/beam`: arranca con «Proyecto: BeaM…» y su
+  Estado.
+
+---
+
 ## 2026-09-30 · 3e Remi indestructible · construido · c7fbdb3
 
 - **Qué cambió:**
