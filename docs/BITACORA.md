@@ -20,6 +20,26 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Fase F · 1–2 la bolita y la voz vuelven al DS · construido · e071101
+
+- **Qué cambió:** este encargo llegó a mitad del anterior (Biblia v3.3, «la ventanita final»):
+  no tocar la estructura del chat, solo lo que sigue. `StatusDot.css`: pensando pasa a `pensar`
+  (lavanda) con su glow, hablando a `brasa` con el suyo — antes la maqueta del 30-sep los pisaba
+  a `ink-muted`/`ink` sin brillo (entrada `a2a866f`). Tamaños de esa maqueta (48 px hablando,
+  28 px pensando) sin tocar; el anillo de «pensando» también pasa a `pensar`. `Chat.css`: la voz
+  de Remi en el chat volvió a 20 px — `.display-it` (24 px, el token suelto) le ganaba a
+  `.chat__remi` (que ya decía 20 px) por orden de cascada, no por diseño; ahora
+  `.display-it.chat__remi` sube la especificidad sin tocar el token global (sigue en 24 px en
+  `LimiteDeError`, que es la única otra pantalla que lo usa).
+- **Decisiones que tomé sin preguntar:** ninguna nueva más allá de las de arriba.
+- **Dudas abiertas:** no lo vi en pantalla (mismo motivo que el punto 5: no hay tests de
+  componentes React en este repo). `tsc` y los 73 vitest en verde.
+- **Cómo probarlo a mano:** abrir Remi, hacerle una pregunta que piense: el punto tiene que
+  verse lavanda con un halo suave mientras piensa, y naranja (brasa) con su halo mientras
+  contesta en voz. La respuesta escrita en el chat se ve un poco más chica que antes (20 px).
+
+---
+
 ## 2026-09-30 · 5 celebración + botón Hecha en el chat · construido · 8595827
 
 - **Qué cambió:** `Chat.tsx`/`Chat.css` (celebración y el botón), `servidor.ts` (`cerrarTarea`),
