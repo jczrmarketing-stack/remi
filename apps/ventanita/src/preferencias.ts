@@ -108,3 +108,61 @@ export function obtenerModo(): ModoPensar {
 export function fijarModo(modo: ModoPensar): void {
   guardar(CLAVE_MODO, modo);
 }
+
+// — El chip «Opus 5.5 · Medio» (maqueta de Juan Camilo, 30/09/2026) —
+// Un solo lugar elige con qué piensa Remi. Por debajo sigue siendo lo mismo
+// de antes (motor + modo + «sin pensar»): el chip solo lo nombra distinto.
+export const CEREBROS = ["haiku", "sonnet", "opus", "venice", "ollama", "prompt", "sin-pensar"] as const;
+export type Cerebro = (typeof CEREBROS)[number];
+
+export const NIVELES = ["bajo", "medio", "alto"] as const;
+export type Nivel = (typeof NIVELES)[number];
+
+interface Eleccion {
+  motor: Motor;
+  modo: ModoPensar;
+  sinPensar: boolean;
+}
+
+const MODO_DE_CLAUDE: Partial<Record<Cerebro, ModoPensar>> = {
+  haiku: "rapido",
+  sonnet: "equilibrio",
+  opus: "inteligente",
+};
+
+export function cerebroDe({ motor, modo, sinPensar }: Eleccion): Cerebro {
+  if (sinPensar) return "sin-pensar";
+  if (modo === "prompt") return "prompt";
+  if (motor === "venice" || motor === "ollama") return motor;
+  if (modo === "rapido") return "haiku";
+  if (modo === "inteligente") return "opus";
+  return "sonnet";
+}
+
+export function eleccionDe(cerebro: Cerebro): Eleccion {
+  if (cerebro === "sin-pensar") return { motor: MOTOR_POR_DEFECTO, modo: MODO_POR_DEFECTO, sinPensar: true };
+  if (cerebro === "prompt") return { motor: MOTOR_POR_DEFECTO, modo: "prompt", sinPensar: false };
+  if (cerebro === "venice" || cerebro === "ollama") return { motor: cerebro, modo: MODO_POR_DEFECTO, sinPensar: false };
+  return { motor: MOTOR_POR_DEFECTO, modo: MODO_DE_CLAUDE[cerebro] ?? MODO_POR_DEFECTO, sinPensar: false };
+}
+
+// Solo los modelos de Anthropic tienen nivel. Opus arranca en medio (lo que
+// ya hacía: piensa antes); Haiku y Sonnet, en bajo.
+export function tieneNivel(cerebro: Cerebro): boolean {
+  return cerebro === "haiku" || cerebro === "sonnet" || cerebro === "opus";
+}
+
+export function nivelPorDefecto(cerebro: Cerebro): Nivel {
+  return cerebro === "opus" ? "medio" : "bajo";
+}
+
+const CLAVE_NIVEL = "remi.pensar.nivel";
+
+export function obtenerNivel(): Nivel | null {
+  const guardado = leer(CLAVE_NIVEL);
+  return (NIVELES as readonly string[]).includes(guardado ?? "") ? (guardado as Nivel) : null;
+}
+
+export function fijarNivel(nivel: Nivel): void {
+  guardar(CLAVE_NIVEL, nivel);
+}

@@ -30,3 +30,25 @@ describe("el motor guardado", () => {
     expect(obtenerMotor()).toBe("claude");
   });
 });
+
+describe("el chip de modelo", () => {
+  it("cada modelo va y vuelve igual", async () => {
+    const { CEREBROS, cerebroDe, eleccionDe } = await import("./preferencias");
+    for (const c of CEREBROS) expect(cerebroDe(eleccionDe(c))).toBe(c);
+  });
+
+  it("lo guardado de antes se lee como su modelo", async () => {
+    const { cerebroDe } = await import("./preferencias");
+    expect(cerebroDe({ motor: "claude", modo: "inteligente", sinPensar: false })).toBe("opus");
+    expect(cerebroDe({ motor: "ollama", modo: "equilibrio", sinPensar: false })).toBe("ollama");
+    expect(cerebroDe({ motor: "claude", modo: "rapido", sinPensar: true })).toBe("sin-pensar");
+  });
+
+  it("solo Anthropic tiene nivel, y Opus arranca en medio", async () => {
+    const { tieneNivel, nivelPorDefecto } = await import("./preferencias");
+    expect(tieneNivel("venice")).toBe(false);
+    expect(tieneNivel("haiku")).toBe(true);
+    expect(nivelPorDefecto("opus")).toBe("medio");
+    expect(nivelPorDefecto("sonnet")).toBe("bajo");
+  });
+});

@@ -6,7 +6,7 @@ import { PromptTerminal } from "./componentes/PromptTerminal";
 import { ControlesVoz } from "./componentes/ControlesVoz";
 import { Semaforo } from "./componentes/Semaforo";
 import { BotonCancelar } from "./componentes/BotonCancelar";
-import { SelectorModo } from "./componentes/SelectorModo";
+import { ChipModelo } from "./componentes/ChipModelo";
 import { Encargo } from "./componentes/Encargo";
 import { limpiarMarkdown } from "./markdown";
 import {
@@ -24,16 +24,24 @@ import { copiarAlPortapapeles } from "./portapapeles";
 import { formatearDuracion, formatearHace, registrarInteraccion, ultimaInteraccion } from "./tiempo";
 import {
   alternarSilencio,
+  type Cerebro,
+  cerebroDe,
+  eleccionDe,
   estaSilenciado,
   estaSinPensar,
   fijarModo,
   fijarMotor,
+  fijarNivel,
   fijarSinPensar,
   fijarVelocidad,
   fijarVoz,
   MOTOR_POR_DEFECTO,
+  type Nivel,
+  nivelPorDefecto,
   obtenerModo,
   obtenerMotor,
+  obtenerNivel,
+  tieneNivel,
   type ModoPensar,
   obtenerVelocidad,
   obtenerVoz,
@@ -63,7 +71,7 @@ import {
 // Qué es un control (nunca un gesto) y qué es el cuadro (gesto si está
 // vacío y la racha sigue viva). Los botones del cuadro —el toggle de
 // pensar— cuentan como control aunque estén dentro del cuadro.
-const SELECTOR_CONTROLES = ".controles-voz, .semaforo, .selector-modo, .encargo, .voz, button, select";
+const SELECTOR_CONTROLES = ".controles-voz, .semaforo, .chip-modelo, .encargo, .voz, button, select";
 const SELECTOR_CUADRO = ".prompt-terminal";
 
 function clasificarObjetivo(objetivo: EventTarget | null) {
@@ -84,7 +92,11 @@ import "./App.css";
 const TAMANO_REPOSO_MINIMO = { width: 120, height: 44 };
 const TAMANO_REPOSO_CON_HACE = { width: 120, height: 64 };
 const TAMANO_REPOSO_ULTIMA_VEZ = { width: 210, height: 64 };
-const TAMANO_EXPANDIDO = { width: 420, height: 520 };
+// Expandida: 420 de ancho, y de alto lo que pida lo que hay adentro, entre
+// 210 y 520 (maqueta de Juan Camilo, 30/09/2026). Escribiendo, 210: el cuadro,
+// el chip y los atajos. Contestando, crece con la respuesta.
+const TAMANO_EXPANDIDO = { width: 420, height: 210 };
+const ALTO_MAXIMO = 520;
 // Cada cuánto se refresca el «hace N min» en reposo. Es relativo y en
 // minutos: medio minuto sobra y nada parpadea.
 const REFRESCO_HACE_MS = 30000;
@@ -173,6 +185,17 @@ export default function App() {
   // Con qué motor, elegido a conciencia en el dropdown y guardado.
   const [motor, setMotor] = useState(() => obtenerMotor());
   const [motores, setMotores] = useState<MotorDePensar[]>([]);
+  // Cuánto piensa el modelo de Anthropic elegido (el «Medio» del chip).
+  const [nivel, setNivel] = useState<Nivel>(
+    () =>
+      obtenerNivel() ??
+      nivelPorDefecto(cerebroDe({ motor: obtenerMotor(), modo: obtenerModo(), sinPensar: estaSinPensar() })),
+  );
+  const cerebro: Cerebro = cerebroDe({ motor, modo: modoPensar, sinPensar });
+  // Lo que Juan Camilo mandó: se ve bajo el punto gris mientras Remi piensa.
+  const [textoEnviado, setTextoEnviado] = useState("");
+  const ventanaRef = useRef<HTMLDivElement>(null);
+  const altoRef = useRef<number>(TAMANO_EXPANDIDO.height);
   // El recordatorio de cada media hora: una etiqueta bajo el punto, en el
   // lugar del «hace N min», que aparece con un movimiento y se va.
   const [recordatorio, setRecordatorio] = useState<string | null>(null);
@@ -199,8 +222,8 @@ export default function App() {
 
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
   const textoVacio = texto.trim() === "";
-  const accionesRef = useRef({ grabando, modo, estado, silenciado, sinPensar, textoVacio, motor, modoPensar });
-  accionesRef.current = { grabando, modo, estado, silenciado, sinPensar, textoVacio, motor, modoPensar };
+  const accionesRef = useRef({ grabando, modo, estado, silenciado, sinPensar, textoVacio, motor, modoPensar, nivel });
+  accionesRef.current = { grabando, modo, estado, silenciado, sinPensar, textoVacio, motor, modoPensar, nivel };
 
   // Cada vez que se vuelve a reposo a mano (click o Escape), esto sube:
   // si un fetch/invoke que ya estaba en vuelo resuelve DESPUÉS, se nota
@@ -253,7 +276,7 @@ export default function App() {
         new LogicalSize(TAMANO_REPOSO_MINIMO.width, TAMANO_REPOSO_MINIMO.height),
       );
       await ventana.setMaxSize(
-        new LogicalSize(TAMANO_EXPANDIDO.width, TAMANO_EXPANDIDO.height),
+        new LogicalSize(TAMANO_EXPANDIDO.width, ALTO_MAXIMO),
       );
       await ventana.setSize(new LogicalSize(width, height));
     })();
@@ -264,8 +287,10 @@ export default function App() {
     expandidoAnteriorRef.current = expandido;
     const ventana = getCurrentWindow();
     const reposo = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
-    const desde = expandido ? reposo : TAMANO_EXPANDIDO;
+    const actual = { width: TAMANO_EXPANDIDO.width, height: altoRef.current };
+    const desde = expandido ? reposo : actual;
     const hasta = expandido ? TAMANO_EXPANDIDO : reposo;
+    altoRef.current = TAMANO_EXPANDIDO.height;
     registrar("tamaño", {
       motivo: expandido ? "expandir" : "encoger",
       w: hasta.width,
@@ -277,6 +302,39 @@ export default function App() {
       cambioDeTamanoRef.current = performance.now();
     });
   }, [expandido]);
+
+  // Expandida, el alto sigue al contenido: escribiendo, 210; pensando o
+  // contestando, lo que mida la frase, hasta 520 (después se desplaza
+  // adentro). Se mide después de la animación de expandir, que dura 250 ms.
+  useEffect(() => {
+    if (!expandido) return;
+    const id = window.setTimeout(() => {
+      const raiz = ventanaRef.current;
+      if (!raiz) return;
+      const estilo = getComputedStyle(raiz);
+      const hueco = parseFloat(estilo.rowGap) || 0;
+      let alto =
+        parseFloat(estilo.paddingTop) + parseFloat(estilo.paddingBottom) +
+        parseFloat(estilo.borderTopWidth) + parseFloat(estilo.borderBottomWidth);
+      let hijos = 0;
+      for (const hijo of Array.from(raiz.children) as HTMLElement[]) {
+        if (getComputedStyle(hijo).position === "absolute") continue;
+        alto += Math.max(hijo.scrollHeight, hijo.offsetHeight);
+        hijos += 1;
+      }
+      alto += hueco * Math.max(0, hijos - 1);
+      const meta =
+        estado === "escuchando"
+          ? TAMANO_EXPANDIDO.height
+          : Math.min(ALTO_MAXIMO, Math.max(TAMANO_EXPANDIDO.height, Math.ceil(alto)));
+      if (meta === altoRef.current) return;
+      altoRef.current = meta;
+      registrar("tamaño", { motivo: `contenido:${estado}`, w: TAMANO_EXPANDIDO.width, h: meta });
+      cambioDeTamanoRef.current = performance.now();
+      void getCurrentWindow().setSize(new LogicalSize(TAMANO_EXPANDIDO.width, meta));
+    }, DURACION_APARECER + 30);
+    return () => window.clearTimeout(id);
+  }, [expandido, estado, respuestaTexto, textoEnviado, tipoRespuesta, transcribiendo, grabando]);
 
   // El dato de la ley 1 llega después de volver a reposo (hay que
   // preguntárselo al núcleo): cuando llega, la píldora se ensancha para
@@ -368,14 +426,19 @@ export default function App() {
       const arranque = performance.now();
       const motorElegido = accionesRef.current.motor;
       const modoElegido = accionesRef.current.modoPensar;
+      // El nivel solo viaja con un modelo de Anthropic.
+      const nivelElegido =
+        motorElegido === "claude" && modoElegido !== "prompt" ? accionesRef.current.nivel : null;
+      setTextoEnviado(limpio);
       registrar("enviar", {
         palabras: limpio.split(/\s+/).length,
         think,
         motor: think ? motorElegido : "-",
         modo: think ? modoElegido : "-",
+        nivel: think && nivelElegido ? nivelElegido : "-",
       });
       try {
-        const respuesta = await enviarMensaje(limpio, think, motorElegido, modoElegido);
+        const respuesta = await enviarMensaje(limpio, think, motorElegido, modoElegido, nivelElegido);
         if (generacionRef.current !== miGeneracion) return; // cancelado mientras esperaba
         registrar("respuesta", {
           tipo: respuesta.tipo,
@@ -567,6 +630,28 @@ export default function App() {
   const cambiarMotor = useCallback((nuevo: string) => {
     fijarMotor(nuevo);
     setMotor(nuevo);
+  }, []);
+
+  // El chip: un modelo se traduce a motor + modo + «sin pensar», y el
+  // nivel vuelve al de ese modelo.
+  const cambiarCerebro = useCallback((nuevo: Cerebro) => {
+    const eleccion = eleccionDe(nuevo);
+    fijarMotor(eleccion.motor);
+    setMotor(eleccion.motor);
+    fijarModo(eleccion.modo);
+    setModoPensar(eleccion.modo);
+    fijarSinPensar(eleccion.sinPensar);
+    setSinPensar(eleccion.sinPensar);
+    if (tieneNivel(nuevo)) {
+      const n = nivelPorDefecto(nuevo);
+      fijarNivel(n);
+      setNivel(n);
+    }
+  }, []);
+
+  const cambiarNivel = useCallback((nuevo: Nivel) => {
+    fijarNivel(nuevo);
+    setNivel(nuevo);
   }, []);
 
   // Los motores los nombra el núcleo, con qué le falta a cada uno. Si no
@@ -833,7 +918,7 @@ export default function App() {
   // es un click de verdad y llega a alClick.
   const alPresionar = useCallback((evento: React.MouseEvent<HTMLDivElement>) => {
     if (evento.button !== 0) return;
-    if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz, .semaforo, .selector-modo, .boton-cancelar")) return;
+    if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz, .semaforo, .chip-modelo, .boton-cancelar")) return;
 
     const inicio = { x: evento.clientX, y: evento.clientY };
 
@@ -855,22 +940,12 @@ export default function App() {
   }, []);
 
   return (
-    <div className={`ventanita ventanita--${estado}`} onMouseDown={alPresionar}>
+    <div ref={ventanaRef} className={`ventanita ventanita--${estado}`} onMouseDown={alPresionar}>
       <Semaforo />
       {estado !== "reposo" && <BotonCancelar onCancelar={() => cancelar("x")} />}
-      {/* El punto, y a su lado la flechita de modo (solo expandido: en la
-          píldora de reposo no entra un menú). */}
+      {/* El punto. El modelo se elige en el chip, debajo del cuadro. */}
       <div className="punto-zona">
         <StatusDot estado={estado} escuchandoVoz={grabando} />
-        {estado === "escuchando" && (
-          <SelectorModo
-            modo={modoPensar}
-            onModo={(nuevo) => {
-              fijarModo(nuevo);
-              setModoPensar(nuevo);
-            }}
-          />
-        )}
       </div>
 
       {/* Ley 1 en reposo. Si hay algo de hoy que ya hiciste antes, el dato
@@ -899,56 +974,65 @@ export default function App() {
       {estado === "pensando" && transcribiendo && (
         <p className="num trabajando">transcribiendo</p>
       )}
+      {/* Mientras Remi piensa: lo que le dijiste, bajo el punto gris. */}
+      {estado === "pensando" && !transcribiendo && textoEnviado !== "" && (
+        <p className="display-it voz voz--tuya">{textoEnviado}</p>
+      )}
 
       {estado === "hablando" && tipoRespuesta === "encargo" && <Encargo texto={respuestaTexto} />}
       {estado === "hablando" && tipoRespuesta !== "encargo" && (
         <p className="display-it voz">{limpiarMarkdown(respuestaTexto)}</p>
       )}
-      {estado === "hablando" && notaRespuesta !== null && (
-        <p className="num nota-respuesta">{notaRespuesta}</p>
-      )}
+      {/* Lo de más (nota, controles de voz, Reloj) solo con el mouse
+          encima: en la maqueta la respuesta va sola bajo el punto. */}
       {estado === "hablando" && (
-        <ControlesVoz
-          velocidad={velocidad}
-          onVelocidad={cambiarVelocidad}
-          puedeLeer={origenMensaje === "texto"}
-          onLeer={leerEnVozAlta}
-          onCopiar={() => void copiar()}
-          copiado={copiado}
-          onSostener={setSostenido}
-          voces={vocesDisponibles}
-          voz={vozElegida}
-          onVoz={cambiarVoz}
-        />
-      )}
-      {estado === "hablando" && ultimaVezMin !== null && sesionInicio !== null && (
-        <Reloj
-          minutosTranscurridos={(Date.now() - new Date(sesionInicio).getTime()) / 60000}
-          ultimaVezMin={ultimaVezMin}
-        />
+        <div className="extras-respuesta">
+        {estado === "hablando" && notaRespuesta !== null && (
+          <p className="num nota-respuesta">{notaRespuesta}</p>
+        )}
+        {estado === "hablando" && (
+          <ControlesVoz
+            velocidad={velocidad}
+            onVelocidad={cambiarVelocidad}
+            puedeLeer={origenMensaje === "texto"}
+            onLeer={leerEnVozAlta}
+            onCopiar={() => void copiar()}
+            copiado={copiado}
+            onSostener={setSostenido}
+            voces={vocesDisponibles}
+            voz={vozElegida}
+            onVoz={cambiarVoz}
+          />
+        )}
+        {estado === "hablando" && ultimaVezMin !== null && sesionInicio !== null && (
+          <Reloj
+            minutosTranscurridos={(Date.now() - new Date(sesionInicio).getTime()) / 60000}
+            ultimaVezMin={ultimaVezMin}
+          />
+        )}
+        </div>
       )}
 
       {/* Mientras el micrófono está abierto, o mientras Remi habla, no hay
           cuadro — una sola locura por pantalla (ley 4): se ve que escucha o
           que contesta, no un textarea deshabilitado de fondo. */}
-      {expandido && !grabando && estado !== "hablando" && modo !== "dialogo" && (
+      {estado === "escuchando" && !grabando && modo !== "dialogo" && (
         <PromptTerminal
           valor={texto}
           deshabilitado={estado !== "escuchando"}
           enfocar={estado === "escuchando" && !grabando}
           onCambio={setTexto}
           onEnviar={() => void enviar(texto)}
-          sinPensar={sinPensar}
-          onAlternarSinPensar={() =>
-            setSinPensar((valor) => {
-              fijarSinPensar(!valor);
-              registrar("sinPensar", { puesto: !valor });
-              return !valor;
-            })
+          chip={
+            <ChipModelo
+              cerebro={cerebro}
+              nivel={nivel}
+              motores={motores}
+              deshabilitado={estado !== "escuchando"}
+              onCerebro={cambiarCerebro}
+              onNivel={cambiarNivel}
+            />
           }
-          motores={motores}
-          motor={motor}
-          onMotor={cambiarMotor}
         />
       )}
     </div>

@@ -57,6 +57,7 @@ export async function enviarMensaje(
   think = false,
   motor: string | null = null,
   modo: string | null = null,
+  nivel: string | null = null,
 ): Promise<RespuestaMensaje> {
   const controlador = new AbortController();
   const limite = setTimeout(() => controlador.abort(), TIMEOUT_NUCLEO_MS);
@@ -69,6 +70,7 @@ export async function enviarMensaje(
         think,
         motor: think ? motor : null,
         ...(think && modo ? { modo } : {}),
+        ...(think && nivel ? { nivel } : {}),
       }),
       signal: controlador.signal,
     });

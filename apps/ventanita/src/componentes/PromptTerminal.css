@@ -45,95 +45,12 @@
   color: var(--ink-muted);
 }
 
+/* Debajo del cuadro: el chip de modelo y, abajo, los cuatro atajos a lo
+   ancho (maqueta de Juan Camilo). */
 .prompt-terminal__pie {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-}
-
-/* Toggle + dropdown en una fila: «pensar con [Claude (Max) ▾]». */
-.prompt-terminal__pie > .prompt-terminal__pensar,
-.prompt-terminal__pie > .prompt-terminal__motor {
-  align-self: flex-start;
-}
-.prompt-terminal__pie {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  column-gap: var(--space-2);
-  row-gap: var(--space-2);
-}
-.prompt-terminal__pie > .prompt-terminal__atajos {
-  flex-basis: 100%;
-}
-
-.prompt-terminal__motor {
-  appearance: none;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 16px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  max-width: 160px;
-  transition: color var(--dur-estado) var(--curva);
-}
-.prompt-terminal__motor:hover:not(:disabled) {
-  color: var(--ink);
-}
-.prompt-terminal__motor:disabled {
-  cursor: default;
-}
-
-/* Toggle "pensar con Claude": mismo cuerpo que los atajos (mono 11px),
-   sin caja. Apagado: ink-muted con punto en line. Prendido: el punto se
-   enciende en `pensar` y el texto sube a ink — la lavanda es Remi
-   trabajando. El DS reserva ink-faint para ≥24 px; esto son 11 px. */
-.prompt-terminal__pensar {
-  appearance: none;
-  border: none;
-  background: transparent;
-  padding: 0;
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 16px;
-  color: var(--ink-muted);
-  cursor: pointer;
-  transition: color var(--dur-estado) var(--curva);
-}
-
-.prompt-terminal__pensar:hover:not(:disabled) {
-  color: var(--ink);
-}
-
-.prompt-terminal__pensar:disabled {
-  cursor: default;
-}
-
-.prompt-terminal__pensar-punto {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--line);
-  transition:
-    background var(--dur-estado) var(--curva),
-    box-shadow var(--dur-estado) var(--curva);
-}
-
-.prompt-terminal__pensar[data-activo="si"] {
-  color: var(--ink);
-}
-
-.prompt-terminal__pensar[data-activo="si"] .prompt-terminal__pensar-punto {
-  background: var(--pensar);
-  box-shadow: var(--glow-pensar);
 }
 
 .prompt-terminal__atajos {
@@ -145,21 +62,3 @@
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
 }
-
-/* «sin pensar»: mismo cuerpo que el resto del pie. Puesto, sube a ink y
-   lleva borde `line`: se tiene que notar que Remi no está pensando. */
-.prompt-terminal__sin-pensar {
-  appearance: none;
-  border: 1px solid transparent;
-  background: transparent;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 16px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  color: var(--ink-muted);
-  cursor: pointer;
-  transition: color var(--dur-estado) var(--curva), border-color var(--dur-estado) var(--curva);
-}
-.prompt-terminal__sin-pensar:hover:not(:disabled) { color: var(--ink); }
-.prompt-terminal__sin-pensar[data-activo="si"] { color: var(--ink); border-color: var(--line); }

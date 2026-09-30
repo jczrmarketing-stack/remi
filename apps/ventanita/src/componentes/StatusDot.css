@@ -38,6 +38,23 @@
   box-shadow: var(--glow-brasa);
 }
 
+/* Maqueta de Juan Camilo (30/09/2026): contestando, el punto es grande y
+   crema, sin brillo; pensando, mediano y gris. Él dirige: esto pisa al
+   brasa/pensar del DS en la ventanita. */
+.status-dot[data-estado="hablando"] {
+  width: 48px;
+  height: 48px;
+  background: var(--ink);
+  box-shadow: none;
+}
+
+.status-dot[data-estado="pensando"] {
+  width: 28px;
+  height: 28px;
+  background: var(--ink-muted);
+  box-shadow: none;
+}
+
 /* El pulso respira: un halo (glow-luz, sin tocar) que crece y decrece
    sobre un ::after, dejando el núcleo del punto sólido siempre — antes
    se animaba opacity del punto entero, y el glow se apagaba con él,

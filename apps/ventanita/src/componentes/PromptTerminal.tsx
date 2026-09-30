@@ -1,6 +1,5 @@
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { registrar } from "../registro";
-import type { MotorDePensar } from "../servidor";
 import "./PromptTerminal.css";
 
 interface Props {
@@ -9,13 +8,8 @@ interface Props {
   enfocar: boolean;
   onCambio: (texto: string) => void;
   onEnviar: () => void;
-  // Remi piensa siempre; «sin pensar» apaga el envío y queda puesto.
-  sinPensar: boolean;
-  onAlternarSinPensar: () => void;
-  // Con qué motor, elegido a conciencia. Vacío mientras el núcleo no conteste.
-  motores: MotorDePensar[];
-  motor: string;
-  onMotor: (motor: string) => void;
+  // El chip de modelo, debajo del cuadro.
+  chip: ReactNode;
 }
 
 export function PromptTerminal({
@@ -24,13 +18,8 @@ export function PromptTerminal({
   enfocar,
   onCambio,
   onEnviar,
-  sinPensar,
-  onAlternarSinPensar,
-  motores,
-  motor,
-  onMotor,
+  chip,
 }: Props) {
-  const elegido = motores.find((m) => m.id === motor);
   const campoRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -66,47 +55,9 @@ export function PromptTerminal({
         />
       </div>
       <div className="prompt-terminal__pie">
-        {/* Remi piensa siempre con el motor del dropdown. «sin pensar» es
-            la excepción y queda puesta hasta que la saques: nada sale del
-            Mac. El punto `pensar` prendido = piensa; apagado = no. */}
-        <span className="prompt-terminal__pensar" data-activo={sinPensar ? "no" : "si"} aria-hidden="true">
-          <span className="prompt-terminal__pensar-punto" />
-          piensa con
-        </span>
-        {/* El motor se elige a conciencia, acá, no en un .env. Un motor al
-            que le falta algo se ve igual, apagado, y el título dice qué. */}
-        <select
-          className="prompt-terminal__motor"
-          aria-label="Con qué motor pensar"
-          title={elegido?.detalle ?? "El núcleo no contestó qué motores hay"}
-          value={motor}
-          disabled={deshabilitado}
-          onChange={(evento) => {
-            registrar("motor", { elegido: evento.target.value });
-            onMotor(evento.target.value);
-          }}
-        >
-          {motores.length === 0 && <option value={motor}>{motor}</option>}
-          {motores.map((m) => (
-            <option key={m.id} value={m.id} disabled={!m.disponible} title={m.detalle}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        {/* Los gestos también se cuentan acá: dos clicks = hablar, tres =
-            dialogar. Antes había que adivinarlos. */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={sinPensar}
-          className="prompt-terminal__sin-pensar"
-          data-activo={sinPensar ? "si" : "no"}
-          disabled={deshabilitado}
-          title="Sin pensar: no se manda nada al modelo; Remi solo guarda. Queda puesto."
-          onClick={onAlternarSinPensar}
-        >
-          sin pensar
-        </button>
+        {/* El chip «Opus 5.5 · Medio»: con qué piensa Remi (maqueta de
+            Juan Camilo). Lo arma el padre. */}
+        {chip}
         <div className="prompt-terminal__atajos" aria-hidden="true">
           <span>↵ enviar</span>
           <span>·· hablar</span>
