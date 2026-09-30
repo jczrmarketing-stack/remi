@@ -13,6 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+import boveda_git
 import db
 import episodios
 import estado_libro
@@ -67,13 +68,19 @@ def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None
     carpeta = episodios.carpeta_episodios()
     carpeta.mkdir(parents=True, exist_ok=True)
     destino = episodios._ruta_libre(carpeta, f"{local:%Y-%m-%d}-{episodios.slug(titulo)}")
+    boveda_git.snapshot_antes(f"escribir el episodio {destino.name}")
     destino.write_text(
         f'---\ntitulo: "{episodios._una_linea(titulo)}"\ntema: {tema}\n'
         f'resumen: "{episodios._una_linea(resumen)}"\n---\n\n{cuerpo}'
     )
-    _memoria(titulo, resumen, tema, ahora, cuerpo, por)
     if libro is not None:
         estado_libro.escribir_estado(libro.archivo, _a_estado(secciones))
+    boveda_git.snapshot_despues(
+        f"bóveda: episodio {destino.name} al cerrar sesión en {tema}"
+        + (f"; Estado de {libro.archivo.name} actualizado" if libro is not None else "")
+    )
+    _memoria(titulo, resumen, tema, ahora, cuerpo, por)
+    if libro is not None:
         _cursor(libro.tema, ahora)
     print(f"[cierre] {destino.name} · tema={tema} · {por}", file=sys.stderr)
     return destino

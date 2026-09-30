@@ -21,6 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
+import boveda_git
 import db
 import pensar
 from modelos import Memoria
@@ -142,9 +143,11 @@ def guardar(texto: str, ahora: datetime, resumidor=None) -> Episodio:  # type: i
     carpeta = carpeta_episodios()
     carpeta.mkdir(parents=True, exist_ok=True)
     ruta = _ruta_libre(carpeta, f"{ahora:%Y-%m-%d}-{slug(titulo)}")
+    boveda_git.snapshot_antes(f"escribir el episodio {ruta.name}")
     ruta.write_text(
         f'---\ntitulo: "{titulo}"\ntema: {tema}\nresumen: "{cuerpo_resumen}"\n---\n\n{texto.strip()}\n'
     )
+    boveda_git.snapshot_despues(f"bóveda: episodio {ruta.name} pegado a mano en la ventanita")
 
     memoria = Memoria(
         id=uuid4(),

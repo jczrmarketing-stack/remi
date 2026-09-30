@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+import boveda_git
 import clasificar
 import db
 import estado_libro
@@ -426,7 +427,12 @@ def actualizar_estado(tema: str, hasta: datetime) -> None:
     texto = estado_libro.redactar(estado_libro.pedido(libro.titulo, anterior, commits))
     if not texto:
         texto = estado_libro.plano(commits)
+    mensajes = "; ".join(str(c.get("mensaje") or "") for c in commits)[:200]
+    boveda_git.snapshot_antes(f"el Estado de {libro.archivo.name}")
     estado_libro.escribir_estado(libro.archivo, texto)
+    boveda_git.snapshot_despues(
+        f"bóveda: Estado de {libro.archivo.name} actualizado por commit(s): {mensajes}"
+    )
     _marcar_incluidos([str(c["id"]) for c in commits])
 
 
