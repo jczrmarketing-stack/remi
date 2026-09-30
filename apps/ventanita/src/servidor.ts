@@ -1,4 +1,4 @@
-import type { Entrega, Sesion, Tarea } from "./contratos";
+import type { Entrega, Nudge, Sesion, Tarea } from "./contratos";
 import { URL_NUCLEO } from "./config";
 
 // Solo viene cuando pensó con Claude. Dato de operación: va a la consola,
@@ -206,6 +206,31 @@ export async function obtenerEntregaDeProyecto(proyectoId: string): Promise<Entr
     return (await respuesta.json()) as Entrega | null;
   } catch {
     return null;
+  }
+}
+
+// Nudges dentro del chat (3f · 6). El backend todavía puede no existir
+// (Fase 3): un 404/500/red caído no rompe nada, solo dice «no hay».
+export async function obtenerNudgePendiente(): Promise<Nudge | null> {
+  try {
+    const respuesta = await fetch(`${URL_NUCLEO}/nudges/pendiente`);
+    if (!respuesta.ok) return null;
+    return (await respuesta.json()) as Nudge | null;
+  } catch {
+    return null;
+  }
+}
+
+export async function responderNudge(nudgeId: string, respuesta: "listo" | "ahora_no"): Promise<boolean> {
+  try {
+    const contestada = await fetch(`${URL_NUCLEO}/nudges/${nudgeId}/respuesta`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ respuesta }),
+    });
+    return contestada.ok;
+  } catch {
+    return false;
   }
 }
 

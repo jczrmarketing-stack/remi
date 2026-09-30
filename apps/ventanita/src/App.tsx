@@ -5,6 +5,7 @@ import { StatusDot } from "./componentes/StatusDot";
 import { Semaforo } from "./componentes/Semaforo";
 import { BotonCancelar } from "./componentes/BotonCancelar";
 import { Chat, type Mensaje } from "./componentes/Chat";
+import { Nudge } from "./componentes/Nudge";
 import { Campo, type CampoRef } from "./componentes/Campo";
 import { ChipCerebro } from "./componentes/ChipCerebro";
 import { ChipVoz } from "./componentes/ChipVoz";
@@ -19,12 +20,15 @@ import {
   obtenerEntregaDeProyecto,
   obtenerModelosOllama,
   obtenerMotores,
+  obtenerNudgePendiente,
   obtenerUltimaVezDeHoy,
   obtenerUltimaVezMin,
+  responderNudge,
   type MotorDePensar,
 } from "./servidor";
-import type { Entrega } from "./contratos";
+import type { Entrega, Nudge as NudgeContrato } from "./contratos";
 import { MS_RECORDATORIO_VISIBLE, tocaRecordar } from "./recordatorio";
+import { MS_ENTRE_CONSULTAS_NUDGE, type RespuestaNudge } from "./nudges";
 import { animarTamano } from "./movimiento";
 import {
   callarse,
@@ -168,6 +172,9 @@ export default function App() {
   const [entregaDelBloque, setEntregaDelBloque] = useState<Entrega | null>(null);
   // Reloj de una línea (3f · 4): cuánto tardó la última vez esta misma tarea.
   const [ultimaVezDelBloqueMin, setUltimaVezDelBloqueMin] = useState<number | null>(null);
+  // Nudges dentro del chat (3f · 6). null casi siempre: solo hay uno si el
+  // núcleo tiene uno pendiente (/nudges/pendiente, que puede no existir aún).
+  const [nudgePendiente, setNudgePendiente] = useState<NudgeContrato | null>(null);
   const [grabando, setGrabando] = useState(false);
   const [transcribiendo, setTranscribiendo] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
@@ -555,6 +562,34 @@ export default function App() {
     setModo("texto");
     setEstado("escuchando");
     window.setTimeout(() => campoRef.current?.enfocar(), DURACION_APARECER);
+  }, []);
+
+  // Nudges dentro del chat (3f · 6): se pregunta cada 5 min si hay uno
+  // pendiente. Si llega con la ventanita en reposo, la expande — sin
+  // sonido, y sin pisar un nudge que ya estaba mostrado.
+  useEffect(() => {
+    let vivo = true;
+    const consultar = () => {
+      if (!vivo) return;
+      obtenerNudgePendiente().then((nudge) => {
+        if (!vivo || !nudge) return;
+        setNudgePendiente((actual) => (actual?.id === nudge.id ? actual : nudge));
+        if (accionesRef.current.estado === "reposo") abrirChat();
+      });
+    };
+    consultar();
+    const id = window.setInterval(consultar, MS_ENTRE_CONSULTAS_NUDGE);
+    return () => {
+      vivo = false;
+      window.clearInterval(id);
+    };
+  }, [abrirChat]);
+
+  const responderAlNudge = useCallback((respuesta: RespuestaNudge) => {
+    setNudgePendiente((actual) => {
+      if (actual) void responderNudge(actual.id, respuesta);
+      return null;
+    });
   }, []);
 
   const empezarAEscuchar = useCallback(async (modoNuevo: Modo) => {
@@ -1198,6 +1233,14 @@ export default function App() {
           void openUrl(url).catch((error) => console.error("no pude abrir el link:", error));
         }}
       />
+
+      {nudgePendiente && (
+        <Nudge
+          voz={nudgePendiente.voz}
+          onResponder={responderAlNudge}
+          bionica={lectura.bionica ? lectura.intensidad : null}
+        />
+      )}
 
       <Campo
         ref={campoRef}
