@@ -16,7 +16,17 @@ import re
 import unicodedata
 from typing import Literal
 
-TipoMensaje = Literal["idea", "hoy", "hecha"]
+TipoMensaje = Literal["idea", "hoy", "hecha", "pregunta"]
+
+# Una pregunta se contesta y no se guarda: «¿qué tengo pendiente con
+# Alfonso?» no es algo suelto que tenga que enfriar 48 h en la Bandeja
+# (ley 2 limpia). Whisper transcribe con ¿?, y eso es lo principal. Sin
+# signos solo cuentan los arranques inequívocos: «cuando», «como», «que» y
+# «para que» abren tanto preguntas como frases («cuando esté listo te
+# aviso», «para que no se me olvide»), y ante la duda gana la ley 6.
+_PATRON_PREGUNTA = re.compile(
+    r"^(?:y )?(?:donde|cuanto|cuanta|cuantos|cuantas|cual|cuales|quien|quienes|por que)\b"
+)
 
 # Cierra el bloque SOLO si la frase normalizada es exactamente una de estas.
 # «listo el contrato» no cierra: menciona «listo», no lo dice. Van sin
@@ -85,6 +95,10 @@ def clasificar(texto: str) -> TipoMensaje:
     # Una pregunta nunca cierra: «¿listo?» está preguntando, no avisando.
     if "?" not in texto and limpio in CIERRES_EXACTOS:
         return "hecha"
+
+    # Y tampoco abre un bloque ni se guarda: se contesta.
+    if "?" in texto or "¿" in texto or _PATRON_PREGUNTA.match(limpio):
+        return "pregunta"
 
     palabras = limpio.split()
     niega = any(p in NEGACIONES for p in palabras)

@@ -275,3 +275,26 @@ def test_get_pensar_motores(tmp_path, monkeypatch):
     motores = cliente.get("/pensar/motores").json()
     assert [m["id"] for m in motores] == ["claude", "venice", "ollama"]
     assert all({"id", "label", "disponible", "detalle"} <= set(m) for m in motores)
+
+
+def test_una_pregunta_se_contesta_y_no_deja_nada(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        servidor.pensar, "pensar",
+        lambda _f, _m=None: servidor.pensar.Pensado("La Fase 1 vence el 18 oct.", 1, 1, "sonnet"),
+    )
+    cliente = TestClient(servidor.app)
+    cuerpo = cliente.post("/mensaje", json={"texto": "¿qué tengo pendiente con Alfonso?", "think": True}).json()
+    assert cuerpo["tipo"] == "pregunta"
+    assert cuerpo["texto"] == "La Fase 1 vence el 18 oct."
+    assert cuerpo["tarea"] is None and cuerpo["sesion"] is None
+    assert _contar(servidor) == {"tareas": 0, "sesiones": 0, "ideas": 0}
+
+
+def test_una_pregunta_sin_pensar_lo_dice_y_no_guarda(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    cuerpo = cliente.post("/mensaje", json={"texto": "¿qué tengo pendiente?"}).json()
+    assert cuerpo["tipo"] == "pregunta"
+    assert "no guardé nada" in cuerpo["voz"].lower()
+    assert _contar(servidor) == {"tareas": 0, "sesiones": 0, "ideas": 0}

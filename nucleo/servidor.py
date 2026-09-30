@@ -236,6 +236,8 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
 
     if tipo == "idea":
         respuesta = _guardar_idea(mensaje)
+    elif tipo == "pregunta":
+        respuesta = _contestar(mensaje)
     elif tipo == "hecha":
         respuesta = _cerrar_lo_abierto()
     else:
@@ -281,6 +283,20 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
         return _respuesta_fija("idea", "Guardada. La miramos en dos días.")
     return RespuestaMensaje(
         tipo="idea",
+        texto=pensado.paso_minimo,
+        voz=_voz_de(pensado.paso_minimo, mensaje),
+        tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
+    )
+
+
+def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
+    """Una pregunta se contesta y no deja nada: ni idea en la Bandeja, ni
+    tarea, ni sesión. Sin modelo no hay con qué contestar, y se dice."""
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor) if mensaje.think else None
+    if pensado is None:
+        return _respuesta_fija("pregunta", "Sin pensar no puedo contestarte eso. No guardé nada.")
+    return RespuestaMensaje(
+        tipo="pregunta",
         texto=pensado.paso_minimo,
         voz=_voz_de(pensado.paso_minimo, mensaje),
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),

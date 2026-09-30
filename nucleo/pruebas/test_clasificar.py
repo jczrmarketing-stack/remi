@@ -12,7 +12,6 @@ from clasificar import clasificar, normalizar
         "pare un segundo",
         "la dejo hecha manana",
         "quedo listo",
-        "¿listo?",
         "listo el contrato",
         "hoy no puedo",
         "se me ocurrio q hoy armo un curso",
@@ -73,9 +72,6 @@ def test_cierra_solo_con_la_palabra_exacta(frase):
         "Terminé la tarjeta",
         "listo por hoy",
         "cuando esté listo el informe te aviso",
-        # Preguntan.
-        "listo?",
-        "¿ya está?",
     ],
 )
 def test_mencionar_un_cierre_no_cierra(frase):
@@ -134,3 +130,40 @@ def test_normalizar_saca_tildes_signos_y_mayusculas():
     assert normalizar("Añadir más") == "anadir mas"
     assert normalizar("  hola,   qué tal?  ") == "hola que tal"
     assert normalizar("") == ""
+
+
+# — Preguntas: se contestan, no se guardan —
+
+
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "¿qué tengo pendiente con Alfonso?",
+        "¿y cuándo arranco?",
+        "¿listo?",
+        "listo?",
+        "¿ya está?",
+        "¿voy a llegar al 18?",
+        "y cuanto me falta cobrar",
+        "donde quedó el contrato de Alfonso",
+        "por que no me entiende el microfono",
+    ],
+)
+def test_una_pregunta_es_pregunta(frase):
+    assert clasificar(frase) == "pregunta"
+
+
+@pytest.mark.parametrize(
+    "frase, esperado",
+    [
+        ("que no se me olvide llamar al banco", "idea"),
+        ("cuando esté listo el informe te aviso", "idea"),
+        ("para que no se me olvide el dominio", "idea"),
+        ("como va lo de malik", "idea"),
+        ("se me ocurrió cuánto cobrar por el curso", "idea"),
+        ("listo", "hecha"),
+        ("voy a revisar el contrato", "hoy"),
+    ],
+)
+def test_sin_signos_ni_arranque_interrogativo_no_es_pregunta(frase, esperado):
+    assert clasificar(frase) == esperado
