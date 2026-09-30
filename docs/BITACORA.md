@@ -20,6 +20,52 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Fase 4 Telegram · reporte de la noche · construido · e74fb7a
+
+- **Qué cambió:** el cuarto punto de la Fase 4 pasa a ser el reporte de la noche —
+  reemplaza la entrega por voz con Whisper, descartada por Milo. `nucleo/noche.py`:
+  `_head_git()` toma el HEAD de la bóveda (`boveda_git.raiz()`) al arrancar `correr()`;
+  `diff_de_la_noche(referencia)` compara ese HEAD contra el de ahora, restringido a
+  `libros.carpeta()`, y devuelve `[(libro, diff_corto)]` — el nombre es el título del libro
+  si todavía se puede leer, o el nombre de archivo si se borró; `_recortar_diff()` arranca
+  desde el primer `@@` (el hunk real, no la cabecera de `git diff`) y corta a 8 líneas;
+  `enviar_reporte_de_la_noche()` hace `POST /telegram/avisar` con `urgente: true` y el texto
+  armado y, si falla, lo anota en stderr sin tumbar la consolidación. `nucleo/telegram.py`:
+  `mensaje_reporte_noche()`, el formato — «Anoche cambié N libros» con hasta 3 diffs, «y M
+  más» si sobran, o literalmente «Anoche no toqué nada» sin cambios. Los cuatro pasos de
+  `correr()` quedan en cinco. `nucleo/pruebas/test_noche.py` y `test_telegram.py`: 21
+  pruebas nuevas, con un repo git de fixture (`git init` en `tmp_path`, nunca contra la
+  `remi-mente` real).
+- **Decisiones que tomé sin preguntar:**
+  1. El diff se recorta desde el primer `@@`, no desde el principio crudo de `git diff`: las
+     4 líneas de cabecera (`diff --git`, `index`, `---`, `+++`) se comían el cambio real
+     dentro del límite de 8 líneas — lo probé con la fixture antes de decidirlo.
+  2. Mandé el aviso por `httpx.post` a `POST /telegram/avisar` (la URL sale de
+     `config/nucleo.json`, mismo archivo que lee `servidor.py`) en vez de llamar
+     `telegram.avisar()` en proceso: `noche.py` corre como script aparte (`uv run python
+     noche.py` desde `scripts/noche.sh`), no dentro del servidor — no hay garantía de que
+     comparta el mismo proceso que el hilo de Telegram.
+  3. El HEAD de referencia se toma **al arrancar** `correr()`, antes de los otros cuatro
+     pasos — así el reporte es «lo que tocó esta corrida», no un acumulado de corridas
+     anteriores.
+  4. `urgente: true` en el `POST`: la consolidación corre a las 4:00, dentro del silencio
+     23:00–7:00 de `avisar()`; con `urgente=false` (el default de `AvisoSaliente`) el reporte
+     se habría descartado en silencio, siempre, sin excepción — no hay cola ni reintento, así
+     que habría sido letra muerta. `urgente` acá no es «suena la alarma»: es «no lo tires»;
+     igual llega calladito al teléfono y espera a que Juan Camilo lo abra de mañana.
+- **Dudas abiertas:**
+  1. Igual que con `/telegram/avisar` en general (ver la entrada de `830f5ab`): no lo probé
+     contra el bot real ni contra la `remi-mente` real, solo con la fixture de git. Si el
+     núcleo (`servidor.py`) no está corriendo a las 4:00, el `POST` falla y solo queda en
+     `noche.log` — no hay reintento.
+- **Cómo probarlo a mano:**
+  1. `cd nucleo && uv run pytest -q pruebas/test_noche.py pruebas/test_telegram.py` — verde.
+  2. `cd nucleo && uv run pytest -q && uv run mypy .` — 350 pruebas y mypy en verde (puede
+     variar ±4 según si Ollama está corriendo: `test_vectores.py` se salta si no).
+  3. Con el núcleo corriendo (`uv run python servidor.py`) y `TELEGRAM_TOKEN`/`CHAT_ID`
+     configurados, `cd nucleo && uv run python noche.py` sin episodios de hoy — llega
+     «Anoche no toqué nada» al teléfono aunque sean las 4:00.
+
 ## 2026-09-30 · Fase 4 Telegram · construido · 830f5ab
 
 - **Qué cambió:** `nucleo/telegram.py` (nuevo) — cliente mínimo sobre la Bot API con httpx,
