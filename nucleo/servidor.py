@@ -579,6 +579,31 @@ def decir(pedido: PedidoVoz) -> Response:
     )
 
 
+# — Salud (3e · 4): lo que mira el vigía cada minuto —
+
+
+class Salud(BaseModel):
+    ok: bool
+    db: bool
+
+
+@app.get("/salud", response_model=Salud)
+def salud(response: Response) -> Salud:
+    """Responde rápido y sin IA. No alcanza con que el proceso conteste: la
+    base tiene que abrir. Si no abre, 503 y el vigía lo cuenta como caída."""
+    try:
+        conexion = db.conectar()
+        try:
+            conexion.execute("SELECT 1").fetchone()
+        finally:
+            conexion.close()
+    except Exception as error:  # noqa: BLE001 — cualquier falla de la base es «no sano»
+        print(f"[salud] la base no abre ({type(error).__name__})", file=sys.stderr, flush=True)
+        response.status_code = 503
+        return Salud(ok=False, db=False)
+    return Salud(ok=True, db=True)
+
+
 # — El chat de la ventanita (3c) —
 
 

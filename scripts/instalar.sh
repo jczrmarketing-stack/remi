@@ -234,6 +234,44 @@ plutil -lint "$PLIST_COPIA" > /dev/null
 launchctl bootstrap "gui/$UID" "$PLIST_COPIA" 2>/dev/null || launchctl load "$PLIST_COPIA"
 echo "  copia:  todas las noches a las 3:00 (config/copia.json)"
 
+# — El vigía (3e): cada minuto le pega a /salud; 5 min caído → aviso —
+ETIQUETA_VIGIA="com.remi.vigia"
+PLIST_VIGIA="$HOME/Library/LaunchAgents/$ETIQUETA_VIGIA.plist"
+bajar_agente "$ETIQUETA_VIGIA" "$PLIST_VIGIA" || true
+cat > "$PLIST_VIGIA" <<PLISTVEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$ETIQUETA_VIGIA</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>$RAIZ/scripts/vigia.sh</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>REMI_SALUD_URL</key>
+		<string>http://$HOST:$PUERTO/salud</string>
+		<key>PATH</key>
+		<string>$RUTA</string>
+		<key>HOME</key>
+		<string>$HOME</string>
+	</dict>
+	<key>StartInterval</key>
+	<integer>60</integer>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>$LOGS/vigia.log</string>
+</dict>
+</plist>
+PLISTVEOF
+plutil -lint "$PLIST_VIGIA" > /dev/null
+launchctl bootstrap "gui/$UID" "$PLIST_VIGIA" 2>/dev/null || launchctl load "$PLIST_VIGIA"
+echo "  vigía:  cada minuto; si Remi cae 5 min, notificación"
+
 # — Segundo agente: abrir Remi al iniciar sesión —
 # Sin KeepAlive a propósito: si cerrás la ventanita, se queda cerrada hasta
 # el próximo inicio de sesión. El núcleo sí se relevanta; la app es tuya.
