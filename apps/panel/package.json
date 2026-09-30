@@ -1,0 +1,30 @@
+{
+  "name": "panel",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "generar:tokens": "node scripts/generar-tokens.mjs",
+    "generar:contratos": "node scripts/generar-contratos.mjs",
+    "generar:config": "node scripts/generar-config.mjs",
+    "generar": "npm run generar:tokens && npm run generar:contratos && npm run generar:config",
+    "dev": "npm run generar && next dev -p $(node scripts/puerto-panel.mjs)",
+    "build": "npm run generar && next build",
+    "start": "next start -p $(node scripts/puerto-panel.mjs)",
+    "lint": "tsc --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "lucide-react": "^1.48.0",
+    "next": "^15.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "typescript": "~5.7.0"
+  }
+}
