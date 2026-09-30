@@ -146,3 +146,32 @@ temas), no se tira nada.
    interrupción con presupuesto.
 6. **3f · Banco de pruebas**: mismas conversaciones contra los modos; medir recuerdo, latencia y
    gasto de Max.
+
+## 12. El sistema de trabajo: todo habla el mismo idioma (29-sep, noche)
+
+Principio: **Remi no depende de que Juan Camilo se acuerde de actualizarlo** (ley 2: mecánico,
+sin decidir). Las herramientas le avisan solas y Remi les devuelve el contexto.
+
+**Una fuente, todos la leen.** La bóveda `~/proyectos/remi-mente` es la verdad; Notion es su
+vitrina. El MCP de memoria de Remi se registra **global** en Claude Code (scope user) y en la
+app de escritorio de Claude (servidor MCP local). Cualquier Claude lee y guarda en la misma
+memoria: no hay copias que sincronizar.
+
+**Entradas automáticas:**
+| Evento | Mecanismo | Qué hace Remi |
+|---|---|---|
+| Commit en cualquier repo | hook global de git (`core.hooksPath`) → `POST /evento` | Actualiza el resumen del proyecto (nivel 2) con el modelo local |
+| Fin de sesión de Claude Code | hook `SessionEnd`/`Stop` global → `POST /evento` con el transcript | Episodio: qué se hizo, decisiones, pendientes, primer paso de mañana |
+| Inicio de sesión de Claude Code | hook `SessionStart` global → devuelve contexto | Inyecta la ficha: dónde quedaste, decisiones, próximo paso |
+| Conversación de Claude web/celular | pegarla en la ventanita | Episodio comprimido (3c) |
+| Excepción | «guardá esto» / «olvidá esto» | Manual |
+
+**Proyecto = carpeta.** Cada libro de proyecto lleva `ruta:` en el frontmatter; así un commit
+o una sesión en esa carpeta cae en su libro.
+
+**Lo que Remi suma que Claude no hace (el norte TDAH):**
+- «¿Dónde quedé?»: al abrir un proyecto, 3 líneas + próximo paso (retomar es lo más caro).
+- Cerrar con el primer paso de mañana: 5 minutos, escrito al terminar (ley 3).
+- Dispersión: commits en 3 proyectos en una hora → frena (iniciativa, §8).
+- Tiempo real por proyecto, de commits + sesiones (ley 1).
+- Promesas: «le mando a Alfonso el viernes» se extrae y se recuerda.
