@@ -36,12 +36,19 @@ INSTRUCCIONES = (
 )
 
 
-def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path:
-    """Escribe el episodio y, si hay libro, su Estado. Devuelve la nota."""
+def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None:
+    """Escribe el episodio y, si hay libro, su Estado. Devuelve la nota, o
+    None si la sesión no tuvo charla: abrir y cerrar Claude (o un `claude -p`
+    de un script) no deja un episodio vacío ni pisa el Estado del libro con
+    «La sesión cerró» (ARQUITECTURA §6: lo trivial no deja episodio; visto el
+    30/09 al revisar 3d)."""
     libro = libros.por_ruta(ruta)
     tema = libro.tema if libro else (episodios.slug(Path(ruta).name) or "sesion")
     titulo_libro = libro.titulo if libro else (Path(ruta).name or "sesión")
     charla = leer_charla(str(datos.get("transcript_path") or ""))
+    if not charla.strip():
+        print(f"[cierre] sesión sin charla en {tema}: no deja episodio", file=sys.stderr)
+        return None
     secciones = redactar(f"Proyecto: {titulo_libro}\n\n{charla}") if charla.strip() else None
     por = "modelo" if secciones else "plano"
     if secciones is None:

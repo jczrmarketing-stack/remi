@@ -121,19 +121,20 @@ def test_al_cerrar_escribe_episodio_y_actualiza_el_libro(tmp_path, monkeypatch) 
     assert "Esto se queda." in libro
 
 
-def test_sin_transcript_el_episodio_sale_igual(tmp_path, monkeypatch) -> None:
+def test_una_sesion_sin_charla_no_deja_episodio_ni_toca_el_libro(tmp_path, monkeypatch) -> None:
     repo = tmp_path / "malik"
     repo.mkdir()
     _libro(tmp_path, repo)
+    libro = tmp_path / "libros" / "malik.md"
+    antes = libro.read_text()
     servidor = _arrancar(tmp_path, monkeypatch)
     cliente = TestClient(servidor.app)
-    cliente.post(
-        "/evento",
-        json={"tipo": "sesion_fin", "ruta": str(repo), "datos": {"session_id": "abc"}},
-    )
-    notas = list((tmp_path / "boveda" / "episodios").glob("*.md"))
-    assert len(notas) == 1
-    assert "retomar el hilo, cinco minutos" in notas[0].read_text()
+    vacio = tmp_path / "vacio.jsonl"
+    vacio.write_text("")
+    for datos in ({"session_id": "abc"}, {"session_id": "def", "transcript_path": str(vacio)}):
+        cliente.post("/evento", json={"tipo": "sesion_fin", "ruta": str(repo), "datos": datos})
+    assert list((tmp_path / "boveda" / "episodios").glob("*.md")) == []
+    assert libro.read_text() == antes
 
 
 class _Responde(BaseHTTPRequestHandler):
