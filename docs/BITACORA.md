@@ -20,6 +20,46 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · Fase S (oficios v1) · 4 aprender de las correcciones · construido · 7d79a4f
+
+- **Qué cambió:** `nucleo/correcciones.py` nuevo. Sin IA para detectar ni para redactar la
+  regla — la regla siempre CITA algo real, nunca lo interpreta: si es «acordate: X», la
+  regla es X literal; si es «no, así no» / «yo no diría eso», la regla es «No decir: «lo que
+  Remi dijo antes»», tomado del último turno `remi` de la conversación vigente (tabla
+  `turnos`). Sin turno de Remi que citar, no propone nada — no hay cómo sin inventar. El
+  oficio destino sale de matchear las claves de los 9 oficios contra las palabras de la
+  corrección; sin matches, `mi-voz` (la mayoría de correcciones sueltas son de tono). Tabla
+  nueva `propuestas_correccion` (una por conversación, no es uno de los cinco contratos
+  sagrados — es estado interno como `trabajo_eventos`). El flujo en `POST /mensaje`: si hay
+  una propuesta pendiente y el mensaje la confirma (sí/dale/guardala/anotalo/confirmo), se
+  agrega la línea al oficio con el commit automático que ya existe en la bóveda
+  (`boveda_git.snapshot_antes/después`) y se borra la propuesta; si no confirma, se descarta
+  en silencio (ley 3: no confirmar nunca es un fallo) y el mensaje sigue su curso normal.
+  Test real con git de la bóveda (como `test_boveda_git.py`, sin simular nada): el flujo
+  completo propone → confirma → la línea queda en el archivo → hay un commit real; y el caso
+  negativo, sin confirmar nada cambia. 306 pytest, mypy limpio (59 módulos).
+- **Decisiones que tomé sin preguntar:**
+  1. Nada de llamar a un modelo para redactar la regla: citar literalmente lo que se dijo es
+     la única forma de cumplir «basada en palabras que él usó, no en interpretación libre»
+     sin depender de que un modelo no se vaya de tema. Es menos elegante que una regla
+     redactada, pero no puede inventar.
+  2. `propuestas_correccion` es una tabla nueva de estado interno, no un contrato: cambia
+     libremente si hace falta, a diferencia de los cinco contratos de `contratos.json`.
+  3. Sin conversación vigente (nadie pensó con think=true en la última hora), «no, así no»
+     no propone nada: no hay turno de Remi para citar. «acordate: X» sí funciona siempre,
+     porque no necesita ningún turno anterior.
+- **Dudas abiertas:**
+  1. El oficio destino por claves es un matcheo simple (palabra por palabra); una corrección
+     ambigua puede caer en el oficio equivocado. Sin uso real todavía para calibrarlo.
+  2. No probé una corrección real de Juan Camilo en la ventanita instalada — el flujo está
+     probado de punta a punta contra `/mensaje`, no visto en pantalla.
+- **Cómo probarlo a mano:** con el núcleo corriendo y pensando (think=true) en una
+  conversación real, decir «no, así no» después de una respuesta de Remi → propone una regla
+  citando esa respuesta; responder «dale» → confirma en `remi-mente/oficios/<el que
+  corresponda>.md`, bajo «## Aprendido de Juan Camilo», con un commit real en la bóveda.
+
+---
+
 ## 2026-10-01 · Fase S (oficios v1) · 3 «me escribió un cliente» · construido · 65eed02
 
 - **Qué cambió:** `clasificar.es_texto_de_cliente()` detecta frases exactas («me escribió»,
