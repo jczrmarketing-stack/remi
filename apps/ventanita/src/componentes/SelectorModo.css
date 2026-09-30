@@ -10,6 +10,12 @@
   padding: 0 var(--space-6);
 }
 
+/* En reposo el punto mide 10 px y no crece: reservar 22 px en una píldora
+   de 44 con space-4 de relleno lo bajaba 5 px del centro. */
+.ventanita--reposo .punto-zona {
+  min-height: 0;
+}
+
 .selector-modo {
   position: absolute;
   left: calc(50% + var(--space-3));
