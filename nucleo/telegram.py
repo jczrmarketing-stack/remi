@@ -211,6 +211,25 @@ def en_silencio(ahora: datetime | None = None) -> bool:
     return hora >= HORA_SILENCIO_DESDE or hora < HORA_SILENCIO_HASTA
 
 
+def mensaje_reporte_noche(cambios: list[tuple[str, str]], max_mostrados: int = 3) -> str:
+    """El mensaje que `noche.py` manda por `/telegram/avisar` después de
+    consolidar. Sin cambios, es literalmente «Anoche no toqué nada» — nunca
+    «cambié 0 libros». Con cambios: «Anoche cambié N libros» y hasta
+    `max_mostrados` diffs cortos (uno por libro, ya recortados por quien
+    llama); si sobran, cierra con «y M más»."""
+    if not cambios:
+        return "Anoche no toqué nada"
+    total = len(cambios)
+    mostrados = cambios[:max_mostrados]
+    piezas = [f"Anoche cambié {total} libro{'s' if total != 1 else ''}"]
+    for titulo, diff in mostrados:
+        piezas.append(f"{titulo}:\n{diff}")
+    restantes = total - len(mostrados)
+    if restantes > 0:
+        piezas.append(f"y {restantes} más")
+    return "\n\n".join(piezas)
+
+
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 
 

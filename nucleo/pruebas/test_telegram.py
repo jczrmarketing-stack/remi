@@ -233,6 +233,37 @@ def test_escuchar_avanza_el_offset_con_cada_tanda(monkeypatch):
     assert pedidos == [None, 11]
 
 
+# — reporte de la noche: mensaje que manda noche.py por /telegram/avisar —
+
+
+def test_reporte_noche_sin_cambios():
+    assert telegram.mensaje_reporte_noche([]) == "Anoche no toqué nada"
+
+
+def test_reporte_noche_con_un_libro():
+    texto = telegram.mensaje_reporte_noche([("Malik", "-Quedaste: nada.\n+Quedaste: se arregló el webhook.")])
+    assert texto.startswith("Anoche cambié 1 libro\n\n")
+    assert "Malik:" in texto
+    assert "se arregló el webhook" in texto
+    assert "más" not in texto
+
+
+def test_reporte_noche_con_varios_libros_dice_libros_en_plural():
+    texto = telegram.mensaje_reporte_noche([("Malik", "diff a"), ("Organic", "diff b")])
+    assert texto.startswith("Anoche cambié 2 libros\n\n")
+
+
+def test_reporte_noche_muestra_maximo_3_y_avisa_los_que_sobran():
+    cambios = [(f"Libro {i}", f"diff {i}") for i in range(5)]
+    texto = telegram.mensaje_reporte_noche(cambios)
+    assert texto.startswith("Anoche cambié 5 libros")
+    for i in range(3):
+        assert f"Libro {i}:" in texto
+    for i in (3, 4):
+        assert f"Libro {i}:" not in texto
+    assert texto.endswith("y 2 más")
+
+
 def test_escuchar_no_se_cae_si_obtener_actualizaciones_falla(monkeypatch):
     monkeypatch.setattr(telegram.time, "sleep", lambda _s: None)
     intentos = {"n": 0}
