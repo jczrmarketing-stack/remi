@@ -20,6 +20,16 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 3b arreglo: el punto al centro de la píldora · construido · 08ee4fc
+
+- **Qué cambió:** con el «dale» de Juan Camilo, se arregla la fila ❌ «Punto en la píldora» de
+  la auditoría de 3b. En reposo la zona del punto ya no reserva 22 px (`SelectorModo.css`).
+  Medido en una captura de la instalada, en 120×64: el punto y «hace N min» van del píxel
+  17 al 42, antes del 23 al 54. 48 vitest y tsc limpios. Instalada.
+- **Decisiones que tomé sin preguntar:** ninguna.
+- **Dudas abiertas:** el resto de la auditoría sigue sin tocar.
+- **Cómo probarlo a mano:** mirar la píldora en reposo: el punto queda centrado.
+
 ## 2026-09-29 · 3b la ventanita para usarla todo el día · construido · 29147d7
 
 - **Qué cambió:** antes de todo, `4456700` commitea `docs/ARQUITECTURA-CEREBRO.md` tal cual.
