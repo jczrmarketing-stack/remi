@@ -20,6 +20,34 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 5 celebración + botón Hecha en el chat · construido · 8595827
+
+- **Qué cambió:** `Chat.tsx`/`Chat.css` (celebración y el botón), `servidor.ts` (`cerrarTarea`),
+  `App.tsx` (pasa `tarea`/`sesion` al agregar el mensaje y conecta `onCerrarBloque`). Cuando el
+  último mensaje de Remi abrió un bloque (`tipo: "hoy"`), aparece «Hecha» debajo; al tocarla
+  cierra la tarea real y el mismo mensaje se enfría hacia `luz` con ocho chispas de `dinero`,
+  950 ms, una vez, y el texto pasa a «Cerrado. N min.» en su lugar.
+- **Decisiones que tomé sin preguntar:**
+  1. **Sobre el chat, no una tarjeta aparte.** Fase F llegó a mitad de este punto pidiendo
+     exactamente eso; no lo dupliqué.
+  2. Si `cerrarTarea` falla (el núcleo no respondió), no hay celebración: ley 3, nada de
+     festejar algo que no pasó. El botón queda como estaba, se puede tocar de nuevo.
+  3. La duración que se muestra es `real_min` de la `Tarea` que devuelve
+     `/tarea/{id}/estado`, no un cálculo mío en el cliente.
+- **Dudas abiertas:**
+  1. **No lo vi en pantalla.** Este repo no tiene tests de componentes React (todo lo que hay
+     en vitest es lógica en `.ts`); armar `@testing-library/react` + jsdom es una decisión
+     aparte que no tomé sola. `tsc` y los 73 vitest existentes están en verde.
+  2. Si dos mensajes distintos de Remi abrieran un bloque cada uno (no pasa hoy: solo el
+     último puede tener `tipo: "hoy"` mientras nada se cerró), el botón solo se ofrece en el
+     último — los anteriores quedan sin «Hecha», que es lo que ya pasaba antes de este cambio.
+- **Cómo probarlo a mano:** decir «armame la tarea de mandar la factura», ver que aparece
+  «Hecha» bajo la respuesta; tocarla y mirar que el mensaje se enfríe con chispas y el texto
+  cambie a «Cerrado. N min.». Con reducción de movimiento activada en macOS, tiene que cambiar
+  el color sin chispas.
+
+---
+
 ## 2026-09-30 · 0b Haiku escribe el Estado — y un incidente con los libros reales · construido · 0483a55
 
 - **Qué cambió:** `nucleo/estado_libro.py::redactar` probaba Ollama primero; ahora prueba
