@@ -55,6 +55,19 @@ describe("el chat: links y encargos", () => {
     expect(bloques[1]).toEqual({ tipo: "encargo", texto: "QUÉ\nUna X.\n\nDÓNDE\nApp.tsx\n\nLISTO CUANDO\n- se ve" });
   });
 
+  it("lo que el modelo agrega después de las secciones vuelve a ser texto", async () => {
+    const { partirRespuesta } = await import("./markdown");
+    const bloques = partirRespuesta("QUÉ\nUna X.\n\nLISTO CUANDO\n- se ve\n\nNO TOCAR\n- nada\n\nUn detalle de diseño: puse la X arriba.");
+    expect(bloques.map((b) => b.tipo)).toEqual(["encargo", "texto"]);
+    expect(bloques[0]).toEqual({ tipo: "encargo", texto: "QUÉ\nUna X.\n\nLISTO CUANDO\n- se ve\n\nNO TOCAR\n- nada" });
+  });
+
+  it("con una línea en blanco entre el título y su texto, igual es tarjeta", async () => {
+    const { partirRespuesta } = await import("./markdown");
+    const bloques = partirRespuesta("QUÉ\n\nUna X.\n\nLISTO CUANDO\n\n- se ve");
+    expect(bloques).toEqual([{ tipo: "encargo", texto: "QUÉ\n\nUna X.\n\nLISTO CUANDO\n\n- se ve" }]);
+  });
+
   it("un bloque ``` también es tarjeta, y QUÉ sin LISTO CUANDO no", async () => {
     const { partirRespuesta } = await import("./markdown");
     expect(partirRespuesta("Pegá esto:\n```\nnpm test\n```")[1]).toEqual({ tipo: "encargo", texto: "npm test" });

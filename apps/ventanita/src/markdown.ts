@@ -50,6 +50,8 @@ export function partesConEnlaces(texto: string): Parte[] {
   return partes.filter((p) => p.tipo === "enlace" || p.texto !== "");
 }
 
+const TITULOS_DEL_ENCARGO = new Set(["QUÉ", "DÓNDE", "LISTO CUANDO", "NO TOCAR", "DESPUÉS"]);
+
 /**
  * Una respuesta de Remi en bloques: el texto, y el encargo para Claude Code
  * (desde el renglón «QUÉ», si trae «LISTO CUANDO») o un bloque ``` como
@@ -75,14 +77,30 @@ export function partirRespuesta(texto: string): Bloque[] {
     return bloques;
   }
 
-  const renglones = texto.split("\n");
-  const inicio = renglones.findIndex((r) => r.trim() === "QUÉ");
-  const esEncargo = inicio >= 0 && renglones.slice(inicio).some((r) => r.trim() === "LISTO CUANDO");
+  // Cada sección del encargo es un párrafo que empieza con su título
+  // («QUÉ\n…»). La tarjeta toma esos párrafos seguidos desde QUÉ; lo que el
+  // modelo agregue después («Un detalle de diseño…») vuelve a ser texto.
+  const parrafos = texto.split(/\n\s*\n/);
+  const titulo = (p: string) => p.trim().split("\n")[0].trim();
+  const inicio = parrafos.findIndex((p) => titulo(p) === "QUÉ");
+  let fin = inicio;
+  // Un título solo en su párrafo («QUÉ» y línea en blanco) se lleva el
+  // párrafo que le sigue.
+  const soloTitulo = (p: string) => p.trim().split("\n").length === 1 && TITULOS_DEL_ENCARGO.has(p.trim());
+  while (
+    inicio >= 0 &&
+    fin + 1 < parrafos.length &&
+    (TITULOS_DEL_ENCARGO.has(titulo(parrafos[fin + 1])) || soloTitulo(parrafos[fin]))
+  ) {
+    fin += 1;
+  }
+  const esEncargo = inicio >= 0 && parrafos.slice(inicio, fin + 1).some((p) => titulo(p) === "LISTO CUANDO");
   if (!esEncargo) {
     agregarTexto(texto);
     return bloques;
   }
-  agregarTexto(renglones.slice(0, inicio).join("\n"));
-  bloques.push({ tipo: "encargo", texto: renglones.slice(inicio).join("\n").trim() });
+  agregarTexto(parrafos.slice(0, inicio).join("\n\n"));
+  bloques.push({ tipo: "encargo", texto: parrafos.slice(inicio, fin + 1).join("\n\n").trim() });
+  agregarTexto(parrafos.slice(fin + 1).join("\n\n"));
   return bloques;
 }
