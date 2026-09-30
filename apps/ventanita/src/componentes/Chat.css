@@ -31,8 +31,11 @@
   text-align: right;
 }
 
-/* Remi: su voz, en ink. 20 px como en 3b: las respuestas son de párrafo. */
-.chat__remi {
+/* Remi: su voz, en ink. 20 px como en la maqueta (Fase F · 2) — no los 24 px
+   del token display-it suelto, que le ganaba por orden de cascada al venir
+   `.display-it` de estilos.css después de este archivo. El compuesto de acá
+   sube la especificidad para no depender del orden de import. */
+.display-it.chat__remi {
   color: var(--ink);
   font-size: 20px;
   line-height: 26px;
