@@ -176,7 +176,8 @@ def test_sin_entradas_no_se_anexa_nada(tmp_path, monkeypatch):
     import pensar
 
     # Un encabezado sin líneas debajo invitaría a inventar recuerdos.
-    assert pensar.instrucciones_con_indice([]) == pensar.caracter()
+    # Sin entradas: el carácter y el rol técnico, nada del estante.
+    assert pensar.instrucciones_con_indice([]) == f"{pensar.caracter()}\n\n{pensar.rol_tecnico()}"
 
 
 # — El encierro de la CLI —
@@ -191,15 +192,22 @@ def test_el_comando_abre_el_estante_y_solo_el_estante(tmp_path, monkeypatch):
 
     assert comando[comando.index("--mcp-config") + 1] == str(config)
     herramientas = comando[comando.index("--allowedTools") + 1].split(",")
-    assert herramientas == ["mcp__memoria__leer", "mcp__memoria__guardar"]
+    assert herramientas == ["mcp__memoria__leer", "mcp__memoria__guardar", "Read", "Grep", "Glob"]
 
     # El encierro sigue puesto.
-    assert comando[comando.index("--tools") + 1] == ""
+    # De la casa, solo leer; y nunca claves ni bases.
+    assert comando[comando.index("--tools") + 1] == "Read,Grep,Glob"
+    prohibido = comando[comando.index("--disallowedTools") + 1]
+    # Con ruta absoluta: un patrón suelto se resolvía contra la carpeta
+    # temporal y no bloqueaba nada.
+    for carpeta in pensar.CARPETAS_DE_CODIGO:
+        assert f"Read(/{carpeta}/**/.env)" in prohibido
+        assert f"Read(/{carpeta}/**/*.db)" in prohibido
     assert "--restricted" in comando
     assert "--strict-mcp-config" in comando
     assert comando[comando.index("--setting-sources") + 1] == ""
     # Una vuelta no alcanza para pedir la lectura, recibirla y contestar.
-    assert comando[comando.index("--max-turns") + 1] == "3"
+    assert comando[comando.index("--max-turns") + 1] == "10"
 
 
 def test_la_config_mcp_declara_un_solo_servidor(tmp_path, monkeypatch):

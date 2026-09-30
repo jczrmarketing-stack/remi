@@ -148,7 +148,7 @@ def test_la_frase_va_por_stdin_con_sonnet_y_sin_herramientas(monkeypatch):
     assert comando[0] == "claude" and "-p" in comando
     assert comando[comando.index("--model") + 1] == "sonnet"
     assert comando[comando.index("--output-format") + 1] == "json"
-    assert comando[comando.index("--tools") + 1] == ""
+    assert comando[comando.index("--tools") + 1] == "Read,Grep,Glob"
     assert comando[comando.index("--system-prompt") + 1] == pensar.instrucciones_con_indice([])
     # La frase entra por stdin, no por argumento (nunca en la lista de procesos).
     assert visto["kwargs"]["input"] == "voy a llamar al banco"
@@ -176,7 +176,7 @@ def test_nunca_hereda_la_clave_de_api(monkeypatch):
     # con 200 se corta a la mitad — la CLI devuelve "exceeded the 200 output
     # token maximum" y no guarda nada. La voz la recorta el servidor a 20
     # palabras, no este techo.
-    assert entorno["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "1500"
+    assert entorno["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "4000"
 
 
 def test_el_modo_cambia_el_model(monkeypatch):
@@ -231,7 +231,7 @@ def test_el_nivel_solo_cambia_al_elegido(monkeypatch):
     monkeypatch.setattr(pensar.subprocess, "run", falso_run)
     pensar.pensar("algo", "claude", "equilibrio", nivel="alto")
     # Sonnet con alto piensa 16000 y espera 60 s; Haiku, al caer, va con lo suyo.
-    assert llamadas == [("sonnet", "16000", 60.0), ("haiku", "0", 8.0)]
+    assert llamadas == [("sonnet", "16000", 60.0), ("haiku", "0", 20.0)]
 
 
 def test_opus_en_bajo_no_razona_y_el_peor_caso_no_crece():
@@ -240,7 +240,8 @@ def test_opus_en_bajo_no_razona_y_el_peor_caso_no_crece():
     assert bajo.razonamiento_tokens == 0 and bajo.techo_segundos == 60.0
     for n in pensar.NIVELES:
         for m in pensar.MODOS.values():
-            assert pensar.con_nivel(m, n).techo_segundos <= 60.0
+            assert pensar.con_nivel(m, n).techo_segundos <= pensar.TECHO_EXTRA
+    assert pensar.con_nivel(pensar.MODOS["inteligente"], "extra").razonamiento_tokens == 32000
     assert pensar.con_nivel(pensar.MODOS["rapido"], None) == pensar.MODOS["rapido"]
 
 
@@ -494,7 +495,7 @@ def test_si_sonnet_tarda_o_falla_contesta_haiku(monkeypatch, tmp_path):
     pensado = pensar.pensar("algo")
     assert pensado is not None and pensado.paso_minimo == "Respuesta de respaldo."
     # equilibrio (25 s) cae a rápido (8 s).
-    assert modelos == [("sonnet", 25.0), ("haiku", 8.0)]
+    assert modelos == [("sonnet", 45.0), ("haiku", 20.0)]
 
 
 def test_si_sonnet_contesta_no_se_llama_a_haiku(monkeypatch, tmp_path):

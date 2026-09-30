@@ -48,9 +48,35 @@ SERVIDOR_MEMORIA = Path(__file__).resolve().parent / "memoria_mcp.py"
 # Las únicas dos cosas que la CLI puede hacer además de contestar. El
 # prefijo `mcp__memoria__` lo arma Claude Code con el nombre del servidor.
 HERRAMIENTAS = ("mcp__memoria__leer", "mcp__memoria__guardar")
-# Con una sola vuelta no le alcanza para leer del estante y después
-# responder. Tres son: pide la lectura, la recibe, contesta.
-MAX_VUELTAS = "3"
+# Remi es también el asistente técnico de Juan Camilo (30/09/2026): lee el
+# código de sus proyectos para entender el plan antes de opinar o armar un
+# prompt. Solo leer: nada de escribir, ejecutar ni red.
+HERRAMIENTAS_DE_LECTURA = ("Read", "Grep", "Glob")
+CARPETAS_DE_CODIGO = (Path.home() / "proyectos", Path.home() / "projects")
+# Lo que nunca se lee aunque esté en esas carpetas: claves y bases. Las
+# reglas de Read valen también para Grep y Glob. Van con ruta absoluta
+# («//» + la carpeta): un patrón suelto se resuelve contra la carpeta
+# temporal de la llamada y no bloquea nada (probado el 30/09: leyó un
+# .env de prueba).
+PATRONES_QUE_NO_SE_LEEN = (
+    "**/.env",
+    "**/.env.*",
+    "**/*.pem",
+    "**/*.key",
+    "**/*.db",
+    "**/*.sqlite",
+    "**/credentials*",
+    "**/secrets*",
+)
+
+
+def reglas_de_no_leer() -> list[str]:
+    return [f"Read(/{carpeta}/{patron})" for carpeta in CARPETAS_DE_CODIGO for patron in PATRONES_QUE_NO_SE_LEEN]
+
+
+# Leer el estante son tres vueltas (pide, recibe, contesta); leer código
+# lleva varias más (buscar, abrir dos o tres archivos, contestar).
+MAX_VUELTAS = "10"
 # Tres modos (ARQUITECTURA-CEREBRO §9), todos por la sesión de Max. Cada uno
 # con su techo de tiempo; si el elegido falla o se pasa, cae al anterior
 # (inteligente → equilibrio → rápido) y queda en el log.
@@ -66,17 +92,22 @@ class Modo:
 
 
 MODOS: dict[str, Modo] = {
-    "rapido": Modo("rapido", "haiku", 8.0, 0, 1500),
-    "equilibrio": Modo("equilibrio", "sonnet", 25.0, 0, 1500),
+    # Techos más largos que en 3a: ahora puede leer código antes de
+    # contestar, y un encargo para Claude Code es largo (salida 4000).
+    "rapido": Modo("rapido", "haiku", 20.0, 0, 4000),
+    "equilibrio": Modo("equilibrio", "sonnet", 45.0, 0, 4000),
     "inteligente": Modo("inteligente", "opus", 60.0, 8000, 16000),
 }
 ORDEN_DE_MODOS = ("rapido", "equilibrio", "inteligente")
 MODO_POR_DEFECTO = "equilibrio"
 # Compatibilidad con quien lo lea: el modelo del modo por defecto.
 MODELO_POR_DEFECTO = MODOS[MODO_POR_DEFECTO].modelo
-# El peor caso: inteligente agota sus 60 s, equilibrio sus 25 y rápido sus
-# 8. La ventanita espera por encima de eso (pruebas/test_timeouts.py).
-PEOR_CASO_SEGUNDOS = sum(m.techo_segundos for m in MODOS.values())
+# Con razonamiento el elegido espera 60 s; en «extra», 90.
+TECHO_CON_RAZONAMIENTO = 60.0
+TECHO_EXTRA = 90.0
+# El peor caso: Opus en extra agota sus 90 s, y después Sonnet y Haiku los
+# suyos. La ventanita espera por encima de eso (pruebas/test_timeouts.py).
+PEOR_CASO_SEGUNDOS = TECHO_EXTRA + MODOS["equilibrio"].techo_segundos + MODOS["rapido"].techo_segundos
 
 # El carácter de Remi ES el system prompt (Fase 3a). Vive en el disco, fuera
 # del repo (datos personales), y se lee en CADA mensaje: si Juan Camilo lo
@@ -138,6 +169,17 @@ def _linea_indice(entrada: db.EntradaIndice) -> str:
 # Su system prompt vive en el repo (no tiene datos personales) y se lee en
 # cada llamada, como el carácter.
 RUTA_ENCARGO = Path(__file__).resolve().parent / "prompts" / "encargo.md"
+# El rol técnico y de prompting, siempre junto al carácter (30/09/2026: «el
+# modo prompt debe estar implícito»). Está en el repo; el carácter es de él.
+RUTA_TECNICO = Path(__file__).resolve().parent / "prompts" / "tecnico.md"
+
+
+def rol_tecnico() -> str:
+    try:
+        return RUTA_TECNICO.read_text().strip()
+    except OSError:
+        print(f"[pensar] no encuentro {RUTA_TECNICO}: sigo solo con el carácter", file=sys.stderr)
+        return ""
 
 
 def sistema_encargo() -> str:
@@ -155,7 +197,9 @@ def instrucciones_con_indice(indice: list[db.EntradaIndice], base: str | None = 
     """El carácter (o el system prompt que se pida, como el del encargo) más
     lo que Remi tiene presente. Sin entradas no se anexa nada: un encabezado
     solo, sin líneas, invitaría a inventar."""
-    base = caracter() if base is None else base
+    if base is None:
+        tecnico = rol_tecnico()
+        base = f"{caracter()}\n\n{tecnico}" if tecnico else caracter()
     if not indice:
         return base
     lineas = "\n".join(_linea_indice(entrada) for entrada in indice)
@@ -229,16 +273,25 @@ def modo(pedido: str | None) -> Modo:
 # contestar el modelo elegido. Solo toca al elegido; si cae al anterior, ese
 # va con lo suyo. Con razonamiento el techo sube a 60 s, que es el de Opus:
 # el peor caso de la cadena sigue en PEOR_CASO_SEGUNDOS.
-NIVELES = ("bajo", "medio", "alto")
-_TOKENS_POR_NIVEL = {"bajo": (0, 1500), "medio": (8000, 16000), "alto": (16000, 24000)}
-TECHO_CON_RAZONAMIENTO = 60.0
+NIVELES = ("bajo", "medio", "alto", "extra")
+_TOKENS_POR_NIVEL = {
+    "bajo": (0, 4000),
+    "medio": (8000, 16000),
+    "alto": (16000, 24000),
+    "extra": (32000, 40000),
+}
 
 
 def con_nivel(m: Modo, nivel: str | None) -> Modo:
     if nivel not in _TOKENS_POR_NIVEL:
         return m
     razonamiento, salida = _TOKENS_POR_NIVEL[nivel]
-    techo = m.techo_segundos if razonamiento == 0 else max(m.techo_segundos, TECHO_CON_RAZONAMIENTO)
+    if nivel == "extra":
+        techo = TECHO_EXTRA
+    elif razonamiento == 0:
+        techo = m.techo_segundos
+    else:
+        techo = max(m.techo_segundos, TECHO_CON_RAZONAMIENTO)
     return replace(m, razonamiento_tokens=razonamiento, salida_tokens=salida, techo_segundos=techo)
 
 
@@ -369,6 +422,14 @@ def _config_mcp(carpeta: Path, marca: Path | None = None) -> Path:
     return ruta
 
 
+def _carpetas_de_codigo() -> list[str]:
+    argumentos: list[str] = []
+    for carpeta in CARPETAS_DE_CODIGO:
+        if carpeta.is_dir():
+            argumentos += ["--add-dir", str(carpeta)]
+    return argumentos
+
+
 def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path) -> list[str]:
     return [
         BINARIO,
@@ -379,11 +440,12 @@ def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path) -> list[s
         "json",
         "--system-prompt",
         instrucciones,
-        # El encierro no se afloja: sin herramientas de la casa, sin
-        # settings del usuario, sin sesión en disco. Lo único que se abre
-        # es el estante, y solo esas dos puertas.
+        # El encierro: de las herramientas de la casa, solo leer; sin
+        # settings del usuario, sin sesión en disco. Además, el estante y
+        # solo esas dos puertas.
         "--tools",
-        "",
+        ",".join(HERRAMIENTAS_DE_LECTURA),
+        *_carpetas_de_codigo(),
         "--restricted",
         "--strict-mcp-config",
         "--setting-sources",
@@ -392,7 +454,9 @@ def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path) -> list[s
         "--mcp-config",
         str(config_mcp),
         "--allowedTools",
-        ",".join(HERRAMIENTAS),
+        ",".join((*HERRAMIENTAS, *HERRAMIENTAS_DE_LECTURA)),
+        "--disallowedTools",
+        ",".join(reglas_de_no_leer()),
         "--max-turns",
         MAX_VUELTAS,
     ]

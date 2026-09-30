@@ -34,7 +34,7 @@ def test_el_prompt_contiene_caracter_md(tmp_path, monkeypatch):
 def test_sin_caracter_usa_el_de_respaldo(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_CARACTER", str(tmp_path / "no-existe.md"))
     pensar = _pensar()
-    assert pensar.instrucciones_con_indice([]) == pensar.CARACTER_DE_RESPALDO
+    assert pensar.instrucciones_con_indice([]).startswith(pensar.CARACTER_DE_RESPALDO)
 
 
 # — Una línea del índice por archivo de proyecto —

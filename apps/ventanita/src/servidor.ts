@@ -29,12 +29,12 @@ export interface RespuestaMensaje {
 // "pensando": el fetch se cancela solo y enviar() lo trata como cualquier
 // otro fallo (ley 3: Remi lo dice sin culpa, no revienta).
 //
-// Tiene que ser MAYOR que nucleo/pensar.py:PEOR_CASO_SEGUNDOS (inteligente
-// 60 s + equilibrio 25 s + rápido 8 s = 93 s, si cae por toda la cadena). Estaba en 8 s: Remi decía «No pude guardarlo» mientras el núcleo
+// Tiene que ser MAYOR que nucleo/pensar.py:PEOR_CASO_SEGUNDOS (Opus en
+// extra 90 s + Sonnet 45 s + Haiku 20 s = 155 s, si cae por toda la cadena). Estaba en 8 s: Remi decía «No pude guardarlo» mientras el núcleo
 // seguía guardando, y si lo repetías quedaba duplicado — una culpa por
 // algo que sí había pasado, que es lo que la ley 3 prohíbe.
 // pruebas/test_timeouts.py ata los dos números para que no se separen.
-const TIMEOUT_NUCLEO_MS = 100000;
+const TIMEOUT_NUCLEO_MS = 160000;
 
 export interface MotorDePensar {
   id: string;
