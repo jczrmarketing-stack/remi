@@ -1,9 +1,14 @@
-import { type CSSProperties, Fragment, useEffect, useRef } from "react";
+import { type CSSProperties, Fragment, useEffect, useRef, useState } from "react";
 import { partirBionica, perillasBionica } from "../bionica";
 import { partirRespuesta, type Parte } from "../markdown";
 import { Encargo } from "./Encargo";
 import { AccionesRespuesta } from "./AccionesRespuesta";
+import type { Sesion, Tarea } from "../contratos";
 import "./Chat.css";
+
+// 950 ms, la Biblia (Parte II, playground de la celebración): una sola vez,
+// nunca se repite en el mismo mensaje.
+const DURACION_CELEBRACION_MS = 950;
 
 export interface Mensaje {
   id: string;
@@ -11,6 +16,10 @@ export interface Mensaje {
   texto: string;
   // Una pregunta de Remi con Sí/No (pegar una charla larga).
   pregunta?: { onSi: () => void; onNo: () => void };
+  // Presentes solo cuando esta respuesta abrió un bloque (tipo "hoy"): con
+  // eso el chat sabe que hay algo abierto y muestra «Hecha» debajo.
+  tarea?: Tarea | null;
+  sesion?: Sesion | null;
 }
 
 interface Props {
@@ -20,6 +29,10 @@ interface Props {
   onCopiar: (texto: string) => Promise<boolean>;
   onReintentar: () => void;
   onEnlace: (url: string) => void;
+  // «Hecha»: cierra el bloque abierto. Devuelve los minutos reales, o null
+  // si no se pudo cerrar — entonces no se celebra (ley 3: nada de fallar
+  // en silencio con una fiesta que no pasó).
+  onCerrarBloque: (tareaId: string) => Promise<number | null>;
   // Lectura biónica: la intensidad (0–1), o null si está apagada. Solo en lo
   // que escribe Remi; nunca en botones, campos ni en la tarjeta de código.
   bionica?: number | null;
@@ -71,10 +84,62 @@ function Partes({ partes, onEnlace, bionica }: { partes: Parte[]; onEnlace: (url
   );
 }
 
+// Ocho chispas de ámbar (dinero), como en el playground de la Biblia. Con
+// prefers-reduced-motion la keyframe de subir no corre (Chat.css) y solo
+// queda el cambio de color de la tarjeta.
+const CHISPAS = [
+  { dx: "-26px", dy: "-58px", retraso: "0s" },
+  { dx: "-10px", dy: "-72px", retraso: ".06s" },
+  { dx: "8px", dy: "-64px", retraso: ".12s" },
+  { dx: "24px", dy: "-52px", retraso: ".05s" },
+  { dx: "-38px", dy: "-40px", retraso: ".14s" },
+  { dx: "38px", dy: "-42px", retraso: ".1s" },
+  { dx: "-18px", dy: "-84px", retraso: ".18s" },
+  { dx: "16px", dy: "-88px", retraso: ".2s" },
+];
+
+function formatearMinutos(minutos: number): string {
+  if (minutos < 60) return `${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  return resto === 0 ? `${horas} h` : `${horas} h ${resto} min`;
+}
+
 function MensajeDeRemi({ mensaje, ultimo, ...acciones }: Omit<Props, "mensajes"> & { mensaje: Mensaje; ultimo: boolean }) {
-  const bloques = partirRespuesta(mensaje.texto);
+  const [celebrando, setCelebrando] = useState(false);
+  const [cerrado, setCerrado] = useState<string | null>(null);
+
+  const hayBloqueAbierto = ultimo && mensaje.tarea != null && mensaje.tarea.estado === "hoy" && !cerrado;
+
+  const cerrarAhora = () => {
+    if (!mensaje.tarea || celebrando || cerrado) return;
+    const tareaId = mensaje.tarea.id;
+    void acciones.onCerrarBloque(tareaId).then((minutos) => {
+      if (minutos == null) return; // no se pudo cerrar: no hay fiesta que no pasó (ley 3)
+      setCelebrando(true);
+      window.setTimeout(() => {
+        setCelebrando(false);
+        setCerrado(`Cerrado. ${formatearMinutos(minutos)}.`);
+      }, DURACION_CELEBRACION_MS);
+    });
+  };
+
+  const bloques = partirRespuesta(cerrado ?? mensaje.texto);
+
   return (
-    <div className="chat__mensaje chat__mensaje--remi" data-ultimo={ultimo ? "si" : "no"}>
+    <div
+      className="chat__mensaje chat__mensaje--remi"
+      data-ultimo={ultimo ? "si" : "no"}
+      data-celebrando={celebrando ? "si" : "no"}
+    >
+      {celebrando &&
+        CHISPAS.map((chispa, i) => (
+          <i
+            key={i}
+            className="chat__chispa"
+            style={{ "--dx": chispa.dx, "--dy": chispa.dy, animationDelay: chispa.retraso } as CSSProperties}
+          />
+        ))}
       {bloques.map((bloque, i) =>
         bloque.tipo === "encargo" ? (
           <Encargo key={i} texto={bloque.texto} />
@@ -93,7 +158,7 @@ function MensajeDeRemi({ mensaje, ultimo, ...acciones }: Omit<Props, "mensajes">
             No
           </button>
         </div>
-      ) : (
+      ) : !cerrado ? (
         <AccionesRespuesta
           texto={mensaje.texto}
           onEscuchar={() => acciones.onEscuchar(mensaje.texto)}
@@ -101,6 +166,11 @@ function MensajeDeRemi({ mensaje, ultimo, ...acciones }: Omit<Props, "mensajes">
           onCopiar={() => acciones.onCopiar(mensaje.texto)}
           onReintentar={ultimo ? acciones.onReintentar : undefined}
         />
+      ) : null}
+      {hayBloqueAbierto && (
+        <button type="button" className="chat__hecha" onClick={cerrarAhora} disabled={celebrando}>
+          Hecha
+        </button>
       )}
     </div>
   );

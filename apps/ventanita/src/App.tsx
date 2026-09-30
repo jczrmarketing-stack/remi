@@ -11,6 +11,7 @@ import { ChipVoz } from "./componentes/ChipVoz";
 import { ChipLectura } from "./componentes/ChipLectura";
 import { useLectura } from "./lectura";
 import {
+  cerrarTarea,
   dondeQuede,
   enviarMensaje,
   guardarEpisodio,
@@ -464,7 +465,7 @@ export default function App() {
       }
       const visible = respuesta ? respuesta.texto || respuesta.voz : FRASE_DE_FALLO;
       const dicho = respuesta ? respuesta.voz : FRASE_DE_FALLO;
-      agregar({ rol: "remi", texto: visible });
+      agregar({ rol: "remi", texto: visible, tarea: respuesta?.tarea, sesion: respuesta?.sesion });
       // Habla si le hablaste (y la voz no está silenciada). Escrito, calla:
       // para oírla está el ícono de escuchar.
       const enDialogo = accionesRef.current.modo === "dialogo";
@@ -1111,6 +1112,7 @@ export default function App() {
         onCallar={callar}
         onCopiar={copiar}
         onReintentar={reintentar}
+        onCerrarBloque={cerrarTarea}
         bionica={lectura.bionica ? lectura.intensidad : null}
         onEnlace={(url) => {
           // Los links de una búsqueda (3c · 8) se abren en el navegador.

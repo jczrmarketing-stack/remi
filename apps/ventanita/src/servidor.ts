@@ -178,6 +178,24 @@ export async function obtenerUltimaVezMin(tareaId: string): Promise<number | nul
 // en reposo no hay ninguna tarea elegida: al decir «listo» la tarea pasa a
 // `hecha` y sale de las de hoy, así que mirar ahí nunca mostraría el bloque
 // que acabás de cerrar.
+// «Hecha»: cierra el bloque abierto, marca la tarea hecha y devuelve la
+// duración real de la sesión (ley 1). null si el núcleo no respondió — sin
+// eso, el chat no celebra una fiesta que no pasó (ley 3).
+export async function cerrarTarea(tareaId: string): Promise<number | null> {
+  try {
+    const respuesta = await fetch(`${URL_NUCLEO}/tarea/${tareaId}/estado`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estado: "hecha" }),
+    });
+    if (!respuesta.ok) return null;
+    const tarea = (await respuesta.json()) as Tarea;
+    return tarea.real_min ?? 0;
+  } catch {
+    return null;
+  }
+}
+
 export async function obtenerUltimaVezDeHoy(): Promise<number | null> {
   const respuesta = await fetch(`${URL_NUCLEO}/ultima-vez`);
   if (!respuesta.ok) {

@@ -126,3 +126,81 @@
   font-weight: 400;
   color: color-mix(in srgb, var(--ink) var(--bio-tinta, 70%), var(--surface));
 }
+
+/* La celebración (Biblia, Parte II · playground): al cerrar, el último
+   mensaje se enfría hacia `luz`, con chispas de `dinero`. 950 ms, una sola
+   vez. Con prefers-reduced-motion, solo cambia el color (sin chispas). */
+.chat__mensaje--remi {
+  position: relative;
+  transition: background-color 0.95s var(--curva), color 0.95s var(--curva);
+  border-radius: var(--radius-md);
+}
+
+.chat__mensaje--remi[data-celebrando="si"] {
+  background: var(--luz);
+  color: var(--on-luz);
+  padding: var(--space-4);
+  margin: calc(-1 * var(--space-4));
+}
+
+.chat__mensaje--remi[data-celebrando="si"] .chat__remi,
+.chat__mensaje--remi[data-celebrando="si"] .chat__enlace {
+  color: var(--on-luz);
+}
+
+.chat__chispa {
+  position: absolute;
+  bottom: 55%;
+  left: 18%;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--dinero);
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat__chispa {
+    animation: chat-chispa-sube 0.95s ease-out forwards;
+  }
+}
+
+@keyframes chat-chispa-sube {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(0.35);
+  }
+}
+
+/* «Hecha»: solo bajo el último mensaje cuando hay un bloque abierto. Borde
+   brasa como el resto de los botones principales de un nudge (DS). */
+.chat__hecha {
+  align-self: flex-start;
+  appearance: none;
+  min-height: 32px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--brasa);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--brasa);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--dur-estado) var(--curva), color var(--dur-estado) var(--curva);
+}
+
+.chat__hecha:hover:not(:disabled) {
+  background: var(--brasa);
+  color: var(--on-brasa);
+}
+
+.chat__hecha:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
