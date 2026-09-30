@@ -71,13 +71,17 @@ class Notion:
         )
 
     def buscar_base(self, padre_id: str, nombre: str) -> str | None:
-        """La base de datos hija de `padre_id` que se llama `nombre`, si ya existe."""
+        """La base de datos hija de `padre_id` que se llama `nombre`, si ya existe.
+
+        `GET /blocks/{id}/children` LISTA los hijos; `POST` en esa misma ruta
+        AGREGA bloques nuevos — con POST, Notion devolvía 400 Bad Request
+        porque el cuerpo no tenía la forma de un bloque a crear."""
         cursor: str | None = None
         while True:
-            cuerpo: dict[str, Any] = {"page_size": 100}
+            params: dict[str, Any] = {"page_size": 100}
             if cursor:
-                cuerpo["start_cursor"] = cursor
-            datos = self._pedir("POST", f"/blocks/{padre_id}/children", cuerpo)
+                params["start_cursor"] = cursor
+            datos = self._pedir("GET", f"/blocks/{padre_id}/children", None, params=params)
             for bloque in datos.get("results", []):
                 if bloque.get("type") == "child_database" and bloque["child_database"].get("title") == nombre:
                     return bloque["id"]
@@ -117,8 +121,10 @@ class Notion:
     def obtener_pagina(self, pagina_id: str) -> dict[str, Any]:
         return self._pedir("GET", f"/pages/{pagina_id}", None)
 
-    def _pedir(self, metodo: str, ruta: str, cuerpo: dict[str, Any] | None) -> dict[str, Any]:
-        respuesta = self._cliente.request(metodo, ruta, json=cuerpo)
+    def _pedir(
+        self, metodo: str, ruta: str, cuerpo: dict[str, Any] | None, *, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        respuesta = self._cliente.request(metodo, ruta, json=cuerpo, params=params)
         respuesta.raise_for_status()
         return respuesta.json()
 

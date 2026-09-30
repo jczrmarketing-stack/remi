@@ -2,6 +2,8 @@
 API real (Fase 4)."""
 from datetime import date
 
+import httpx
+
 import notion
 
 
@@ -43,3 +45,67 @@ def test_leer_con_propiedad_vacia_no_explota():
     assert notion.leer_titulo(None) == ""
     assert notion.leer_texto({"rich_text": []}) == ""
     assert notion.leer_fecha({"date": None}) is None
+
+
+# — buscar_base: GET, no POST — el bug real del 400 —
+
+
+def _cliente_falso(manejador):
+    return httpx.Client(base_url=notion.BASE_URL, transport=httpx.MockTransport(manejador))
+
+
+def test_buscar_base_pide_get_no_post(monkeypatch):
+    vistos: list[httpx.Request] = []
+
+    def manejador(request: httpx.Request) -> httpx.Response:
+        vistos.append(request)
+        return httpx.Response(200, json={"results": [], "has_more": False})
+
+    cliente = notion.Notion("token-falso", cliente=_cliente_falso(manejador))
+    resultado = cliente.buscar_base("padre-1", "Proyectos")
+
+    assert resultado is None
+    assert len(vistos) == 1
+    assert vistos[0].method == "GET"
+    assert vistos[0].url.path == "/v1/blocks/padre-1/children"
+    assert vistos[0].content == b""  # GET no lleva cuerpo
+
+
+def test_buscar_base_encuentra_la_base_por_nombre(monkeypatch):
+    def manejador(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {"type": "child_page", "id": "pagina-1"},
+                    {"type": "child_database", "id": "base-2", "child_database": {"title": "Entregas"}},
+                    {"type": "child_database", "id": "base-3", "child_database": {"title": "Proyectos"}},
+                ],
+                "has_more": False,
+            },
+        )
+
+    cliente = notion.Notion("token-falso", cliente=_cliente_falso(manejador))
+    assert cliente.buscar_base("padre-1", "Proyectos") == "base-3"
+    assert cliente.buscar_base("padre-1", "Entregas") == "base-2"
+    assert cliente.buscar_base("padre-1", "No existe") is None
+
+
+def test_buscar_base_pagina_con_start_cursor(monkeypatch):
+    cursores_vistos: list[str | None] = []
+
+    def manejador(request: httpx.Request) -> httpx.Response:
+        cursores_vistos.append(request.url.params.get("start_cursor"))
+        if request.url.params.get("start_cursor") is None:
+            return httpx.Response(200, json={"results": [], "has_more": True, "next_cursor": "cursor-2"})
+        return httpx.Response(
+            200,
+            json={
+                "results": [{"type": "child_database", "id": "base-9", "child_database": {"title": "Proyectos"}}],
+                "has_more": False,
+            },
+        )
+
+    cliente = notion.Notion("token-falso", cliente=_cliente_falso(manejador))
+    assert cliente.buscar_base("padre-1", "Proyectos") == "base-9"
+    assert cursores_vistos == [None, "cursor-2"]
