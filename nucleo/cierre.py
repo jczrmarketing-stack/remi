@@ -296,9 +296,9 @@ def _render(secciones: dict[str, str]) -> str:
 
 
 def _a_estado(secciones: dict[str, str]) -> str:
-    quedaste = " ".join(secciones["Qué se hizo"].split())[:180] or "la sesión cerró"
-    decisiones = " ".join(secciones["Decisiones"].split())[:180] or "ninguna nueva"
-    paso = " ".join(secciones["Primer paso de mañana"].split())[:180] or "retomar el hilo, cinco minutos"
+    quedaste = episodios._recortar(_primera_frase(secciones["Qué se hizo"]), 180) or "la sesión cerró"
+    decisiones = episodios._recortar(_primera_frase(secciones["Decisiones"]), 180) or "ninguna nueva"
+    paso = episodios._recortar(_primera_frase(secciones["Primer paso de mañana"]), 180) or "retomar el hilo, cinco minutos"
     return f"Quedaste: {quedaste}\nDecisiones: {decisiones}\nPróximo paso: {paso}"
 
 

@@ -170,6 +170,10 @@ def test_el_titulo_y_el_resumen_se_cortan_en_la_primera_frase(tmp_path, monkeypa
         'resumen: "Enviar una solicitud de soporte técnico a Claude para investigar la causa del error 401."'
         in frontmatter
     )
+    libro = (tmp_path / "libros" / "malik.md").read_text()
+    estado = libro[libro.index("## Estado") :]
+    assert "estudio: o freno:" not in estado
+    assert "Próximo paso: Enviar una solicitud de soporte técnico a Claude para investigar la causa del error 401." in estado
 
 
 def test_un_problema_resuelto_deja_ademas_un_episodio_de_error(tmp_path, monkeypatch) -> None:
