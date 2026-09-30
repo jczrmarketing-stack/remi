@@ -278,6 +278,52 @@ plutil -lint "$PLIST_NOCHE" > /dev/null
 launchctl bootstrap "gui/$UID" "$PLIST_NOCHE" 2>/dev/null || launchctl load "$PLIST_NOCHE"
 echo "  noche:  consolidación todas las noches a las 4:00"
 
+# — Ida y vuelta con Notion (Fase 4): cada 15 min —
+# Proyectos compartible:true y entregas compartible:true, en los dos
+# sentidos (docs/ARQUITECTURA-CEREBRO.md §7 y §12). Sin NOTION_TOKEN o
+# NOTION_PAGINA_ID en nucleo/.env, notion_sync.py se salta solo: este
+# agente igual corre y no rompe nada. Log en notion.log.
+ETIQUETA_NOTION="com.remi.notion"
+PLIST_NOTION="$HOME/Library/LaunchAgents/$ETIQUETA_NOTION.plist"
+bajar_agente "$ETIQUETA_NOTION" "$PLIST_NOTION" || true
+cat > "$PLIST_NOTION" <<PLISTNOTIONEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$ETIQUETA_NOTION</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>$UV</string>
+		<string>run</string>
+		<string>python</string>
+		<string>notion_sync.py</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>$NUCLEO</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>$RUTA</string>
+		<key>HOME</key>
+		<string>$HOME</string>
+	</dict>
+	<key>StartInterval</key>
+	<integer>900</integer>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>$LOGS/notion.log</string>
+	<key>StandardErrorPath</key>
+	<string>$LOGS/notion.log</string>
+</dict>
+</plist>
+PLISTNOTIONEOF
+plutil -lint "$PLIST_NOTION" > /dev/null
+launchctl bootstrap "gui/$UID" "$PLIST_NOTION" 2>/dev/null || launchctl load "$PLIST_NOTION"
+echo "  notion: ida y vuelta cada 15 min (sin token, se salta solo)"
+
 # — Refresco semanal del oficio Claude Code (Fase S · 5) —
 # Domingos a las 5:00, después de la copia (3:00) y la consolidación (4:00).
 ETIQUETA_REFRESCO="com.remi.refresco-claude-code"

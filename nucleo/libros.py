@@ -21,6 +21,7 @@ class Libro:
     tema: str
     resumen: str
     rutas: tuple[str, ...]
+    compartible: bool = False
 
 
 def carpeta() -> Path:
@@ -88,7 +89,8 @@ def leer(ruta: Path) -> Libro | None:
     if not all(isinstance(c, str) and c for c in (titulo, tema, resumen)):
         return None
     assert isinstance(titulo, str) and isinstance(tema, str) and isinstance(resumen, str)
-    return Libro(ruta, titulo, tema, resumen, _rutas_de(campos.get("ruta")))
+    compartible = str(campos.get("compartible", "")).strip().lower() == "true"
+    return Libro(ruta, titulo, tema, resumen, _rutas_de(campos.get("ruta")), compartible)
 
 
 def listar() -> list[Libro]:
