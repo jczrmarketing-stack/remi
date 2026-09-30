@@ -13,7 +13,7 @@ Remi (apodo: Lucho) es el asistente personal para TDAH de Juan Camilo. Una sola 
 - **Ventanita** flotante en macOS (`apps/ventanita`): Tauri 2 + React + Tailwind. 320×180 en reposo, hasta 420×520 con terminal de prompt. Se activa al tocarla, sin palabra clave. Reposo → escuchando → respuesta → reposo.
 - **Panel** web (`apps/panel`): Next.js PWA (Mac + iOS). Vistas: Hoy, Proyectos (camino lineal, nunca árbol), Metas, Bandeja.
 - **Núcleo** local (`nucleo/`): Python. Whisper local, reglas del líder sin IA, medidor de tiempo real, Accesibilidad de macOS, **SQLite como fuente de verdad** (un archivo, `remi.db`, nunca en git).
-- **Claude API**: solo para pensar (ordenar ideas en prompts). Opt-in por consulta, cero tokens por defecto.
+- **Pensar**: Remi piensa por defecto con la sesión de Max (`claude -p`, sin clave ni costo extra); el toggle «sin pensar» de la ventanita apaga el envío. Todo lo que se piensa sale del Mac hacia el motor elegido, con `conocimiento/caracter.md` y el índice del estante. Venice (pago) y Ollama (local) se eligen a mano. Decisión de Juan Camilo, 29/09/2026 (Fase 3a).
 - **Espejos**: Notion, Google Calendar, Telegram. Solo reciben objetos con `compartible: true`. Pacientes, finanzas y salud viven únicamente en SQLite y **no tienen ruta de salida**.
 
 ## Las 6 leyes (ninguna función, pantalla o texto puede violarlas)

@@ -20,7 +20,9 @@ import { formatearDuracion, formatearHace, registrarInteraccion, ultimaInteracci
 import {
   alternarSilencio,
   estaSilenciado,
+  estaSinPensar,
   fijarMotor,
+  fijarSinPensar,
   fijarVelocidad,
   fijarVoz,
   MOTOR_POR_DEFECTO,
@@ -133,7 +135,8 @@ export default function App() {
   const [vocesDisponibles, setVocesDisponibles] = useState<VozDisponible[]>([]);
   // Pensar con Claude: opt-in POR MENSAJE. Nace apagado y se apaga solo
   // después de cada envío — nunca queda prendido de fondo gastando tokens.
-  const [pensarConClaude, setPensarConClaude] = useState(false);
+  // Remi piensa siempre. «sin pensar» lo apaga y queda puesto (persistido).
+  const [sinPensar, setSinPensar] = useState(() => estaSinPensar());
   // Con qué motor, elegido a conciencia en el dropdown y guardado.
   const [motor, setMotor] = useState(() => obtenerMotor());
   const [motores, setMotores] = useState<MotorDePensar[]>([]);
@@ -163,8 +166,8 @@ export default function App() {
 
   // Los handlers viven en efectos y listeners; el ref evita re-suscribir.
   const textoVacio = texto.trim() === "";
-  const accionesRef = useRef({ grabando, modo, estado, silenciado, pensarConClaude, textoVacio, motor });
-  accionesRef.current = { grabando, modo, estado, silenciado, pensarConClaude, textoVacio, motor };
+  const accionesRef = useRef({ grabando, modo, estado, silenciado, sinPensar, textoVacio, motor });
+  accionesRef.current = { grabando, modo, estado, silenciado, sinPensar, textoVacio, motor };
 
   // Cada vez que se vuelve a reposo a mano (click o Escape), esto sube:
   // si un fetch/invoke que ya estaba en vuelo resuelve DESPUÉS, se nota
@@ -280,7 +283,6 @@ export default function App() {
     setVoz("");
     setSesionInicio(null);
     setUltimaVezMin(null);
-    setPensarConClaude(false);
     window.clearTimeout(rearmeRef.current);
     vaciasSeguidasRef.current = 0;
     grabacionDesdeRef.current = null;
@@ -309,11 +311,10 @@ export default function App() {
       }
       enviandoRef.current = true;
       const miGeneracion = generacionRef.current;
-      // En diálogo siempre se piensa: una conversación con «Guardada. La
-      // miramos en dos días.» a todo no es una conversación. En texto y en
-      // dictado sigue mandando el toggle.
-      const think = accionesRef.current.pensarConClaude || accionesRef.current.modo === "dialogo";
-      setPensarConClaude(false);
+      // Todo mensaje pasa por el modelo —texto, dictado, diálogo— salvo que
+      // «sin pensar» esté puesto. Antes pensar era opt-in y se apagaba solo
+      // tras cada envío: por texto, Remi nunca pensaba (19:26, 23 ms).
+      const think = !accionesRef.current.sinPensar;
       setEstado("pensando");
       const arranque = performance.now();
       const motorElegido = accionesRef.current.motor;
@@ -852,8 +853,14 @@ export default function App() {
           enfocar={estado === "escuchando" && !grabando}
           onCambio={setTexto}
           onEnviar={() => void enviar(texto)}
-          pensarConClaude={pensarConClaude}
-          onAlternarPensar={() => setPensarConClaude((valor) => !valor)}
+          sinPensar={sinPensar}
+          onAlternarSinPensar={() =>
+            setSinPensar((valor) => {
+              fijarSinPensar(!valor);
+              registrar("sinPensar", { puesto: !valor });
+              return !valor;
+            })
+          }
           motores={motores}
           motor={motor}
           onMotor={cambiarMotor}

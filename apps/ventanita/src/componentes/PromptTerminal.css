@@ -145,3 +145,21 @@
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* «sin pensar»: mismo cuerpo que el resto del pie. Puesto, sube a ink y
+   lleva borde `line`: se tiene que notar que Remi no está pensando. */
+.prompt-terminal__sin-pensar {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color var(--dur-estado) var(--curva), border-color var(--dur-estado) var(--curva);
+}
+.prompt-terminal__sin-pensar:hover:not(:disabled) { color: var(--ink); }
+.prompt-terminal__sin-pensar[data-activo="si"] { color: var(--ink); border-color: var(--line); }

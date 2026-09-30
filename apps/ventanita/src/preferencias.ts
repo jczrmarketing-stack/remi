@@ -5,6 +5,7 @@ const CLAVE_SILENCIO = "remi.voz.silenciada";
 const CLAVE_VELOCIDAD = "remi.voz.velocidad";
 const CLAVE_VOZ = "remi.voz.elegida";
 const CLAVE_MOTOR = "remi.pensar.motor";
+const CLAVE_SIN_PENSAR = "remi.pensar.apagado";
 
 export const VELOCIDADES = [1, 1.5, 2] as const;
 export type Velocidad = (typeof VELOCIDADES)[number];
@@ -79,4 +80,14 @@ export function obtenerMotor(): Motor {
 
 export function fijarMotor(motor: Motor): void {
   guardar(CLAVE_MOTOR, motor);
+}
+
+// «sin pensar»: apaga el envío al modelo. NO se apaga solo tras un mensaje:
+// es una decisión que queda puesta hasta que la saques.
+export function estaSinPensar(): boolean {
+  return leer(CLAVE_SIN_PENSAR) === "1";
+}
+
+export function fijarSinPensar(apagado: boolean): void {
+  guardar(CLAVE_SIN_PENSAR, apagado ? "1" : "0");
 }

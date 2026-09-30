@@ -9,9 +9,9 @@ interface Props {
   enfocar: boolean;
   onCambio: (texto: string) => void;
   onEnviar: () => void;
-  // Pensar: opt-in por mensaje, apagado por defecto.
-  pensarConClaude: boolean;
-  onAlternarPensar: () => void;
+  // Remi piensa siempre; «sin pensar» apaga el envío y queda puesto.
+  sinPensar: boolean;
+  onAlternarSinPensar: () => void;
   // Con qué motor, elegido a conciencia. Vacío mientras el núcleo no conteste.
   motores: MotorDePensar[];
   motor: string;
@@ -24,8 +24,8 @@ export function PromptTerminal({
   enfocar,
   onCambio,
   onEnviar,
-  pensarConClaude,
-  onAlternarPensar,
+  sinPensar,
+  onAlternarSinPensar,
   motores,
   motor,
   onMotor,
@@ -66,21 +66,13 @@ export function PromptTerminal({
         />
       </div>
       <div className="prompt-terminal__pie">
-        {/* El único control del cuadro: la lavanda `pensar` prendida es
-            Remi trabajando (con Claude). Apagado es texto en ink-muted. */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={pensarConClaude}
-          className="prompt-terminal__pensar"
-          data-activo={pensarConClaude ? "si" : "no"}
-          disabled={deshabilitado}
-          title="Solo este mensaje: Claude ordena el paso mínimo"
-          onClick={onAlternarPensar}
-        >
-          <span className="prompt-terminal__pensar-punto" aria-hidden="true" />
-          pensar con
-        </button>
+        {/* Remi piensa siempre con el motor del dropdown. «sin pensar» es
+            la excepción y queda puesta hasta que la saques: nada sale del
+            Mac. El punto `pensar` prendido = piensa; apagado = no. */}
+        <span className="prompt-terminal__pensar" data-activo={sinPensar ? "no" : "si"} aria-hidden="true">
+          <span className="prompt-terminal__pensar-punto" />
+          piensa con
+        </span>
         {/* El motor se elige a conciencia, acá, no en un .env. Un motor al
             que le falta algo se ve igual, apagado, y el título dice qué. */}
         <select
@@ -103,6 +95,18 @@ export function PromptTerminal({
         </select>
         {/* Los gestos también se cuentan acá: dos clicks = hablar, tres =
             dialogar. Antes había que adivinarlos. */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={sinPensar}
+          className="prompt-terminal__sin-pensar"
+          data-activo={sinPensar ? "si" : "no"}
+          disabled={deshabilitado}
+          title="Sin pensar: no se manda nada al modelo; Remi solo guarda. Queda puesto."
+          onClick={onAlternarSinPensar}
+        >
+          sin pensar
+        </button>
         <div className="prompt-terminal__atajos" aria-hidden="true">
           <span>↵ enviar</span>
           <span>·· hablar</span>
