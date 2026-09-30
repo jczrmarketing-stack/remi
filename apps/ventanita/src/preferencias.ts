@@ -56,8 +56,13 @@ export function fijarVelocidad(velocidad: Velocidad): void {
   guardar(CLAVE_VELOCIDAD, String(velocidad));
 }
 
+// Desde 3c el chip nombra la voz («Alex · 1,5×»): «auto» (que elegía por
+// idioma) pasa a Alex, la de español por defecto.
+export const VOZ_POR_DEFECTO: PreferenciaVoz = "em_alex";
+
 export function obtenerVoz(): PreferenciaVoz {
-  return leer(CLAVE_VOZ) ?? VOZ_AUTOMATICA;
+  const guardada = leer(CLAVE_VOZ);
+  return !guardada || guardada === VOZ_AUTOMATICA ? VOZ_POR_DEFECTO : guardada;
 }
 
 export function fijarVoz(voz: PreferenciaVoz): void {

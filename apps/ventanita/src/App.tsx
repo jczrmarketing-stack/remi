@@ -6,7 +6,7 @@ import { BotonCancelar } from "./componentes/BotonCancelar";
 import { Chat, type Mensaje } from "./componentes/Chat";
 import { Campo, type CampoRef } from "./componentes/Campo";
 import { ChipCerebro } from "./componentes/ChipCerebro";
-import { AjustesVoz } from "./componentes/AjustesVoz";
+import { ChipVoz } from "./componentes/ChipVoz";
 import {
   enviarMensaje,
   obtenerConversacion,
@@ -868,12 +868,14 @@ export default function App() {
 
       <div className="pie">
         <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
-        <AjustesVoz
-          velocidad={velocidad}
-          onVelocidad={cambiarVelocidad}
-          voces={vocesDisponibles}
+        <ChipVoz
           voz={vozElegida}
-          onVoz={cambiarVoz}
+          velocidad={velocidad}
+          voces={vocesDisponibles}
+          onElegir={(nuevaVoz, nuevaVelocidad) => {
+            cambiarVoz(nuevaVoz);
+            cambiarVelocidad(nuevaVelocidad);
+          }}
         />
       </div>
     </div>
