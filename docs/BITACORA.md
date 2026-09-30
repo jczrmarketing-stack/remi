@@ -20,6 +20,62 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · fix urgente: verificación mecánica anti-invento en el Estado · construido · 3d580b1
+
+- **Por qué:** el coordinador paró el encargo en curso al ver el incidente que ya había
+  anotado yo mismo en la entrada de abajo (Fase C · 1–2) — el mitigado por mtime no alcanzaba:
+  hacía falta una verificación de lo que el modelo REALMENTE contestó, no solo de si había
+  evidencia antes de llamarlo.
+- **Qué hice, en orden:**
+  1. Bajé el LaunchAgent `com.remi.noche` (`launchctl bootout`) apenas llegó el aviso, antes
+     de tocar código — no quedó corriendo sin la guarda nueva ni un minuto.
+  2. `nucleo/estado_libro.py`: `entidades_sospechosas()` saca del texto que contestó el
+     modelo las cosas que se pueden verificar mecánicamente — siglas (`N8N`, `WAL`, `CRM`...),
+     números de dos o más cifras, nombres de archivo — y `_invento()` confirma que cada una
+     aparece literal en el `pedido` (estado anterior + commits/episodios). `redactar()` ahora
+     rechaza la respuesta de Haiku si inventó algo así (y prueba con Ollama); si Ollama
+     también inventa, devuelve `None` — el libro no se toca, no hay commit en la bóveda.
+     `noche.py` distingue en el resultado `sin_evidencia_nueva` (el pedido no traía nada) de
+     `rechazado_o_sin_respuesta` (había evidencia, pero la respuesta no pasó la verificación).
+  3. **Causa raíz, no solo el síntoma:** `sin_evidencia_nueva()` funcionaba bien — el pedido
+     SÍ traía los dos episodios de hoy, así que la guarda dejaba pasar la llamada al modelo
+     correctamente. El agujero real es que la única defensa contra inventar, una vez que el
+     modelo SÍ tiene evidencia real para trabajar, era una instrucción de texto en el prompt
+     («no inventes...») sin nada que la verificara después. Instrucción no es garantía.
+  4. Test de integración de punta a punta (`test_noche.py`) sin mockear `estado_libro.redactar`
+     por dentro — solo el límite con `pensar._una_llamada_claude`/`_llamar_ollama`, como pasaría
+     de verdad — confirma que la consolidación completa rechaza una respuesta con `N8N` y deja
+     el libro intacto. Más 6 tests unitarios de `entidades_sospechosas`/`_invento`/`redactar`
+     en `test_estado_libro_invento.py`.
+  5. Repuse (ya lo había hecho antes de que llegara el aviso, con el mismo commit `001b709` en
+     la bóveda) el Estado real de `organic-cash.md` — el de «Terminar el editor de flujos y el
+     flujo de Lead Nuevo», confirmado por Juan Camilo — no el inventado con N8N/WAL/Opción B.
+  6. Con los tests en verde, volví a levantar `com.remi.noche` (`launchctl bootstrap`).
+- **Verificado de verdad:** 258 pytest (7 nuevos + 1 de integración), mypy limpio (52
+  módulos); `organic-cash.md` con el texto correcto (`git show 257c906:proyectos/organic-cash.md`
+  contra el archivo real, iguales); el LaunchAgent recargado (`launchctl list | grep remi.noche`).
+- **Decisiones que tomé sin preguntar:**
+  1. La verificación es deliberadamente conservadora: puede rechazar una respuesta correcta
+     que use una sigla legítima parafraseada de forma distinta a la fuente (falso positivo).
+     Prefiero eso a un falso negativo — es exactamente la filosofía de `claves.py`.
+  2. No intenté verificar prosa libre completa (una paráfrasis inventada de una frase entera
+     sin siglas/números/archivos no la detecta esto): lo dejo como duda abierta abajo, no como
+     algo resuelto.
+- **Dudas abiertas:**
+  1. **Esto mitiga el tipo exacto de invento del incidente, no todo invento posible.** Una
+     paráfrasis que cambia el sentido sin introducir una entidad verificable (ninguna sigla,
+     número o archivo nuevo) pasa igual. Si se repite un incidente sin esas señales, hace falta
+     algo más fuerte (¿otra llamada al modelo para verificar la primera? ¿bajar la frecuencia de
+     escritura automática y sumar una revisión de Juan Camilo antes de commitear?).
+  2. El guardia por mtime del punto anterior sigue activo y es la primera línea de defensa
+     contra la causa concreta que disparó esto (episodios viejos re-derivando un Estado
+     corregido a mano); esta verificación es la segunda línea, para cuando SÍ hay evidencia
+     fresca real pero el modelo igual se pasa de la raya.
+- **Cómo probarlo a mano:** `cd nucleo && uv run pytest pruebas/test_estado_libro_invento.py
+  pruebas/test_noche.py -v`; `launchctl list | grep remi.noche` (tiene que aparecer cargado).
+
+---
+
 ## 2026-09-30 · Fase C · 1–2 claves + consolidación nocturna (con un segundo incidente en vivo) · construido · e79225a
 
 - **Qué cambió:**
