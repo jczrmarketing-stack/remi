@@ -6,6 +6,7 @@ cuando hace falta. Estas pruebas cuidan justo esa frontera.
 """
 import importlib
 import json
+import time
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -282,20 +283,35 @@ def test_el_servidor_mcp_anuncia_exactamente_tres_herramientas(tmp_path, monkeyp
             {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
         )
     )
-    terminado = subprocess.run(
+    # Con la entrada abierta hasta tener la respuesta: si se manda todo y se
+    # cierra stdin de una, el servidor a veces se apaga al ver el cierre antes
+    # de contestar tools/list, y la prueba veía una lista vacía (falla
+    # intermitente de 3b y 3e, cazada el 30/09).
+    proceso = subprocess.Popen(
         [sys.executable, str(pensar.SERVIDOR_MEMORIA)],
-        input=peticiones + "\n",
-        capture_output=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
         text=True,
-        # 60 s se quedaba corto cuando esto corría mientras compilaba la
-        # app: el subproceso levanta el SDK de MCP y tarda.
-        timeout=180,
     )
-    nombres = []
-    for linea in terminado.stdout.splitlines():
-        respuesta = json.loads(linea)
-        if respuesta.get("id") == 2:
-            nombres = sorted(h["name"] for h in respuesta["result"]["tools"])
+    nombres: list[str] = []
+    try:
+        assert proceso.stdin is not None and proceso.stdout is not None
+        proceso.stdin.write(peticiones + "\n")
+        proceso.stdin.flush()
+        # 180 s: con la app compilando, levantar el SDK de MCP tarda.
+        limite = time.monotonic() + 180
+        while time.monotonic() < limite:
+            linea = proceso.stdout.readline()
+            if not linea:
+                break
+            respuesta = json.loads(linea)
+            if respuesta.get("id") == 2:
+                nombres = sorted(h["name"] for h in respuesta["result"]["tools"])
+                break
+    finally:
+        proceso.kill()
+        proceso.wait()
     assert nombres == ["guardar", "indice", "leer"]
 
 
