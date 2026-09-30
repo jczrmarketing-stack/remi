@@ -284,6 +284,63 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Panel · construido · ba86529
+
+- **Qué cambió:** `nucleo/plata.py` (`GET /plata`, `config/plata.json`) y `apps/panel`, un
+  Next.js + TypeScript + PWA completo con las seis rutas del README del diseño
+  (`docs/mockups/panel/diseno/`): Hoy (`/`), Proyectos, Metas, Bandeja, Semana, Ajustes.
+  Tokens y contratos generados desde `design/tokens.json` y `contratos/contratos.json`
+  (mismo patrón que `apps/ventanita`). `nucleo/servidor.py` suma `plata.router` y
+  `allow_origins` para el panel. 10 pruebas de Playwright contra un núcleo falso
+  (`tests/nucleo-falso.mjs`), 406 pruebas de `nucleo/` en verde, `mypy` limpio.
+- **Decisiones que tomé sin preguntar:**
+  1. **«Cobrada» del encargo = `pagada` del contrato.** `Entrega.estado` es
+     `camino|entregada|pagada`; no hay `cobrada`. Documentado en `plata.py`.
+  2. **Puerto del panel: 3000 → 4401 → 4402.** El encargo pedía 3000, que es de Organic Cash
+     y Beam (avisado por Juan Camilo a mitad de sesión); el siguiente intento, 4401, ya lo
+     usa `whisper-server` (STT del propio núcleo, hallado al levantar `next dev` ahí).
+     `config/nucleo.json` ahora tiene `puerto_panel: 4402`, fuente única para
+     `servidor.py` (`allow_origins`) y `apps/panel` (`scripts/generar-config.mjs` +
+     `scripts/puerto-panel.mjs`, que arranca `next dev -p $(...)`).
+  3. **Proyectos sin constelación.** El núcleo no tiene ninguna ruta que liste libros/temas
+     (solo `/camino/{tema}`, que ya necesita el tema). La constelación completa del mockup
+     (UpVisuals, Organic Cash, Omniway, Malik, Remi a la vez) no tiene de dónde salir sin
+     inventar datos. La página muestra el camino real del bloque abierto y deja buscar
+     cualquier otro tema a mano.
+  4. **Metas sin metas nombradas.** `config/plata.json` solo tiene `meta_mensual` y
+     `moneda` — nada de «Vivir solo», plazos en meses, ni desglose por línea de negocio
+     (software vs. Malik). La página usa solo lo real: la meta mensual, lo cobrado, la
+     brecha, la próxima entrega con dinero.
+  5. **Semana queda en guion estático**, tal como pedía el encargo: cinco preguntas fijas,
+     con la plata real en la primera pregunta (es la única con datos del núcleo hoy).
+  6. `GET /camino/{tema}` con 404 es un dato legítimo («ese tema no tiene libro»), no
+     «núcleo apagado»: `lib/nucleo.ts` lo distingue por `status` en vez de tratar todo
+     `!ok` igual — si no, una búsqueda con tema equivocado prendía la pantalla de Apagado.
+- **Dudas abiertas:**
+  1. Sin una ruta que liste proyectos, Proyectos y Movil-Proyectos (constelación/lista
+     completa) no se pueden construir de verdad. Falta decidir si eso lo agrega una sesión
+     de `nucleo/` (fuera de mi frontera acá) o si Proyectos se queda así.
+  2. `/donde-quede` sigue sin el siguiente hito (Fase 3, misma duda, todavía sin resolver).
+  3. Semana no tiene ruta propia de resumen semanal (cerrado/aplazado/locura de la semana):
+     por ahora son las frases fijas del guion, no datos.
+  4. «Paso mínimo» (botón en Hoy) no quedó cableado a `POST /tarea/{id}/paso-minimo` — el
+     encargo no lo pedía explícito y no había tiempo de diseñar bien ese flujo; el botón
+     está pero no hace nada todavía.
+- **Cómo probarlo a mano:**
+  1. `cd nucleo && uv run pytest -q && uv run mypy .` — 406 en verde.
+  2. Con el núcleo real corriendo (`cd nucleo && uv run python servidor.py`):
+     `cd apps/panel && npm install && npm run dev` — abre en el puerto de
+     `config/nucleo.json → puerto_panel` (4402 hoy).
+  3. `cd apps/panel && npx playwright install chromium && npm run test:e2e` — 10 pruebas,
+     sin tocar el núcleo real (usa `tests/nucleo-falso.mjs`).
+  4. Con el teléfono (390 px, DevTools): Hoy y Proyectos se ven completos, barra inferior
+     de 4 pestañas ≥ 56 px, sin scroll horizontal.
+- **Qué falta:** túnel para probar desde el teléfono de verdad (hoy solo `localhost`);
+  Semana con datos reales en vez del guion estático; «Paso mínimo» cableado; decidir el
+  listado de proyectos (duda 1). No mergeado a `main` — queda para quien lo revise.
+
+---
+
 ## 2026-09-30 · Fase 3 · corrección · 100f468
 
 - **Qué cambió:** nada en el código. Los 3 fallos que la entrada de abajo daba por
