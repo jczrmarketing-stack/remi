@@ -173,6 +173,9 @@ export default function App() {
   // true mientras un POST /mensaje está en vuelo. Es lo que impide mandar
   // dos veces, sin confundirlo con «pensando», que también es transcribir.
   const enviandoRef = useRef(false);
+  // Cuándo cambió de tamaño la ventana por última vez (reloj de
+  // performance.now). Los clicks fantasma llegan pegados a eso.
+  const cambioDeTamanoRef = useRef<number | null>(null);
   // Cuándo arrancó —o se re-armó— la grabación viva (reloj de
   // performance.now). Es lo que mide el periodo de gracia de los gestos.
   const grabacionDesdeRef = useRef<number | null>(null);
@@ -207,6 +210,7 @@ export default function App() {
     // ejecución ANTES de pedir el tamaño hace que el reposo real entre por
     // hot reload sin depender de que Rust se vuelva a construir.
     registrar("tamaño", { motivo: "montar", w: width, h: height });
+    cambioDeTamanoRef.current = performance.now();
     void (async () => {
       await ventana.setMinSize(
         new LogicalSize(TAMANO_REPOSO_MINIMO.width, TAMANO_REPOSO_MINIMO.height),
@@ -230,7 +234,11 @@ export default function App() {
       w: hasta.width,
       h: hasta.height,
     });
-    void animarTamano(ventana, desde, hasta, DURACION_APARECER);
+    cambioDeTamanoRef.current = performance.now();
+    void animarTamano(ventana, desde, hasta, DURACION_APARECER).then(() => {
+      // La animación dura 250 ms: el «último cambio» es cuando termina.
+      cambioDeTamanoRef.current = performance.now();
+    });
   }, [expandido]);
 
   // El dato de la ley 1 llega después de volver a reposo (hay que
@@ -240,6 +248,7 @@ export default function App() {
     if (expandido) return;
     const { width, height } = tamanoReposo(hayHace, hayUltimaVez);
     registrar("tamaño", { motivo: "reposo", w: width, h: height });
+    cambioDeTamanoRef.current = performance.now();
     void getCurrentWindow().setSize(new LogicalSize(width, height));
   }, [expandido, hayHace, hayUltimaVez]);
 
@@ -651,6 +660,8 @@ export default function App() {
       const { estado: estadoActual, grabando: grabandoActual, modo: modoActual } = accionesRef.current;
       const rachaAnterior = rachaRef.current;
       const { dentroDeControl, dentroDelCuadro } = clasificarObjetivo(evento.target);
+      const msDesdeCambioDeTamano =
+        cambioDeTamanoRef.current === null ? null : Math.round(ahora - cambioDeTamanoRef.current);
 
       const { accion, racha } = decidir({
         estado: estadoActual,
@@ -660,17 +671,24 @@ export default function App() {
         dentroDeControl,
         dentroDelCuadro,
         grabacionDesde: grabacionDesdeRef.current,
+        msDesdeCambioDeTamano,
         ahora,
         racha: rachaAnterior,
       });
       rachaRef.current = racha;
 
+      // isTrusted, detail y la posición: para saber de dónde salen los
+      // fantasmas (¿los sintetiza algo? ¿caen todos en el mismo punto?).
       registrar("click", {
         n: racha.n,
         estado: estadoActual,
         modo: modoActual,
         grabando: grabandoActual,
         msDesdeAnterior: rachaAnterior.n === 0 ? -1 : Math.round(ahora - rachaAnterior.ultimo),
+        msDesdeResize: msDesdeCambioDeTamano ?? -1,
+        confiable: evento.isTrusted,
+        detail: evento.detail,
+        xy: `${evento.screenX},${evento.screenY}`,
         accion: accion.tipo,
         ...(accion.tipo === "nada" ? { razon: accion.razon } : {}),
       });

@@ -6,6 +6,8 @@ import {
   decidirTrasVacia,
   MAX_VACIAS_SEGUIDAS,
   MS_ANTES_DE_REARMAR,
+  MS_FANTASMA_RESIZE,
+  MS_FANTASMA_SEGUIDO,
   MS_GRACIA,
   MS_RACHA,
   MS_TRIPLE,
@@ -30,8 +32,8 @@ function crearVentanita(inicial: Partial<Entrada> = {}) {
     get estado() {
       return estado;
     },
-    click(ahora: number, dentroDeControl = false, dentroDelCuadro = false) {
-      const decision = decidir({ ...estado, dentroDeControl, dentroDelCuadro, ahora, racha });
+    click(ahora: number, dentroDeControl = false, dentroDelCuadro = false, msDesdeCambioDeTamano: number | null = null) {
+      const decision = decidir({ ...estado, dentroDeControl, dentroDelCuadro, msDesdeCambioDeTamano, ahora, racha });
       racha = decision.racha;
 
       // Lo que haría App.tsx con cada acción.
@@ -293,9 +295,10 @@ describe("la secuencia real del log de las 16:43: doble click para parar", () =>
     expect(v.estado.estado).toBe("pensando");
   });
 
-  it("un click suelto mientras transcribe sigue siendo la salida", () => {
+  it("mientras transcribe o manda, ningún click cancela: solo Escape", () => {
     const v = crearVentanita({ estado: "pensando" });
-    expect(v.click(9000).tipo).toBe("volverAReposo");
+    expect(v.click(9000)).toMatchObject({ tipo: "nada" });
+    expect(v.estado.estado).toBe("pensando");
   });
 });
 
@@ -330,5 +333,43 @@ describe("tres clicks en menos de dos segundos", () => {
     // A 1,5 s del 1.º no hay racha de dos: la ventana ancha es solo para el 3.º.
     expect(v.click(1500, false, true).tipo).not.toBe("grabarVoz");
     expect(v.estado.grabando).toBe(false);
+  });
+});
+
+describe("clicks fantasma (log del 29/09)", () => {
+  it("18:42:59: un click a 8 ms de enviar no cancela, y otro a 17 ms es fantasma", () => {
+    // Remi acaba de mandar: está pensando. Antes: click → volverAReposo →
+    // respuesta cancelada; 17 ms después otro click → abrirTexto.
+    const v = crearVentanita({ estado: "pensando", modo: "dialogo" });
+    expect(v.click(8)).toMatchObject({ tipo: "nada" });
+    expect(v.estado.estado).toBe("pensando");
+    // El de 17 ms después: además de estar pensando, es demasiado seguido.
+    expect(v.click(25)).toMatchObject({ tipo: "nada" });
+    expect(v.estado.estado).toBe("pensando");
+  });
+
+  it("18:44:01: tres clicks en 20 ms sobre el cuadro — solo el primero es un click", () => {
+    const v = crearVentanita({ estado: "escuchando", modo: "voz" });
+    expect(v.click(0, false, true)).toMatchObject({ tipo: "nada", razon: "dentro del cuadro (1.º de una racha)" });
+    expect(v.click(16, false, true)).toMatchObject({ tipo: "nada", razon: "fantasma: muy seguido" });
+    expect(v.click(20, false, true)).toMatchObject({ tipo: "nada", razon: "fantasma: muy seguido" });
+    // Los fantasmas no tocan la racha: el 3.º no la convirtió en n=3.
+    expect(v.estado.grabando).toBe(false);
+  });
+
+  it("un click a 14 ms de un cambio de tamaño es fantasma", () => {
+    const v = crearVentanita({ estado: "reposo" });
+    expect(v.click(0, false, false, 14)).toMatchObject({ tipo: "nada", razon: "fantasma: resize" });
+    expect(v.estado.estado).toBe("reposo");
+  });
+
+  it("un doble click real sigue grabando aunque el 2.º caiga cerca del resize", () => {
+    // El 1.º abre texto y la ventana crece ~20 ms después; el 2.º real más
+    // rápido del día llegó a 125 ms del 1.º (≈105 del resize).
+    const v = crearVentanita();
+    expect(v.click(0).tipo).toBe("abrirTexto");
+    expect(v.click(125, false, true, 105).tipo).toBe("grabarVoz");
+    expect(MS_FANTASMA_RESIZE).toBeLessThan(105);
+    expect(MS_FANTASMA_SEGUIDO).toBeLessThan(125);
   });
 });

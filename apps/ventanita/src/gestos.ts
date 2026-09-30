@@ -19,6 +19,14 @@ export const MS_RACHA = 700;
 // cada uno, un ritmo tranquilo (0, 700, 1600) dejaba al 3.º fuera de la
 // racha y, ya fuera de la gracia, PARABA la grabación (16:51:35).
 export const MS_TRIPLE = 2000;
+// Clicks fantasma (log del 29/09, 18:42:59 y 18:44:01): ráfagas de 2 y 3
+// clicks a 1–30 ms uno del otro, y a 14 ms de un cambio de tamaño de la
+// ventana. Ningún dedo hace eso: el gap real más corto del día fue 125 ms.
+export const MS_FANTASMA_SEGUIDO = 80;
+// El encargo pedía 250 ms tras un cambio de tamaño, pero el 2.º click real
+// cae a 105–195 ms del cambio que dispara el 1.º: 250 mataría la mitad de
+// los dobles clicks. 100 separa a los fantasmas (≤30) de los reales (≥105).
+export const MS_FANTASMA_RESIZE = 100;
 // Desde que arranca (o se re-arma, o pasa a diálogo) una grabación, ningún
 // click la para. Es el resto de la racha del usuario: los dedos siguen
 // cayendo después del gesto, y no tienen por qué cortar lo que el gesto
@@ -69,6 +77,8 @@ export interface Entrada {
   dentroDelCuadro: boolean;
   /** Cuándo arrancó —o se re-armó— la grabación viva. null si no hay. */
   grabacionDesde: number | null;
+  /** Cuánto hace que la ventana cambió de tamaño. null si nunca. */
+  msDesdeCambioDeTamano: number | null;
   ahora: number;
   racha: Racha;
 }
@@ -109,6 +119,15 @@ export function decidir(entrada: Entrada): Decision {
     grabacionDesde,
     ahora,
   } = entrada;
+
+  // — Fantasmas: no tocan la racha, no cuentan, no hacen nada —
+  if (entrada.racha.n > 0 && ahora - entrada.racha.ultimo < MS_FANTASMA_SEGUIDO) {
+    return { accion: { tipo: "nada", razon: "fantasma: muy seguido" }, racha: entrada.racha };
+  }
+  const { msDesdeCambioDeTamano } = entrada;
+  if (msDesdeCambioDeTamano !== null && msDesdeCambioDeTamano < MS_FANTASMA_RESIZE) {
+    return { accion: { tipo: "nada", razon: "fantasma: resize" }, racha: entrada.racha };
+  }
 
   // Un click sobre un control no es un gesto y tampoco corta la racha: el
   // usuario puede estar tocando el toggle entre clicks.
@@ -167,12 +186,12 @@ export function decidir(entrada: Entrada): Decision {
     return { accion: { tipo: "pararGrabacion" }, racha };
   }
 
-  // — Transcribiendo —
-  // Un doble click para parar es dos clicks: el 1.º para, el 2.º cae con
-  // la grabación ya cerrada y Remi transcribiendo. Ese 2.º no puede
-  // cancelar. Un click suelto en pensando (n=1) sigue siendo la salida.
-  if (estado === "pensando" && racha.n >= 2) {
-    return { accion: { tipo: "nada", razon: `2.º click del que paró (n=${racha.n})` }, racha };
+  // — Transcribiendo o mandando —
+  // Un click en pensando no cancela nada: el 18:42:59 un click a 8 ms de
+  // enviar canceló la respuesta. Solo Escape cancela. (Antes se absorbía
+  // solo el 2.º del doble que paró; ahora, cualquiera.)
+  if (estado === "pensando") {
+    return { accion: { tipo: "nada", razon: "Remi está pensando (Escape para cancelar)" }, racha };
   }
 
   // — Sin grabación —
