@@ -29,6 +29,7 @@ import episodios
 import iniciativa
 import notion
 import pensar
+import plata
 import sembrar_conocimiento
 import telegram
 import trabajo
@@ -71,12 +72,13 @@ app = FastAPI(title="Remi — núcleo", lifespan=ciclo_de_vida)
 # tauri.conf.json en desarrollo, y el esquema tauri:// en producción.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["tauri://localhost", "http://localhost:1420"],
+    allow_origins=["tauri://localhost", "http://localhost:1420", "http://localhost:3000"],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
 app.include_router(entregas.router)
 app.include_router(notion.router)
+app.include_router(plata.router)
 app.include_router(telegram.router)
 
 MAX_PALABRAS_VOZ = 20
