@@ -119,7 +119,7 @@ def test_pensar_lee_el_paso_y_los_tokens_de_la_cli(monkeypatch):
     assert pensado.modelo == "claude-haiku-4-5"
 
 
-def test_la_frase_va_por_stdin_con_haiku_y_sin_herramientas(monkeypatch):
+def test_la_frase_va_por_stdin_con_sonnet_y_sin_herramientas(monkeypatch):
     pensar = _importar_pensar()
     visto = {}
 
@@ -133,7 +133,7 @@ def test_la_frase_va_por_stdin_con_haiku_y_sin_herramientas(monkeypatch):
 
     comando = visto["comando"]
     assert comando[0] == "claude" and "-p" in comando
-    assert comando[comando.index("--model") + 1] == "haiku"
+    assert comando[comando.index("--model") + 1] == "sonnet"
     assert comando[comando.index("--output-format") + 1] == "json"
     assert comando[comando.index("--tools") + 1] == ""
     assert comando[comando.index("--system-prompt") + 1] == pensar.INSTRUCCIONES
@@ -391,3 +391,42 @@ def test_motores_disponibles_incluye_ollama_y_dice_que_le_falta(monkeypatch, tmp
     monkeypatch.setattr(pensar, "_modelos_de_ollama", lambda: ["gemma3:4b"])
     m = {x.id: x for x in pensar.motores_disponibles()}
     assert m["ollama"].disponible is True and "local" in m["ollama"].detalle
+
+
+# — Sonnet con Haiku de respaldo —
+
+
+def test_si_sonnet_tarda_o_falla_contesta_haiku(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.delenv("REMI_CLAUDE_MODELO", raising=False)
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    modelos = []
+
+    def falso_run(comando, **kwargs):
+        m = comando[comando.index("--model") + 1]
+        modelos.append((m, kwargs["timeout"]))
+        if m == "sonnet":
+            raise subprocess.TimeoutExpired(cmd="claude", timeout=kwargs["timeout"])
+        return _salida_cli(result="Respuesta de respaldo.")
+
+    monkeypatch.setattr(pensar.subprocess, "run", falso_run)
+    pensado = pensar.pensar("algo")
+    assert pensado is not None and pensado.paso_minimo == "Respuesta de respaldo."
+    assert modelos == [("sonnet", pensar.TIMEOUT_SEGUNDOS), ("haiku", pensar.TIMEOUT_RESPALDO_SEGUNDOS)]
+
+
+def test_si_sonnet_contesta_no_se_llama_a_haiku(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.delenv("REMI_CLAUDE_MODELO", raising=False)
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    modelos = []
+
+    def falso_run(comando, **kwargs):
+        modelos.append(comando[comando.index("--model") + 1])
+        return _salida_cli()
+
+    monkeypatch.setattr(pensar.subprocess, "run", falso_run)
+    assert pensar.pensar("algo") is not None
+    assert modelos == ["sonnet"]

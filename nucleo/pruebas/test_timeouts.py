@@ -25,7 +25,8 @@ def test_la_ventanita_espera_mas_que_el_nucleo():
     import pensar
 
     ventanita_ms = _timeout_de_la_ventanita_ms()
-    nucleo_ms = pensar.TIMEOUT_SEGUNDOS * 1000
+    # El peor caso: Sonnet agota su tiempo y Haiku el suyo.
+    nucleo_ms = pensar.PEOR_CASO_SEGUNDOS * 1000
     assert ventanita_ms > nucleo_ms, (
         f"La ventanita corta a los {ventanita_ms / 1000:.0f} s y el núcleo espera "
         f"{nucleo_ms / 1000:.0f} s: Remi diría «No pude guardarlo» mientras el núcleo "

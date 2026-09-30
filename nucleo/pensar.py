@@ -50,20 +50,23 @@ HERRAMIENTAS = ("mcp__memoria__leer", "mcp__memoria__guardar")
 # Con una sola vuelta no le alcanza para leer del estante y después
 # responder. Tres son: pide la lectura, la recibe, contesta.
 MAX_VUELTAS = "3"
-# Ordenar un paso mínimo no necesita más. REMI_CLAUDE_MODELO lo cambia
-# (en 2e.1 se comparan); vale cualquier alias que acepte la CLI.
-MODELO_POR_DEFECTO = "haiku"
+# Sonnet: pensar de verdad (Fase 3a). Si tarda más de su tiempo o falla,
+# se reintenta con Haiku, que contesta en ~2 s. REMI_CLAUDE_MODELO cambia el
+# principal; vale cualquier alias que acepte la CLI.
+MODELO_POR_DEFECTO = "sonnet"
+MODELO_RESPALDO = "haiku"
 # El techo cuenta TODA la salida, y ahí entra el JSON de las llamadas a las
 # herramientas: con 200, `guardar` una idea de verdad se corta a la mitad y
 # la CLI devuelve "exceeded the 200 output token maximum" sin guardar nada.
 # 1500 alcanza para bajar algo del estante, guardar algo nuevo y contestar;
 # la frase de Remi la sigue recortando el servidor a 20 palabras.
 MAX_TOKENS_SALIDA = "1500"
-# Contestar solo tarda ~2 s; leer del estante ~3,5 s; guardar algo largo
-# llega a 10 s. Ojo: la ventanita corta su propio fetch a los 8 s, así que
-# un guardado largo pedido desde ahí igual se completa en el núcleo aunque
-# la ventanita ya haya contestado sin IA.
-TIMEOUT_SEGUNDOS = 20.0
+# Sonnet tiene 25 s; si no llega, Haiku tiene 20 s más. El peor caso es la
+# suma, y la ventanita espera por encima de eso (pruebas/test_timeouts.py
+# ata los números).
+TIMEOUT_SEGUNDOS = 25.0
+TIMEOUT_RESPALDO_SEGUNDOS = 20.0
+PEOR_CASO_SEGUNDOS = TIMEOUT_SEGUNDOS + TIMEOUT_RESPALDO_SEGUNDOS
 
 INSTRUCCIONES = (
     "Te dan una frase suelta. Si es una tarea, una idea o un pendiente, respondé "
@@ -461,7 +464,25 @@ def _pensar_con_ollama(frase: str, instrucciones: str, entradas: int) -> Pensado
 
 
 def _pensar_con_claude(frase: str, instrucciones: str, indice: list[db.EntradaIndice]) -> Pensado | None:
-    nombre_modelo = modelo()
+    """Sonnet primero; si tarda más de su tiempo o falla, Haiku."""
+    principal = modelo()
+    pensado = _una_llamada_claude(principal, TIMEOUT_SEGUNDOS, frase, instrucciones, indice)
+    if pensado is not None or principal == MODELO_RESPALDO:
+        return pensado
+    print(f"[claude] {principal} no contestó: pruebo con {MODELO_RESPALDO}", file=sys.stderr)
+    return _una_llamada_claude(MODELO_RESPALDO, TIMEOUT_RESPALDO_SEGUNDOS, frase, instrucciones, indice)
+
+
+def _una_llamada_claude(
+    nombre_modelo: str,
+    timeout: float,
+    frase: str,
+    instrucciones: str,
+    indice: list[db.EntradaIndice],
+) -> Pensado | None:
+    import time
+
+    arranque = time.perf_counter()
     try:
         # cwd neutral: dentro del repo la CLI cargaría CLAUDE.md y contexto
         # que acá no pinta nada.
@@ -472,7 +493,7 @@ def _pensar_con_claude(frase: str, instrucciones: str, indice: list[db.EntradaIn
                 input=frase,
                 capture_output=True,
                 text=True,
-                timeout=TIMEOUT_SEGUNDOS,
+                timeout=timeout,
                 env=_entorno(),
                 cwd=vacio,
             )
@@ -484,7 +505,7 @@ def _pensar_con_claude(frase: str, instrucciones: str, indice: list[db.EntradaIn
         print(f"[claude] no encontré `{BINARIO}` en el PATH: sigo sin IA", file=sys.stderr)
         return None
     except subprocess.TimeoutExpired:
-        print(f"[claude] tardó más de {TIMEOUT_SEGUNDOS:.0f} s: sigo sin IA", file=sys.stderr)
+        print(f"[claude] {nombre_modelo} tardó más de {timeout:.0f} s", file=sys.stderr)
         return None
     except OSError as error:
         print(f"[claude] no pude correr la CLI ({error}): sigo sin IA", file=sys.stderr)
@@ -508,9 +529,10 @@ def _pensar_con_claude(frase: str, instrucciones: str, indice: list[db.EntradaIn
 
     tokens_entrada, tokens_salida = _tokens(datos.get("usage"))
     modelo_real = _modelo_real(datos, nombre_modelo)
+    ms = (time.perf_counter() - arranque) * 1000
     # La cuenta va a consola, no a la pantalla: es dato de operación.
     print(
-        f"[claude] modelo={modelo_real} tokens entrada={tokens_entrada} "
+        f"[claude] modelo={modelo_real} ms={ms:.0f} tokens entrada={tokens_entrada} "
         f"salida={tokens_salida} memoria={len(indice)} "
         f"leyó={'sí' if leyo else 'no'}",
         file=sys.stderr,
