@@ -295,8 +295,8 @@ def test_limite_alcanzado_reintenta_con_openrouter_y_lo_dice_en_motor_usado(monk
     assert pensado is not None
     assert pensado.paso_minimo == "Seguí con lo de hoy."
     assert pensado.motor_usado == "openrouter"
-    assert pensado.modelo == "openrouter/deepseek-v4-pro"
-    assert visto["proveedor"] == "openrouter" and visto["modelo"] == "deepseek-v4-pro"
+    assert pensado.modelo == "openrouter/deepseek/deepseek-v4-pro"
+    assert visto["proveedor"] == "openrouter" and visto["modelo"] == "deepseek/deepseek-v4-pro"
     assert visto["frase"] == "¿cómo sigo?"
 
 

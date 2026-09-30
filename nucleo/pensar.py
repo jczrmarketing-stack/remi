@@ -76,8 +76,8 @@ PROVEEDORES_TRASTIENDA: dict[str, tuple[str, str | None]] = {
     "ollama": (OLLAMA_URL, None),
 }
 TRASTIENDA_POR_DEFECTO: tuple[tuple[str, str], ...] = (
-    ("groq", "kimi-k2"),
-    ("openrouter", "deepseek-flash"),
+    ("groq", "openai/gpt-oss-120b"),
+    ("openrouter", "deepseek/deepseek-v4-flash"),
     ("ollama", "gemma3:4b"),
 )
 TRASTIENDA_TIMEOUT_SEGUNDOS = 20.0
@@ -91,7 +91,7 @@ TRASTIENDA_TIMEOUT_SEGUNDOS = 20.0
 # inteligente de DeepSeek. La CLI no da un código de error estructurado para
 # esto: es texto, y el patrón es lo mejor que hay para reconocerlo.
 PATRON_LIMITE_ALCANZADO = re.compile(r"usage limit|límite alcanzado|límite de uso", re.IGNORECASE)
-RESPALDO_DE_CHARLA = ("openrouter", "deepseek-v4-pro")
+RESPALDO_DE_CHARLA = ("openrouter", "deepseek/deepseek-v4-pro")
 
 
 class LimiteDeClaude(Exception):
