@@ -8,6 +8,7 @@ import { Semaforo } from "./componentes/Semaforo";
 import { BotonCancelar } from "./componentes/BotonCancelar";
 import { SelectorModo } from "./componentes/SelectorModo";
 import { Encargo } from "./componentes/Encargo";
+import { limpiarMarkdown } from "./markdown";
 import {
   enviarMensaje,
   obtenerMotores,
@@ -900,7 +901,9 @@ export default function App() {
       )}
 
       {estado === "hablando" && tipoRespuesta === "encargo" && <Encargo texto={respuestaTexto} />}
-      {estado === "hablando" && tipoRespuesta !== "encargo" && <p className="display-it voz">{respuestaTexto}</p>}
+      {estado === "hablando" && tipoRespuesta !== "encargo" && (
+        <p className="display-it voz">{limpiarMarkdown(respuestaTexto)}</p>
+      )}
       {estado === "hablando" && notaRespuesta !== null && (
         <p className="num nota-respuesta">{notaRespuesta}</p>
       )}

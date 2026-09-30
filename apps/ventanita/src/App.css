@@ -60,6 +60,7 @@
   min-height: 0;
   flex: 0 1 auto;
   text-align: left;
+  white-space: pre-line;
   user-select: text;
   -webkit-user-select: text;
 }

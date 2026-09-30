@@ -86,10 +86,31 @@ def recortar_voz(frase: str) -> str:
     return frase
 
 
-def para_hablar(texto: str) -> str:
-    """Las primeras MAX_FRASES_HABLADAS frases de `texto`."""
+def sin_markdown(texto: str) -> str:
+    """Lo que se dice en voz alta no puede traer símbolos: Kokoro leería
+    «asterisco asterisco». Negritas, títulos, listas, citas, enlaces y
+    código quedan como texto plano."""
     import re
 
+    texto = re.sub(r"^\s{0,3}#{1,6}\s+", "", texto, flags=re.M)
+    texto = re.sub(r"^\s{0,3}>\s?", "", texto, flags=re.M)
+    texto = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", texto)
+    texto = re.sub(r"`([^`]+)`", r"\1", texto)
+    texto = re.sub(r"\*\*(.+?)\*\*", r"\1", texto)
+    texto = re.sub(r"__(.+?)__", r"\1", texto)
+    texto = re.sub(r"(^|[\s(])\*(?!\s)([^*\n]+?)\*(?=[\s).,;:!?]|$)", r"\1\2", texto, flags=re.M)
+    texto = re.sub(r"^\s*[-*+]\s+", "", texto, flags=re.M)
+    texto = texto.replace("**", "")
+    # Las líneas de una lista, dichas, son frases: que terminen en punto.
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+    return " ".join(l if l[-1] in ".!?…:" else l + "." for l in lineas)
+
+
+def para_hablar(texto: str) -> str:
+    """Las primeras MAX_FRASES_HABLADAS frases de `texto`, sin markdown."""
+    import re
+
+    texto = sin_markdown(texto)
     frases = re.split(r"(?<=[.!?…])\s+", texto.strip())
     if len(frases) <= MAX_FRASES_HABLADAS:
         return texto.strip()
@@ -338,8 +359,10 @@ def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
 
 
 def _voz_de(respuesta: str, mensaje: MensajeEntrante) -> str:
-    """Si va a sonar (entró por voz), hasta 3 frases; si no, entera."""
-    return para_hablar(respuesta) if mensaje.origen == "voz" else respuesta
+    """Si va a sonar (entró por voz), hasta 3 frases; si no, entera. Sin
+    markdown en los dos casos: por texto también se puede leer en voz alta
+    con el botón."""
+    return para_hablar(respuesta) if mensaje.origen == "voz" else sin_markdown(respuesta)
 
 
 def _respuesta_fija(tipo: clasificar.TipoMensaje, frase: str, **campos: object) -> RespuestaMensaje:

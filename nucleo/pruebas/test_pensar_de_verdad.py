@@ -282,3 +282,20 @@ def test_el_encargo_usa_su_system_prompt_con_la_mente(monkeypatch):
     prompt = pensar.instrucciones_con_indice([], pensar.sistema_encargo())
     assert "LISTO CUANDO" in prompt and "NO TOCAR" in prompt
     assert pensar.caracter()[:40] not in prompt
+
+
+
+# — Markdown: Kokoro no lee los símbolos (3b) —
+
+
+def test_la_voz_llega_sin_markdown():
+    sys.modules.pop("servidor", None)
+    import servidor
+
+    crudo = "Lo que está abierto:\n\n- **Pagos de Fase 1 (USD 5.000):** USD 1.500 al inicio\n## Contrato\n`ley` de *Wyoming*"
+    voz = servidor.sin_markdown(crudo)
+    for simbolo in ("*", "#", "`", "- "):
+        assert simbolo not in voz, simbolo
+    assert "Pagos de Fase 1 (USD 5.000): USD 1.500 al inicio." in voz
+    assert "ley de Wyoming" in voz
+    assert "*" not in servidor.para_hablar(crudo)
