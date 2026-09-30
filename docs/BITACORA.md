@@ -20,6 +20,51 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · 0b Haiku escribe el Estado — y un incidente con los libros reales · construido · 0483a55
+
+- **Qué cambió:** `nucleo/estado_libro.py::redactar` probaba Ollama primero; ahora prueba
+  **Haiku por Max primero**, con `conocimiento/caracter.md` antepuesto a las instrucciones (la
+  llamada no llevaba carácter para nada antes de esto: `--system-prompt` reemplazaba todo).
+  Ollama queda de respaldo si Haiku no contesta.
+- **Incidente (lo digo completo, no lo escondo):** para «reescribí una vez el Estado de los 7
+  libros» corrí un script suelto que llamaba a `redactar()` con el Estado anterior como único
+  dato y **commits vacíos**. Con la bandeja vacía, Haiku no reescribió el tono: **inventó
+  hechos nuevos** que no estaban en el Estado anterior (a `beam.md` le puso «se añadió un
+  icono de atención en el formulario de contacto», algo que no existe en el texto que le di).
+  Pisé `beam.md`, `malik.md`, `organic-cash.md` y `remi.md` con eso, y **la bóveda no tiene
+  git** — no había con qué revertir.
+- **Recuperado:** el snapshot restic de anoche (`00fabe4a`, 00:22, antes de que existiera
+  `beam.md` o los Estados de hoy) no sirve para esto — es de antes de que se escribiera el
+  contenido que pisé. Restauré a mano lo que puedo probar que era real:
+  - `beam.md`: **recuperado completo y exacto** — las tres líneas están literales en el
+    contexto que el SessionStart le mandó a otra sesión de Claude Code hoy mismo, antes de
+    que yo tocara nada.
+  - `malik.md`, `organic-cash.md`, `remi.md`: recuperé **Quedaste** y **Decisiones** tal cual
+    los vi en el diagnóstico de 0a, antes de pisarlos. La línea **Próximo paso** de esos tres
+    no la reconstruí de memoria ni inventé una: quedó escrita como
+    «esta línea se perdió en una reescritura sin respaldo del 30-sep» — así, si alguno de
+    ustedes recuerda cuál era, se repone tal cual, y si no, la reemplaza el próximo commit
+    real de cada proyecto.
+- **Decisiones que tomé sin preguntar:**
+  1. **No hice la reescritura de los 7 Estados que pedía el encargo.** Con commits reales
+     (no vacíos) el riesgo de inventar baja mucho porque el modelo tiene de dónde sacar la
+     frase, pero después de este susto no quise repetir el experimento sobre datos reales sin
+     que alguien lo revise primero. Queda pendiente, con la salvedad de abajo.
+  2. `omniway.md`, `shopify-cliente.md` y `upvisuals.md` nunca tuvieron `## Estado`: no
+     escribo uno de la nada.
+- **Dudas abiertas:**
+  1. **La línea «Próximo paso» de malik, organic-cash y remi quedó marcada como perdida.**
+     Si alguno de los tres se acuerda de cuál era, se corrige a mano.
+  2. Antes de volver a intentar «reescribir el Estado» de un libro sin un commit nuevo de por
+     medio, conviene que `redactar()` reciba una instrucción explícita de «no inventes nada
+     que no esté en el Estado anterior» — hoy esa instrucción no existe en `INSTRUCCIONES` y
+     esta prueba mostró que hace falta.
+- **Cómo probarlo a mano:** `git diff` no sirve (la bóveda no tiene git); mirar
+  `remi-mente/proyectos/beam.md`, `malik.md`, `organic-cash.md` y `remi.md` a ojo contra lo
+  que recuerden que decían.
+
+---
+
 ## 2026-09-30 · 0a episodios vacíos: no era un bug de escritura · construido · f261830
 
 - **Qué cambió:** probé `cierre.guardar()` a mano con un transcript sintético (dos turnos con

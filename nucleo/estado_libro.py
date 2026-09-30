@@ -16,6 +16,9 @@ import pensar
 TITULO = "## Estado"
 INSTRUCCIONES = (
     "Te paso el estado anterior de un proyecto y los commits nuevos. "
+    "No inventes datos, decisiones ni pasos que no estén en el estado anterior o en los "
+    "commits: si no hay commits nuevos, mantené el mismo contenido del estado anterior y "
+    "como mucho mejorá el tono, sin agregar hechos. "
     "Devolvé SOLO tres líneas, sin markdown y sin nada antes ni después:\n"
     "Quedaste: (dónde quedó el trabajo, una frase)\n"
     "Decisiones: (lo que se decidió, o «ninguna nueva»)\n"
