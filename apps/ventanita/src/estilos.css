@@ -52,6 +52,16 @@
   src: url("./fuentes/geist-mono-400.woff2") format("woff2");
 }
 
+/* `num` pide 500 (3f · 9): antes solo estaba empaquetado el 400 y el
+   navegador snapeaba al peso más cercano en vez de usar el real. */
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fuentes/geist-mono-500.woff2") format("woff2");
+}
+
 :root {
   --curva: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-estado: 150ms;

@@ -1,3 +1,12 @@
+/* Borde especular (3f · 9): antes hex a mano acá abajo. tokens.css se
+   genera de design/tokens.json (no editar a mano) y ese valor todavía no
+   está en el Design System real — hasta que se sume ahí, esta variable es
+   la única fuente del valor en este repo, para que no vuelva a repetirse
+   suelto en otro archivo. */
+:root {
+  --borde-especular: rgba(243, 235, 221, 0.1);
+}
+
 .ventanita {
   position: relative;
   width: 100%;
@@ -8,7 +17,7 @@
   /* Separación del escritorio sin sombra (ley: nada de sombras
      proyectadas): un borde interno superior más claro que `line`, el
      brillo especular de un objeto físico visto desde arriba. */
-  box-shadow: inset 0 1px 0 rgba(243, 235, 221, 0.1);
+  box-shadow: inset 0 1px 0 var(--borde-especular);
   /* Al arrastrar desde cualquier parte, sin esto se selecciona y pinta
      de azul el texto de Remi (y cualquier otra cosa) en el camino. El
      textarea lo reactiva explícito, ahí sí hace falta seleccionar. */
@@ -117,12 +126,12 @@
   user-select: text;
 }
 .limite-error__detalle {
+  /* .code (estilos.css) ya da Geist Mono 13px: nada bajo 14 px salvo
+     label (3f · 9) — antes esto lo pisaba a 11px, suelto. */
   max-width: 100%;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--ink-muted);
-  font-size: 11px;
-  line-height: 16px;
   margin: 0;
 }
 
