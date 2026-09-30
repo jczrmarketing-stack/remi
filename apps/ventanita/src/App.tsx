@@ -3,7 +3,8 @@ import { LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
 import { StatusDot } from "./componentes/StatusDot";
 import { Reloj } from "./componentes/Reloj";
 import { PromptTerminal } from "./componentes/PromptTerminal";
-import { ControlesVoz } from "./componentes/ControlesVoz";
+import { AccionesRespuesta } from "./componentes/AccionesRespuesta";
+import { AjustesVoz } from "./componentes/AjustesVoz";
 import { Semaforo } from "./componentes/Semaforo";
 import { BotonCancelar } from "./componentes/BotonCancelar";
 import { ChipModelo } from "./componentes/ChipModelo";
@@ -71,7 +72,7 @@ import {
 // Qué es un control (nunca un gesto) y qué es el cuadro (gesto si está
 // vacío y la racha sigue viva). Los botones del cuadro —el toggle de
 // pensar— cuentan como control aunque estén dentro del cuadro.
-const SELECTOR_CONTROLES = ".controles-voz, .semaforo, .chip-modelo, .encargo, .voz, button, select";
+const SELECTOR_CONTROLES = ".acciones-respuesta, .semaforo, .chip-modelo, .encargo, .voz, button, select";
 const SELECTOR_CUADRO = ".prompt-terminal";
 
 function clasificarObjetivo(objetivo: EventTarget | null) {
@@ -172,9 +173,21 @@ export default function App() {
   // Pensar con Claude: opt-in POR MENSAJE. Nace apagado y se apaga solo
   // después de cada envío — nunca queda prendido de fondo gastando tokens.
   // Remi piensa siempre. «sin pensar» lo apaga y queda puesto (persistido).
-  const [sinPensar, setSinPensar] = useState(() => estaSinPensar());
+  // «sin pensar» ya no se elige (30/09/2026): Remi piensa siempre. Si quedó
+  // puesto de antes, se apaga al arrancar.
+  const [sinPensar, setSinPensar] = useState(() => {
+    if (estaSinPensar()) fijarSinPensar(false);
+    return false;
+  });
   // Rápido / equilibrio / inteligente: viaja en cada mensaje.
-  const [modoPensar, setModoPensar] = useState<ModoPensar>(() => obtenerModo());
+  // Prompt ya no es un modo aparte: está implícito. Uno guardado de antes
+  // vuelve a Sonnet.
+  const [modoPensar, setModoPensar] = useState<ModoPensar>(() => {
+    const guardado = obtenerModo();
+    if (guardado !== "prompt") return guardado;
+    fijarModo("equilibrio");
+    return "equilibrio";
+  });
   // Con qué motor, elegido a conciencia en el dropdown y guardado.
   const [motor, setMotor] = useState(() => obtenerMotor());
   const [motores, setMotores] = useState<MotorDePensar[]>([]);
@@ -203,11 +216,6 @@ export default function App() {
   // arranca (o se reinicia). Cero = nadie pidió leer.
   const [lecturas, setLecturas] = useState(0);
   const [copiado, setCopiado] = useState(false);
-  // Con el puntero sobre los controles, la respuesta no se cierra sola:
-  // si vas a copiar o a leer, la ventanita te espera.
-  // (Ya no hace falta leerlo: ninguna respuesta se cierra sola. Queda el
-  // setter porque los controles lo avisan igual.)
-  const [, setSostenido] = useState(false);
   // Ley 1 hecha visible en el Reloj: null hasta que sepamos si hay dato
   // real, y se queda null si no lo hay (nunca un número inventado).
   const [sesionInicio, setSesionInicio] = useState<string | null>(null);
@@ -383,7 +391,6 @@ export default function App() {
     grabacionDesdeRef.current = null;
     setLecturas(0);
     setCopiado(false);
-    setSostenido(false);
     callarse();
   }, []);
 
@@ -404,7 +411,7 @@ export default function App() {
   );
 
   const enviar = useCallback(
-    async (mensaje: string) => {
+    async (mensaje: string, reintento = false) => {
       const limpio = mensaje.trim();
       if (!limpio) return;
       // Un doble Cmd+Enter (u onEnviar disparado dos veces) no manda dos
@@ -416,11 +423,16 @@ export default function App() {
         registrar("enviar:ignorado", { motivo: "ya hay un envío en curso" });
         return;
       }
-      if (accionesRef.current.estado === "hablando") {
+      if (accionesRef.current.estado === "hablando" && !reintento) {
         registrar("enviar:ignorado", { motivo: "Remi está hablando" });
         return;
       }
       enviandoRef.current = true;
+      if (reintento) callarse();
+      // Una respuesta nueva arranca limpia: sin «copiada» y sin la lectura
+      // que pediste para la anterior.
+      setLecturas(0);
+      setCopiado(false);
       const miGeneracion = generacionRef.current;
       // Todo mensaje pasa por el modelo —texto, dictado, diálogo— salvo que
       // «sin pensar» esté puesto. Antes pensar era opt-in y se apagaba solo
@@ -707,14 +719,14 @@ export default function App() {
 
   const copiar = useCallback(async () => {
     // Lo que dijiste y lo que contestó Remi, tal como se vieron.
-    const contenido = texto.trim() ? `${texto.trim()}\n\n${respuestaTexto}` : respuestaTexto;
-    const pudo = await copiarAlPortapapeles(contenido);
+    // Como en Claude: la respuesta, tal cual llegó.
+    const pudo = await copiarAlPortapapeles(respuestaTexto);
     if (!pudo) {
       console.warn("[portapapeles] no se pudo copiar");
       return;
     }
     setCopiado(true);
-  }, [texto, respuestaTexto]);
+  }, [respuestaTexto]);
 
   // Remi habla solo si ESTE mensaje llegó por voz y no está silenciada —
   // mirado una sola vez al entrar — o si pediste leerlo (botón). Si habla,
@@ -936,7 +948,7 @@ export default function App() {
     // El audio de la voz se analiza (para que el punto lata) solo con un
     // contexto despierto, y eso pide un gesto.
     despertarAudio();
-    if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz, .semaforo, .chip-modelo, .boton-cancelar")) return;
+    if ((evento.target as HTMLElement).closest(".prompt-terminal, .acciones-respuesta, .semaforo, .chip-modelo, .boton-cancelar")) return;
 
     const inicio = { x: evento.clientX, y: evento.clientY };
 
@@ -1006,26 +1018,24 @@ export default function App() {
       {estado === "hablando" && tipoRespuesta !== "encargo" && (
         <p className="display-it voz">{limpiarMarkdown(respuestaTexto)}</p>
       )}
-      {/* Lo de más (nota, controles de voz, Reloj) solo con el mouse
-          encima: en la maqueta la respuesta va sola bajo el punto. */}
+      {estado === "hablando" && (
+        <AccionesRespuesta
+          onEscuchar={leerEnVozAlta}
+          onCallar={callarse}
+          onCopiar={() => void copiar()}
+          copiado={copiado}
+          onReintentar={() => {
+            registrar("reintentar", { palabras: textoEnviado.split(/\s+/).length });
+            void enviar(textoEnviado, true);
+          }}
+        />
+      )}
+      {/* Lo de más (nota y Reloj) solo con el mouse encima: en la maqueta
+          la respuesta va sola bajo el punto, con sus tres acciones. */}
       {estado === "hablando" && (
         <div className="extras-respuesta">
         {estado === "hablando" && notaRespuesta !== null && (
           <p className="num nota-respuesta">{notaRespuesta}</p>
-        )}
-        {estado === "hablando" && (
-          <ControlesVoz
-            velocidad={velocidad}
-            onVelocidad={cambiarVelocidad}
-            puedeLeer={origenMensaje === "texto"}
-            onLeer={leerEnVozAlta}
-            onCopiar={() => void copiar()}
-            copiado={copiado}
-            onSostener={setSostenido}
-            voces={vocesDisponibles}
-            voz={vozElegida}
-            onVoz={cambiarVoz}
-          />
         )}
         {estado === "hablando" && ultimaVezMin !== null && sesionInicio !== null && (
           <Reloj
@@ -1047,6 +1057,7 @@ export default function App() {
           onCambio={setTexto}
           onEnviar={() => void enviar(texto)}
           chip={
+            <div className="prompt-terminal__ajustes">
             <ChipModelo
               cerebro={cerebro}
               nivel={nivel}
@@ -1055,6 +1066,14 @@ export default function App() {
               onCerebro={cambiarCerebro}
               onNivel={cambiarNivel}
             />
+            <AjustesVoz
+              velocidad={velocidad}
+              onVelocidad={cambiarVelocidad}
+              voces={vocesDisponibles}
+              voz={vozElegida}
+              onVoz={cambiarVoz}
+            />
+            </div>
           }
         />
       )}

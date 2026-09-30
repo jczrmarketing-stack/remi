@@ -54,3 +54,15 @@
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
+
+.chip-modelo__modelo {
+  gap: var(--space-1);
+}
+
+.ajustes-voz__velocidad {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+}

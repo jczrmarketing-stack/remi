@@ -112,10 +112,12 @@ export function fijarModo(modo: ModoPensar): void {
 // — El chip «Opus 5.5 · Medio» (maqueta de Juan Camilo, 30/09/2026) —
 // Un solo lugar elige con qué piensa Remi. Por debajo sigue siendo lo mismo
 // de antes (motor + modo + «sin pensar»): el chip solo lo nombra distinto.
-export const CEREBROS = ["haiku", "sonnet", "opus", "venice", "ollama", "prompt", "sin-pensar"] as const;
+// El modo Prompt ya no se elige: Remi es siempre el asistente técnico
+// (30/09/2026). Tampoco «sin pensar»: solo se eligen modelo y nivel.
+export const CEREBROS = ["haiku", "sonnet", "opus", "venice", "ollama"] as const;
 export type Cerebro = (typeof CEREBROS)[number];
 
-export const NIVELES = ["bajo", "medio", "alto"] as const;
+export const NIVELES = ["bajo", "medio", "alto", "extra"] as const;
 export type Nivel = (typeof NIVELES)[number];
 
 interface Eleccion {
@@ -130,9 +132,8 @@ const MODO_DE_CLAUDE: Partial<Record<Cerebro, ModoPensar>> = {
   opus: "inteligente",
 };
 
-export function cerebroDe({ motor, modo, sinPensar }: Eleccion): Cerebro {
-  if (sinPensar) return "sin-pensar";
-  if (modo === "prompt") return "prompt";
+// Lo guardado de antes (Prompt, sin pensar) se lee como su modelo.
+export function cerebroDe({ motor, modo }: Eleccion): Cerebro {
   if (motor === "venice" || motor === "ollama") return motor;
   if (modo === "rapido") return "haiku";
   if (modo === "inteligente") return "opus";
@@ -140,8 +141,6 @@ export function cerebroDe({ motor, modo, sinPensar }: Eleccion): Cerebro {
 }
 
 export function eleccionDe(cerebro: Cerebro): Eleccion {
-  if (cerebro === "sin-pensar") return { motor: MOTOR_POR_DEFECTO, modo: MODO_POR_DEFECTO, sinPensar: true };
-  if (cerebro === "prompt") return { motor: MOTOR_POR_DEFECTO, modo: "prompt", sinPensar: false };
   if (cerebro === "venice" || cerebro === "ollama") return { motor: cerebro, modo: MODO_POR_DEFECTO, sinPensar: false };
   return { motor: MOTOR_POR_DEFECTO, modo: MODO_DE_CLAUDE[cerebro] ?? MODO_POR_DEFECTO, sinPensar: false };
 }

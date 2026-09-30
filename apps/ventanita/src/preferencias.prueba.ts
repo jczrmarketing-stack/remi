@@ -41,7 +41,9 @@ describe("el chip de modelo", () => {
     const { cerebroDe } = await import("./preferencias");
     expect(cerebroDe({ motor: "claude", modo: "inteligente", sinPensar: false })).toBe("opus");
     expect(cerebroDe({ motor: "ollama", modo: "equilibrio", sinPensar: false })).toBe("ollama");
-    expect(cerebroDe({ motor: "claude", modo: "rapido", sinPensar: true })).toBe("sin-pensar");
+    // Prompt y «sin pensar» ya no existen: se leen como su modelo.
+    expect(cerebroDe({ motor: "claude", modo: "rapido", sinPensar: true })).toBe("haiku");
+    expect(cerebroDe({ motor: "claude", modo: "prompt", sinPensar: false })).toBe("sonnet");
   });
 
   it("solo Anthropic tiene nivel, y Opus arranca en medio", async () => {

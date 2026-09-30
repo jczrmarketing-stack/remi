@@ -9,8 +9,6 @@ const NOMBRE: Record<Cerebro, string> = {
   opus: "Opus 5.5",
   venice: "Venice",
   ollama: "Ollama",
-  prompt: "Prompt",
-  "sin-pensar": "Sin pensar",
 };
 
 const DETALLE: Record<Cerebro, string> = {
@@ -19,16 +17,13 @@ const DETALLE: Record<Cerebro, string> = {
   opus: "piensa antes",
   venice: "pago",
   ollama: "gratis, local",
-  prompt: "encargo para Claude Code",
-  "sin-pensar": "nada sale del Mac",
 };
 
-const NOMBRE_NIVEL: Record<Nivel, string> = { bajo: "Bajo", medio: "Medio", alto: "Alto" };
+const NOMBRE_NIVEL: Record<Nivel, string> = { bajo: "Bajo", medio: "Medio", alto: "Alto", extra: "Extra" };
 
 const GRUPOS: { titulo: string; cerebros: Cerebro[] }[] = [
   { titulo: "Anthropic · Max", cerebros: ["haiku", "sonnet", "opus"] },
   { titulo: "Otros", cerebros: ["venice", "ollama"] },
-  { titulo: "Sin respuesta", cerebros: ["prompt", "sin-pensar"] },
 ];
 
 interface Props {
