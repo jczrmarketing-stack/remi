@@ -116,7 +116,14 @@ def actualizar_estados_del_dia(hoy: date | None = None) -> dict[str, str]:
         pedido = "\n".join(lineas)[:4000]
         nuevo = estado_libro.redactar(pedido)
         if nuevo is None:
-            resultado[tema] = "sin_evidencia_nueva"
+            # redactar() no distingue por qué devolvió None; lo único que se
+            # puede afirmar sin pedido no trae evidencia es "sin evidencia
+            # nueva" — si sí traía y aun así no hubo texto, o el modelo
+            # inventó y la verificación mecánica lo rechazó (el motivo
+            # exacto queda en stderr/noche.log como "rechazado por invento").
+            resultado[tema] = (
+                "sin_evidencia_nueva" if estado_libro.sin_evidencia_nueva(pedido) else "rechazado_o_sin_respuesta"
+            )
             continue
         boveda_git.snapshot_antes(f"consolidación nocturna: Estado de {libro.archivo.name}")
         estado_libro.escribir_estado(libro.archivo, nuevo)

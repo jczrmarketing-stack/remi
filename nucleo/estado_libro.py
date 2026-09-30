@@ -8,6 +8,7 @@ cambie. (Antes era al revés —Ollama primero— y sonaba robótico: encargo de
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -70,11 +71,49 @@ def sin_evidencia_nueva(pedido: str) -> bool:
     return not resto
 
 
+PATRON_SIGLA = re.compile(r"\b[A-Z][A-Z0-9]{1,9}\b")
+PATRON_NUMERO = re.compile(r"\b\d{2,}\b")
+PATRON_ARCHIVO = re.compile(r"\b[\w-]+\.[a-zA-Z]{1,4}\b")
+
+
+def entidades_sospechosas(texto: str) -> list[str]:
+    """Siglas, números de dos o más cifras y nombres de archivo: lo único que
+    se puede verificar mecánicamente contra la fuente, sin otro modelo. No
+    detecta una paráfrasis inventada de una frase entera — para eso no hay
+    verificación mecánica posible —, pero sí el tipo exacto de invento del
+    incidente del 30-sep (siglas y decisiones con nombre propio que no
+    estaban en ninguna fuente: «N8N», «WAL», «Opción B»)."""
+    vistas: set[str] = set()
+    resultado: list[str] = []
+    for patron in (PATRON_SIGLA, PATRON_NUMERO, PATRON_ARCHIVO):
+        for coincidencia in patron.finditer(texto):
+            token = coincidencia.group(0)
+            if token not in vistas:
+                vistas.add(token)
+                resultado.append(token)
+    return resultado
+
+
+def _invento(texto: str, fuente: str) -> str | None:
+    """La primera entidad verificable de `texto` que no aparece, literal, en
+    `fuente`. None si todas aparecen (o no hay ninguna que verificar)."""
+    for entidad in entidades_sospechosas(texto):
+        if entidad not in fuente:
+            return entidad
+    return None
+
+
 def redactar(pedido: str) -> str | None:
     """Tres líneas, o None si no hubo respuesta usable.
 
     None también, sin llamar a ningún modelo, si `pedido` no trae commits
     nuevos (ver `sin_evidencia_nueva`): sin evidencia, el libro no se toca.
+
+    Y None si lo que contestó el modelo trae una entidad verificable (sigla,
+    número, nombre de archivo) que no está, literal, en `pedido`: la
+    instrucción anti-invento es un pedido al modelo, no una garantía — el
+    incidente del 30-sep lo probó dos veces con evidencia real de por medio
+    (`docs/BITACORA.md`). Esto es la verificación mecánica que faltaba.
     """
     if sin_evidencia_nueva(pedido):
         return None
@@ -84,7 +123,11 @@ def redactar(pedido: str) -> str | None:
         if pensado:
             limpio = normalizar(pensado.paso_minimo)
             if limpio:
-                return limpio
+                sospechosa = _invento(limpio, pedido)
+                if sospechosa is not None:
+                    print(f"[estado] rechazado por invento (Haiku): {sospechosa!r} no está en la fuente", file=sys.stderr)
+                else:
+                    return limpio
     except Exception as error:  # noqa: BLE001 — Haiku caído cae a Ollama
         print(f"[estado] Haiku no contestó ({type(error).__name__}): pruebo con Ollama", file=sys.stderr)
     modelo = pensar._ajuste("REMI_OLLAMA_MODELO", pensar.OLLAMA_MODELO_POR_DEFECTO)
@@ -96,7 +139,14 @@ def redactar(pedido: str) -> str | None:
         return None
     if pensado is None:
         return None
-    return normalizar(pensado.paso_minimo)
+    limpio = normalizar(pensado.paso_minimo)
+    if limpio is None:
+        return None
+    sospechosa = _invento(limpio, pedido)
+    if sospechosa is not None:
+        print(f"[estado] rechazado por invento (Ollama): {sospechosa!r} no está en la fuente", file=sys.stderr)
+        return None
+    return limpio
 
 
 def normalizar(texto: str) -> str | None:

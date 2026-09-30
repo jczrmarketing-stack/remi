@@ -84,6 +84,41 @@ def test_actualiza_el_estado_solo_del_libro_con_episodios_de_hoy(tmp_path, monke
     assert "se arregló el webhook" in texto.lower()
 
 
+def test_la_consolidacion_pasa_de_verdad_por_la_verificacion_mecanica_anti_invento(tmp_path, monkeypatch):
+    """Integración de punta a punta del incidente real: sin monkeypatchear
+    `estado_libro.redactar` (para no esconder su lógica interna), solo el
+    límite con el modelo (`pensar._una_llamada_claude` / `_llamar_ollama`),
+    igual que lo probaría un caso real. Si el modelo devuelve una sigla que
+    no está en los episodios de hoy, la consolidación tiene que rechazarla
+    y no tocar el libro."""
+    noche, db, _ = _arrancar(tmp_path, monkeypatch)
+    _libro(tmp_path)
+    hoy = date.today()
+    _episodio(tmp_path, "a", "Se arregló el webhook", "El webhook fallaba por timeout", "Detalle.", hoy)
+    antes = (tmp_path / "proyectos" / "malik.md").read_text()
+
+    import estado_libro
+    import pensar
+
+    inventada = pensar.Pensado(
+        paso_minimo=(
+            "Quedaste: arreglaste el webhook con N8N.\n"
+            "Decisiones: ninguna.\nPróximo paso: seguir mañana."
+        ),
+        tokens_entrada=1,
+        tokens_salida=1,
+        modelo="x",
+    )
+    monkeypatch.setattr(pensar, "_una_llamada_claude", lambda *a, **k: inventada)
+    monkeypatch.setattr(pensar, "_llamar_ollama", lambda *a, **k: {})
+    monkeypatch.setattr(pensar, "_leer_respuesta_venice", lambda *a, **k: inventada)
+    monkeypatch.setattr(noche, "estado_libro", estado_libro)
+
+    resultado = noche.actualizar_estados_del_dia(hoy)
+    assert resultado == {"malik": "rechazado_o_sin_respuesta"}  # redactar() rechazó el invento
+    assert (tmp_path / "proyectos" / "malik.md").read_text() == antes
+
+
 def test_no_toca_un_episodio_mas_viejo_que_la_ultima_escritura_del_estado(tmp_path, monkeypatch):
     """El incidente real del 30-sep (docs/BITACORA.md): dos corridas seguidas
     de la consolidación pisaron dos veces un «Próximo paso» que Juan Camilo
