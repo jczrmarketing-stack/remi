@@ -28,3 +28,5 @@ def _base_propia(tmp_path, monkeypatch):
     """Cada prueba, su base. Las que ponen su propio REMI_DB_PATH lo pisan
     después, porque su monkeypatch corre después de este."""
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    # Ni la bóveda real: un episodio de prueba no puede aparecer en remi-mente.
+    monkeypatch.setenv("REMI_BOVEDA", str(tmp_path / "boveda"))

@@ -635,6 +635,7 @@ def pensar(
     sistema: str | None = None,
     nivel: str | None = None,
     buscar: bool = False,
+    modelo_ollama: str | None = None,
 ) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
@@ -654,7 +655,7 @@ def pensar(
     if elegido == "venice":
         pensado = _pensar_con_venice(mensaje, instrucciones, len(indice))
     elif elegido == "ollama":
-        pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice))
+        pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice), modelo_ollama)
     else:
         pensado = _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel, buscar)
 
@@ -757,8 +758,18 @@ def _pensar_con_venice(frase: str, instrucciones: str, entradas: int) -> Pensado
 # — Ollama (local) —
 
 
-def _pensar_con_ollama(frase: str, instrucciones: str, entradas: int) -> Pensado | None:
-    nombre_modelo = _ajuste("REMI_OLLAMA_MODELO", OLLAMA_MODELO_POR_DEFECTO)
+def modelos_de_ollama() -> list[str]:
+    """Lo que devuelve `ollama list`, por su API. Vacío si no está."""
+    try:
+        respuesta = httpx.get(f"{OLLAMA_BASE}/api/tags", timeout=2.0)
+        respuesta.raise_for_status()
+        return sorted(m["name"] for m in respuesta.json().get("models", []) if isinstance(m, dict) and "name" in m)
+    except (httpx.HTTPError, ValueError, KeyError):
+        return []
+
+
+def _pensar_con_ollama(frase: str, instrucciones: str, entradas: int, modelo_pedido: str | None = None) -> Pensado | None:
+    nombre_modelo = modelo_pedido or _ajuste("REMI_OLLAMA_MODELO", OLLAMA_MODELO_POR_DEFECTO)
     try:
         datos = _llamar_ollama(nombre_modelo, instrucciones, frase)
     except httpx.HTTPStatusError as error:

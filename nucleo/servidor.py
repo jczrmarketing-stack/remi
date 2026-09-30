@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 import clasificar
 import db
+import episodios
 import pensar
 import sembrar_conocimiento
 import tts
@@ -145,7 +146,9 @@ class MensajeEntrante(BaseModel):
     modo: Literal["rapido", "equilibrio", "inteligente", "prompt"] = "equilibrio"
     # Cuánto piensa el modelo elegido antes de contestar. None = lo suyo
     # (Opus medio, Haiku y Sonnet bajo). Solo aplica al motor claude.
-    nivel: Literal["bajo", "medio", "alto"] | None = None
+    nivel: Literal["bajo", "medio", "alto", "extra"] | None = None
+    # Con Ollama, cuál de los modelos de `ollama list`. None = el de siempre.
+    modelo_ollama: str | None = None
     # Cómo entró: por voz o escrito. Lo guarda la Idea (contrato).
     origen: Literal["voz", "texto"] = "texto"
 
@@ -316,7 +319,7 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # El tipo ya está decidido (idea, y se guardó): pensar solo cambia lo que
     # Remi CONTESTA. En diálogo, «Guardada. La miramos en dos días.» a todo
     # lo que digas no es una conversación.
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel) if mensaje.think else None
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, modelo_ollama=mensaje.modelo_ollama) if mensaje.think else None
     if pensado is None:
         return _respuesta_fija("idea", "Guardada. La miramos en dos días.")
     return RespuestaMensaje(
@@ -355,7 +358,7 @@ def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
     tarea, ni sesión. Sin modelo no hay con qué contestar, y se dice."""
     buscar = clasificar.pide_busqueda(mensaje.texto)
     pensado = (
-        pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, buscar=buscar)
+        pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, buscar=buscar, modelo_ollama=mensaje.modelo_ollama)
         if mensaje.think
         else None
     )
@@ -407,7 +410,7 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # Si pensó, lo que Remi contesta es lo que escribió el modelo. El
     # paso_minimo de la tarea nace universal igual: la respuesta de una
     # conversación no es un paso mínimo. Sin modelo, la frase de siempre.
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel) if mensaje.think else None
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, modelo_ollama=mensaje.modelo_ollama) if mensaje.think else None
     paso_minimo = PASO_MINIMO_INICIAL
     texto = pensado.paso_minimo if pensado else frase_remi(mensaje.texto)
     voz = _voz_de(texto, mensaje) if pensado else texto
@@ -525,6 +528,63 @@ def decir(pedido: PedidoVoz) -> Response:
         content=audio,
         media_type="audio/wav",
         headers={"X-Remi-Voz": voz_id},
+    )
+
+
+# — El chat de la ventanita (3c) —
+
+
+class TurnoVisible(BaseModel):
+    rol: Literal["juan", "remi"]
+    texto: str
+    fecha: datetime
+
+
+@app.get("/conversacion", response_model=list[TurnoVisible])
+def conversacion_actual() -> list[TurnoVisible]:
+    """Los turnos de la conversación vigente (la de la última hora), para
+    que la ventanita muestre el chat al abrirse."""
+    conexion = db.conectar()
+    try:
+        vigente = db.conversacion_vigente(conexion, datetime.now(timezone.utc))
+        if vigente is None:
+            return []
+        return [
+            TurnoVisible(rol="juan" if t.rol == "juan" else "remi", texto=t.texto, fecha=t.fecha)
+            for t in db.turnos_de(conexion, vigente.id)
+        ]
+    finally:
+        conexion.close()
+
+
+@app.get("/pensar/ollama", response_model=list[str])
+def modelos_ollama() -> list[str]:
+    """Los modelos que tiene Ollama de verdad (`ollama list`)."""
+    return pensar.modelos_de_ollama()
+
+
+class PedidoEpisodio(BaseModel):
+    texto: str = Field(min_length=episodios.LARGO_MINIMO)
+
+
+class EpisodioGuardado(BaseModel):
+    titulo: str
+    tema: str
+    resumen: str
+    archivo: str
+    resumido_por: str
+
+
+@app.post("/episodio", response_model=EpisodioGuardado, status_code=201)
+def guardar_episodio(pedido: PedidoEpisodio) -> EpisodioGuardado:
+    """Una charla pegada, resumida y guardada en la bóveda y en memoria."""
+    episodio = episodios.guardar(pedido.texto, datetime.now(timezone.utc))
+    return EpisodioGuardado(
+        titulo=episodio.titulo,
+        tema=episodio.tema,
+        resumen=episodio.resumen,
+        archivo=episodio.ruta.name,
+        resumido_por=episodio.resumido_por,
     )
 
 
