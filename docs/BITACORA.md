@@ -20,6 +20,63 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · Fase S (oficios v1) · 1–2 los oficios entran a la mente + puerta de prompts · construido · 81346ed
+
+- **Qué cambió:**
+  1. `nucleo/sembrar_conocimiento.py`: los 9 archivos de `remi-mente/oficios/` (que ya tenían
+     `tipo: oficio`, `claves` y frontmatter completo de una siembra anterior) entran al índice
+     de la mente (tabla `memoria`, la que viaja siempre en el system prompt) igual que los
+     libros de proyecto — nivel 1 fijo, sin decaer, porque un oficio es saber-hacer, no
+     actividad reciente. `nucleo/servidor.py` llama a `sembrar_oficios()` al arrancar, junto
+     a `sembrar()`. La asociación por vector ya los cubría desde el encargo anterior
+     (`vectores.py` ya recorre `oficios/`); lo que faltaba era el nivel 1.
+  2. La puerta de prompts: `pensar.sistema_encargo()` ahora carga el cuerpo entero (nivel 2)
+     de `prompting.md` y `claude-code.md` de la bóveda, más el resumen del proyecto activo
+     (reusa `precarga.py`), y `nucleo/prompts/encargo.md` pasa de cinco secciones
+     (QUÉ/DÓNDE/LISTO CUANDO/NO TOCAR/DESPUÉS) a las seis que pide el encargo: QUÉ LEER
+     PRIMERO, DIAGNÓSTICO, PUNTOS, QUÉ NO HACER, LISTO CUANDO, RECOMENDACIÓN (+ DESPUÉS
+     opcional). Esto cambia un contrato que la ventanita también lee: actualicé
+     `apps/ventanita/src/markdown.ts` (`TITULOS_DEL_ENCARGO` y el título que abre la tarjeta)
+     y sus pruebas para que la tarjeta de encargo se siga detectando. No toqué
+     `~/proyectos/remi-ventanita` (Fase F, otro worktree): esto es solo `apps/ventanita` de
+     `main`.
+  3. Tests reales: `pruebas/test_oficios_mente.py` (siembra, idempotencia, lectura entera),
+     `pruebas/test_vectores.py` suma la asociación real «qué es plan mode» → Claude Code,
+     `pruebas/test_puerta_prompts.py` (las seis partes en `sistema_encargo()`, el contenido
+     real de los oficios, la precarga del proyecto activo, y un pedido real de encargo con
+     solo el límite de red mockeado). 271 pytest, mypy limpio (56 módulos); 73 vitest y tsc
+     limpios en la ventanita de `main`.
+- **Decisiones que tomé sin preguntar:**
+  1. `fuente="manual"` para los oficios en la tabla `memoria` (no invento un valor nuevo como
+     `"oficio"`: el contrato de `Memoria` es `Literal["conversacion", "manual", "ollama"]` y
+     cambiarlo es una decisión de arquitectura, no un parche de esta tarea).
+  2. Cambié el contrato de secciones del encargo (ver punto 2 arriba) porque el encargo del
+     30-sep/1-oct pide exactamente esas seis partes con esos nombres; como esto rompía la
+     detección de tarjeta de la ventanita en `main`, arreglé también ese lado en vez de dejarlo
+     roto. `remi-ventanita` (Fase F) no lo ve hasta que se mergee — si esa rama ya cambió el
+     parser de tarjetas por su cuenta, esto puede chocar al mergear: aviso para quien junte
+     las ramas.
+  3. `prompting.md` describe su propio 6.º punto como «Reporte pedido» (qué contar al cerrar
+     un encargo desde Claude Code); el encargo de hoy pide un 6.º distinto («recomendación de
+     modelo y pieza»). No edité `prompting.md` para unificarlos — son momentos distintos (abrir
+     el encargo vs. cerrarlo) y el archivo es contenido de Juan Camilo, no mío para reescribir
+     sin que él lo pida.
+- **Dudas abiertas:**
+  1. Si la rama de Fase F ya tiene su propio parser de tarjeta de encargo con los nombres
+     viejos, hay que decidir en el merge cuál formato gana (o si la ventanita final no
+     depende de nombres de sección textuales).
+  2. No hice una llamada real a Claude para el test de la puerta de prompts (costo/tiempo):
+     el test cubre la construcción real del system prompt y el paso de datos por `/mensaje`
+     con el límite de red mockeado, no la respuesta real del modelo.
+- **Cómo probarlo a mano:**
+  1. `cd nucleo && uv run python sembrar_conocimiento.py` y mirar la salida `[oficios] creadas=…`.
+  2. `curl -s localhost:4400/memoria | grep oficio-` (con el núcleo corriendo) — deberían
+     aparecer los 9 temas `oficio-*`.
+  3. Modo Prompt en la ventanita: «armame un encargo para arreglar el timing del executor de
+     flujos» → la tarjeta trae las seis secciones.
+
+---
+
 ## 2026-09-30 · Fase C · 4 precarga del proyecto activo · construido · dbe3186
 
 - **Qué cambió:** `nucleo/precarga.py` nuevo. Antes de cada respuesta (`pensar.pensar()`), se
