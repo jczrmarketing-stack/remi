@@ -111,7 +111,7 @@ const UMBRAL_ARRASTRE_PX = 4;
 // el modelo: «Guardada. La miramos en dos días.» ya lo dice sola.
 function notaDe(tipo: TipoMensaje, delModelo: boolean): string | null {
   if (!delModelo) return null;
-  if (tipo === "idea") return "guardada en la bandeja";
+  if (tipo === "idea") return "a la bandeja";
   if (tipo === "hoy") return "reloj corriendo";
   return null;
 }
