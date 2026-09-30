@@ -87,10 +87,10 @@ def test_actualiza_el_estado_solo_del_libro_con_episodios_de_hoy(tmp_path, monke
 def test_la_consolidacion_pasa_de_verdad_por_la_verificacion_mecanica_anti_invento(tmp_path, monkeypatch):
     """Integración de punta a punta del incidente real: sin monkeypatchear
     `estado_libro.redactar` (para no esconder su lógica interna), solo el
-    límite con el modelo (`pensar._una_llamada_claude` / `_llamar_ollama`),
-    igual que lo probaría un caso real. Si el modelo devuelve una sigla que
-    no está en los episodios de hoy, la consolidación tiene que rechazarla
-    y no tocar el libro."""
+    límite con el modelo (`pensar._llamar_proveedor`, la trastienda de
+    `config/motores.json`), igual que lo probaría un caso real. Si el modelo
+    devuelve una sigla que no está en los episodios de hoy, la consolidación
+    tiene que rechazarla y no tocar el libro."""
     noche, db, _ = _arrancar(tmp_path, monkeypatch)
     _libro(tmp_path)
     hoy = date.today()
@@ -100,18 +100,21 @@ def test_la_consolidacion_pasa_de_verdad_por_la_verificacion_mecanica_anti_inven
     import estado_libro
     import pensar
 
-    inventada = pensar.Pensado(
-        paso_minimo=(
-            "Quedaste: arreglaste el webhook con N8N.\n"
-            "Decisiones: ninguna.\nPróximo paso: seguir mañana."
-        ),
-        tokens_entrada=1,
-        tokens_salida=1,
-        modelo="x",
-    )
-    monkeypatch.setattr(pensar, "_una_llamada_claude", lambda *a, **k: inventada)
-    monkeypatch.setattr(pensar, "_llamar_ollama", lambda *a, **k: {})
-    monkeypatch.setattr(pensar, "_leer_respuesta_venice", lambda *a, **k: inventada)
+    datos_inventados = {
+        "choices": [
+            {
+                "message": {
+                    "content": (
+                        "Quedaste: arreglaste el webhook con N8N.\n"
+                        "Decisiones: ninguna.\nPróximo paso: seguir mañana."
+                    )
+                }
+            }
+        ],
+        "usage": {},
+    }
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", tmp_path / "no-existe.json")
+    monkeypatch.setattr(pensar, "_llamar_proveedor", lambda *a, **k: datos_inventados)
     monkeypatch.setattr(noche, "estado_libro", estado_libro)
 
     resultado = noche.actualizar_estados_del_dia(hoy)

@@ -113,40 +113,29 @@ def redactar(pedido: str) -> str | None:
     número, nombre de archivo) que no está, literal, en `pedido`: la
     instrucción anti-invento es un pedido al modelo, no una garantía — el
     incidente del 30-sep lo probó dos veces con evidencia real de por medio
-    (`docs/BITACORA.md`). Esto es la verificación mecánica que faltaba.
+    (`docs/BITACORA.md`). Esto es la verificación mecánica que faltaba, y se
+    aplica igual a cada motor de la trastienda (`config/motores.json`): uno
+    rechazado por invento cae al siguiente, igual que uno que no contestó.
     """
     if sin_evidencia_nueva(pedido):
         return None
     instrucciones_con_caracter = f"{pensar.caracter()}\n\n{INSTRUCCIONES}"
-    try:
-        pensado = pensar._una_llamada_claude(pensar.MODOS["rapido"], pedido, instrucciones_con_caracter, [])
-        if pensado:
-            limpio = normalizar(pensado.paso_minimo)
-            if limpio:
-                sospechosa = _invento(limpio, pedido)
-                if sospechosa is not None:
-                    print(f"[estado] rechazado por invento (Haiku): {sospechosa!r} no está en la fuente", file=sys.stderr)
-                else:
-                    return limpio
-    except Exception as error:  # noqa: BLE001 — Haiku caído cae a Ollama
-        print(f"[estado] Haiku no contestó ({type(error).__name__}): pruebo con Ollama", file=sys.stderr)
-    modelo = pensar._ajuste("REMI_OLLAMA_MODELO", pensar.OLLAMA_MODELO_POR_DEFECTO)
-    try:
-        datos = pensar._llamar_ollama(modelo, INSTRUCCIONES, pedido)
-        pensado = pensar._leer_respuesta_venice(datos, modelo, 0, proveedor="ollama")
-    except Exception as error:  # noqa: BLE001 — sin modelo queda el estado plano
-        print(f"[estado] Ollama tampoco está ({type(error).__name__})", file=sys.stderr)
-        return None
-    if pensado is None:
-        return None
-    limpio = normalizar(pensado.paso_minimo)
-    if limpio is None:
-        return None
-    sospechosa = _invento(limpio, pedido)
-    if sospechosa is not None:
-        print(f"[estado] rechazado por invento (Ollama): {sospechosa!r} no está en la fuente", file=sys.stderr)
-        return None
-    return limpio
+
+    def aceptar(pensado: pensar.Pensado) -> bool:
+        limpio = normalizar(pensado.paso_minimo)
+        if limpio is None:
+            return False
+        sospechosa = _invento(limpio, pedido)
+        if sospechosa is not None:
+            print(
+                f"[estado] rechazado por invento ({pensado.motor_usado}): {sospechosa!r} no está en la fuente",
+                file=sys.stderr,
+            )
+            return False
+        return True
+
+    pensado = pensar.pensar_con_trastienda(pedido, instrucciones_con_caracter, aceptar=aceptar)
+    return normalizar(pensado.paso_minimo) if pensado else None
 
 
 def normalizar(texto: str) -> str | None:

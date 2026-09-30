@@ -66,25 +66,18 @@ def _parsear_respuesta(texto: str) -> list[str]:
 
 
 def extraer(titulo: str, resumen: str, cuerpo: str) -> list[str] | None:
-    """Entre 3 y 6 claves, ninguna inventada. None si no se pudo sacar ninguna."""
+    """Entre 3 y 6 claves, ninguna inventada. None si no se pudo sacar ninguna.
+
+    Va por la trastienda de `config/motores.json` (groq → openrouter →
+    ollama, por defecto): esto es tarea de fondo, nunca la charla.
+    """
     pedido = f"Título: {titulo}\nResumen: {resumen}\nCuerpo:\n{cuerpo[:3000]}"
-    candidatas: list[str] = []
-    try:
-        pensado = pensar._una_llamada_claude(pensar.MODOS["rapido"], pedido, INSTRUCCIONES, [])
-        if pensado:
-            candidatas = _parsear_respuesta(pensado.paso_minimo)
-    except Exception as error:  # noqa: BLE001 — Haiku caído cae a Ollama
-        print(f"[claves] Haiku no contestó ({type(error).__name__}): pruebo con Ollama", file=sys.stderr)
+    pensado = pensar.pensar_con_trastienda(
+        pedido, INSTRUCCIONES, aceptar=lambda p: bool(_parsear_respuesta(p.paso_minimo))
+    )
+    candidatas = _parsear_respuesta(pensado.paso_minimo) if pensado else []
     if not candidatas:
-        modelo = pensar._ajuste("REMI_OLLAMA_MODELO", pensar.OLLAMA_MODELO_POR_DEFECTO)
-        try:
-            datos = pensar._llamar_ollama(modelo, INSTRUCCIONES, pedido)
-            pensado = pensar._leer_respuesta_venice(datos, modelo, 0, proveedor="ollama")
-            if pensado:
-                candidatas = _parsear_respuesta(pensado.paso_minimo)
-        except Exception as error:  # noqa: BLE001 — sin modelo, sin claves
-            print(f"[claves] Ollama tampoco está ({type(error).__name__})", file=sys.stderr)
-            return None
+        return None
     filtradas = filtrar_inventadas(candidatas, titulo, resumen, cuerpo)
     return filtradas or None
 

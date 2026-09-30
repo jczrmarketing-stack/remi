@@ -291,6 +291,23 @@ def test_una_pregunta_se_contesta_y_no_deja_nada(tmp_path, monkeypatch):
     assert _contar(servidor) == {"tareas": 0, "sesiones": 0, "ideas": 0}
 
 
+def test_motor_usado_viaja_en_la_respuesta(tmp_path, monkeypatch):
+    """Lo que el chip de la ventanita debería mostrar: distinto de
+    `tokens.modelo` (que es dato de consola), y presente cuando Claude cayó
+    al respaldo de charla."""
+    servidor = _arrancar(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        servidor.pensar,
+        "pensar",
+        lambda _f, _m=None, _modo=None, nivel=None, **_k: servidor.pensar.Pensado(
+            "Seguí con lo de hoy.", 1, 1, "deepseek-v4-pro", motor_usado="openrouter"
+        ),
+    )
+    cliente = TestClient(servidor.app)
+    cuerpo = cliente.post("/mensaje", json={"texto": "¿cómo sigo?", "think": True}).json()
+    assert cuerpo["motor_usado"] == "openrouter"
+
+
 def test_una_pregunta_sin_pensar_lo_dice_y_no_guarda(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
     cliente = TestClient(servidor.app)

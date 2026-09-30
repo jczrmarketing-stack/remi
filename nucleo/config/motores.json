@@ -1,0 +1,4 @@
+{
+  "$comment": "La trastienda: motores baratos/rápidos para resumen vivo, claves, títulos de episodios y consolidación nocturna — nunca la charla. Se leen en orden; si uno falla (sin responder, respuesta vacía, o rechazado por la verificación anti-invento de quien llama) se cae al siguiente. Ver pensar.trastienda() en nucleo/pensar.py.",
+  "trastienda": ["groq/kimi-k2", "openrouter/deepseek-flash", "ollama/gemma3:4b"]
+}

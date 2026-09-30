@@ -269,6 +269,68 @@ def test_error_de_la_cli_no_se_convierte_en_la_voz_de_remi(monkeypatch):
     assert pensar.pensar("algo") is None
 
 
+# — El respaldo de charla (límite de Claude alcanzado) —
+
+
+def test_limite_alcanzado_reintenta_con_openrouter_y_lo_dice_en_motor_usado(monkeypatch):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(
+        pensar.subprocess,
+        "run",
+        lambda *a, **k: _salida_cli(is_error=True, result="Claude AI usage limit reached|1234567890"),
+    )
+    visto = {}
+
+    def falsa_llamada(proveedor, modelo, instrucciones, frase):
+        visto.update(proveedor=proveedor, modelo=modelo, frase=frase)
+        return {
+            "model": modelo,
+            "choices": [{"message": {"content": "Seguí con lo de hoy."}}],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 4},
+        }
+
+    monkeypatch.setattr(pensar, "_llamar_proveedor", falsa_llamada)
+    pensado = pensar.pensar("¿cómo sigo?")
+
+    assert pensado is not None
+    assert pensado.paso_minimo == "Seguí con lo de hoy."
+    assert pensado.motor_usado == "openrouter"
+    assert pensado.modelo == "openrouter/deepseek-v4-pro"
+    assert visto["proveedor"] == "openrouter" and visto["modelo"] == "deepseek-v4-pro"
+    assert visto["frase"] == "¿cómo sigo?"
+
+
+def test_limite_alcanzado_no_reintenta_con_otro_modo_de_claude(monkeypatch):
+    """Los tres modos de Claude comparten el mismo límite de la membresía
+    Max: no tiene sentido que `cadena_de_modos` los pruebe a todos."""
+    pensar = _importar_pensar()
+    llamadas_a_claude = []
+
+    def falsa_cli(comando, **_k):
+        llamadas_a_claude.append(comando[comando.index("--model") + 1])
+        return _salida_cli(is_error=True, result="Claude AI usage limit reached|1234567890")
+
+    monkeypatch.setattr(pensar.subprocess, "run", falsa_cli)
+    monkeypatch.setattr(
+        pensar,
+        "_llamar_proveedor",
+        lambda *a, **k: {"choices": [{"message": {"content": "Listo."}}], "usage": {}},
+    )
+    pensar.pensar("algo", modo_pedido="inteligente")
+    assert llamadas_a_claude == ["opus"]
+
+
+def test_si_el_respaldo_tampoco_contesta_sigue_sin_ia(monkeypatch):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(
+        pensar.subprocess,
+        "run",
+        lambda *a, **k: _salida_cli(is_error=True, result="límite alcanzado"),
+    )
+    monkeypatch.setattr(pensar, "_llamar_proveedor", lambda *a, **k: {"choices": []})
+    assert pensar.pensar("algo") is None
+
+
 def test_sin_cli_en_el_path_sigue_sin_ia(monkeypatch):
     pensar = _importar_pensar()
 
@@ -675,3 +737,76 @@ def test_websearch_solo_en_el_mensaje_que_busca(tmp_path):
     assert "WebSearch" not in sin[sin.index("--allowedTools") + 1]
     assert con[con.index("--tools") + 1] == "Read,Grep,Glob,WebSearch"
     assert "WebSearch" in con[con.index("--allowedTools") + 1]
+
+
+# — La trastienda (config/motores.json) —
+
+
+def test_trastienda_lee_config_motores_json(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    ruta = tmp_path / "motores.json"
+    ruta.write_text('{"trastienda": ["groq/kimi-k2", "openrouter/deepseek-flash", "ollama/gemma3:4b"]}')
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", ruta)
+    assert pensar.trastienda() == [
+        ("groq", "kimi-k2"),
+        ("openrouter", "deepseek-flash"),
+        ("ollama", "gemma3:4b"),
+    ]
+
+
+def test_trastienda_sin_archivo_o_mal_formado_cae_a_la_cadena_por_defecto(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", tmp_path / "no-existe.json")
+    assert pensar.trastienda() == list(pensar.TRASTIENDA_POR_DEFECTO)
+
+    rota = tmp_path / "rota.json"
+    rota.write_text("esto no es json")
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", rota)
+    assert pensar.trastienda() == list(pensar.TRASTIENDA_POR_DEFECTO)
+
+    vacia = tmp_path / "vacia.json"
+    vacia.write_text('{"trastienda": []}')
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", vacia)
+    assert pensar.trastienda() == list(pensar.TRASTIENDA_POR_DEFECTO)
+
+
+def test_pensar_con_trastienda_cae_al_siguiente_si_uno_no_contesta(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", tmp_path / "no-existe.json")
+    llamados = []
+
+    def falsa_llamada(proveedor, modelo, instrucciones, frase):
+        llamados.append(proveedor)
+        if proveedor == "groq":
+            raise pensar.httpx.ConnectError("no hay red")
+        if proveedor == "openrouter":
+            return {"choices": []}  # respuesta vacía
+        return {"choices": [{"message": {"content": "de ollama"}}], "usage": {}}
+
+    monkeypatch.setattr(pensar, "_llamar_proveedor", falsa_llamada)
+    pensado = pensar.pensar_con_trastienda("pedido", "instrucciones")
+    assert pensado is not None
+    assert pensado.paso_minimo == "de ollama"
+    assert pensado.motor_usado == "ollama"
+    assert llamados == ["groq", "openrouter", "ollama"]
+
+
+def test_pensar_con_trastienda_usa_aceptar_para_seguir_cayendo(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", tmp_path / "no-existe.json")
+
+    def falsa_llamada(proveedor, modelo, instrucciones, frase):
+        return {"choices": [{"message": {"content": proveedor}}], "usage": {}}
+
+    monkeypatch.setattr(pensar, "_llamar_proveedor", falsa_llamada)
+    pensado = pensar.pensar_con_trastienda(
+        "pedido", "instrucciones", aceptar=lambda p: p.paso_minimo == "ollama"
+    )
+    assert pensado is not None and pensado.motor_usado == "ollama"
+
+
+def test_pensar_con_trastienda_ninguno_sirve_devuelve_none(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", tmp_path / "no-existe.json")
+    monkeypatch.setattr(pensar, "_llamar_proveedor", lambda *a, **k: {"choices": []})
+    assert pensar.pensar_con_trastienda("pedido", "instrucciones") is None

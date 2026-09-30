@@ -163,27 +163,13 @@ def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None
 
 
 def redactar(pedido: str) -> dict[str, str] | None:
-    """Las cuatro secciones, o None si no hubo respuesta usable."""
-    modelo = pensar._ajuste("REMI_OLLAMA_MODELO", pensar.OLLAMA_MODELO_POR_DEFECTO)
-    try:
-        datos = pensar._llamar_ollama(modelo, INSTRUCCIONES, pedido[-8000:])
-        pensado = pensar._leer_respuesta_venice(datos, modelo, 0, proveedor="ollama")
-        if pensado:
-            secciones = secciones_de(pensado.paso_minimo)
-            if secciones:
-                return secciones
-    except Exception as error:  # noqa: BLE001 — Ollama caído cae a Haiku
-        print(f"[cierre] Ollama no está ({type(error).__name__}): pruebo con Haiku", file=sys.stderr)
-    try:
-        pensado = pensar._una_llamada_claude(
-            pensar.MODOS["rapido"], pedido[-8000:], INSTRUCCIONES, []
-        )
-    except Exception as error:  # noqa: BLE001 — sin modelo queda el episodio plano
-        print(f"[cierre] Haiku no contestó ({type(error).__name__})", file=sys.stderr)
-        return None
-    if pensado is None:
-        return None
-    return secciones_de(pensado.paso_minimo)
+    """Las cuatro secciones, o None si no hubo respuesta usable. Va por la
+    trastienda de `config/motores.json` (groq → openrouter → ollama, por
+    defecto): esto es tarea de fondo, nunca la charla."""
+    pensado = pensar.pensar_con_trastienda(
+        pedido[-8000:], INSTRUCCIONES, aceptar=lambda p: secciones_de(p.paso_minimo) is not None
+    )
+    return secciones_de(pensado.paso_minimo) if pensado else None
 
 
 def secciones_de(texto: str) -> dict[str, str] | None:

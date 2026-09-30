@@ -179,24 +179,16 @@ def test_normalizar_acepta_las_tres_lineas() -> None:
 def test_sin_evidencia_nueva_redactar_no_llama_a_ningun_modelo(monkeypatch) -> None:
     """El incidente del 30-sep: un pedido con la bandeja de commits vacía no
     puede terminar en una llamada al modelo — ahí es donde inventa."""
-    llamados: list[str] = []
 
-    def _falso_claude(*_args, **_kwargs):
-        llamados.append("claude")
-        raise AssertionError("no debía llamarse a Claude sin evidencia nueva")
+    def _falsa_trastienda(*_args, **_kwargs):
+        raise AssertionError("no debía llamarse a la trastienda sin evidencia nueva")
 
-    def _falso_ollama(*_args, **_kwargs):
-        llamados.append("ollama")
-        raise AssertionError("no debía llamarse a Ollama sin evidencia nueva")
-
-    monkeypatch.setattr(estado_libro.pensar, "_una_llamada_claude", _falso_claude)
-    monkeypatch.setattr(estado_libro.pensar, "_llamar_ollama", _falso_ollama)
+    monkeypatch.setattr(estado_libro.pensar, "pensar_con_trastienda", _falsa_trastienda)
 
     pedido_vacio = estado_libro.pedido("Malik", "Quedaste: ahí.\nDecisiones: ninguna.\nPróximo paso: seguir.", [])
 
     assert estado_libro.sin_evidencia_nueva(pedido_vacio) is True
     assert estado_libro.redactar(pedido_vacio) is None
-    assert llamados == []
 
 
 def test_con_evidencia_el_pedido_no_esta_vacio() -> None:
@@ -218,14 +210,15 @@ def test_las_instrucciones_prohiben_inventar_fuera_de_la_fuente() -> None:
 def test_redactar_manda_la_instruccion_anti_invento_al_modelo(monkeypatch) -> None:
     vistos: dict[str, str] = {}
 
-    class _Pensado:
-        paso_minimo = "Quedaste: ahí.\nDecisiones: ninguna nueva.\nPróximo paso: seguir."
-
-    def _capturar_claude(_modo, _pedido, instrucciones, _herramientas):
+    def _capturar_trastienda(_pedido, instrucciones, aceptar=None):
         vistos["instrucciones"] = instrucciones
-        return _Pensado()
+        pensado = estado_libro.pensar.Pensado(
+            "Quedaste: ahí.\nDecisiones: ninguna nueva.\nPróximo paso: seguir.", 0, 0, "kimi-k2", motor_usado="groq"
+        )
+        assert aceptar is None or aceptar(pensado)
+        return pensado
 
-    monkeypatch.setattr(estado_libro.pensar, "_una_llamada_claude", _capturar_claude)
+    monkeypatch.setattr(estado_libro.pensar, "pensar_con_trastienda", _capturar_trastienda)
 
     pedido_con_commit = estado_libro.pedido(
         "Malik", "", [{"mensaje": "el mosaico", "rama": "main", "archivos": ["a.ts"]}]

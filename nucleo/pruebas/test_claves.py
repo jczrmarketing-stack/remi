@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import claves
+import pensar
 
 LIBRO = """---
 titulo: Beam
@@ -36,6 +37,22 @@ def test_filtrar_inventadas_ignora_acentos_y_mayusculas():
         cuerpo="",
     )
     assert filtradas == ["núcleo", "asociación"]
+
+
+def test_extraer_va_por_la_trastienda_y_cae_al_siguiente_si_uno_no_devuelve_nada(monkeypatch, tmp_path):
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", tmp_path / "no-existe.json")
+    llamados: list[str] = []
+
+    def falsa_llamada(proveedor, modelo, instrucciones, frase):
+        llamados.append(proveedor)
+        if proveedor == "groq":
+            return {"choices": [{"message": {"content": "  "}}], "usage": {}}
+        return {"choices": [{"message": {"content": "next.js, supabase"}}], "usage": {}}
+
+    monkeypatch.setattr(pensar, "_llamar_proveedor", falsa_llamada)
+    claves_sacadas = claves.extraer("Beam", "App de compartir pantalla.", "Usa Next.js y Supabase.")
+    assert claves_sacadas == ["next.js", "supabase"]
+    assert llamados == ["groq", "openrouter"]
 
 
 def test_agregar_no_escribe_si_no_hay_claves_reales(tmp_path, monkeypatch):

@@ -216,18 +216,19 @@ def test_si_el_resumidor_falla_no_se_pierde_nada(monkeypatch):
     assert vistos == [4]
 
 
-def test_el_resumen_lo_hace_ollama_y_si_no_esta_haiku(monkeypatch):
+def test_el_resumen_va_por_la_trastienda(monkeypatch):
     pensar = _pensar()
-    llamados = []
-    monkeypatch.setattr(pensar, "_resumir_con_ollama", lambda r, s: (llamados.append("ollama"), None)[1])
-    monkeypatch.setattr(pensar, "_resumir_con_haiku", lambda r, s: (llamados.append("haiku"), "de Haiku")[1])
-    assert pensar.resumir("", []) == "de Haiku"
-    assert llamados == ["ollama", "haiku"]
+    visto = {}
 
-    llamados.clear()
-    monkeypatch.setattr(pensar, "_resumir_con_ollama", lambda r, s: (llamados.append("ollama"), "de Ollama")[1])
-    assert pensar.resumir("", []) == "de Ollama"
-    assert llamados == ["ollama"]
+    def falsa_trastienda(pedido, instrucciones, aceptar=None):
+        visto["pedido"] = pedido
+        visto["instrucciones"] = instrucciones
+        return pensar.Pensado("resumen nuevo", 0, 0, "kimi-k2", motor_usado="groq")
+
+    monkeypatch.setattr(pensar, "pensar_con_trastienda", falsa_trastienda)
+    assert pensar.resumir("lo de antes", []) == "resumen nuevo"
+    assert visto["instrucciones"] == pensar.INSTRUCCIONES_RESUMEN
+    assert "lo de antes" in visto["pedido"]
 
 
 def test_tras_60_minutos_sin_turnos_la_conversacion_es_nueva(monkeypatch):

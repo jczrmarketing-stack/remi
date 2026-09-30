@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
@@ -58,6 +59,48 @@ OLLAMA_URL = f"{OLLAMA_BASE}/v1/chat/completions"
 OLLAMA_MODELO_POR_DEFECTO = "gemma3:4b"
 # Local, pero un modelo frío tarda en cargar a memoria la primera vez.
 OLLAMA_TIMEOUT_SEGUNDOS = 30.0
+
+# — La trastienda (config/motores.json) —
+#
+# Lo que hoy llama a Ollama o a Haiku para tareas de fondo —resumen vivo,
+# claves, títulos de episodios, consolidación nocturna: nunca la charla—
+# ahora lee esta lista en orden y cae al siguiente motor si uno falla (sin
+# responder, respuesta vacía, o rechazado por la verificación anti-invento
+# de quien llama, que sigue igual). Groq y OpenRouter son OpenAI-compatibles,
+# como Venice; Ollama ya lo era. Sin `config/motores.json`, o con uno mal
+# formado, la cadena por defecto es la misma que documenta ese archivo.
+RUTA_MOTORES = Path(__file__).resolve().parent / "config" / "motores.json"
+PROVEEDORES_TRASTIENDA: dict[str, tuple[str, str | None]] = {
+    "groq": ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY"),
+    "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY"),
+    "ollama": (OLLAMA_URL, None),
+}
+TRASTIENDA_POR_DEFECTO: tuple[tuple[str, str], ...] = (
+    ("groq", "kimi-k2"),
+    ("openrouter", "deepseek-flash"),
+    ("ollama", "gemma3:4b"),
+)
+TRASTIENDA_TIMEOUT_SEGUNDOS = 20.0
+
+# — El respaldo de charla —
+#
+# Si la CLI de Claude dice que se llegó al límite de uso (no un error
+# cualquiera: ESE en particular), no tiene sentido reintentar con otro modo
+# de Claude —todos comparten el mismo límite de la membresía Max—, así que
+# el turno se reintenta una vez, directo, con OpenRouter y el modelo más
+# inteligente de DeepSeek. La CLI no da un código de error estructurado para
+# esto: es texto, y el patrón es lo mejor que hay para reconocerlo.
+PATRON_LIMITE_ALCANZADO = re.compile(r"usage limit|límite alcanzado|límite de uso", re.IGNORECASE)
+RESPALDO_DE_CHARLA = ("openrouter", "deepseek-v4-pro")
+
+
+class LimiteDeClaude(Exception):
+    """La CLI dijo que se llegó al límite de uso de la membresía Max. No
+    tiene sentido reintentar con otro modo de Claude —rápido, equilibrio e
+    inteligente comparten el mismo límite—, así que corta la cadena acá
+    mismo; `pensar()` la atrapa y hace el respaldo de charla."""
+
+
 SERVIDOR_MEMORIA = Path(__file__).resolve().parent / "memoria_mcp.py"
 # Las únicas dos cosas que la CLI puede hacer además de contestar. El
 # prefijo `mcp__memoria__` lo arma Claude Code con el nombre del servidor.
@@ -358,6 +401,12 @@ class Pensado:
     # Cuántas cosas tenía presentes y si llegó a bajar alguna del estante.
     entradas_en_indice: int = 0
     leyo_memoria: bool = False
+    # El motor real que contestó ("claude", "venice", "deepseek", "ollama",
+    # un proveedor de la trastienda, o "openrouter" cuando fue el respaldo
+    # de charla): lo que el chip de la ventanita debería mostrar, a
+    # diferencia de `modelo`, que es el alias/id del modelo dentro de ese
+    # motor.
+    motor_usado: str = "claude"
 
 
 def _leer_env(ruta: Path | None = None) -> dict[str, str]:
@@ -701,27 +750,12 @@ def mensaje_con_historia(frase: str, turnos: list[db.Turno], resumen: str = "") 
 # — El resumen vivo —
 
 
-def _resumir_con_ollama(resumen: str, salientes: list[db.Turno]) -> str | None:
-    pedido = f"Resumen que había:\n{resumen or '(ninguno)'}\n\nTurnos que salen:\n{_lineas(salientes)}"
-    modelo_ollama = _ajuste("REMI_OLLAMA_MODELO", OLLAMA_MODELO_POR_DEFECTO)
-    try:
-        datos = _llamar_ollama(modelo_ollama, INSTRUCCIONES_RESUMEN, pedido)
-    except httpx.HTTPError as error:
-        print(f"[resumen] Ollama no está ({type(error).__name__}): pruebo con Haiku", file=sys.stderr)
-        return None
-    pensado = _leer_respuesta_venice(datos, modelo_ollama, 0, proveedor="ollama")
-    return pensado.paso_minimo if pensado else None
-
-
-def _resumir_con_haiku(resumen: str, salientes: list[db.Turno]) -> str | None:
-    pedido = f"Resumen que había:\n{resumen or '(ninguno)'}\n\nTurnos que salen:\n{_lineas(salientes)}"
-    pensado = _una_llamada_claude(MODOS["rapido"], pedido, INSTRUCCIONES_RESUMEN, [])
-    return pensado.paso_minimo if pensado else None
-
-
 def resumir(resumen: str, salientes: list[db.Turno]) -> str | None:
-    """Ollama (gemma3:4b, local y gratis); si no está, Haiku."""
-    return _resumir_con_ollama(resumen, salientes) or _resumir_con_haiku(resumen, salientes)
+    """La trastienda de `config/motores.json` (groq → openrouter → ollama,
+    por defecto): esto es tarea de fondo, nunca la charla."""
+    pedido = f"Resumen que había:\n{resumen or '(ninguno)'}\n\nTurnos que salen:\n{_lineas(salientes)}"
+    pensado = pensar_con_trastienda(pedido, INSTRUCCIONES_RESUMEN)
+    return pensado.paso_minimo if pensado else None
 
 
 def actualizar_resumen(conversacion_id: str, resumidor: "Any" = None) -> bool:
@@ -810,7 +844,15 @@ def pensar(
     elif elegido == "ollama":
         pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice), modelo_ollama)
     else:
-        pensado = _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel, buscar)
+        try:
+            pensado = _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel, buscar)
+        except LimiteDeClaude as limite:
+            print(
+                f"[pensar] Claude en su límite ({limite}): respaldo de charla por "
+                f"{RESPALDO_DE_CHARLA[0]}/{RESPALDO_DE_CHARLA[1]}",
+                file=sys.stderr,
+            )
+            pensado = _respaldo_de_charla(mensaje, instrucciones, len(indice))
 
     # El turno de Juan Camilo se guarda siempre que se pensó; el de Remi,
     # solo si contestó.
@@ -884,6 +926,7 @@ def _leer_respuesta_venice(
         modelo=f"{proveedor}/{modelo_real}",
         entradas_en_indice=entradas,
         leyo_memoria=False,
+        motor_usado=proveedor,
     )
 
 
@@ -958,6 +1001,84 @@ def _pensar_con_deepseek(
     print(
         f"[deepseek] modelo={pensado.modelo} tokens entrada={pensado.tokens_entrada} "
         f"salida={pensado.tokens_salida} memoria={entradas} leyó=no (sin herramientas)",
+        file=sys.stderr,
+    )
+    return pensado
+
+
+def _llamar_proveedor(proveedor: str, nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
+    url, clave_env = PROVEEDORES_TRASTIENDA[proveedor]
+    clave = _ajuste(clave_env, "") if clave_env else None
+    return _llamar_openai_compatible(url, clave, nombre_modelo, instrucciones, frase, TRASTIENDA_TIMEOUT_SEGUNDOS)
+
+
+def trastienda() -> list[tuple[str, str]]:
+    """[(proveedor, modelo), ...] de `config/motores.json`, en orden. Si el
+    archivo no está, no es JSON, o no trae una lista `trastienda` usable, la
+    cadena por defecto (la misma que documenta ese archivo)."""
+    ruta = Path(os.environ.get("REMI_MOTORES") or RUTA_MOTORES)
+    try:
+        datos = json.loads(ruta.read_text())
+    except (OSError, json.JSONDecodeError):
+        return list(TRASTIENDA_POR_DEFECTO)
+    lista = datos.get("trastienda") if isinstance(datos, dict) else None
+    if not isinstance(lista, list):
+        return list(TRASTIENDA_POR_DEFECTO)
+    resultado: list[tuple[str, str]] = []
+    for entrada in lista:
+        if not isinstance(entrada, str) or "/" not in entrada:
+            continue
+        proveedor, _, modelo = entrada.partition("/")
+        if proveedor in PROVEEDORES_TRASTIENDA and modelo:
+            resultado.append((proveedor, modelo))
+    return resultado or list(TRASTIENDA_POR_DEFECTO)
+
+
+def pensar_con_trastienda(
+    pedido: str, instrucciones: str, aceptar: Callable[[Pensado], bool] | None = None
+) -> Pensado | None:
+    """El primer motor de `trastienda()` que conteste — y que `aceptar` (si
+    lo pasan) acepte; si no, sigue con el próximo. None si ninguno sirvió.
+    Para tareas de fondo (resumen vivo, claves, títulos de episodios,
+    consolidación nocturna): nunca la charla, que va por `pensar()`."""
+    for proveedor, modelo in trastienda():
+        try:
+            datos = _llamar_proveedor(proveedor, modelo, instrucciones, pedido)
+        except httpx.HTTPError as error:
+            print(
+                f"[trastienda] {proveedor}/{modelo} no contestó ({type(error).__name__}): "
+                "sigo con el siguiente",
+                file=sys.stderr,
+            )
+            continue
+        pensado = _leer_respuesta_venice(datos, modelo, 0, proveedor=proveedor)
+        if pensado is None:
+            print(f"[trastienda] {proveedor}/{modelo} respuesta vacía: sigo con el siguiente", file=sys.stderr)
+            continue
+        if aceptar is not None and not aceptar(pensado):
+            print(f"[trastienda] {proveedor}/{modelo} rechazado: sigo con el siguiente", file=sys.stderr)
+            continue
+        return pensado
+    return None
+
+
+def _respaldo_de_charla(frase: str, instrucciones: str, entradas: int) -> Pensado | None:
+    """Un solo intento, directo (sin cadena): Claude ya avisó que está en su
+    límite, y esto es charla — nadie quiere esperar una cadena entera de
+    reintentos fallidos antes de contestar."""
+    proveedor, modelo = RESPALDO_DE_CHARLA
+    try:
+        datos = _llamar_proveedor(proveedor, modelo, instrucciones, frase)
+    except httpx.HTTPError as error:
+        print(f"[respaldo] {proveedor}/{modelo} no contestó ({type(error).__name__}): sigo sin IA", file=sys.stderr)
+        return None
+    pensado = _leer_respuesta_venice(datos, modelo, entradas, proveedor=proveedor)
+    if pensado is None:
+        print(f"[respaldo] {proveedor}/{modelo} respuesta vacía: sigo sin IA", file=sys.stderr)
+        return None
+    print(
+        f"[respaldo] modelo={pensado.modelo} tokens entrada={pensado.tokens_entrada} "
+        f"salida={pensado.tokens_salida} memoria={entradas}",
         file=sys.stderr,
     )
     return pensado
@@ -1098,7 +1219,10 @@ def _una_llamada_claude(
     # Con is_error, `result` trae el TEXTO DEL ERROR ("API Error: …"): eso
     # jamás puede terminar siendo la voz de Remi.
     if datos.get("is_error"):
-        print(f"[claude] la CLI avisó un error: {datos.get('result')!r}", file=sys.stderr)
+        texto_error = str(datos.get("result") or "")
+        print(f"[claude] la CLI avisó un error: {texto_error!r}", file=sys.stderr)
+        if PATRON_LIMITE_ALCANZADO.search(texto_error):
+            raise LimiteDeClaude(texto_error)
         return None
 
     paso = datos.get("result")
@@ -1113,4 +1237,5 @@ def _una_llamada_claude(
         modelo=modelo_real,
         entradas_en_indice=len(indice),
         leyo_memoria=leyo,
+        motor_usado="claude",
     )

@@ -184,6 +184,11 @@ class RespuestaMensaje(BaseModel):
     # Solo cuando pensó con Claude. Dato de operación: la ventanita lo manda
     # a su consola, nunca a la pantalla.
     tokens: TokensClaude | None = None
+    # El motor que de verdad contestó ("claude", "venice", "deepseek",
+    # "ollama", o el proveedor de la trastienda/respaldo de charla): a
+    # diferencia de `tokens`, esto SÍ es para la pantalla — el chip de la
+    # ventanita. None si no pensó.
+    motor_usado: str | None = None
 
 
 class TareaConHistorial(BaseModel):
@@ -407,6 +412,7 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
         texto=pensado.paso_minimo,
         voz=_voz_de(pensado.paso_minimo, mensaje),
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
+        motor_usado=pensado.motor_usado,
     )
 
 
@@ -430,6 +436,7 @@ def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
         # Un encargo no se lee en voz alta: se copia.
         voz="Listo, lo tenés para copiar.",
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
+        motor_usado=pensado.motor_usado,
     )
 
 
@@ -453,6 +460,7 @@ def _leer_cliente(mensaje: MensajeEntrante) -> RespuestaMensaje:
         # Igual que un encargo: esto se lee y se copia, no se dice en voz.
         voz="Tenés la lectura lista. La mandás vos.",
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
+        motor_usado=pensado.motor_usado,
     )
 
 
@@ -487,6 +495,7 @@ def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
         texto=pensado.paso_minimo,
         voz=_voz_de(pensado.paso_minimo, mensaje),
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
+        motor_usado=pensado.motor_usado,
     )
 
 
@@ -571,7 +580,15 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
     finally:
         conexion.close()
 
-    return RespuestaMensaje(tipo="hoy", tarea=tarea, sesion=sesion, texto=texto, voz=voz, tokens=tokens)
+    return RespuestaMensaje(
+        tipo="hoy",
+        tarea=tarea,
+        sesion=sesion,
+        texto=texto,
+        voz=voz,
+        tokens=tokens,
+        motor_usado=pensado.motor_usado if pensado else None,
+    )
 
 
 @app.post("/sesion/{sesion_id}/cerrar", response_model=Sesion)
