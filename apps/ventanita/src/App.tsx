@@ -6,6 +6,7 @@ import { PromptTerminal } from "./componentes/PromptTerminal";
 import { ControlesVoz } from "./componentes/ControlesVoz";
 import { Semaforo } from "./componentes/Semaforo";
 import { BotonCancelar } from "./componentes/BotonCancelar";
+import { SelectorModo } from "./componentes/SelectorModo";
 import {
   enviarMensaje,
   obtenerMotores,
@@ -60,7 +61,7 @@ import {
 // Qué es un control (nunca un gesto) y qué es el cuadro (gesto si está
 // vacío y la racha sigue viva). Los botones del cuadro —el toggle de
 // pensar— cuentan como control aunque estén dentro del cuadro.
-const SELECTOR_CONTROLES = ".controles-voz, .semaforo, button, select";
+const SELECTOR_CONTROLES = ".controles-voz, .semaforo, .selector-modo, button, select";
 const SELECTOR_CUADRO = ".prompt-terminal";
 
 function clasificarObjetivo(objetivo: EventTarget | null) {
@@ -810,7 +811,7 @@ export default function App() {
   // es un click de verdad y llega a alClick.
   const alPresionar = useCallback((evento: React.MouseEvent<HTMLDivElement>) => {
     if (evento.button !== 0) return;
-    if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz, .semaforo")) return;
+    if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz, .semaforo, .selector-modo, .boton-cancelar")) return;
 
     const inicio = { x: evento.clientX, y: evento.clientY };
 
@@ -835,7 +836,20 @@ export default function App() {
     <div className={`ventanita ventanita--${estado}`} onMouseDown={alPresionar}>
       <Semaforo />
       {estado !== "reposo" && <BotonCancelar onCancelar={() => cancelar("x")} />}
-      <StatusDot estado={estado} escuchandoVoz={grabando} />
+      {/* El punto, y a su lado la flechita de modo (solo expandido: en la
+          píldora de reposo no entra un menú). */}
+      <div className="punto-zona">
+        <StatusDot estado={estado} escuchandoVoz={grabando} />
+        {estado === "escuchando" && (
+          <SelectorModo
+            modo={modoPensar}
+            onModo={(nuevo) => {
+              fijarModo(nuevo);
+              setModoPensar(nuevo);
+            }}
+          />
+        )}
+      </div>
 
       {/* Ley 1 en reposo. Si hay algo de hoy que ya hiciste antes, el dato
           medido gana sobre el reloj: sirve más para decidir. */}
@@ -910,12 +924,6 @@ export default function App() {
           motores={motores}
           motor={motor}
           onMotor={cambiarMotor}
-          modoPensar={modoPensar}
-          onModoPensar={(nuevo) => {
-            fijarModo(nuevo);
-            setModoPensar(nuevo);
-            registrar("modo", { elegido: nuevo });
-          }}
         />
       )}
     </div>
