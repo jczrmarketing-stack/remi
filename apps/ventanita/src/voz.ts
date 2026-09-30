@@ -63,6 +63,73 @@ async function pedirAudio(texto: string, voz: PreferenciaVoz): Promise<Blob | nu
   }
 }
 
+// — El volumen de la voz, para que el punto lata con ella —
+// Un AudioContext con un analizador entre el audio de Kokoro y los
+// parlantes. Solo se engancha si el contexto ya corre: uno suspendido
+// dejaría el audio mudo, y eso nunca vale una animación.
+let contexto: AudioContext | null = null;
+let analizador: AnalyserNode | null = null;
+let muestras: Uint8Array<ArrayBuffer> | null = null;
+let audioAnalizado: HTMLAudioElement | null = null;
+// De hablar() a que termina: lo usa el click para no cortar a Remi.
+let ocupadaHasta: number | null = null;
+
+/** Crear o despertar el contexto de audio. Va en un gesto (click). */
+export function despertarAudio(): void {
+  try {
+    if (!contexto) contexto = new AudioContext();
+    if (contexto.state === "suspended") void contexto.resume();
+  } catch {
+    contexto = null;
+  }
+}
+
+function engancharAnalizador(elemento: HTMLAudioElement): void {
+  audioAnalizado = null;
+  if (!contexto || contexto.state !== "running") return;
+  try {
+    if (!analizador) {
+      analizador = contexto.createAnalyser();
+      analizador.fftSize = 512;
+      analizador.connect(contexto.destination);
+      muestras = new Uint8Array(new ArrayBuffer(analizador.fftSize));
+    }
+    contexto.createMediaElementSource(elemento).connect(analizador);
+    audioAnalizado = elemento;
+  } catch (error) {
+    console.info("[voz] sin analizador de volumen:", error);
+  }
+}
+
+export interface EstadoDeVoz {
+  // Suena algo ahora mismo (Kokoro o la voz del sistema).
+  sonando: boolean;
+  // 0..1 aprox. del audio de Kokoro; null si suena pero no se puede medir
+  // (la voz del sistema) o si no suena.
+  volumen: number | null;
+}
+
+export function estadoDeVoz(): EstadoDeVoz {
+  const kokoro = audioActual !== null && !audioActual.paused && !audioActual.ended;
+  const sistema = haySoporteDeVoz() && window.speechSynthesis.speaking;
+  if (!kokoro && !sistema) return { sonando: false, volumen: null };
+  if (!kokoro || audioAnalizado !== audioActual || !analizador || !muestras) {
+    return { sonando: true, volumen: null };
+  }
+  analizador.getByteTimeDomainData(muestras);
+  let suma = 0;
+  for (const v of muestras) {
+    const x = (v - 128) / 128;
+    suma += x * x;
+  }
+  return { sonando: true, volumen: Math.sqrt(suma / muestras.length) };
+}
+
+/** Remi está diciendo algo (o preparando el audio para decirlo). */
+export function vozOcupada(): boolean {
+  return ocupadaHasta !== null;
+}
+
 function liberarAudio(): void {
   if (audioActual) {
     audioActual.pause();
@@ -92,6 +159,7 @@ function reproducir(audio: Blob, velocidad: Velocidad, mia: number): Promise<Fin
     elemento.playbackRate = velocidad;
     audioActual = elemento;
     urlActual = url;
+    engancharAnalizador(elemento);
 
     let resuelto = false;
     const terminar = (fin: FinDeReproduccion) => {
@@ -231,6 +299,21 @@ export async function hablar(
 ): Promise<void> {
   generacion += 1;
   const mia = generacion;
+  ocupadaHasta = mia;
+  despertarAudio();
+  try {
+    await hablarSinMarca(texto, velocidad, voz, mia);
+  } finally {
+    if (ocupadaHasta === mia) ocupadaHasta = null;
+  }
+}
+
+async function hablarSinMarca(
+  texto: string,
+  velocidad: Velocidad,
+  voz: PreferenciaVoz,
+  mia: number,
+): Promise<void> {
   const palabras = texto.trim() ? texto.trim().split(/\s+/).length : 0;
   console.info(`[voz] #${mia} empieza: ${palabras} palabras, ${velocidad}×, voz=${voz}`);
 
@@ -266,6 +349,7 @@ export async function hablar(
 
 export function callarse(): void {
   generacion += 1;
+  ocupadaHasta = null;
   liberarAudio();
   if (haySoporteDeVoz()) {
     window.speechSynthesis.cancel();

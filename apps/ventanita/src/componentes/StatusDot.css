@@ -88,3 +88,65 @@
     transform: none;
   }
 }
+
+/* Hablando: el punto late con el volumen de la voz (StatusDot.tsx escribe
+   --volumen en cada cuadro). Con la voz del sistema no hay cómo medirlo:
+   un latido suave mientras suena. Callado, quieto. */
+.status-dot[data-estado="hablando"] {
+  transform: scale(calc(1 + var(--volumen, 0)));
+}
+
+.status-dot[data-estado="hablando"][data-sonando="si"][data-medida="no"] {
+  animation: latido-voz 420ms ease-in-out infinite alternate;
+}
+
+@keyframes latido-voz {
+  from { transform: scale(1); }
+  to { transform: scale(1.14); }
+}
+
+/* Escuchándote (micrófono abierto): concentración. Dos anillos de luz que
+   se cierran hacia el punto, y el punto que se recoge un poco con ellos. */
+.status-dot[data-estado="escuchando"][data-voz="si"] {
+  animation: recogerse 1600ms ease-in-out infinite;
+}
+
+.status-dot[data-estado="escuchando"][data-voz="si"]::before,
+.status-dot[data-estado="escuchando"][data-voz="si"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--luz);
+  box-shadow: none;
+  opacity: 0;
+  animation: concentrar 1600ms var(--curva) infinite;
+}
+
+.status-dot[data-estado="escuchando"][data-voz="si"]::before {
+  animation-delay: 800ms;
+}
+
+@keyframes concentrar {
+  0% { transform: scale(2.6); opacity: 0; }
+  35% { opacity: 0.55; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes recogerse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(0.9); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot[data-estado="hablando"],
+  .status-dot[data-estado="escuchando"][data-voz="si"] {
+    animation: none;
+    transform: none;
+  }
+  .status-dot[data-estado="escuchando"][data-voz="si"]::before,
+  .status-dot[data-estado="escuchando"][data-voz="si"]::after {
+    animation: none;
+    opacity: 0;
+  }
+}

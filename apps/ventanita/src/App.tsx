@@ -19,7 +19,7 @@ import {
 } from "./servidor";
 import { MS_RECORDATORIO_VISIBLE, tocaRecordar } from "./recordatorio";
 import { animarTamano } from "./movimiento";
-import { callarse, hablar, obtenerVoces, type VozDisponible } from "./voz";
+import { callarse, despertarAudio, estadoDeVoz, hablar, obtenerVoces, vozOcupada, type VozDisponible } from "./voz";
 import { copiarAlPortapapeles } from "./portapapeles";
 import { formatearDuracion, formatearHace, registrarInteraccion, ultimaInteraccion } from "./tiempo";
 import {
@@ -129,9 +129,6 @@ const UMBRAL_ARRASTRE_PX = 4;
 
 // Qué pasó con lo que dijiste, además de la respuesta. Solo si la escribió
 // el modelo: «Guardada. La miramos en dos días.» ya lo dice sola.
-function respuestaQueda(tipo: TipoMensaje | null, origen: OrigenMensaje): boolean {
-  return tipo === "encargo" || origen === "texto";
-}
 
 function notaDe(tipo: TipoMensaje, delModelo: boolean): string | null {
   if (!delModelo) return null;
@@ -163,11 +160,7 @@ export default function App() {
   // De qué tipo fue la última respuesta: un encargo se muestra distinto
   // (bloque mono + Copiar) y no se cierra solo.
   const [tipoRespuesta, setTipoRespuesta] = useState<TipoMensaje | null>(null);
-  const tipoRespuestaRef = useRef(tipoRespuesta);
-  tipoRespuestaRef.current = tipoRespuesta;
   const [origenMensaje, setOrigenMensaje] = useState<OrigenMensaje>("texto");
-  const origenMensajeRef = useRef(origenMensaje);
-  origenMensajeRef.current = origenMensaje;
   const [grabando, setGrabando] = useState(false);
   // Entre cortar la grabación y ver el texto: Remi transcribe (whisper
   // local). Antes ese hueco era mudo; ahora se ve, en `pensar`.
@@ -195,6 +188,12 @@ export default function App() {
   // Lo que Juan Camilo mandó: se ve bajo el punto gris mientras Remi piensa.
   const [textoEnviado, setTextoEnviado] = useState("");
   const ventanaRef = useRef<HTMLDivElement>(null);
+  // Cada respuesta nueva suma uno. La locución se arranca una vez por
+  // respuesta (y de nuevo solo si pedís leer, o cambiás velocidad o voz):
+  // ahora que la respuesta se queda, pasar el mouse no la repite.
+  const respuestaIdRef = useRef(0);
+  const ultimaLocucionRef = useRef("");
+  const locucionEnCursoRef = useRef<Promise<void> | null>(null);
   const altoRef = useRef<number>(TAMANO_EXPANDIDO.height);
   // El recordatorio de cada media hora: una etiqueta bajo el punto, en el
   // lugar del «hace N min», que aparece con un movimiento y se va.
@@ -206,7 +205,9 @@ export default function App() {
   const [copiado, setCopiado] = useState(false);
   // Con el puntero sobre los controles, la respuesta no se cierra sola:
   // si vas a copiar o a leer, la ventanita te espera.
-  const [sostenido, setSostenido] = useState(false);
+  // (Ya no hace falta leerlo: ninguna respuesta se cierra sola. Queda el
+  // setter porque los controles lo avisan igual.)
+  const [, setSostenido] = useState(false);
   // Ley 1 hecha visible en el Reloj: null hasta que sepamos si hay dato
   // real, y se queda null si no lo hay (nunca un número inventado).
   const [sesionInicio, setSesionInicio] = useState<string | null>(null);
@@ -323,8 +324,9 @@ export default function App() {
         hijos += 1;
       }
       alto += hueco * Math.max(0, hijos - 1);
+      const escribiendo = estado === "escuchando" && !grabando && modo !== "dialogo";
       const meta =
-        estado === "escuchando"
+        escribiendo
           ? TAMANO_EXPANDIDO.height
           : Math.min(ALTO_MAXIMO, Math.max(TAMANO_EXPANDIDO.height, Math.ceil(alto)));
       if (meta === altoRef.current) return;
@@ -334,7 +336,7 @@ export default function App() {
       void getCurrentWindow().setSize(new LogicalSize(TAMANO_EXPANDIDO.width, meta));
     }, DURACION_APARECER + 30);
     return () => window.clearTimeout(id);
-  }, [expandido, estado, respuestaTexto, textoEnviado, tipoRespuesta, transcribiendo, grabando]);
+  }, [expandido, estado, respuestaTexto, textoEnviado, tipoRespuesta, transcribiendo, grabando, modo]);
 
   // El dato de la ley 1 llega después de volver a reposo (hay que
   // preguntárselo al núcleo): cuando llega, la píldora se ensancha para
@@ -372,6 +374,8 @@ export default function App() {
     setTranscribiendo(false);
     setTexto("");
     setVoz("");
+    setRespuestaTexto("");
+    setTextoEnviado("");
     setSesionInicio(null);
     setUltimaVezMin(null);
     window.clearTimeout(rearmeRef.current);
@@ -455,6 +459,7 @@ export default function App() {
         }
         setVoz(respuesta.voz);
         setRespuestaTexto(respuesta.texto || respuesta.voz);
+        respuestaIdRef.current += 1;
         setNotaRespuesta(notaDe(respuesta.tipo, respuesta.tokens !== null));
         setTipoRespuesta(respuesta.tipo);
         // Solo un bloque abierto tiene reloj: una idea que enfría y un
@@ -721,10 +726,12 @@ export default function App() {
     if (estado !== "hablando") return;
 
     let vigente = true;
-    // Una respuesta escrita (o un encargo) no se cierra sola: queda hasta
-    // click afuera, Escape o la X — ni siquiera después de leerla en voz
-    // alta con el botón. Por voz, como siempre: se cierra al terminar.
-    const queda = respuestaQueda(tipoRespuesta, origenMensaje);
+    // Ninguna respuesta se cierra sola (Juan Camilo, 30/09/2026: «el
+    // mensaje no se puede quitar hasta que yo lo quiera quitar»). Queda
+    // hasta la X, Escape o un click cuando Remi ya terminó de hablar. La
+    // excepción es el diálogo: al terminar vuelve a escucharte, con la
+    // respuesta todavía a la vista bajo el punto.
+    const queda = accionesRef.current.modo !== "dialogo";
     const terminar = () => {
       if (!vigente) return;
       vigente = false;
@@ -740,18 +747,26 @@ export default function App() {
 
     registrar("hablando", { origen: origenMensaje, lecturas, velocidad, palabras: voz.split(/\s+/).length });
     const habla = lecturas > 0 || (origenMensaje === "voz" && !accionesRef.current.silenciado);
+    const locucion = `${respuestaIdRef.current}|${lecturas}|${velocidad}|${vozElegida}`;
     let techo: number | undefined;
-    if (habla) {
-      void hablar(voz, velocidad, vozElegida).then(terminar);
+    if (habla && locucion !== ultimaLocucionRef.current) {
+      ultimaLocucionRef.current = locucion;
+      locucionEnCursoRef.current = hablar(voz, velocidad, vozElegida);
+      void locucionEnCursoRef.current.then(terminar);
       techo = window.setTimeout(terminar, TECHO_LOCUCION_MS);
-    } else if (!sostenido && !queda) {
+    } else if (habla) {
+      // Re-render con la misma locución en curso: se engancha al mismo fin.
+      void locucionEnCursoRef.current?.then(terminar);
+    } else if (!habla && !queda) {
       techo = window.setTimeout(terminar, duracionHablando(respuestaTexto));
     }
 
     return () => {
       vigente = false;
       window.clearTimeout(techo);
-      callarse();
+      // Solo se calla si se fue de «hablando»: un re-render cualquiera no
+      // puede cortarla a mitad de frase.
+      if (accionesRef.current.estado !== "hablando") callarse();
     };
   }, [
     estado,
@@ -762,7 +777,6 @@ export default function App() {
     velocidad,
     vozElegida,
     lecturas,
-    sostenido,
     empezarAEscuchar,
     volverAReposo,
   ]);
@@ -832,7 +846,8 @@ export default function App() {
         dentroDelCuadro,
         grabacionDesde: grabacionDesdeRef.current,
         msDesdeCambioDeTamano,
-        respuestaQueda: respuestaQueda(tipoRespuestaRef.current, origenMensajeRef.current),
+        // Un click cierra la respuesta solo si Remi ya no está hablando.
+        respuestaQueda: !vozOcupada(),
         ahora,
         racha: rachaAnterior,
       });
@@ -918,6 +933,9 @@ export default function App() {
   // es un click de verdad y llega a alClick.
   const alPresionar = useCallback((evento: React.MouseEvent<HTMLDivElement>) => {
     if (evento.button !== 0) return;
+    // El audio de la voz se analiza (para que el punto lata) solo con un
+    // contexto despierto, y eso pide un gesto.
+    despertarAudio();
     if ((evento.target as HTMLElement).closest(".prompt-terminal, .controles-voz, .semaforo, .chip-modelo, .boton-cancelar")) return;
 
     const inicio = { x: evento.clientX, y: evento.clientY };
@@ -945,7 +963,7 @@ export default function App() {
       {estado !== "reposo" && <BotonCancelar onCancelar={() => cancelar("x")} />}
       {/* El punto. El modelo se elige en el chip, debajo del cuadro. */}
       <div className="punto-zona">
-        <StatusDot estado={estado} escuchandoVoz={grabando} />
+        <StatusDot estado={estado} escuchandoVoz={grabando} medirVoz={estadoDeVoz} />
       </div>
 
       {/* Ley 1 en reposo. Si hay algo de hoy que ya hiciste antes, el dato
@@ -967,6 +985,11 @@ export default function App() {
           entrado. Una palabra chica bajo el punto, mientras escucha. */}
       {estado === "escuchando" && grabando && modo === "dialogo" && (
         <p className="num modo-escucha">diálogo</p>
+      )}
+      {/* En diálogo, lo último que dijo Remi sigue a la vista mientras te
+          escucha: a 2× no siempre se entiende al oído. */}
+      {estado === "escuchando" && modo === "dialogo" && respuestaTexto !== "" && (
+        <p className="display-it voz voz--tuya">{limpiarMarkdown(respuestaTexto)}</p>
       )}
 
       {/* Estado visible mientras whisper trabaja: el punto ya está en
