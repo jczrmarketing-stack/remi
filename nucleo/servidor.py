@@ -270,6 +270,8 @@ class EventoEntrante(BaseModel):
 class RespuestaEvento(BaseModel):
     proyecto: str | None
     anotado: bool
+    # Solo al abrir una sesión: dónde quedó, decisiones, próximo paso.
+    contexto: str | None = None
 
 
 @app.post("/evento", response_model=RespuestaEvento)
@@ -277,7 +279,12 @@ def recibir_evento(evento: EventoEntrante) -> RespuestaEvento:
     """Un commit o una sesión, desde un hook. Si la carpeta no tiene libro,
     queda en la Bandeja como proyecto sin ficha. No depende de una palabra clave."""
     hecho = trabajo.recibir(evento.tipo, evento.ruta, evento.datos)
-    return RespuestaEvento(proyecto=hecho["proyecto"], anotado=bool(hecho["anotado"]))  # type: ignore[arg-type]
+    contexto = hecho.get("contexto")
+    return RespuestaEvento(
+        proyecto=hecho["proyecto"],  # type: ignore[arg-type]
+        anotado=bool(hecho["anotado"]),
+        contexto=contexto if isinstance(contexto, str) and contexto.strip() else None,
+    )
 
 
 @app.post("/mensaje", response_model=RespuestaMensaje)

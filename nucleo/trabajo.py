@@ -79,8 +79,52 @@ def recibir(tipo: str, ruta: str, datos: dict[str, object] | None = None, ahora:
 
     if tema and tipo == "commit":
         _programar_estado(tema, momento)
+    contexto = _contexto_de(ruta) if tipo == "sesion_inicio" else None
+    if tipo == "sesion_fin":
+        _programar_cierre(ruta, carga, momento)
 
-    return {"proyecto": tema, "anotado": anotado}
+    return {"proyecto": tema, "anotado": anotado, "contexto": contexto}
+
+
+def _contexto_de(ruta: str) -> str | None:
+    """Dónde quedó, decisiones y próximo paso. Sin modelo: lo lee del libro."""
+    libro = libros.por_ruta(ruta)
+    if libro is None:
+        return None
+    estado = estado_libro.leer_estado(libro.archivo)
+    if estado.strip():
+        lineas = [f"Proyecto: {libro.titulo}", *estado.splitlines()]
+    else:
+        lineas = [
+            f"Proyecto: {libro.titulo}",
+            f"Quedaste: {libro.resumen}",
+            "Decisiones: ninguna anotada.",
+            "Próximo paso: elegir un paso de cinco minutos.",
+        ]
+    limpias = [linea.strip() for linea in lineas if linea.strip()]
+    return "\n".join(limpias[:15])
+
+
+def _programar_cierre(ruta: str, datos: dict[str, object], ahora: datetime) -> None:
+    """El episodio se escribe al cerrar, también dentro de la ventana de 10 min."""
+    import cierre
+
+    if os.environ.get("REMI_CIERRE", "1") == "0":
+        return
+    if os.environ.get("REMI_TRABAJO_EN_LINEA") == "1":
+        cierre.guardar(ruta, datos, ahora)
+        return
+    hilo = threading.Thread(target=_cierre_seguro, args=(ruta, datos, ahora), daemon=True)
+    hilo.start()
+
+
+def _cierre_seguro(ruta: str, datos: dict[str, object], ahora: datetime) -> None:
+    import cierre
+
+    try:
+        cierre.guardar(ruta, datos, ahora)
+    except Exception as error:  # noqa: BLE001 — cerrar la sesión no puede tumbar el núcleo
+        print(f"[cierre] no pude guardarlo ({type(error).__name__})", file=sys.stderr)
 
 
 def _guardar_commit(

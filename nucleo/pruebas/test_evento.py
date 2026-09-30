@@ -43,7 +43,8 @@ def test_un_commit_en_la_carpeta_cae_en_su_libro(tmp_path, monkeypatch):
     )
 
     assert respuesta.status_code == 200
-    assert respuesta.json() == {"proyecto": "malik", "anotado": False}
+    assert respuesta.json()["proyecto"] == "malik"
+    assert respuesta.json()["anotado"] is False
 
 
 def test_sin_ficha_entra_a_la_bandeja_una_sola_vez(tmp_path, monkeypatch):
