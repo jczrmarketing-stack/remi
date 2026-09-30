@@ -20,6 +20,64 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · reparación del incidente de los Estados + vectores de Fase C · construido · 961aeb6
+
+- **Qué cambió** (encargo corto de Juan Camilo, cinco puntos, un commit cada uno):
+  1. `malik.md` recupera su línea «Próximo paso» tal cual la leyó Claude antes del incidente
+     (`scripts/escritorio4.swift`). **`remi.md` y `organic-cash.md` NO se tocaron**: al ir a
+     reponerlos encontré que ya no tenían el marcador de «se perdió» — tenían contenido
+     distinto y concreto (`Revisar la lógica de cierre de tareas en Chat.tsx` y `Revisar el
+     ENCARGO.md en malik-gestion`), y confirmé con el log del núcleo que es contenido real:
+     el gancho de commits ya venía actualizando `remi.md` legítimamente con los commits de
+     hoy mismo (verificado en vivo más tarde: su Estado pasó a hablar de `sin_evidencia_nueva`
+     apenas hice ese commit). Pisarlos con el texto de antes del incidente hubiera sido
+     repetir el mismo error que este encargo existe para prevenir.
+  2. `git init` en `~/proyectos/remi-mente` (commit propio de ese repo, sin remote).
+     `nucleo/boveda_git.py`: `snapshot_antes()`/`snapshot_despues()` alrededor de las tres
+     escrituras del núcleo en la bóveda (`trabajo.actualizar_estado`, `cierre.guardar`,
+     `episodios.guardar`). Probado con git de verdad, tmp y real: un `git revert` real
+     recupera un pisón. La copia nocturna con restic ya incluye el `.git` nuevo — hace backup
+     de la carpeta entera, no hace falta tocar `copia.sh`.
+  3. `estado_libro.sin_evidencia_nueva()`: `redactar()` no llama a Haiku ni a Ollama si el
+     pedido no trae commits nuevos — el fallo exacto del incidente (un script suelto llamando
+     a `redactar()` con la bandeja vacía).
+  4. La instrucción anti-invento ya existía desde `0483a55`; se suma un test que confirma que
+     viaja de verdad al modelo.
+  5. `nucleo/vectores.py`: `nomic-embed-text` (274 MB, Ollama) — elegido contra `bge-m3`
+     (1,16 GB, manifest de la registry consultada antes de bajar nada) — vectoriza
+     título+resumen+claves de `proyectos/`, `areas/`, `oficios/` (`tipo: oficio`) y
+     `episodios/` en `sqlite-vec`, y solo recalcula si el hash del contenido cambió.
+     `pensar.py` suma los 3–5 asociados a la mente antes de cada respuesta, solo títulos.
+     `remi.db` real ya tiene las 22 notas vectorizadas.
+- **Verificado de verdad, no simulado:** 236 pytest (`test_boveda_git.py` con git real,
+  `test_vectores.py` con Ollama real contra la bóveda real), mypy limpio (45→47 módulos).
+  Contra el núcleo instalado y reiniciado con `scripts/instalar.sh`: `POST /mensaje` con «lo
+  del cliente que desconfiaba» trajo `shopify-cliente` entre los asociados y Sonnet contestó
+  bien (sin inventar que es cliente de Juan Camilo). `git log` en la bóveda real ya tiene
+  commits automáticos de actividad real de hoy (un Estado de `remi.md` actualizado por un
+  commit mío, capturado por `snapshot_antes` antes de escribir un episodio de UpVisuals).
+- **Decisiones que tomé sin preguntar:**
+  1. No reescribí `organic-cash.md`: su «Próximo paso» quedó tal como estaba (no era el
+     marcador de pérdida) — no tenía por qué tocarlo.
+  2. `areas/` entra a los vectores aunque el encargo solo nombraba proyectos/oficios/
+     episodios: es «un libro por área» de la arquitectura, mismo formato, y el costo es
+     cero (se recalcula solo si cambia).
+  3. `sqlite-vec` como dependencia nueva del núcleo (`uv add`), con override de mypy para sus
+     tipos faltantes, igual que kokoro/soundfile.
+- **Dudas abiertas:**
+  1. Dos procesos escribiendo en la bóveda al mismo tiempo (dos sesiones de Claude Code, o el
+     núcleo y un script a mano) podrían pisarse en la ventana entre `git add` y `git commit`
+     de `boveda_git`. No pasó hoy, pero no hay lock. Si se repite, un `flock` alrededor
+     del commit es la solución simple.
+  2. `organic-cash.md` sigue sin su «Próximo paso» real: si Juan Camilo o Grok lo recuerdan,
+     se repone a mano; si no, lo escribe el próximo commit real de ese proyecto.
+- **Cómo probarlo a mano:** `cd ~/proyectos/remi-mente && git log --oneline` (tiene que haber
+  más de un commit); `cd ~/proyectos/remi/nucleo && uv run pytest pruebas/test_boveda_git.py
+  pruebas/test_vectores.py -v`; preguntarle a Remi «lo del cliente que desconfiaba» y ver que
+  mencione Shopify.
+
+---
+
 ## 2026-09-30 · Fase F · 1–2 la bolita y la voz vuelven al DS · construido · e071101
 
 - **Qué cambió:** este encargo llegó a mitad del anterior (Biblia v3.3, «la ventanita final»):
