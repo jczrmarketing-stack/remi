@@ -20,6 +20,72 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 3b la ventanita para usarla todo el día · construido · 29147d7
+
+- **Qué cambió:** antes de todo, `4456700` commitea `docs/ARQUITECTURA-CEREBRO.md` tal cual.
+  (1) `7cd1a62` una X arriba a la derecha, fuera de reposo: corta sin transcribir ni mandar
+  (`cancelar_escucha` en `voz.rs`, `BotonCancelar.tsx`); la usan también Escape y el corte
+  por silencio. (2) `d4f0ac0` la flechita de modo junto al punto, solo en `escuchando`,
+  visible al acercar el mouse (`SelectorModo.tsx`, `IconosModo.tsx`); sale el selector
+  provisional de 3a. (3) `cf203ac` modo «Prompt»: lo dicho vuelve como encargo para Claude
+  Code con Sonnet y `nucleo/prompts/encargo.md`, con botón Copiar (`Encargo.tsx`); no
+  clasifica ni guarda. (4) `8a8b9be` el diálogo corta a los 2000 ms de silencio. (5)
+  `9f4ed31` la respuesta escrita y el encargo se quedan hasta que los cierres. (6) `29147d7`
+  `limpiarMarkdown` en la ventanita y `sin_markdown` antes de Kokoro. 177 pytest, 48 vitest,
+  9 cargo, tsc y mypy limpios. Instalada con `actualizar.sh`.
+- **Medición pedida, equilibrio, «¿qué tengo pendiente con Alfonso?», núcleo instalado:**
+
+  | Corrida | ms | entrada / caché leída / caché escrita / salida | leyó |
+  |---|---|---|---|
+  | 3a (antes del carácter corto) | 8238 | 4 / 6020 / 1032 / 493 | upvisuals |
+  | 3b, 1.ª | 8364 | 4 / 5430 / 4579 / 392 | upvisuals |
+  | 3b, 2.ª | 6555 | 4 / 7594 / 2319 / 435 | upvisuals |
+
+  El carácter corto casi no se nota: bajó de 493 a ~410 tokens y la respuesta **sigue siendo
+  una lista con negritas**, cuando `caracter.md` pide «por texto: hasta un párrafo corto;
+  listas solo si él pide pasos». Hipótesis, sin probar: los 10 turnos literales de esta
+  conversación son todos listas largas de pruebas anteriores y el modelo los imita («Es lo
+  mismo de las últimas veces»). Se comprueba repitiendo la pregunta en una conversación nueva.
+
+- **Punto 7 · auditoría de diseño, sin arreglar** (contra el lienzo «Ventanita de Remi —
+  refinamiento» y `design/tokens.json`; la píldora medida en una captura de la instalada):
+
+  | Elemento | Diseñado | Implementado | |
+  |---|---|---|---|
+  | Píldora de reposo | 120×44, `radius-pill`, punto centrado | 120×44 y `radius-pill`; crece a 120×64 con «hace N min» y a 210×64 con «la última vez» | ⚠️ los dos tamaños extra no están en el tablero |
+  | Punto en la píldora | centrado | **5 px por debajo del centro**: `.punto-zona` tiene `min-height: 22px` (de `d4f0ac0`) y en 44 px de alto con `space-4` de relleno no entra. En la captura de 120×64 el punto ocupa y=23–32 | ❌ lo rompí yo en el punto 2 |
+  | Color del punto en reposo | `baja` (el tablero corrige al DS, que dice `dormido`) | `baja` | ✅ con el tablero · ⚠️ el DS sigue diciendo `dormido` |
+  | Escuchando | `luz`, pulsa, crece a 22 px sin moverse | `luz` + `glow-luz`, halo que pulsa, 22 px con el centro fijo | ✅ |
+  | Pensando | `pensar` + brillo | `pensar` + `glow-pensar`, más «transcribiendo» mientras whisper trabaja | ✅ |
+  | Hablando | `brasa`, la frase y el Reloj, sin cuadro | `brasa` + `glow-brasa`, frase, Reloj `brasa`; suma los controles de voz y la nota | ⚠️ una fila de controles que el tablero no tiene |
+  | Punto anclado | a 28 px del borde superior | centro a 27 px (relleno `space-4` + zona de 22 px) | ✅ |
+  | Expandido | 420×520, relleno 24, cuadro que llena, punto→cuadro 20 px («space-5») | 420×520, relleno `space-4` (16), cuadro que llena, separación `space-3` (12) | ⚠️ `space-5` no existe en el DS; el tablero pide un token inventado |
+  | Atajos del expandido | abajo, en `ink-faint`, mono 11 px | abajo, en `ink-muted`, mono 11 px | ⚠️ el tablero contradice al DS (`ink-faint` solo ≥24 px); seguí al DS |
+  | Tipografías | `display-it`, `num`, `code` del DS | las cuatro clases con los valores del DS; pero solo está empaquetada Geist Mono 400 y `num` pide 500 | ⚠️ `num` se ve en 400 |
+  | Tamaños sueltos | mínimo `body-sm` (14 px) en la ventanita | mono 11 px en el pie del terminal y en el error; ni `label` ni `num` | ⚠️ fuera de escala |
+  | `ink-muted` | texto secundario | «hace», notas, atajos, X, flechita: todo `ink-muted`; `ink-faint` sin uso | ✅ |
+  | Borde especular | `rgba(243,235,221,0.10)` interno | el mismo valor, escrito a mano en `App.css` | ⚠️ no es token: hex a mano |
+  | Celebración | 900 ms en `luz`, borde `luz`, «Cerrado.» en `display-it`; con reduced-motion, solo color | no existe | ❌ |
+  | «Hecha» | botón píldora borde `brasa` en hablando | no existe; cerrar solo se puede diciendo la frase exacta | ❌ |
+  | Piel `dinero` | punto y Reloj en `dinero` si hay entrega que paga | no existe; siempre `brasa` | ❌ (no pedido en 3b) |
+
+- **Decisiones que tomé sin preguntar:**
+  1. **No arreglé nada de la auditoría**, tampoco el punto corrido de la píldora aunque es
+     mío: el encargo dice «sin arreglar». Es una línea en `SelectorModo.css`; espera encargo.
+  2. Donde el tablero y `tokens.json` chocan (atajos en `ink-faint`, `space-5`) marqué ⚠️ y
+     no ✅: manda el DS, pero alguien tiene que corregir uno de los dos.
+  3. La tarea de fondo de la bitácora de 2i.9 estaba en un bucle roto; la detuve. No escribió
+     nada.
+- **Dudas abiertas:**
+  1. ¿El DS pasa a `baja` para el reposo y suma un `space-5`, o el tablero se ajusta al DS?
+  2. Celebración y «Hecha» van juntas (una se gana con la otra). ¿Entran en 3c o antes?
+  3. La lista con negritas en equilibrio: ¿se prueba en conversación nueva antes de tocar
+     `caracter.md`?
+- **Cómo probarlo a mano:** tocar la ventanita y la X arriba a la derecha: vuelve a reposo
+  sin mandar nada. Acercar el mouse al punto mientras escucha: aparece la flechita; elegir
+  «Prompt», dictar un pedido y copiar el encargo. En diálogo, hacer una pausa de un segundo
+  en medio de una frase: no corta. Escribir una pregunta: la respuesta se queda hasta la X.
+
 ## 2026-09-29 · 3a cerebro v1 (niveles 0 a 2) · construido · f5597c4
 
 - **Qué cambió:** manda `docs/ARQUITECTURA-CEREBRO.md`. Contra lo construido en 3a: los
