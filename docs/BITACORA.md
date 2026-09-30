@@ -20,6 +20,51 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-29 · 3a Remi piensa de verdad · construido · 71643ac
+
+- **Qué cambió:** siete commits, uno por punto. (1) `ae58466` todo mensaje de la ventanita
+  piensa; «sin pensar» es un toggle que queda puesto; `CLAUDE.md` al día con la decisión.
+  (2) `dde48b3` Sonnet por la sesión de Max, Haiku si tarda más de 25 s o falla; ventanita
+  espera 50 s. (3) `4cb6dc7` `conocimiento/caracter.md` es el system prompt, leído en cada
+  mensaje; sin techo de 20 palabras; en pantalla va entero, hablado hasta 3 frases.
+  (4) `643e751` `sembrar_conocimiento.py` lleva las fichas al estante al arrancar: índice de
+  2 a 8 entradas. (5) `42919fd` tabla `turnos`, 12 turnos de la última hora en cada llamada.
+  (6) `8a36b1e` la respuesta completa y una nota chica («guardada en la bandeja»,
+  «reloj corriendo»). (7) `71643ac` pruebas. 152 núcleo, 42 ventanita, mypy limpio.
+- **Criterio de listo, verificado contra el núcleo instalado, por texto:**
+
+  | Pregunta | Resultado | ms |
+  |---|---|---|
+  | ¿qué tengo pendiente con Alfonso? | montos y fechas de `upvisuals.md`; `modelo=claude-sonnet-5-5 leyó=sí` | 9691 |
+  | ¿y cuándo arranco? | «cuando la Fase 1 esté pagada completa… 18 oct, hasta el 23» (por el turno anterior) | 7196 |
+
+- **Decisiones que tomé sin preguntar:**
+  1. `conocimiento/` va a `.gitignore` (salud y montos): se lee del disco, no entra al repo.
+  2. La API sigue con `think=false` por defecto: quien decide pensar es la ventanita. Así las
+     pruebas que postean `/mensaje` no lanzan la CLI de verdad.
+  3. El `paso_minimo` de una tarea nace universal: la respuesta de una conversación no es un
+     paso mínimo.
+  4. La historia viaja dentro del mensaje, igual para los tres motores.
+  5. `db.py` resolvía la ruta de la base al importarse y las pruebas se contaminaban entre sí
+     (los turnos de una aparecían en la otra). Ahora se resuelve al conectar y cada prueba
+     tiene su base. La base real no fue tocada por pruebas.
+- **Dudas abiertas:**
+  1. **Las preguntas se guardan como ideas en la Bandeja.** El clasificador no distingue
+     preguntas: «¿qué tengo pendiente con Alfonso?» quedó como idea enfriando. Ensucia la
+     ley 2. Arreglo corto: una pregunta (termina en «?») no se guarda.
+  2. **La respuesta trae markdown** (`**negrita**`, listas) y la ventanita lo muestra crudo.
+     Se arregla en el carácter («sin markdown») o renderizándolo. El carácter es de Juan
+     Camilo.
+  3. **Whisper alucinó «¡Suscríbete al canal!»** dos veces esta tarde y quedó como idea.
+     Es la frase clásica de Whisper sobre silencio.
+  4. `tokens entrada=4`: la CLI cuenta solo lo no cacheado. El dato real está en
+     `cache_read_input_tokens`; hoy el log subestima.
+  5. 7 a 10 s por respuesta con Sonnet. Con Haiku o Ollama baja, a costa de calidad.
+- **Cómo probarlo a mano:** un click, escribir «¿qué tengo pendiente con Alfonso?», Enter;
+  después «¿y cuándo arranco?».
+
+---
+
 ## 2026-09-29 · 2i.12 clicks fantasma y motor por defecto · construido · e4ccba1
 
 - **Qué cambió:** (1) `a09e0f7`: cada click deja isTrusted, detail, screenX/Y y los ms desde
