@@ -20,6 +20,63 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · trastienda (config/motores.json) + respaldo de charla · construido · a57484d
+
+- **Qué cambió:** `nucleo/pensar.py` — `config/motores.json` define la trastienda, una lista
+  ordenada `proveedor/modelo` (por defecto `groq/kimi-k2` → `openrouter/deepseek-flash` →
+  `ollama/gemma3:4b`, leída por `trastienda()`); `pensar_con_trastienda(pedido, instrucciones,
+  aceptar=None)` recorre esa lista y cae al siguiente motor si uno no contesta, responde vacío,
+  o `aceptar` lo rechaza. Los cuatro módulos que hoy llamaban directo a Ollama/Haiku para tareas
+  de fondo pasan a usarla: `pensar.resumir` (resumen vivo), `cierre.redactar` (títulos de
+  episodios), `estado_libro.redactar` (consolidación nocturna, vía `noche.py`) y
+  `claves.extraer` (claves). La verificación anti-invento de `estado_libro` y `claves` sigue
+  igual, ahora enchufada como el callback `aceptar`. Además, **respaldo de charla**: si la CLI
+  de Claude avisa que llegó al límite de uso (`LimiteDeClaude`, detectado por patrón de texto —
+  la CLI no da un código estructurado), el turno se reintenta una sola vez, directo, con
+  `openrouter/deepseek-v4-pro` (sin recorrer los tres modos de Claude, que comparten el mismo
+  límite). `Pensado` suma el campo `motor_usado`; `servidor.py` lo agrega a `RespuestaMensaje`
+  (nuevo, para pantalla — a diferencia de `tokens`, que es solo consola) en los cinco lugares
+  que arman la respuesta desde un `pensado`. 21 pruebas nuevas/reescritas con cliente falso
+  (HTTP/CLI mockeados, nada de red real); 338 pytest, mypy limpio (64 módulos).
+- **Decisiones que tomé sin preguntar:**
+  1. `noche.py` no se tocó: no llama a ningún modelo directo, todo pasa por
+     `estado_libro.redactar`, así que arreglar ese módulo alcanza.
+  2. `cierre.redactar_error()` (libro de errores, oficio «stack») se dejó como estaba —solo
+     Haiku, sin Ollama de respaldo hoy—: el encargo listaba `cierre.py` por los títulos de
+     episodios, no por el libro de errores, que es una función aparte.
+  3. `refresco_claude_code.py` tampoco se tocó: llama a Haiku directo para su propia tarea (el
+     refresco semanal del changelog), no es uno de los cuatro módulos listados.
+  4. `motor_usado` es un campo nuevo en `RespuestaMensaje`, no dentro de `tokens`: el comentario
+     de `tokens` ya decía que es dato de consola, nunca pantalla, y el pedido explícito era que
+     la ventanita lo pueda mostrar.
+  5. El patrón para detectar «límite alcanzado» es texto (`usage limit|límite alcanzado|límite
+     de uso`, sin distinguir mayúsculas): la CLI de Claude Code no da un código de error
+     estructurado para esto, así que es lo mejor disponible sin verlo en vivo contra un límite
+     real.
+- **Dudas abiertas:**
+  1. El patrón de «límite alcanzado» no está probado contra un límite real de la CLI —no tengo
+     cómo provocarlo a propósito sin gastar el límite de Max de Juan Camilo—, solo contra un
+     texto de ejemplo razonable. Si la CLI usa una frase distinta, no dispara el respaldo y
+     queda como cualquier otro error (sin IA).
+  2. `GROQ_API_KEY`/`OPENROUTER_API_KEY` no están en `nucleo/.env` todavía: sin ellas, la
+     trastienda cae derecho a Ollama (que sigue local y sin llave) y el respaldo de charla no
+     tiene a dónde reintentar (`_llamar_proveedor` falla con 401, se loguea y sigue sin IA, como
+     cualquier proveedor sin clave).
+  3. `docs/ARQUITECTURA-CEREBRO.md §9` y `docs/ROBUSTEZ.md` (nuevos, no tocados por este
+     commit: los estaba editando alguien más en este mismo árbol de trabajo mientras yo
+     construía esto) describen un plan más amplio para OpenRouter —`models` con caída
+     automática dentro de una sola llamada y `provider.sort=price`, más modelos por nivel
+     (Kimi K2, Qwen3-Coder)— que no construí: el encargo de hoy fue puntual (la lista de tres
+     `proveedor/modelo` y el respaldo a `deepseek-v4-pro`), no ese plan entero.
+- **Cómo probarlo a mano:** `cd nucleo && uv run pytest pruebas/test_pensar.py
+  pruebas/test_estado_libro_invento.py pruebas/test_noche.py pruebas/test_claves.py
+  pruebas/test_pensar_de_verdad.py pruebas/test_bandeja.py -v`; con `GROQ_API_KEY` y
+  `OPENROUTER_API_KEY` reales en `nucleo/.env`, `curl -s -X POST 127.0.0.1:4400/mensaje
+  -H 'content-type: application/json' -d '{"texto":"¿qué tengo pendiente?","think":true}' | jq
+  .motor_usado` debe decir `"claude"` en una sesión normal.
+
+---
+
 ## 2026-09-30 · motor DeepSeek · construido · 1fd9d29
 
 - **Qué cambió:** `nucleo/pensar.py` — motor `deepseek`, mismo camino que Venice:
