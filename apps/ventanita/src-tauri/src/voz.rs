@@ -55,7 +55,10 @@ fn umbral_para(piso: f32) -> f32 {
     (piso * FACTOR_SOBRE_PISO).clamp(UMBRAL_VOZ, UMBRAL_MAXIMO)
 }
 // Cuánto silencio seguido, después de hablar, cuenta como "ya terminaste".
-const SILENCIO_PARA_CORTAR: Duration = Duration::from_millis(1200);
+// 2 s y no 1,2: con 1,2 el diálogo cortaba a mitad de frase cada vez que
+// Juan Camilo se paraba a pensar la palabra siguiente (3b). Solo lo usa el
+// diálogo: el dictado nunca corta por silencio.
+const SILENCIO_PARA_CORTAR: Duration = Duration::from_millis(2000);
 // Si en todo este tiempo no dijiste nada, Remi deja de esperar (en diálogo
 // no hay cuadro para escribir: sin esto quedaba grabando para siempre).
 const SIN_VOZ_MAXIMO: Duration = Duration::from_secs(10);
@@ -310,7 +313,11 @@ fn vigilar_silencio(ruta_wav: PathBuf, app: AppHandle, cancelado: Arc<AtomicBool
 
             callado += PASO_VIGILANCIA;
             if callado >= SILENCIO_PARA_CORTAR {
-                log::info!("[voz] dejaste de hablar (pico {pico:.3}) → corto sola");
+                log::info!(
+                    "[voz] dejaste de hablar: callado {} ms (umbral {} ms, pico {pico:.3}) → corto sola",
+                    callado.as_millis(),
+                    SILENCIO_PARA_CORTAR.as_millis()
+                );
                 let _ = app.emit(EVENTO_SILENCIO, AvisoSilencio { motivo: "fin" });
                 return;
             }
