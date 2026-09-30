@@ -3,8 +3,13 @@ import { partirBionica, perillasBionica } from "../bionica";
 import { partirRespuesta, type Parte } from "../markdown";
 import { Encargo } from "./Encargo";
 import { AccionesRespuesta } from "./AccionesRespuesta";
+import { formatearReloj } from "../tiempo";
 import type { Sesion, Tarea } from "../contratos";
 import "./Chat.css";
+
+// Cada cuánto se refresca el reloj de una línea (3f · 4): minutos, no
+// segundos — la ley 1 mide sola, no hace falta un segundero.
+const MS_REFRESCO_RELOJ = 30000;
 
 // 950 ms, la Biblia (Parte II, playground de la celebración): una sola vez,
 // nunca se repite en el mismo mensaje.
@@ -20,6 +25,9 @@ export interface Mensaje {
   // eso el chat sabe que hay algo abierto y muestra «Hecha» debajo.
   tarea?: Tarea | null;
   sesion?: Sesion | null;
+  // Retomar (3f · 7): los últimos 3 mensajes de la conversación vigente al
+  // abrir, antes de que digas nada nuevo — se ven, pero en ink-muted.
+  historial?: boolean;
 }
 
 interface Props {
@@ -36,6 +44,26 @@ interface Props {
   // Lectura biónica: la intensidad (0–1), o null si está apagada. Solo en lo
   // que escribe Remi; nunca en botones, campos ni en la tarjeta de código.
   bionica?: number | null;
+  // Reloj de una línea (3f · 4), bajo el bloque abierto. null: sin dato
+  // todavía (ley 1, nunca se inventa) — el reloj igual muestra lo que corre.
+  ultimaVezMin?: number | null;
+  // Piel dinero (3f · 3): esta sesión es de una entrega que paga.
+  dinero?: boolean;
+}
+
+function RelojLinea({ inicio, ultimaVezMin, dinero }: { inicio: string; ultimaVezMin: number | null; dinero: boolean }) {
+  const [ahoraMs, setAhoraMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setAhoraMs(Date.now()), MS_REFRESCO_RELOJ);
+    return () => window.clearInterval(id);
+  }, []);
+  const transcurridos = Math.max(0, (ahoraMs - new Date(inicio).getTime()) / 60000);
+  return (
+    <p className={`num chat__reloj chat__reloj--${dinero ? "dinero" : "brasa"}`}>
+      {formatearReloj(transcurridos)}
+      {ultimaVezMin !== null && ultimaVezMin !== undefined && <> · la última vez {formatearReloj(ultimaVezMin)}</>}
+    </p>
+  );
 }
 
 function Bionico({ texto }: { texto: string }) {
@@ -144,7 +172,7 @@ function MensajeDeRemi({ mensaje, ultimo, ...acciones }: Omit<Props, "mensajes">
         bloque.tipo === "encargo" ? (
           <Encargo key={i} texto={bloque.texto} />
         ) : (
-          <p key={i} className="display-it chat__remi">
+          <p key={i} className={`display-it chat__remi${mensaje.historial ? " ink-muted" : ""}`}>
             <Partes partes={bloque.partes} onEnlace={acciones.onEnlace} bionica={acciones.bionica != null} />
           </p>
         ),
@@ -167,6 +195,13 @@ function MensajeDeRemi({ mensaje, ultimo, ...acciones }: Omit<Props, "mensajes">
           onReintentar={ultimo ? acciones.onReintentar : undefined}
         />
       ) : null}
+      {hayBloqueAbierto && mensaje.sesion && (
+        <RelojLinea
+          inicio={mensaje.sesion.inicio}
+          ultimaVezMin={acciones.ultimaVezMin ?? null}
+          dinero={Boolean(acciones.dinero)}
+        />
+      )}
       {hayBloqueAbierto && (
         <button type="button" className="chat__hecha" onClick={cerrarAhora} disabled={celebrando}>
           Hecha
@@ -200,7 +235,7 @@ export function Chat({ mensajes, ...acciones }: Props) {
       {mensajes.map((mensaje, i) =>
         mensaje.rol === "juan" ? (
           <div key={mensaje.id} className="chat__mensaje chat__mensaje--juan">
-            <p className="body-sm chat__juan">{mensaje.texto}</p>
+            <p className={`body-sm chat__juan${mensaje.historial ? " ink-muted" : ""}`}>{mensaje.texto}</p>
           </div>
         ) : (
           <MensajeDeRemi key={mensaje.id} mensaje={mensaje} ultimo={i === mensajes.length - 1} {...acciones} />

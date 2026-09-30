@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, ValidationError
 import clasificar
 import correcciones
 import db
+import entregas
 import episodios
 import pensar
 import sembrar_conocimiento
@@ -68,6 +69,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
+app.include_router(entregas.router)
 
 MAX_PALABRAS_VOZ = 20
 # Lo que se DICE en voz alta, cuando la respuesta la escribió el modelo: el

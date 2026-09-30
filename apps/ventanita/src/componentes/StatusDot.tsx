@@ -9,6 +9,10 @@ interface Props {
   escuchandoVoz?: boolean;
   // Hablando, el punto late con el volumen de la voz. Lo lee en cada cuadro.
   medirVoz?: () => EstadoDeVoz;
+  // Piel dinero (3f · 3): el bloque abierto es de una entrega que paga.
+  // Reemplaza `brasa` por `dinero` en `hablando`; no inventa un glow nuevo
+  // (el DS solo tiene glow-luz/brasa/pensar).
+  dinero?: boolean;
 }
 
 // Cuánto crece con la voz más fuerte, y cómo sigue al volumen: sube rápido
@@ -18,7 +22,7 @@ const GANANCIA = 4;
 const SUBIDA = 0.5;
 const BAJADA = 0.12;
 
-export function StatusDot({ estado, escuchandoVoz = false, medirVoz }: Props) {
+export function StatusDot({ estado, escuchandoVoz = false, medirVoz, dinero = false }: Props) {
   const punto = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -56,6 +60,7 @@ export function StatusDot({ estado, escuchandoVoz = false, medirVoz }: Props) {
       className="status-dot"
       data-estado={estado}
       data-voz={escuchandoVoz ? "si" : "no"}
+      data-dinero={dinero ? "si" : "no"}
       aria-hidden="true"
     />
   );

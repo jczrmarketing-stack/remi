@@ -5,6 +5,7 @@ import { StatusDot } from "./componentes/StatusDot";
 import { Semaforo } from "./componentes/Semaforo";
 import { BotonCancelar } from "./componentes/BotonCancelar";
 import { Chat, type Mensaje } from "./componentes/Chat";
+import { Nudge } from "./componentes/Nudge";
 import { Campo, type CampoRef } from "./componentes/Campo";
 import { ChipCerebro } from "./componentes/ChipCerebro";
 import { ChipVoz } from "./componentes/ChipVoz";
@@ -16,12 +17,18 @@ import {
   enviarMensaje,
   guardarEpisodio,
   obtenerConversacion,
+  obtenerEntregaDeProyecto,
   obtenerModelosOllama,
   obtenerMotores,
+  obtenerNudgePendiente,
   obtenerUltimaVezDeHoy,
+  obtenerUltimaVezMin,
+  responderNudge,
   type MotorDePensar,
 } from "./servidor";
+import type { Entrega, Nudge as NudgeContrato } from "./contratos";
 import { MS_RECORDATORIO_VISIBLE, tocaRecordar } from "./recordatorio";
+import { MS_ENTRE_CONSULTAS_NUDGE, type RespuestaNudge } from "./nudges";
 import { animarTamano } from "./movimiento";
 import {
   callarse,
@@ -32,6 +39,7 @@ import {
   type VozDisponible,
 } from "./voz";
 import { copiarAlPortapapeles } from "./portapapeles";
+import { partirRespuesta } from "./markdown";
 import { formatearDuracion, formatearHace, registrarInteraccion, ultimaInteraccion } from "./tiempo";
 import {
   alternarSilencio,
@@ -86,20 +94,21 @@ import {
   type Tamano,
 } from "./ventana";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
+import { mostrarTextoIsla, MS_ISLA_ENCOGER, MS_ISLA_VISIBLE, tamanoIsla, TAMANO_ISLA_MINIMA } from "./reposo";
 import "./estilos.css";
 import "./App.css";
 
 // — Tamaños —
-// Reposo es una píldora. Sin historia, 120×44: solo el punto. Con «hace 6
-// min» debajo, 120×64; con el dato medido de la ley 1, más ancha.
-const TAMANO_REPOSO_MINIMO = { width: 120, height: 44 };
-const TAMANO_REPOSO_CON_HACE = { width: 120, height: 64 };
-const TAMANO_REPOSO_ULTIMA_VEZ = { width: 210, height: 64 };
+// Reposo es una píldora. Sin nada que decir, 120×44: solo el punto (3f · 1).
+const TAMANO_REPOSO_MINIMO = TAMANO_ISLA_MINIMA;
 // Abierta es el chat (3c): una sola pantalla, del tamaño que la dejaste
 // (ventana.ts). Guardar tamaño y lugar espera a que dejes de mover.
 const MS_GUARDAR_VENTANA = 400;
 const REFRESCO_HACE_MS = 30000;
 const DURACION_APARECER = 250;
+// Retomar (3f · 7): al abrir en texto, solo los últimos 3 mensajes de la
+// conversación vigente, sin nada nuevo dicho todavía.
+const MENSAJES_DE_RETOMAR = 3;
 // Techo de una locución, por si el sintetizador nunca avisa que terminó.
 const TECHO_LOCUCION_MS = 60000;
 // Mientras dictás, cada cuánto se pide lo que vas diciendo.
@@ -126,9 +135,8 @@ async function tamanoActual(): Promise<Tamano> {
   return { width: fisico.width / f, height: fisico.height / f };
 }
 
-function tamanoReposo(hayHace: boolean, hayUltimaVez: boolean) {
-  if (hayUltimaVez) return TAMANO_REPOSO_ULTIMA_VEZ;
-  return hayHace ? TAMANO_REPOSO_CON_HACE : TAMANO_REPOSO_MINIMO;
+function tamanoReposo(mostrarTexto: boolean) {
+  return tamanoIsla(mostrarTexto);
 }
 
 // Qué es un control (nunca un gesto de la píldora) y qué es el campo.
@@ -162,6 +170,15 @@ export default function App() {
   // Lo que está en el campo de abajo.
   const [texto, setTexto] = useState("");
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  // Piel dinero (3f · 3): la entrega viva del proyecto del bloque abierto,
+  // si tiene una. null la mayoría del tiempo: hoy nada le pone proyecto_id
+  // a una tarea todavía (ver nucleo/servidor.py) — queda listo para cuando sí.
+  const [entregaDelBloque, setEntregaDelBloque] = useState<Entrega | null>(null);
+  // Reloj de una línea (3f · 4): cuánto tardó la última vez esta misma tarea.
+  const [ultimaVezDelBloqueMin, setUltimaVezDelBloqueMin] = useState<number | null>(null);
+  // Nudges dentro del chat (3f · 6). null casi siempre: solo hay uno si el
+  // núcleo tiene uno pendiente (/nudges/pendiente, que puede no existir aún).
+  const [nudgePendiente, setNudgePendiente] = useState<NudgeContrato | null>(null);
   const [grabando, setGrabando] = useState(false);
   const [transcribiendo, setTranscribiendo] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
@@ -221,8 +238,21 @@ export default function App() {
   const expandidoAnteriorRef = useRef(expandido);
   const hayHace = ultimaInteraccionMs !== null || recordatorio !== null;
   const hayUltimaVez = ultimaVezDeHoy !== null;
-  const reposoRef = useRef({ hayHace, hayUltimaVez });
-  reposoRef.current = { hayHace, hayUltimaVez };
+  const hayContenidoReposo = hayHace || hayUltimaVez;
+  // Isla de reposo (3f · 1): al volver a reposo, 4 s mostrando el texto y
+  // se encoge; con el mouse encima se vuelve a mostrar aunque ya se encogió.
+  const [hoverIsla, setHoverIsla] = useState(false);
+  const [vencioIsla, setVencioIsla] = useState(false);
+  const mostrarTextoReposo = mostrarTextoIsla(vencioIsla ? MS_ISLA_VISIBLE : 0, hoverIsla, hayContenidoReposo);
+  const reposoRef = useRef({ mostrarTextoReposo });
+  reposoRef.current = { mostrarTextoReposo };
+
+  useEffect(() => {
+    if (estado !== "reposo") return;
+    setVencioIsla(false);
+    const id = window.setTimeout(() => setVencioIsla(true), MS_ISLA_VISIBLE);
+    return () => window.clearTimeout(id);
+  }, [estado]);
 
   // Mientras la animamos nosotros, los cambios de tamaño no son tuyos: no
   // se guardan.
@@ -236,7 +266,7 @@ export default function App() {
   // Al arrancar: la píldora del tamaño justo y en el lugar donde la dejaste.
   useEffect(() => {
     const ventana = getCurrentWindow();
-    const reposo = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
+    const reposo = tamanoReposo(reposoRef.current.mostrarTextoReposo);
     registrar("tamaño", { motivo: "montar", w: reposo.width, h: reposo.height });
     cambioDeTamanoRef.current = performance.now();
     void (async () => {
@@ -260,7 +290,7 @@ export default function App() {
     if (expandidoAnteriorRef.current === expandido) return;
     expandidoAnteriorRef.current = expandido;
     const ventana = getCurrentWindow();
-    const reposo = tamanoReposo(reposoRef.current.hayHace, reposoRef.current.hayUltimaVez);
+    const reposo = tamanoReposo(reposoRef.current.mostrarTextoReposo);
     void (async () => {
       animandoRef.current = true;
       cambioDeTamanoRef.current = performance.now();
@@ -323,13 +353,32 @@ export default function App() {
     };
   }, []);
 
+  // La isla se agranda o se encoge (200 ms) según haya texto para mostrar.
+  const tamanoIslaAnteriorRef = useRef(mostrarTextoReposo);
   useEffect(() => {
     // Durante la animación de cerrar, el tamaño lo pone ella.
     if (expandido || animandoRef.current) return;
-    const { width, height } = tamanoReposo(hayHace, hayUltimaVez);
-    cambioDeTamanoRef.current = performance.now();
-    void getCurrentWindow().setSize(new LogicalSize(width, height));
-  }, [expandido, hayHace, hayUltimaVez]);
+    if (tamanoIslaAnteriorRef.current === mostrarTextoReposo) {
+      // Primer paint en reposo (o cambio de contenido sin cambio de tamaño):
+      // fija el tamaño ya, sin animar.
+      const { width, height } = tamanoReposo(mostrarTextoReposo);
+      cambioDeTamanoRef.current = performance.now();
+      void getCurrentWindow().setSize(new LogicalSize(width, height));
+      return;
+    }
+    tamanoIslaAnteriorRef.current = mostrarTextoReposo;
+    const ventana = getCurrentWindow();
+    const hasta = tamanoReposo(mostrarTextoReposo);
+    void (async () => {
+      animandoRef.current = true;
+      cambioDeTamanoRef.current = performance.now();
+      const desde = await tamanoActual();
+      registrar("tamaño", { motivo: mostrarTextoReposo ? "isla:mostrar" : "isla:encoger", w: hasta.width, h: hasta.height });
+      await animarTamano(ventana, desde, hasta, MS_ISLA_ENCOGER);
+      cambioDeTamanoRef.current = performance.now();
+      animandoRef.current = false;
+    })();
+  }, [expandido, mostrarTextoReposo]);
 
   useEffect(() => {
     if (expandido || !hayHace) return;
@@ -356,7 +405,11 @@ export default function App() {
           setMensajes((actuales) =>
             // Si ya hay mensajes de esta apertura (llegaron antes que la
             // historia), la historia va antes y no se duplica nada.
-            actuales.length > 0 ? actuales : turnos.map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto })),
+            actuales.length > 0
+              ? actuales
+              : turnos
+                  .slice(-MENSAJES_DE_RETOMAR)
+                  .map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto, historial: true })),
           );
           return;
         }
@@ -369,6 +422,34 @@ export default function App() {
       })
       .catch(() => undefined);
   }, [expandido]);
+
+  // Piel dinero (3f · 3): el bloque abierto es el de la última respuesta de
+  // Remi que abrió una tarea (`tipo: "hoy"`) y sigue sin cerrar — el mismo
+  // criterio que «Hecha» en Chat.tsx. Si esa tarea tiene proyecto y ese
+  // proyecto tiene una entrega viva, la bolita y el Reloj se pintan dinero.
+  useEffect(() => {
+    const ultimo = mensajes[mensajes.length - 1];
+    const bloqueAbierto = ultimo?.tarea && ultimo.tarea.estado === "hoy" ? ultimo.tarea : null;
+    if (!bloqueAbierto) {
+      setEntregaDelBloque(null);
+      setUltimaVezDelBloqueMin(null);
+      return;
+    }
+    let vivo = true;
+    if (bloqueAbierto.proyecto_id) {
+      obtenerEntregaDeProyecto(bloqueAbierto.proyecto_id).then((entrega) => {
+        if (vivo) setEntregaDelBloque(entrega);
+      });
+    } else {
+      setEntregaDelBloque(null);
+    }
+    obtenerUltimaVezMin(bloqueAbierto.id).then((min) => {
+      if (vivo) setUltimaVezDelBloqueMin(min);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [mensajes]);
 
   // — La voz de Remi —
 
@@ -489,6 +570,34 @@ export default function App() {
     setModo("texto");
     setEstado("escuchando");
     window.setTimeout(() => campoRef.current?.enfocar(), DURACION_APARECER);
+  }, []);
+
+  // Nudges dentro del chat (3f · 6): se pregunta cada 5 min si hay uno
+  // pendiente. Si llega con la ventanita en reposo, la expande — sin
+  // sonido, y sin pisar un nudge que ya estaba mostrado.
+  useEffect(() => {
+    let vivo = true;
+    const consultar = () => {
+      if (!vivo) return;
+      obtenerNudgePendiente().then((nudge) => {
+        if (!vivo || !nudge) return;
+        setNudgePendiente((actual) => (actual?.id === nudge.id ? actual : nudge));
+        if (accionesRef.current.estado === "reposo") abrirChat();
+      });
+    };
+    consultar();
+    const id = window.setInterval(consultar, MS_ENTRE_CONSULTAS_NUDGE);
+    return () => {
+      vivo = false;
+      window.clearInterval(id);
+    };
+  }, [abrirChat]);
+
+  const responderAlNudge = useCallback((respuesta: RespuestaNudge) => {
+    setNudgePendiente((actual) => {
+      if (actual) void responderNudge(actual.id, respuesta);
+      return null;
+    });
   }, []);
 
   const empezarAEscuchar = useCallback(async (modoNuevo: Modo) => {
@@ -697,11 +806,22 @@ export default function App() {
       if (evento.key.toLowerCase() === "m" && evento.metaKey && evento.shiftKey) {
         evento.preventDefault();
         setSilenciado(alternarSilencio());
+        return;
+      }
+      // ⌘⇧C (3f · 8): copia el encargo cuando la respuesta activa es la
+      // tarjeta de prompt (partirRespuesta lo marca como tipo "encargo").
+      if (evento.key.toLowerCase() === "c" && evento.metaKey && evento.shiftKey) {
+        const ultimo = mensajes[mensajes.length - 1];
+        if (!ultimo || ultimo.rol !== "remi") return;
+        const encargo = partirRespuesta(ultimo.texto).find((bloque) => bloque.tipo === "encargo");
+        if (!encargo) return;
+        evento.preventDefault();
+        void copiarAlPortapapeles(encargo.texto).then((pudo) => registrar("encargo:copiar-atajo", { pudo }));
       }
     }
     window.addEventListener("keydown", alTeclado);
     return () => window.removeEventListener("keydown", alTeclado);
-  }, [cancelar]);
+  }, [cancelar, mensajes]);
 
   // — Preferencias —
 
@@ -1059,6 +1179,9 @@ export default function App() {
     [guardarPegado],
   );
 
+  // Paga de verdad: tiene monto y no está ya cobrada.
+  const esDinero = entregaDelBloque != null && entregaDelBloque.monto != null && entregaDelBloque.estado !== "pagada";
+
   const escuchar = useCallback(
     (frase: string) => {
       registrar("escuchar", { palabras: frase.split(/\s+/).length });
@@ -1069,16 +1192,23 @@ export default function App() {
 
   if (estado === "reposo") {
     return (
-      <div className="ventanita ventanita--reposo" onMouseDown={alPresionar}>
+      <div
+        className="ventanita ventanita--reposo"
+        onMouseDown={alPresionar}
+        onMouseEnter={() => setHoverIsla(true)}
+        onMouseLeave={() => setHoverIsla(false)}
+      >
         <Semaforo enPildora onVerde={abrirChat} />
         <div className="punto-zona">
           <StatusDot estado="reposo" />
         </div>
-        {recordatorio !== null && <p className="num hace recordatorio-motor">{recordatorio}</p>}
-        {recordatorio === null && ultimaVezDeHoy !== null && (
+        {mostrarTextoReposo && recordatorio !== null && (
+          <p className="num hace recordatorio-motor">{recordatorio}</p>
+        )}
+        {mostrarTextoReposo && recordatorio === null && ultimaVezDeHoy !== null && (
           <p className="num hace">la última vez: {formatearDuracion(ultimaVezDeHoy)}</p>
         )}
-        {recordatorio === null && ultimaVezDeHoy === null && ultimaInteraccionMs !== null && (
+        {mostrarTextoReposo && recordatorio === null && ultimaVezDeHoy === null && ultimaInteraccionMs !== null && (
           <p className="num hace">{formatearHace(ultimaInteraccionMs, ahoraMs)}</p>
         )}
       </div>
@@ -1101,7 +1231,7 @@ export default function App() {
         aria-label={grabando ? "Parar de escuchar" : "Hablarle a Remi (dos toques: conversación)"}
         title={grabando ? (modo === "dialogo" ? "Terminar la conversación" : "Parar y ver el texto") : "Un toque: dictar · dos: conversar"}
       >
-        <StatusDot estado={estado} escuchandoVoz={grabando} medirVoz={estadoDeVoz} />
+        <StatusDot estado={estado} escuchandoVoz={grabando} medirVoz={estadoDeVoz} dinero={esDinero} />
         {grabando && modo === "dialogo" && <p className="num modo-escucha">conversación</p>}
         {transcribiendo && <p className="num trabajando">transcribiendo</p>}
       </div>
@@ -1114,12 +1244,22 @@ export default function App() {
         onReintentar={reintentar}
         onCerrarBloque={cerrarTarea}
         bionica={lectura.bionica ? lectura.intensidad : null}
+        ultimaVezMin={ultimaVezDelBloqueMin}
+        dinero={esDinero}
         onEnlace={(url) => {
           // Los links de una búsqueda (3c · 8) se abren en el navegador.
           registrar("enlace", { url });
           void openUrl(url).catch((error) => console.error("no pude abrir el link:", error));
         }}
       />
+
+      {nudgePendiente && (
+        <Nudge
+          voz={nudgePendiente.voz}
+          onResponder={responderAlNudge}
+          bionica={lectura.bionica ? lectura.intensidad : null}
+        />
+      )}
 
       <Campo
         ref={campoRef}
