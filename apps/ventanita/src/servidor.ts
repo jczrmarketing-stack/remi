@@ -59,12 +59,13 @@ export interface OpcionesMensaje {
   modo?: string | null;
   nivel?: string | null;
   modeloOllama?: string | null;
+  modeloVenice?: string | null;
   // Por voz, lo que se dice son hasta 3 frases; el chat muestra todo.
   origen?: "voz" | "texto";
 }
 
 export async function enviarMensaje(texto: string, opciones: OpcionesMensaje): Promise<RespuestaMensaje> {
-  const { think, motor, modo, nivel, modeloOllama, origen } = opciones;
+  const { think, motor, modo, nivel, modeloOllama, modeloVenice, origen } = opciones;
   const controlador = new AbortController();
   const limite = setTimeout(() => controlador.abort(), TIMEOUT_NUCLEO_MS);
   try {
@@ -78,6 +79,7 @@ export async function enviarMensaje(texto: string, opciones: OpcionesMensaje): P
         ...(think && modo ? { modo } : {}),
         ...(think && nivel ? { nivel } : {}),
         ...(think && modeloOllama ? { modelo_ollama: modeloOllama } : {}),
+        ...(think && modeloVenice ? { modelo_venice: modeloVenice } : {}),
         ...(origen ? { origen } : {}),
       }),
       signal: controlador.signal,

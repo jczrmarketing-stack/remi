@@ -150,6 +150,8 @@ class MensajeEntrante(BaseModel):
     nivel: Literal["bajo", "medio", "alto", "extra"] | None = None
     # Con Ollama, cuál de los modelos de `ollama list`. None = el de siempre.
     modelo_ollama: str | None = None
+    # Con Venice, GLM Flash o Grok 4.7. None = el del .env. Otro id se ignora.
+    modelo_venice: str | None = None
     # Cómo entró: por voz o escrito. Lo guarda la Idea (contrato).
     origen: Literal["voz", "texto"] = "texto"
 
@@ -360,7 +362,7 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # El tipo ya está decidido (idea, y se guardó): pensar solo cambia lo que
     # Remi CONTESTA. En diálogo, «Guardada. La miramos en dos días.» a todo
     # lo que digas no es una conversación.
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, modelo_ollama=mensaje.modelo_ollama) if mensaje.think else None
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, modelo_ollama=mensaje.modelo_ollama, modelo_venice=mensaje.modelo_venice) if mensaje.think else None
     if pensado is None:
         return _respuesta_fija("idea", "Guardada. La miramos en dos días.")
     return RespuestaMensaje(
@@ -406,7 +408,15 @@ def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
         return RespuestaMensaje(tipo="pregunta", texto=cuanto, voz=_voz_de(cuanto, mensaje))
     buscar = clasificar.pide_busqueda(mensaje.texto)
     pensado = (
-        pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, buscar=buscar, modelo_ollama=mensaje.modelo_ollama)
+        pensar.pensar(
+            mensaje.texto,
+            mensaje.motor,
+            mensaje.modo,
+            nivel=mensaje.nivel,
+            buscar=buscar,
+            modelo_ollama=mensaje.modelo_ollama,
+            modelo_venice=mensaje.modelo_venice,
+        )
         if mensaje.think
         else None
     )
@@ -458,7 +468,7 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
     # Si pensó, lo que Remi contesta es lo que escribió el modelo. El
     # paso_minimo de la tarea nace universal igual: la respuesta de una
     # conversación no es un paso mínimo. Sin modelo, la frase de siempre.
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, modelo_ollama=mensaje.modelo_ollama) if mensaje.think else None
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, modelo_ollama=mensaje.modelo_ollama, modelo_venice=mensaje.modelo_venice) if mensaje.think else None
     paso_minimo = PASO_MINIMO_INICIAL
     texto = pensado.paso_minimo if pensado else frase_remi(mensaje.texto)
     voz = _voz_de(texto, mensaje) if pensado else texto

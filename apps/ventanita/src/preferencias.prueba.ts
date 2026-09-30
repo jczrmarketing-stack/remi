@@ -37,10 +37,13 @@ describe("el chip de cerebro", () => {
     for (const e of [
       { motor: "claude", modelo: "opus", nivel: "extra" },
       { motor: "ollama", modelo: "gemma3:4b" },
-      { motor: "venice" },
+      { motor: "venice", modelo: "z-ai-glm-5-3-flash" },
+      { motor: "venice", modelo: "grok-4-7" },
     ] as const) {
       expect(deValor(valorDe(e))).toEqual(e);
     }
+    expect(deValor("venice")).toEqual({ motor: "venice", modelo: "z-ai-glm-5-3-flash" });
+    expect(deValor("venice:otro")).toBeNull();
     expect(deValor("claude:gpt:alto")).toBeNull();
   });
 
@@ -49,13 +52,15 @@ describe("el chip de cerebro", () => {
     expect(etiquetaDe({ motor: "claude", modelo: "sonnet", nivel: "medio" })).toBe("Sonnet · medio");
     expect(etiquetaDe({ motor: "claude", modelo: "opus", nivel: "extra" })).toBe("Opus · máx");
     expect(etiquetaDe({ motor: "ollama", modelo: "gemma3:4b" })).toBe("gemma3:4b");
+    expect(etiquetaDe({ motor: "venice", modelo: "grok-4-7" })).toBe("Grok 4.7");
+    expect(etiquetaDe({ motor: "venice", modelo: "z-ai-glm-5-3-flash" })).toBe("GLM Flash");
   });
 
   it("se recuerda la elección, salvo Venice (pago)", async () => {
     const { fijarCerebro, obtenerCerebro } = await import("./preferencias");
     fijarCerebro({ motor: "claude", modelo: "haiku", nivel: "alto" });
     expect(obtenerCerebro()).toEqual({ motor: "claude", modelo: "haiku", nivel: "alto" });
-    fijarCerebro({ motor: "venice" });
+    fijarCerebro({ motor: "venice", modelo: "grok-4-7" });
     expect(obtenerCerebro()).toEqual({ motor: "claude", modelo: "sonnet", nivel: "bajo" });
   });
 
@@ -72,7 +77,9 @@ describe("el chip de cerebro", () => {
       modo: "equilibrio",
       nivel: "medio",
       modeloOllama: null,
+      modeloVenice: null,
     });
     expect(paraEnviar({ motor: "ollama", modelo: "llama3" }).modeloOllama).toBe("llama3");
+    expect(paraEnviar({ motor: "venice", modelo: "grok-4-7" }).modeloVenice).toBe("grok-4-7");
   });
 });

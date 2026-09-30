@@ -361,6 +361,27 @@ def test_venice_lee_el_texto_y_los_tokens(monkeypatch, tmp_path):
     assert visto["instrucciones"].startswith(pensar.caracter()[:40])
 
 
+def test_venice_el_chip_elige_entre_los_dos(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("VENICE_API_KEY", "clave-de-prueba")
+    monkeypatch.setenv("REMI_VENICE_MODELO", "modelo-x")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    visto = {}
+
+    def falsa_llamada(clave, nombre_modelo, instrucciones, frase):
+        visto["modelo"] = nombre_modelo
+        return {"model": nombre_modelo, "choices": [{"message": {"content": "Listo."}}], "usage": {}}
+
+    monkeypatch.setattr(pensar, "_llamar_venice", falsa_llamada)
+    pensar.pensar("cómo funciona", "venice", modelo_venice="grok-4-7")
+    assert visto["modelo"] == "grok-4-7"
+    pensar.pensar("cómo funciona", "venice", modelo_venice="z-ai-glm-5-3-flash")
+    assert visto["modelo"] == "z-ai-glm-5-3-flash"
+    pensar.pensar("cómo funciona", "venice", modelo_venice="otro")
+    assert visto["modelo"] == "modelo-x"
+
+
 def test_venice_con_respuesta_vacia_sigue_sin_ia(monkeypatch, tmp_path):
     pensar = _importar_pensar()
     monkeypatch.setenv("REMI_PENSADOR", "venice")

@@ -125,10 +125,18 @@ export type ModeloClaude = (typeof MODELOS_CLAUDE)[number];
 export const NIVELES = ["bajo", "medio", "alto", "extra"] as const;
 export type Nivel = (typeof NIVELES)[number];
 
+// Los dos de Venice. El primero es el económico; Grok es el que menos inventa.
+export const MODELOS_VENICE = ["z-ai-glm-5-3-flash", "grok-4-7"] as const;
+export type ModeloVenice = (typeof MODELOS_VENICE)[number];
+const NOMBRE_VENICE: Record<ModeloVenice, string> = {
+  "z-ai-glm-5-3-flash": "GLM Flash",
+  "grok-4-7": "Grok 4.7",
+};
+
 export type EleccionCerebro =
   | { motor: "claude"; modelo: ModeloClaude; nivel: Nivel }
   | { motor: "ollama"; modelo: string }
-  | { motor: "venice" };
+  | { motor: "venice"; modelo: ModeloVenice };
 
 export const CEREBRO_POR_DEFECTO: EleccionCerebro = { motor: "claude", modelo: "sonnet", nivel: "bajo" };
 
@@ -136,16 +144,24 @@ const MODO_DE: Record<ModeloClaude, ModoPensar> = { haiku: "rapido", sonnet: "eq
 const NOMBRE_MODELO: Record<ModeloClaude, string> = { haiku: "Haiku", sonnet: "Sonnet", opus: "Opus" };
 export const NOMBRE_NIVEL: Record<Nivel, string> = { bajo: "bajo", medio: "medio", alto: "alto", extra: "máx" };
 
-/** Cómo va en el <select> y en el guardado: «claude:sonnet:medio», «ollama:gemma3:4b», «venice». */
+/** Cómo va en el <select> y en el guardado: «claude:sonnet:medio», «ollama:gemma3:4b», «venice:grok-4-7». */
 export function valorDe(e: EleccionCerebro): string {
   if (e.motor === "claude") return `claude:${e.modelo}:${e.nivel}`;
   if (e.motor === "ollama") return `ollama:${e.modelo}`;
-  return "venice";
+  return `venice:${e.modelo}`;
+}
+
+function esModeloVenice(valor: string): valor is ModeloVenice {
+  return (MODELOS_VENICE as readonly string[]).includes(valor);
 }
 
 export function deValor(valor: string | null): EleccionCerebro | null {
   if (!valor) return null;
-  if (valor === "venice") return { motor: "venice" };
+  // «venice» a secas es una preferencia vieja: cae al económico.
+  if (valor === "venice" || valor.startsWith("venice:")) {
+    const id = valor === "venice" ? MODELOS_VENICE[0] : valor.slice("venice:".length);
+    return esModeloVenice(id) ? { motor: "venice", modelo: id } : null;
+  }
   if (valor.startsWith("ollama:") && valor.length > "ollama:".length) {
     return { motor: "ollama", modelo: valor.slice("ollama:".length) };
   }
@@ -160,11 +176,11 @@ export function deValor(valor: string | null): EleccionCerebro | null {
   return null;
 }
 
-/** Lo que muestra el chip: «Sonnet · medio», «gemma3:4b», «Venice». */
+/** Lo que muestra el chip: «Sonnet · medio», «gemma3:4b», «Grok 4.7». */
 export function etiquetaDe(e: EleccionCerebro): string {
   if (e.motor === "claude") return `${NOMBRE_MODELO[e.modelo]} · ${NOMBRE_NIVEL[e.nivel]}`;
   if (e.motor === "ollama") return e.modelo;
-  return "Venice";
+  return NOMBRE_VENICE[e.modelo];
 }
 
 /** Lo que viaja al núcleo con cada mensaje. */
@@ -173,10 +189,15 @@ export function paraEnviar(e: EleccionCerebro): {
   modo: ModoPensar;
   nivel: Nivel | null;
   modeloOllama: string | null;
+  modeloVenice: string | null;
 } {
-  if (e.motor === "claude") return { motor: "claude", modo: MODO_DE[e.modelo], nivel: e.nivel, modeloOllama: null };
-  if (e.motor === "ollama") return { motor: "ollama", modo: MODO_POR_DEFECTO, nivel: null, modeloOllama: e.modelo };
-  return { motor: "venice", modo: MODO_POR_DEFECTO, nivel: null, modeloOllama: null };
+  if (e.motor === "claude") {
+    return { motor: "claude", modo: MODO_DE[e.modelo], nivel: e.nivel, modeloOllama: null, modeloVenice: null };
+  }
+  if (e.motor === "ollama") {
+    return { motor: "ollama", modo: MODO_POR_DEFECTO, nivel: null, modeloOllama: e.modelo, modeloVenice: null };
+  }
+  return { motor: "venice", modo: MODO_POR_DEFECTO, nivel: null, modeloOllama: null, modeloVenice: e.modelo };
 }
 
 const CLAVE_CEREBRO = "remi.pensar.cerebro";

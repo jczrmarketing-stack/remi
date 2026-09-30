@@ -4,6 +4,7 @@ import {
   type EleccionCerebro,
   etiquetaDe,
   MODELOS_CLAUDE,
+  MODELOS_VENICE,
   NIVELES,
   valorDe,
 } from "../preferencias";
@@ -68,10 +69,15 @@ export function ChipCerebro({ eleccion, motores, modelosOllama, onElegir }: Prop
             </option>
           ))}
         </optgroup>
-        <optgroup label="Venice">
-          <option value="venice" disabled={!veniceOk}>
-            {veniceOk ? "Venice (pago)" : `Venice (pago) — ${motor("venice")?.detalle ?? "no disponible"}`}
-          </option>
+        <optgroup label={veniceOk ? "Venice · pago" : "Venice · pago (no disponible)"}>
+          {MODELOS_VENICE.map((modelo) => {
+            const opcion: EleccionCerebro = { motor: "venice", modelo };
+            return (
+              <option key={valorDe(opcion)} value={valorDe(opcion)} disabled={!veniceOk}>
+                {etiquetaDe(opcion)}
+              </option>
+            );
+          })}
         </optgroup>
       </select>
     </label>

@@ -35,7 +35,11 @@ RUTA_ENV = Path(__file__).resolve().parent / ".env"
 # nada sale del Mac).
 MOTOR_POR_DEFECTO = "claude"
 VENICE_URL = "https://api.venice.ai/api/v1/chat/completions"
-VENICE_MODELO_POR_DEFECTO = "venice-uncensored"
+# Los dos que ofrece el chip. El primero es el económico (respaldo si el
+# chip no manda modelo). El segundo es el que menos inventa. Otro id del
+# cliente cae al del entorno: no se le manda a Venice un nombre suelto.
+MODELOS_VENICE = ("z-ai-glm-5-3-flash", "grok-4-7")
+VENICE_MODELO_POR_DEFECTO = MODELOS_VENICE[0]
 VENICE_TIMEOUT_SEGUNDOS = 20.0
 OLLAMA_BASE = "http://127.0.0.1:11434"
 OLLAMA_URL = f"{OLLAMA_BASE}/v1/chat/completions"
@@ -365,7 +369,7 @@ def motores_disponibles() -> list[MotorDisponible]:
             label="Venice (pago)",
             disponible=hay_clave,
             detalle=(
-                f"{_ajuste('REMI_VENICE_MODELO', VENICE_MODELO_POR_DEFECTO)}, sin acceso al estante"
+                "GLM Flash o Grok 4.7, sin acceso al estante"
                 if hay_clave
                 else "sin VENICE_API_KEY en nucleo/.env"
             ),
@@ -636,6 +640,7 @@ def pensar(
     nivel: str | None = None,
     buscar: bool = False,
     modelo_ollama: str | None = None,
+    modelo_venice: str | None = None,
 ) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
@@ -653,7 +658,7 @@ def pensar(
         elegido = "claude"
         instrucciones = f"{instrucciones}\n\n{INSTRUCCIONES_BUSQUEDA}"
     if elegido == "venice":
-        pensado = _pensar_con_venice(mensaje, instrucciones, len(indice))
+        pensado = _pensar_con_venice(mensaje, instrucciones, len(indice), modelo_venice)
     elif elegido == "ollama":
         pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice), modelo_ollama)
     else:
@@ -728,12 +733,23 @@ def _leer_respuesta_venice(
     )
 
 
-def _pensar_con_venice(frase: str, instrucciones: str, entradas: int) -> Pensado | None:
+def _modelo_venice(pedido: str | None) -> str:
+    """El del chip si es uno de los dos. Si no, el del entorno."""
+    if pedido in MODELOS_VENICE:
+        return pedido
+    if pedido:
+        print(f"[venice] modelo desconocido {pedido!r}: uso el del entorno", file=sys.stderr)
+    return _ajuste("REMI_VENICE_MODELO", VENICE_MODELO_POR_DEFECTO)
+
+
+def _pensar_con_venice(
+    frase: str, instrucciones: str, entradas: int, modelo_pedido: str | None = None
+) -> Pensado | None:
     clave = _ajuste("VENICE_API_KEY", "")
     if not clave:
         print("[venice] sin VENICE_API_KEY en nucleo/.env: sigo sin IA", file=sys.stderr)
         return None
-    nombre_modelo = _ajuste("REMI_VENICE_MODELO", VENICE_MODELO_POR_DEFECTO)
+    nombre_modelo = _modelo_venice(modelo_pedido)
     try:
         datos = _llamar_venice(clave, nombre_modelo, instrucciones, frase)
     except httpx.HTTPStatusError as error:
