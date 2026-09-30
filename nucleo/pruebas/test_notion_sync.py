@@ -137,8 +137,78 @@ def test_crea_la_pagina_de_un_proyecto_nuevo(monkeypatch, tmp_path):
     assert (tmp_path / "boveda" / ".notion-estado.json").exists()
 
 
+def test_solo_de_ida_no_lee_ni_anota_conflicto_por_defecto(monkeypatch, tmp_path):
+    """docs/ROBUSTEZ.md: sin NOTION_VUELTA=1, sincronizar() empuja lo local y
+    nunca lee la página de Notion de vuelta — un cambio hecho a mano en
+    Notion no pisa el libro, y un conflicto real tampoco se anota."""
+    _configurar(monkeypatch, tmp_path)
+    monkeypatch.delenv("NOTION_VUELTA", raising=False)
+    boveda = _boveda(tmp_path, monkeypatch)
+    archivo = _libro(boveda, "upvisuals.md", "upvisuals", proximo="mandar la propuesta")
+    falso = NotionFalso()
+    notion_sync.sincronizar(cliente=falso)
+    (pagina_id,) = falso.paginas.keys()
+
+    # Cambia en Notion Y localmente: con la vuelta prendida esto sería un conflicto.
+    falso.tocar_a_mano(pagina_id, {"Próxima acción": notion.prop_texto("desde Notion")}, hace=timedelta(minutes=5))
+    archivo.write_text(archivo.read_text().replace("mandar la propuesta", "desde el libro"))
+    _git(boveda, "add", "-A")
+    _git(boveda, "commit", "-q", "-m", "cambio local")
+
+    resumen = notion_sync.sincronizar(cliente=falso)
+
+    assert resumen.conflictos == 0
+    assert resumen.proyectos_actualizados == 1
+    assert "Próximo paso: desde el libro" in archivo.read_text()  # lo local manda, Notion no vuelve
+    assert not (boveda / "bitacora.md").exists()
+    pagina = falso.obtener_pagina(pagina_id)
+    assert notion.leer_texto(pagina["properties"]["Próxima acción"]) == "desde el libro"  # se empujó
+
+
+def test_solo_de_ida_no_lee_el_estado_de_la_entrega_por_defecto(monkeypatch, tmp_path):
+    _configurar(monkeypatch, tmp_path)
+    monkeypatch.delenv("NOTION_VUELTA", raising=False)
+    boveda = _boveda(tmp_path, monkeypatch)
+    _libro(boveda, "upvisuals.md", "upvisuals")
+
+    import db
+    import entregas
+    from modelos import Entrega
+
+    conexion = db.conectar()
+    entrega = Entrega(
+        id=uuid4(),
+        cliente="Alfonso",
+        proyecto_id=notion_sync._id_de_proyecto("upvisuals"),
+        fecha=datetime.now(timezone.utc),
+        monto=5000.0,
+        estado="camino",
+        compartible=True,
+    )
+    entregas.crear_entrega(conexion, entrega)
+    conexion.close()
+
+    falso = NotionFalso()
+    notion_sync.sincronizar(cliente=falso)
+    paginas_entrega = [
+        p for p in falso.paginas.values() if notion.leer_titulo(p["properties"].get("Cliente")) == "Alfonso"
+    ]
+    pagina_id = paginas_entrega[0]["id"]
+
+    falso.tocar_a_mano(pagina_id, {"Estado": notion.prop_seleccion("pagada")})
+    resumen = notion_sync.sincronizar(cliente=falso)
+
+    assert resumen.conflictos == 0
+    conexion = db.conectar()
+    igual = entregas.leer_entrega(conexion, entrega.id)
+    conexion.close()
+    assert igual is not None
+    assert igual.estado == "camino"  # no volvió de Notion
+
+
 def test_proxima_accion_editada_en_notion_vuelve_al_libro(monkeypatch, tmp_path):
     _configurar(monkeypatch, tmp_path)
+    monkeypatch.setenv("NOTION_VUELTA", "1")
     boveda = _boveda(tmp_path, monkeypatch)
     archivo = _libro(boveda, "upvisuals.md", "upvisuals", proximo="mandar la propuesta")
     falso = NotionFalso()
@@ -159,6 +229,7 @@ def test_proxima_accion_editada_en_notion_vuelve_al_libro(monkeypatch, tmp_path)
 
 def test_conflicto_lo_anota_en_la_bitacora_y_gana_el_mas_reciente(monkeypatch, tmp_path):
     _configurar(monkeypatch, tmp_path)
+    monkeypatch.setenv("NOTION_VUELTA", "1")
     boveda = _boveda(tmp_path, monkeypatch)
     archivo = _libro(boveda, "upvisuals.md", "upvisuals", proximo="mandar la propuesta")
     falso = NotionFalso()
@@ -182,6 +253,7 @@ def test_conflicto_lo_anota_en_la_bitacora_y_gana_el_mas_reciente(monkeypatch, t
 
 def test_entrega_compartible_se_crea_y_el_estado_vuelve_desde_notion(monkeypatch, tmp_path):
     _configurar(monkeypatch, tmp_path)
+    monkeypatch.setenv("NOTION_VUELTA", "1")
     boveda = _boveda(tmp_path, monkeypatch)
     _libro(boveda, "upvisuals.md", "upvisuals")
 

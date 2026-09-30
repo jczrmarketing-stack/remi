@@ -31,6 +31,20 @@ def test_token_sale_del_env_si_no_hay_variable(monkeypatch, tmp_path):
     assert notion.pagina_id() == "pagina-1"
 
 
+def test_vuelta_apagada_por_defecto(monkeypatch, tmp_path):
+    monkeypatch.delenv("NOTION_VUELTA", raising=False)
+    monkeypatch.setattr(notion, "RUTA_ENV", tmp_path / "no-existe.env")
+    assert notion.vuelta_habilitada() is False
+
+
+def test_vuelta_se_prende_con_notion_vuelta_1(monkeypatch, tmp_path):
+    monkeypatch.setattr(notion, "RUTA_ENV", tmp_path / "no-existe.env")
+    monkeypatch.setenv("NOTION_VUELTA", "1")
+    assert notion.vuelta_habilitada() is True
+    monkeypatch.setenv("NOTION_VUELTA", "0")
+    assert notion.vuelta_habilitada() is False
+
+
 def test_ida_y_vuelta_de_las_propiedades():
     assert notion.leer_titulo(notion.prop_titulo("BeaM")) == "BeaM"
     assert notion.leer_texto(notion.prop_texto("cinco minutos")) == "cinco minutos"
