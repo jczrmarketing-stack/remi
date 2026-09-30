@@ -15,7 +15,17 @@ export interface VozDisponible {
 // Generar una frase tarda ~1,5 s con el modelo ya cargado. Si pasa esto,
 // algo anda mal (el núcleo recién arrancó, o está apagado): mejor la voz
 // del sistema ya que esperar callada.
-const TIMEOUT_TTS_MS = 5000;
+// Proporcional al largo: 30 palabras tardan ~3 s con la Mac tranquila y más
+// de 5 cuando Whisper u Ollama acaban de usar la memoria (30/09, 22:13: se
+// cortó a los 5 s y cayó a Paulina). Techo de 20 s.
+const TIMEOUT_TTS_BASE_MS = 4000;
+const TIMEOUT_TTS_POR_PALABRA_MS = 150;
+const TIMEOUT_TTS_TECHO_MS = 20000;
+
+export function limiteDeVoz(texto: string): number {
+  const palabras = texto.trim() ? texto.trim().split(/\s+/).length : 0;
+  return Math.min(TIMEOUT_TTS_TECHO_MS, TIMEOUT_TTS_BASE_MS + palabras * TIMEOUT_TTS_POR_PALABRA_MS);
+}
 
 let audioActual: HTMLAudioElement | null = null;
 let urlActual: string | null = null;
@@ -40,7 +50,7 @@ export async function obtenerVoces(): Promise<VozDisponible[]> {
 
 async function pedirAudio(texto: string, voz: PreferenciaVoz): Promise<Blob | null> {
   const controlador = new AbortController();
-  const limite = window.setTimeout(() => controlador.abort(), TIMEOUT_TTS_MS);
+  const limite = window.setTimeout(() => controlador.abort(), limiteDeVoz(texto));
   try {
     const respuesta = await fetch(`${URL_NUCLEO}/tts`, {
       method: "POST",

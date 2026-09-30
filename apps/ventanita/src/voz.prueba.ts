@@ -92,3 +92,12 @@ describe("hablar() sin eco", () => {
     expect(AudioFalso.reproducidos).toHaveLength(0);
   });
 });
+
+describe("cuánto se espera a Kokoro", () => {
+  it("crece con el largo y tiene techo", async () => {
+    const { limiteDeVoz } = await import("./voz");
+    expect(limiteDeVoz("Hola.")).toBe(4150);
+    expect(limiteDeVoz(Array(28).fill("palabra").join(" "))).toBe(8200);
+    expect(limiteDeVoz(Array(500).fill("palabra").join(" "))).toBe(20000);
+  });
+});
