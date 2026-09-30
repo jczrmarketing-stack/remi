@@ -20,6 +20,54 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · estado del 30-sep 12:00
+
+- **Instalado:** `main` en `c194103` (merge de `f-ventanita` en `284ef5b` + dos commits de
+  arreglo en `cierre.py`). `scripts/actualizar.sh` corrió sobre el merge: `/Applications/Remi.app`
+  queda en `284ef5b`, verificado en el log del actualizador («Instalada la de: 284ef5b merge:
+  f-ventanita…»). Los dos commits posteriores (`7dbe220`, `c194103`) solo tocan
+  `nucleo/cierre.py` — no requieren reinstalar la app, el núcleo los toma en el próximo
+  reinicio del proceso (`com.remi.nucleo`, todavía no reiniciado en esta sesión). Con eso: la
+  isla de reposo 120×44, la piel dinero, el Reloj de una línea, el Nudge en el chat y ⌘⇧C ya
+  están en la app instalada.
+- **Ramas que quedan:**
+  1. `f-ventanita` (worktree `remi-ventanita`) — ya mergeada en `main` (`git branch --merged
+     main` la incluye); el worktree se puede borrar cuando Juan Camilo quiera
+     (`git worktree remove`).
+  2. `f-fase3` (worktree `remi-fase3`) y `f-telegram` (worktree `remi-telegram`) — ambas en
+     `7610eb1`, el mismo commit que ya está en `main`: son worktrees preparados para fases
+     futuras, sin trabajo propio todavía. No hay nada pendiente de mergear ahí.
+- **Qué falta** (según `docs/GUIA-HOY.md`, escrita para este mismo merge — no tuve acceso al
+  tablero de fases de la Biblia en claude.ai desde esta sesión, así que esto es lo que consta
+  localmente, no una lectura directa del tablero):
+  1. Panel Hoy web (maquetas listas, sin construir) y el túnel `remi.inv3rza.com`.
+  2. Crear entregas hablando, «cobré X» por voz, celebración de «Hecha» con dinero — hoy la
+     entrega se crea por `curl` a mano (§6 de la guía).
+  3. Notion ida y vuelta (T3) y Telegram (T4): nada vuelve de Notion todavía.
+  4. Banco de pruebas (3f, distinto del «3f ventanita final» de esta rama) y detección de app
+     en primer plano (`NSWorkspace`).
+  5. `oficios/clientes.md` sigue con los precios piso en blanco.
+  6. Del lado de `f-ventanita` (dudas abiertas de `32cffe2`, ver entrada de más abajo):
+     `/nudges/pendiente` y `/nudges/{id}/respuesta` no existen en el núcleo (Fase 3), y
+     `tarea.proyecto_id` sigue siempre `null`, así que la piel dinero del Reloj no se va a
+     disparar en la app real todavía.
+- **De esta sesión:** al regenerar los dos episodios de malik de hoy (punto 3 del encargo)
+  encontré que el primer intento de Haiku, con un transcript casi vacío (el agente de
+  `/investigar` falló con «401 User not found» antes de hacer nada), inventó una
+  «investigación sobre tendencias en X y Reddit» que no está en ningún lado del transcript
+  real. Lo revertí en la bóveda (`git log` de `remi-mente`, commits alrededor de `2d59da7` y
+  `b467393`) y dejé los dos episodios finales con texto verificado a mano contra el transcript.
+  Vale la pena leer esto junto con la nota de memoria sobre la bóveda sin git: la bóveda **ya
+  tiene git** (se ve en su propio `git log`), así que esta vez el revert fue real y no hubo
+  pérdida — pero el riesgo de invento de Haiku con poco contexto real sigue vivo y conviene
+  revisar a mano cualquier episodio que salga de una sesión casi vacía.
+- **Cómo probarlo a mano:** `git -C ~/proyectos/remi log --oneline -1` → `c194103`; abrir
+  Remi y ver la isla 120×44; `git -C ~/proyectos/remi branch --merged main` → incluye
+  `f-ventanita`; `git -C ~/proyectos/remi-mente log --oneline -6` para ver los reverts y los
+  dos episodios finales de malik.
+
+---
+
 ## 2026-10-01 · Fase S (oficios v1) · 5 refresco semanal del oficio Claude Code · construido · d2841da
 
 - **Qué cambió:** `nucleo/refresco_claude_code.py` nuevo, `scripts/refresco-claude-code.sh` +
