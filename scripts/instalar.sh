@@ -278,6 +278,50 @@ plutil -lint "$PLIST_NOCHE" > /dev/null
 launchctl bootstrap "gui/$UID" "$PLIST_NOCHE" 2>/dev/null || launchctl load "$PLIST_NOCHE"
 echo "  noche:  consolidación todas las noches a las 4:00"
 
+# — Refresco semanal del oficio Claude Code (Fase S · 5) —
+# Domingos a las 5:00, después de la copia (3:00) y la consolidación (4:00).
+ETIQUETA_REFRESCO="com.remi.refresco-claude-code"
+PLIST_REFRESCO="$HOME/Library/LaunchAgents/$ETIQUETA_REFRESCO.plist"
+bajar_agente "$ETIQUETA_REFRESCO" "$PLIST_REFRESCO" || true
+cat > "$PLIST_REFRESCO" <<PLISTREFEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$ETIQUETA_REFRESCO</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>$RAIZ/scripts/refresco-claude-code.sh</string>
+	</array>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Weekday</key>
+		<integer>0</integer>
+		<key>Hour</key>
+		<integer>5</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>$RUTA</string>
+		<key>HOME</key>
+		<string>$HOME</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>$LOGS/refresco-claude-code.log</string>
+	<key>StandardErrorPath</key>
+	<string>$LOGS/refresco-claude-code.log</string>
+</dict>
+</plist>
+PLISTREFEOF
+plutil -lint "$PLIST_REFRESCO" > /dev/null
+launchctl bootstrap "gui/$UID" "$PLIST_REFRESCO" 2>/dev/null || launchctl load "$PLIST_REFRESCO"
+echo "  refresco-claude-code:  domingos a las 5:00"
+
 # — El vigía (3e): cada minuto le pega a /salud; 5 min caído → aviso —
 ETIQUETA_VIGIA="com.remi.vigia"
 PLIST_VIGIA="$HOME/Library/LaunchAgents/$ETIQUETA_VIGIA.plist"
