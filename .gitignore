@@ -23,7 +23,7 @@ __pycache__/
 
 # El carácter y las fichas de proyecto: datos personales (salud, montos).
 # Viven en el disco y se leen en cada mensaje, pero no entran al repo.
-conocimiento/
+conocimiento
 
 # Audio generado por la prueba de humo del TTS (se regenera solo)
 vendor/kokoro/salida/
