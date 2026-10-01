@@ -20,6 +20,37 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · El panel se cerró contra el diseño (J1–J5, C3) y el plan al 100 % · construido · 32ae559
+
+Escribe Claude (la sesión de la app), que esta vez trabajó directo en el repo.
+
+- **Qué cambió:** un commit por punto, todos en `main`.
+  1. **J1** `c0d03ca` — núcleo: `hora` y `fecha_limite` en Tarea, `tema` en Idea (se deriva al
+     leer con `nucleo/temas.py`, sin IA), `linea` en Entrega, metas con nombre y horizonte y
+     `revision_fria` en `config/plata.json`; `POST /tarea`, `POST /tarea/{id}/agenda`,
+     `GET /hoy/agenda`, `POST /idea/{id}/tema`. Biblia v3.7 primero, contratos después.
+  2. **J2** `2aa91fb` — Hoy completo; `POST /bloque {titulo, tema}` abre un bloque sin pasar
+     por el clasificador (antes «Empezar con eso» mandaba el texto a `/mensaje` y caía como idea).
+  3. **J3** `b58edb8` — Proyectos (constelación en escritorio, lista de caminos en el teléfono)
+     y la pantalla nueva `/proyectos/<tema>`.
+  4. **J4** `f8185c7` Metas · **J5** `d05622a` Bandeja · **C3** `6cbbd0d` Semana.
+  5. `scripts/recargar.sh` (`f2993c7`, `ebb83c4`, `c162272`): el ayudante del Mac. Recarga y
+     corre pruebas a pedido de la sesión de la app; lista fija de acciones, nunca un comando libre.
+  6. `docs/PLAN-100.md`: el plan hasta terminar, con las formas JSON A–H. Biblia v3.8 con el
+     contrato `Pregunta`, el estado `archivada` y «Remi pregunta lo que le falta» (fase Q).
+- **Decisiones que tomé sin preguntar:** el panel lee las formas A, C, D y E como opcionales
+  (con el núcleo de hoy esas líneas no aparecen; no hay nada inventado en su lugar) ·
+  «Cerrar hito» en la pantalla de un proyecto se puede deshacer en el momento · una idea que
+  ya esperó más de 96 h no muestra cuánto lleva (ley 3) · la voz de Remi en Semana pasó de
+  «vos decidís» a «tú decides» (la Biblia dice de tú) · en Proyectos salió la fila de la plata
+  de la semana: el diseño no la tiene.
+- **Dudas abiertas:** hay tres archivos modificados sin commitear que no son míos
+  (`CLAUDE.md`, `.claude/skills/remi/SKILL.md`, `docs/GUIA-HOY.md`): los resuelve T0 ·
+  «Remi pregunta» en el panel (C2) está diseñado en el lienzo y espera el visto bueno.
+- **Cómo probarlo a mano:** `./scripts/recargar.sh todo` (pytest 521 + mypy, Playwright 54/54,
+  recarga). En `http://127.0.0.1:4402`: Proyectos → tocar un círculo → «Ver el proyecto»;
+  Metas; Bandeja; Semana → «Siguiente paso». Lo mismo a 375 px.
+
 ## 2026-10-01 · El camino de cada proyecto sale del SOP (Encargo H) · construido · 09caf9c
 
 - **Qué cambió:** 4 commits, uno por punto, más dos commits en remi-mente al sembrar.
