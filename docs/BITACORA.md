@@ -20,6 +20,27 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · T0 · Arranque · construido · 9e395a7
+
+Escribe la terminal.
+
+- **Qué cambió:**
+  1. `3753cbc` — `CLAUDE.md`, `.claude/skills/remi/SKILL.md` y `docs/GUIA-HOY.md`: eran los
+     tres archivos sin commitear de T0 punto 2; el diff decía lo mismo que la Biblia v3.8
+     (Notion solo de ida, puertos, llaves desde el panel), así que los commiteé en `main`.
+  2. `9e395a7` — el bloque de contratos del skill le faltaban `hora`, `fecha_limite`, `tema`,
+     `rumbo`, `linea` y el contrato `Memoria` entero; ahora es igual a `contratos.json`.
+  3. Worktree `~/proyectos/remi-nucleo` en `f-nucleo`, symlink `conocimiento → ../remi-mente`
+     (ya estaba en `.gitignore`), `uv sync` (caché, sin descargas) y `npm install` en
+     `apps/ventanita` del worktree (no viene en el commit, es `node_modules` local).
+- **Decisiones que tomé sin preguntar:** ninguna.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `cd nucleo && uv run pytest -q` → 525 passed; `uv run mypy .` →
+  limpio, 87 módulos; `cd apps/ventanita && npm test` → 86 passed. Línea base igual a la de
+  la bitácora anterior.
+
+---
+
 ## 2026-10-01 · El panel se cerró contra el diseño (J1–J5, C3) y el plan al 100 % · construido · 32ae559
 
 Escribe Claude (la sesión de la app), que esta vez trabajó directo en el repo.
