@@ -18,9 +18,16 @@
 # KeepAlive) vigila al túnel de verdad, no a un wrapper.
 set -uo pipefail
 
+RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TUNEL_NOMBRE="remi"
 HOSTNAME_PANEL="remi.inv3rza.com"
-PANEL_URL="http://127.0.0.1:4402"
+# El puerto real del panel sale de config/nucleo.json (puerto_panel), nunca
+# a mano en dos lugares — ahí lo lee también apps/panel/scripts/puerto-panel.mjs.
+PUERTO_PANEL=4402
+if [[ -f "$RAIZ/config/nucleo.json" ]]; then
+  PUERTO_PANEL="$(python3 -c "import json;print(json.load(open('$RAIZ/config/nucleo.json'))['puerto_panel'])" 2>/dev/null || echo 4402)"
+fi
+PANEL_URL="http://127.0.0.1:$PUERTO_PANEL"
 CLOUDFLARED_DIR="$HOME/.cloudflared"
 CONFIG="$CLOUDFLARED_DIR/remi-config.yml"
 

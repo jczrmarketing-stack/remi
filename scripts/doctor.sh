@@ -23,16 +23,15 @@ set -uo pipefail
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NUCLEO="$RAIZ/nucleo"
 
-# — Puertos: de la config real, nunca a mano en dos lugares —
+# — Puertos: de la config real (config/nucleo.json), nunca a mano en dos lugares —
 PUERTO_NUCLEO=4400
 HOST_NUCLEO=127.0.0.1
+PUERTO_PANEL=4402
 if [[ -f "$RAIZ/config/nucleo.json" ]]; then
   PUERTO_NUCLEO="$(python3 -c "import json;print(json.load(open('$RAIZ/config/nucleo.json'))['puerto'])" 2>/dev/null || echo 4400)"
   HOST_NUCLEO="$(python3 -c "import json;print(json.load(open('$RAIZ/config/nucleo.json'))['host'])" 2>/dev/null || echo 127.0.0.1)"
+  PUERTO_PANEL="$(python3 -c "import json;print(json.load(open('$RAIZ/config/nucleo.json'))['puerto_panel'])" 2>/dev/null || echo 4402)"
 fi
-# El panel (Fases 2-3) todavía no tiene config/puerto propio: 4402 es el
-# puerto documentado en docs/INSTALAR.md.
-PUERTO_PANEL=4402
 PUERTO_WHISPER=4401
 if [[ -f "$RAIZ/config/ventanita.json" ]]; then
   PUERTO_WHISPER="$(python3 -c "
