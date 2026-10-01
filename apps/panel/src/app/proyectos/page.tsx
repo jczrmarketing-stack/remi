@@ -1,32 +1,40 @@
 "use client";
-// Constelación de proyectos: todos los libros de /libros, el del bloque
-// abierto primero y marcado. Tocar uno abre su camino debajo.
+// Proyectos. En escritorio: la constelación (tamaño = prioridad, arco =
+// camino recorrido) y, debajo, el camino del elegido. En el teléfono no
+// hay constelación: una lista de caminos, el de plata arriba.
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { TabBar } from "@/components/TabBar";
 import { Apagado } from "@/components/Apagado";
-import { MoneyRow } from "@/components/MoneyRow";
+import { Constelacion, CUPO_CONSTELACION } from "@/components/Constelacion";
 import { ProjectPath } from "@/components/ProjectPath";
-import { Chip } from "@/components/Chip";
+import { Tramo } from "@/components/Tramo";
 import { Bionica } from "@/components/Bionica";
 import { useCargaNucleo } from "@/hooks/useCargaNucleo";
-import { nucleo, NucleoApagado, type Camino, type Libro } from "@/lib/nucleo";
-import { cargarHoy } from "@/lib/hoy";
+import { nucleo, NucleoApagado, type Libro, type Plata } from "@/lib/nucleo";
+import { escalonDe, faseDe, hitoDe, liderDe, ordenDelLider, tonoDe } from "@/lib/lider";
+import { enFrase, fechaCorta, nombreCorto } from "@/lib/formato";
+import { enlaceObsidian, ultimaCobradaDe } from "@/lib/proyecto";
+import { formatoMoneda } from "@/lib/hoy";
 
 async function cargarProyectos() {
-  const [hoy, plata, libros] = await Promise.all([cargarHoy(), nucleo.plata(), nucleo.libros()]);
-  return { hoy, plata, libros };
+  const [tareas, plata, libros] = await Promise.all([nucleo.hoy(), nucleo.plata(), nucleo.libros()]);
+  const abierta = tareas.flatMap((t) => t.sesiones).find((s) => s.fin === null) ?? null;
+  return { hayBloque: abierta !== null, abiertoTema: abierta?.app_contexto ?? null, plata, libros };
 }
 
 export default function PaginaProyectos() {
   const { datos, error, recargar } = useCargaNucleo(cargarProyectos);
-  const [caminoManual, setCaminoManual] = useState<{ tema: string; camino: Camino | null } | null>(null);
+  const [elegidoAMano, setElegidoAMano] = useState<string | null>(null);
 
   if (error instanceof NucleoApagado) {
     return (
       <div className="shell">
         <Header sano={false} />
         <Apagado ultimaVez={null} onReintentar={recargar} />
+        <TabBar />
       </div>
     );
   }
@@ -39,137 +47,178 @@ export default function PaginaProyectos() {
     );
   }
 
-  const abiertoTema = datos.hoy.bloque?.tema ?? null;
+  const { abiertoTema, hayBloque, plata } = datos;
+  const lider = liderDe(datos.libros);
+  const libros = ordenDelLider(datos.libros, abiertoTema);
+  // Sin elegir a mano, manda el bloque abierto; sin bloque, el primero del orden.
+  const elegido =
+    libros.find((l) => l.tema === elegidoAMano) ?? libros.find((l) => l.tema === abiertoTema) ?? libros[0] ?? null;
+  const fueraDeLaConstelacion = libros.slice(CUPO_CONSTELACION);
 
-  // El orden del líder: 1) el libro con la entrega con dinero más cercana
-  // (una sola — la de fecha más próxima entre todos los que tienen una);
-  // 2) el del bloque abierto, si no es ya el líder; 3) el resto, por fecha
-  // de último Estado (más reciente primero). El tamaño del título sigue
-  // esta misma prioridad, en tres escalas.
-  const conEntrega = datos.libros.filter((l) => l.entrega_cercana);
-  const lider = conEntrega.length
-    ? conEntrega.reduce((a, b) =>
-        new Date(a.entrega_cercana!.fecha).getTime() <= new Date(b.entrega_cercana!.fecha).getTime() ? a : b
-      )
-    : null;
-
-  function prioridad(libro: Libro): 1 | 2 | 3 {
-    if (lider && libro.tema === lider.tema) return 1;
-    if (libro.tema === abiertoTema) return 2;
-    return 3;
-  }
-
-  const librosOrdenados = [...datos.libros].sort((a, b) => {
-    const diferencia = prioridad(a) - prioridad(b);
-    if (diferencia !== 0) return diferencia;
-    // Dentro del mismo escalón 3, el Estado tocado más reciente primero.
-    return new Date(b.ultimo_estado_en).getTime() - new Date(a.ultimo_estado_en).getTime();
-  });
-
-  // `caminoManual.camino` puede ser null de verdad (ese libro no tiene ##
-  // Camino): con `??` un null explícito volvería al del bloque abierto por
-  // error. Sin selección manual, manda el bloque abierto.
-  const tema = caminoManual ? caminoManual.tema : abiertoTema;
-  const camino = caminoManual ? caminoManual.camino : (datos.hoy.bloque?.camino ?? null);
-  const libroDelCamino = tema ? librosOrdenados.find((l) => l.tema === tema) ?? null : null;
-
-  async function abrirCamino(libroTema: string) {
-    if (libroTema === abiertoTema) {
-      setCaminoManual(null); // el del bloque abierto ya está cargado
-      return;
-    }
-    const c = await nucleo.camino(libroTema);
-    setCaminoManual({ tema: libroTema, camino: c });
+  if (libros.length === 0) {
+    return (
+      <div className="shell">
+        <Header />
+        <div className="contenedor">
+          <section className="card"><p className="body-muted">Todavía no hay ningún libro en la bóveda.</p></section>
+        </div>
+        <TabBar />
+      </div>
+    );
   }
 
   return (
     <div className="shell">
       <Header />
       <div className="contenedor">
-        <MoneyRow plata={datos.plata} />
+        <div className="solo-escritorio" style={{ flexDirection: "column", gap: "var(--space-8)" }}>
+          <Constelacion libros={libros} lider={lider} abiertoTema={abiertoTema} elegido={elegido?.tema ?? null} onElegir={setElegidoAMano} />
+          {fueraDeLaConstelacion.length > 0 ? (
+            <p className="body-muted">
+              También:{" "}
+              {fueraDeLaConstelacion.map((libro, i) => (
+                <span key={libro.tema}>
+                  {i > 0 ? ", " : ""}
+                  <Link href={`/proyectos/${encodeURIComponent(libro.tema)}`} style={{ color: "var(--ink)" }}>{nombreCorto(libro.titulo)}</Link>
+                </span>
+              ))}
+              .
+            </p>
+          ) : null}
+          {elegido ? <CaminoDelElegido libro={elegido} plata={plata} abiertoTema={abiertoTema} hayBloque={hayBloque} /> : null}
+          <p className="body-muted">
+            Remi ordena el día así: <span style={{ color: "var(--dinero)" }}>entregas con dinero</span> → bugs en producción → propuestas → mejoras → ideas. Una locura por pantalla; lo demás, en voz baja.
+          </p>
+        </div>
 
-        <section aria-label="Constelación de proyectos" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div className="label">Proyectos</div>
-          {librosOrdenados.length === 0 ? (
-            <p className="body-muted">Todavía no hay ningún libro en la bóveda.</p>
-          ) : (
-            librosOrdenados.map((libro) => (
-              <FilaLibro
-                key={libro.tema}
-                libro={libro}
-                prioridad={prioridad(libro)}
-                abierto={libro.tema === abiertoTema}
-                seleccionado={libro.tema === tema}
-                onTocar={() => abrirCamino(libro.tema)}
-              />
-            ))
-          )}
-        </section>
-
-        {camino ? (
-          <section id="camino" aria-label={`Camino de ${tema}`} className="card" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <h2 className="display-md">{libroDelCamino ? libroDelCamino.titulo : tema}</h2>
-            <ProjectPath hitos={camino.hitos} />
-            <p className="voz"><Bionica texto="Un solo paso encendido. Lo recorrido queda en luz; el futuro, apagado. Nunca un árbol." /></p>
-          </section>
-        ) : tema ? (
-          <section className="card">
-            <p className="body-muted">«{libroDelCamino?.titulo ?? tema}» todavía no tiene ## Camino.</p>
-          </section>
-        ) : null}
-
-        <p className="body-muted">Remi ordena el día así: entregas con dinero → bugs en producción → propuestas → mejoras → ideas.</p>
+        <div className="solo-telefono" style={{ flexDirection: "column", gap: 20, paddingTop: 8 }}>
+          <h1 className="display-md" style={{ fontSize: 34, lineHeight: "36px" }}>Caminos</h1>
+          <ul aria-label="Caminos" style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 20 }}>
+            {libros.map((libro) => (
+              <li key={libro.tema}>
+                <FilaCamino libro={libro} tono={tonoDe(libro, escalonDe(libro, lider, abiertoTema), abiertoTema)} />
+              </li>
+            ))}
+          </ul>
+          <p className="body-muted">En el teléfono no hay constelación: una lista de caminos, el de plata arriba.</p>
+        </div>
       </div>
       <TabBar />
     </div>
   );
 }
 
-// Tres escalas de título, una por escalón de prioridad — nunca un cuarto tamaño.
-const TAMANO_TITULO: Record<1 | 2 | 3, number> = { 1: 26, 2: 21, 3: 17 };
+// El camino del proyecto elegido en la constelación, con la única acción
+// que importa: seguir con el hito encendido.
+function CaminoDelElegido({ libro, plata, abiertoTema, hayBloque }: { libro: Libro; plata: Plata; abiertoTema: string | null; hayBloque: boolean }) {
+  const router = useRouter();
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [abriendo, setAbriendo] = useState(false);
+  const nombre = nombreCorto(libro.titulo);
+  const fase = faseDe(libro);
+  const hito = hitoDe(libro);
+  const faltan = libro.hitos.filter((h) => !h.hecho).length;
+  const cobrada = ultimaCobradaDe(libro, plata);
+  const esElAbierto = hayBloque && libro.tema === abiertoTema;
 
-function FilaLibro({
-  libro,
-  prioridad,
-  abierto,
-  seleccionado,
-  onTocar,
-}: {
-  libro: Libro;
-  prioridad: 1 | 2 | 3;
-  abierto: boolean;
-  seleccionado: boolean;
-  onTocar: () => void;
-}) {
+  async function seguir() {
+    if (!hito) return;
+    if (esElAbierto) {
+      router.push("/");
+      return;
+    }
+    setAbriendo(true);
+    try {
+      await nucleo.abrirBloque(`${nombre} · ${hito.texto}`, libro.tema);
+      router.push("/");
+    } catch (error) {
+      setAviso(
+        error instanceof NucleoApagado && error.status === 409
+          ? "Hay otro bloque abierto. Ciérralo en Hoy y seguimos con este."
+          : "No pude abrirlo ahora. Vuelve a tocar en un momento.",
+      );
+    } finally {
+      setAbriendo(false);
+    }
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onTocar}
-      className="card"
+    <section id="camino" aria-label={`Camino de ${nombre}`} className="card" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
+        <h2 className="display-md">
+          <Link href={`/proyectos/${encodeURIComponent(libro.tema)}`}>{fase ? `${nombre} · ${fase}` : nombre}</Link>
+        </h2>
+        {libro.hitos.length > 0 ? (
+          <span className="mono-sm">
+            {faltan > 0 ? <>Faltan <span style={{ color: "var(--dinero)" }}>{faltan}</span></> : "Camino completo"}
+            {cobrada ? <> · última entrega cobrada: <span style={{ color: "var(--dinero)" }}>{formatoMoneda(cobrada.monto)}</span></> : null}
+          </span>
+        ) : null}
+      </div>
+      {libro.hitos.length > 0 ? (
+        <>
+          <ProjectPath hitos={libro.hitos} />
+          <p className="voz"><Bionica texto="Un solo paso encendido. Lo recorrido queda en luz; el futuro, apagado. Nunca un árbol." /></p>
+        </>
+      ) : (
+        <p className="body-muted">«{nombre}» todavía no tiene camino.</p>
+      )}
+      {aviso ? <p className="voz" role="status"><Bionica texto={aviso} /></p> : null}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {hito ? (
+          <button type="button" className="btn btn-brasa" disabled={abriendo} onClick={seguir}>
+            {esElAbierto ? "Volver al bloque abierto" : `Seguir con ${enFrase(hito.texto)}`}
+          </button>
+        ) : null}
+        <Link href={`/proyectos/${encodeURIComponent(libro.tema)}`} className="btn btn-secundario">Ver el proyecto</Link>
+        <a href={enlaceObsidian(libro.tema)} className="btn btn-secundario">Ver el libro en Obsidian</a>
+      </div>
+    </section>
+  );
+}
+
+// Una fila de la lista del teléfono: el nombre, cuándo entrega, el camino
+// en tramos y el paso de ahora. Tocarla abre el proyecto.
+function FilaCamino({ libro, tono }: { libro: Libro; tono: string }) {
+  const hito = hitoDe(libro);
+  const faltan = libro.hitos.filter((h) => !h.hecho).length;
+  const entrega = libro.entrega_cercana;
+  return (
+    <Link
+      href={`/proyectos/${encodeURIComponent(libro.tema)}`}
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 6,
-        textAlign: "left",
-        width: "100%",
-        borderColor: seleccionado ? "var(--brasa)" : "var(--line)",
+        gap: 10,
+        padding: 16,
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface)",
+        border: "1px solid var(--line)",
+        borderLeft: `3px solid ${tono}`,
+        color: "var(--ink)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h3 className="display-md" style={{ fontSize: TAMANO_TITULO[prioridad] }}>{libro.titulo}</h3>
-        <div style={{ display: "flex", gap: 8 }}>
-          {prioridad === 1 && libro.entrega_cercana ? (
-            <Chip punto="var(--dinero)">
-              {libro.entrega_cercana.cliente} · ${Math.round(libro.entrega_cercana.monto).toLocaleString("es-CO")}
-            </Chip>
-          ) : null}
-          {abierto ? <Chip punto="var(--brasa)">Abierto ahora</Chip> : null}
-        </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: 22, lineHeight: "26px" }}>{nombreCorto(libro.titulo)}</span>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: "0.06em", color: "var(--ink-muted)", whiteSpace: "nowrap" }}>
+          {entrega ? fechaCorta(entrega.fecha) : (libro.tipo ?? "")}
+        </span>
       </div>
-      <p className="body-muted">{libro.resumen}</p>
-      <p style={{ fontSize: 14, color: "var(--ink)" }}>
-        {libro.proximo_paso || <span className="body-muted">sin Estado todavía</span>}
-      </p>
-    </button>
+      {libro.hitos.length > 0 ? <Tramo hitos={libro.hitos} /> : null}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14, lineHeight: "20px", color: "var(--ink-muted)" }}>
+        {hito ? (
+          <span>Ahora: <span style={{ color: "var(--ink)" }}>{hito.texto}</span></span>
+        ) : libro.hitos.length > 0 ? (
+          <span>Camino completo</span>
+        ) : (
+          <span>Sin camino todavía</span>
+        )}
+        {entrega ? (
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--dinero)", whiteSpace: "nowrap" }}>{formatoMoneda(entrega.monto)}</span>
+        ) : faltan > 0 ? (
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, whiteSpace: "nowrap" }}>faltan {faltan}</span>
+        ) : null}
+      </div>
+    </Link>
   );
 }

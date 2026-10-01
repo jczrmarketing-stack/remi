@@ -17,12 +17,15 @@ export function TabBar() {
   const ruta = usePathname();
   return (
     <nav aria-label="Vistas" className="tabbar">
-      {VISTAS.map(({ href, etiqueta, Icono }) => (
-        <Link key={href} href={href} aria-current={ruta === href ? "page" : "false"} aria-label={etiqueta}>
-          <Icono size={22} strokeWidth={1.75} aria-hidden />
-          <span>{etiqueta}</span>
-        </Link>
-      ))}
+      {VISTAS.map(({ href, etiqueta, Icono }) => {
+        const activa = href === "/" ? ruta === "/" : ruta === href || ruta.startsWith(`${href}/`);
+        return (
+          <Link key={href} href={href} aria-current={activa ? "page" : "false"} aria-label={etiqueta}>
+            <Icono size={22} strokeWidth={1.75} aria-hidden />
+            <span>{etiqueta}</span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }

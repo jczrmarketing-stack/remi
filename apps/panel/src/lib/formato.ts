@@ -52,6 +52,20 @@ export function venceTexto(iso: string, ahora: Date = new Date()): string {
   return `vence el ${dia.getDate()} de ${MESES[dia.getMonth()]}`;
 }
 
+// «1 oct»: el día de un instante real (cuándo se tocó un libro), en la hora
+// del que mira.
+export function diaDelInstante(iso: string): string {
+  const dia = new Date(iso);
+  if (Number.isNaN(dia.getTime())) return "";
+  return `${dia.getDate()} ${MESES[dia.getMonth()]}`;
+}
+
+// «Pago antes de arrancar» → «pago antes de arrancar»: para decirlo dentro
+// de una frase («Seguir con pago antes de arrancar»).
+export function enFrase(texto: string): string {
+  return texto.charAt(0).toLowerCase() + texto.slice(1);
+}
+
 export function diaDeLaSemana(ahora: Date = new Date()): string {
   const dia = DIAS_LARGOS[ahora.getDay()];
   return dia.charAt(0).toUpperCase() + dia.slice(1);

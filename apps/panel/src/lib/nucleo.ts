@@ -35,11 +35,15 @@ async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
 export type TareaConHistorial = { tarea: Tarea; sesiones: Sesion[]; ultima_vez_min: number | null };
 export type Salud = { ok: boolean; db: boolean };
 export type IdeaBandeja = { idea: Idea; fria: boolean };
-export type Hito = { texto: string; hecho: boolean };
+// `detalle`: la línea del SOP que explica ese paso (forma A del plan). Un
+// núcleo que todavía no la sirve la deja sin definir; "" si el hito no es del SOP.
+export type Hito = { texto: string; hecho: boolean; detalle?: string };
 export type Camino = { hitos: Hito[]; siguiente: Hito | null };
 export type EntregaCercana = { cliente: string; fecha: string; monto: number };
 // Una fase de la propuesta, tal como está en el frontmatter del libro.
-export type Fase = { nombre: string; alcance: string; monto: number | null; listo_cuando: string; estado: string };
+// `cobrado`: lo pagado del proyecto repartido en cascada entre las fases
+// (forma A); sin definir mientras el núcleo no lo sirva.
+export type Fase = { nombre: string; alcance: string; monto: number | null; listo_cuando: string; estado: string; cobrado?: number };
 export type Libro = {
   tema: string;
   titulo: string;
@@ -56,6 +60,8 @@ export type Libro = {
   ultimo_estado_en: string;
   // El camino sale del SOP: «propio» | «cliente» | null si el libro no lo dice.
   tipo: string | null;
+  // El nombre del cliente, del frontmatter del libro (forma A).
+  cliente?: string | null;
   fases: Fase[];
   // La fase en la que está, contando desde 1. null sin fases.
   fase_actual_n: number | null;
@@ -95,21 +101,12 @@ export const nucleo = {
   ultimaVez: () => pedir<{ minutos: number | null }>("/ultima-vez"),
   entregas: () => pedir<Entrega[]>("/entregas"),
   bandeja: () => pedir<IdeaBandeja[]>("/bandeja"),
-  // 404 acá es un dato legítimo (ese tema no tiene libro), no el núcleo
-  // caído: null, no una excepción.
-  camino: async (tema: string): Promise<Camino | null> => {
-    try {
-      return await pedir<Camino>(`/camino/${encodeURIComponent(tema)}`);
-    } catch (error) {
-      if (error instanceof NucleoApagado && error.status === 404) return null;
-      throw error;
-    }
-  },
   nudgePendiente: () => pedir<Nudge | null>("/nudges/pendiente"),
   plata: () => pedir<Plata>("/plata"),
   libros: () => pedir<Libro[]>("/libros"),
   agenda: () => pedir<AgendaDeHoy>("/hoy/agenda"),
-  // Igual que `camino`: sin libro para ese tema, null y no una excepción.
+  // 404 acá es un dato legítimo (ese tema no tiene libro), no el núcleo
+  // caído: null, no una excepción.
   libro: async (tema: string): Promise<LibroDetalle | null> => {
     try {
       return await pedir<LibroDetalle>(`/libros/${encodeURIComponent(tema)}`);
@@ -138,6 +135,11 @@ export const nucleo = {
   // ya hay otro abierto: una cosa a la vez.
   abrirBloque: (titulo: string, tema: string | null) =>
     pedir<{ tarea: Tarea; sesion: Sesion }>("/bloque", { method: "POST", body: JSON.stringify({ titulo, tema }) }),
+
+  // Marca o desmarca el hito número `n` (desde 1) del camino de ese libro.
+  // El núcleo edita solo esa línea y deja un commit en la bóveda.
+  marcarHito: (tema: string, n: number, hecho: boolean) =>
+    pedir<Camino>(`/libros/${encodeURIComponent(tema)}/camino/${n}`, { method: "POST", body: JSON.stringify({ hecho }) }),
 
   pasoMinimo: (tareaId: string, paso_minimo: string) =>
     pedir<Tarea>(`/tarea/${tareaId}/paso-minimo`, { method: "POST", body: JSON.stringify({ paso_minimo }) }),

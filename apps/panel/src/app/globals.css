@@ -188,6 +188,25 @@ button { font: inherit; cursor: pointer; color: inherit; }
   .display-xl { font-size: 40px; line-height: 42px; }
 }
 
+/* — Lo que solo existe en un tamaño: la constelación en escritorio, la
+     lista de caminos en el teléfono. — */
+
+.solo-escritorio { display: flex; }
+.solo-telefono { display: none; }
+@media (max-width: 720px) {
+  .solo-escritorio { display: none; }
+  .solo-telefono { display: flex; }
+}
+
+/* — Pantalla de un proyecto: columnas que se apilan solas — */
+
+.rejilla-dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: var(--space-8); }
+.rejilla-tres { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: var(--space-6); }
+@media (max-width: 720px) {
+  /* En el teléfono, «Qué falta» va antes que las fases. */
+  .primero-en-telefono { order: -1; }
+}
+
 /* — FocusCard: el Reloj al lado en escritorio, arriba en el teléfono — */
 
 .foco-card {

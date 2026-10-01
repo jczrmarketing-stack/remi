@@ -23,12 +23,16 @@ export function Header({ sano = true }: { sano?: boolean }) {
         Re<em>mi</em>
       </Link>
       <nav aria-label="Vistas" className="nav">
-        {VISTAS.map(({ href, etiqueta, Icono }) => (
-          <Link key={href} href={href} aria-current={ruta === href ? "page" : "false"} className={`nav-link ${ruta === href ? "nav-link--active" : ""}`}>
-            <Icono size={20} strokeWidth={1.75} aria-hidden />
-            <span>{etiqueta}</span>
-          </Link>
-        ))}
+        {VISTAS.map(({ href, etiqueta, Icono }) => {
+          // La pantalla de un proyecto (/proyectos/<tema>) sigue siendo «Proyectos».
+          const activa = href === "/" ? ruta === "/" : ruta === href || ruta.startsWith(`${href}/`);
+          return (
+            <Link key={href} href={href} aria-current={activa ? "page" : "false"} className={`nav-link ${activa ? "nav-link--active" : ""}`}>
+              <Icono size={20} strokeWidth={1.75} aria-hidden />
+              <span>{etiqueta}</span>
+            </Link>
+          );
+        })}
       </nav>
       <div className="header-tools">
         <button
