@@ -62,7 +62,9 @@ De lunes (Bogotá) a ahora. `aplazado` es una lista corta (máximo 5), nunca un 
 {destacada}` → `IdeaBandeja`. Una sola destacada por semana.
 
 **F · Preguntas**: `GET /preguntas` (opcional `?tema=`) → `Pregunta[]` pendientes, máximo 3,
-en el orden del líder. `POST /preguntas/{id}/respuesta {texto}` → `{pregunta, voz}`.
+en el orden del líder. `POST /preguntas/{id}/respuesta {texto}` → `{pregunta, voz}`: si se
+guardó, `pregunta.estado` es `respondida` y `voz` es la confirmación; si no se entendió, 200
+igual, `pregunta.estado` sigue `pendiente` y `voz` es la repregunta con el formato.
 `POST /preguntas/{id}/despues` → `Pregunta`.
 
 **G · Mensaje**: `RespuestaMensaje.tipo` suma `"agenda" | "cobro" | "entrega"`.
@@ -218,7 +220,7 @@ entrada de cierre en la bitácora con lo que queda para después de los siete d�
 | J3 | Proyectos (3/6, tipo, fecha, Faltan, «Seguir con…», Obsidian, constelación) y la pantalla Proyecto (`b58edb8`) | forma A para cobrado, cliente y detalle | hecho contra el núcleo falso; falta verlo con la forma A real |
 | J4 | Metas: nombre y horizonte, botones, por línea, segunda meta dormida (`f8185c7`) | forma C | hecho; falta verlo con la forma C real |
 | J5 | Bandeja: tema, «suelta», revisión en frío, destacada (`d05622a`) | forma E | hecho; falta verlo con la forma E real |
-| C2 | «Remi pregunta» en el lienzo y en el panel: la pregunta aparece donde falta el dato | forma F | diseñado en el lienzo (tres artboards); el código espera el visto bueno de Juan Camilo |
+| C2 | «Remi pregunta» en el lienzo y en el panel: la pregunta aparece en la pantalla del proyecto al que le falta el dato (`e3d672e`) | forma F | hecho (diseño aprobado el 1-oct 18:33); falta verlo con la forma F real |
 | C3 | Semana contestada con datos (`6cbbd0d`) | formas D y E | hecho; falta verlo con las formas reales |
 | C4 | Verificar cada fase de la terminal: leer el commit, correr las pruebas, mirarlo en el navegador; marcar el tablero de la Biblia y este archivo | T1…T6 | pendiente |
 | C5 | Cierre: las siete pantallas en escritorio y en 375 px con datos reales; «Estado de Fases»; resumen en la bitácora | todo | pendiente |
@@ -250,6 +252,8 @@ a la terminal; cuando la forma real llega, se verifica contra el núcleo de verd
 - 1-oct 18:18 · J5 `d05622a` · Playwright 47/47 · Bandeja vista con las ideas reales.
 - 1-oct 18:23 · C3 `6cbbd0d` · Playwright 54/54 · Semana vista; sin `/semana` en el núcleo de
   hoy, muestra el guion.
+- 1-oct 18:45 · C2 `e3d672e` · Playwright 63/63 · la tarjeta de la pregunta, vista en capturas
+  de escritorio y de 375 px; con el núcleo de hoy (`/preguntas` 404) no aparece.
 - 1-oct 18:25 · C2 diseñado en el lienzo. Tablero de la Biblia: P·c2 marcado; c3 y c4 esperan
   las formas reales de la terminal.
 
@@ -262,5 +266,8 @@ El panel ya lee estas formas como opcionales; cuando el núcleo las sirva, apare
 - **D**: `GET /semana`. Mientras responda 404 el panel muestra el guion sin datos.
 - **E**: `destacada` en cada fila de `GET /bandeja`; `POST /idea/{id}/destacar {destacada}`
   devuelve la fila (`IdeaBandeja`). Destacar una idea le quita la marca a la anterior.
+- **F**: `GET /preguntas?tema=<tema>` (el panel siempre pregunta por un libro), y las dos
+  rutas de respuesta tal como están arriba. El panel muestra la primera y guarda las demás
+  para «Tengo otra pregunta»; después de «Responder» recarga `GET /libros/{tema}`.
 - `POST /bloque {titulo, tema}` y `POST /libros/{tema}/camino/{n} {hecho}` ya se usan desde
   Proyectos, la pantalla de un proyecto y Metas: no cambiar su forma.
