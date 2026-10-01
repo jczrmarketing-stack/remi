@@ -31,9 +31,10 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-rewrite/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-rewrite/types/**/*.ts"
+    ".next-pruebas/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
