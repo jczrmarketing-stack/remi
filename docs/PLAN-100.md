@@ -42,7 +42,10 @@ terminal no lo edita; reporta en `docs/BITACORA.md`, como siempre.
 **A · Libros** (`GET /libros`, `GET /libros/{tema}`) suman:
 `cliente: string | null` (frontmatter `cliente:`) y, en cada fase, `cobrado: number`: lo
 pagado del proyecto repartido en cascada (llena la Fase 1 hasta su monto, lo que sobra pasa
-a la 2). Fase sin monto: 0.
+a la 2). Fase sin monto: 0. Y cada hito (`hitos`, `hito_actual`, `siguientes`) suma
+`detalle: string`: la línea del SOP que explica ese paso, a mano en `caminos.py` junto a
+`paso_remi` («En cuotas, con tolerancia de días. El trabajo empieza cuando el pago está
+completo.»); `""` si el hito no es del SOP.
 
 **B · Cobros**: `POST /cobros {tema, monto, fecha?: "YYYY-MM-DD"}` → 201 `Entrega` con
 `estado: "pagada"`, `cliente` del libro, `linea` de `config/plata.json`. 404 sin libro.
@@ -123,7 +126,7 @@ arrancar»; un commit hecho en un worktree de Remi cae al libro `remi`.
 ### T2 · La plata y la agenda entran solas
 Diagnóstico: las entregas solo entran por `curl`; no hay forma de registrar un cobro; y
 `hora` y `fecha_limite` (J1) existen pero nadie las puede escribir hablando.
-1. Forma A: `cliente` en los libros y `cobrado` por fase, en cascada.
+1. Forma A: `cliente` en los libros, `cobrado` por fase en cascada y `detalle` por hito.
 2. Forma B: `POST /cobros`.
 3. `/mensaje` reconoce «entrega para X el D de MES por N» (`entregas.parsear_entrega` ya
    existe) y la crea en el libro de ese cliente (`temas.tema_de_texto`).
