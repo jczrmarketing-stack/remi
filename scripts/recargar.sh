@@ -120,6 +120,19 @@ accion_valida() {
 }
 
 vigilar() {
+  # Uno solo a la vez: dos ayudantes atienden el mismo pedido en paralelo y
+  # chocan entre ellos (los dos levantan Playwright en los mismos puertos,
+  # los dos reinician los agentes).
+  local otro=""
+  if [ -f "$ZONA/vigia.pid" ]; then otro="$(cat "$ZONA/vigia.pid" 2>/dev/null)"; fi
+  if [ -n "$otro" ] && kill -0 "$otro" 2>/dev/null; then
+    echo "Ya hay un ayudante corriendo (pid $otro). Con ese alcanza: cerrá esta terminal."
+    exit 1
+  fi
+  echo $$ > "$ZONA/vigia.pid"
+  trap 'rm -f "$ZONA/vigia.pid"' EXIT
+  trap 'exit 130' INT TERM
+
   echo "Remi · ayudante esperando pedidos en .recargar/pedido — Ctrl-C lo apaga"
   local ultimo="" numero accion codigo
   if [ -f "$ZONA/hecho" ]; then ultimo="$(cut -d' ' -f1 "$ZONA/hecho" 2>/dev/null)"; fi
@@ -128,7 +141,10 @@ vigilar() {
       numero=""; accion=""
       read -r numero accion < "$ZONA/pedido" || true
       if [ -n "$numero" ] && [ "$numero" != "$ultimo" ]; then
-        if [[ "$numero" =~ ^[0-9]+$ ]] && accion_valida "$accion"; then
+        if [[ "$numero" =~ ^[0-9]+$ ]] && accion_valida "$accion" && ! mkdir "$ZONA/tomado-$numero" 2>/dev/null; then
+          # Otro ayudante ya lo tomó (mkdir es atómico): este no lo repite.
+          :
+        elif [[ "$numero" =~ ^[0-9]+$ ]] && accion_valida "$accion"; then
           echo "[$(date '+%H:%M:%S')] pedido $numero: $accion"
           "hacer_$accion" > "$ZONA/salida-$numero.log" 2>&1
           codigo=$?
