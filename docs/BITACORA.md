@@ -74,6 +74,39 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · Proyectos y Metas como el diseño · construido · 403028c
+
+- **Qué cambió:** dos commits.
+  1. `a77f81c` — Proyectos ordena por «el líder»: 1) el libro con la entrega con dinero más
+     cercana entre todos, 2) el del bloque abierto si no es ya el líder, 3) el resto por
+     `ultimo_estado_en` descendente. El tamaño del título (26/21/17px) marca el escalón; el
+     líder muestra un chip con cliente y monto. `GET /libros` suma `entrega_cercana` y
+     `ultimo_estado_en` (solo porque faltaban).
+  2. `403028c` — Metas: debajo de la brecha, siempre una acción con número — «Cobrar la de
+     X cierra $Y» con una entrega pendiente (Y = lo mínimo entre el monto y la brecha), o
+     «Para cerrar la brecha: una entrega de $X» sin ninguna. Sección nueva «Ingreso del mes ·
+     por línea». `GET /plata` suma `mes.entregas` (solo porque faltaba).
+  479 pytest, mypy limpio, 15/15 Playwright.
+- **Verificado en vivo** (reinicié `com.remi.nucleo`, sin `actualizar.sh` completo esta vez):
+  `GET /plata` y `GET /libros` contra el núcleo real ya traen los campos nuevos. Hoy no hay
+  ninguna entrega con dinero real en la base, así que no pude ver «UpVisuals arriba» con
+  datos reales — el mecanismo está probado end-to-end con Playwright (tres libros, uno con
+  entrega), que es donde de verdad se puede controlar el escenario.
+- **Decisiones que tomé sin preguntar:**
+  1. «El líder» es uno solo (el de la entrega más cercana entre TODOS los libros), no un
+     grupo de todos los que tengan entrega — «el tamaño del título refleja la prioridad (3
+     escalas)» solo tiene sentido con tres escalones fijos, no uno por cada entrega.
+  2. `ultimo_estado_en` es el mtime del archivo del libro, igual que ya usa
+     `noche.py` para lo mismo — no inventé una marca de tiempo nueva en el frontmatter.
+  3. No corrí `scripts/actualizar.sh` completo (reconstruir la ventanita no tiene nada que
+     ver con este encargo); solo reinicié el núcleo para probar los campos nuevos en vivo.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `cd apps/panel && npx playwright test`; con el núcleo real
+  corriendo, `curl -s 127.0.0.1:4400/libros | jq '.[0].entrega_cercana,.[0].ultimo_estado_en'`
+  y `curl -s 127.0.0.1:4400/plata | jq '.mes.entregas'`.
+
+---
+
 ## 2026-10-01 · los tests nunca tocan la base real · construido · 092e74e
 
 - **Qué cambió:** un commit. Tres guardas independientes contra la contaminación de
