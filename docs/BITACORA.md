@@ -74,6 +74,53 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · el panel sirve desde el teléfono (rewrite /nucleo) · construido · 239a773
+
+- **Qué cambió:** un commit. `next.config.mjs` suma un rewrite `/nucleo/:path* ->
+  http://<host>:<puerto>/:path*`, con host/puerto leídos de `config/nucleo.json` (nunca a
+  mano) y `URL_NUCLEO_REWRITE` para pisarlo solo en Playwright. `nucleo.ts`: en producción
+  `BASE = "/nucleo"` (mismo origen); `NEXT_PUBLIC_URL_NUCLEO` sigue mandando solo en tests.
+  De paso encontré un segundo fetch suelto en `page.tsx` (el botón «Empezar» de «Nada
+  abierto») que armaba la URL a mano con `URL_NUCLEO` — absoluta, así que desde el teléfono
+  habría apuntado al propio teléfono, no al Mac. Lo pasé por un método nuevo,
+  `nucleo.abrirDesdeTexto()`, igual que el resto de las mutaciones. Playwright: tercer
+  `webServer` (puerto 4404, su propio `distDir` `.next-rewrite` para no chocar con el build
+  normal) sin `NEXT_PUBLIC_URL_NUCLEO` — prueba el camino real de `/nucleo`, no un atajo.
+  12/12 Playwright.
+- **Verificado en vivo**, tras `scripts/actualizar.sh`:
+  1. El curl exacto del encargo (`GET /nucleo/config/conexiones`, con y sin
+     `Cf-Connecting-Ip`) dio **200 en los dos casos** — no es un fallo del rewrite: `GET
+     /config/conexiones` nunca pasó por `_si_es_del_tunel_lo_corta()` (confirmé contra el
+     núcleo real, sin el panel de por medio: también 200 con la cabecera puesta). Esa ruta de
+     lectura nunca estuvo guardada; solo las de escritura (`PUT /config/conexiones/{nombre}`,
+     `POST .../probar`, `PUT /config/plata`) lo están. Repetí la prueba contra
+     `POST /nucleo/config/conexiones/GROQ_API_KEY/probar` (no destructiva: solo prueba la
+     llave ya guardada, no escribe nada) — ahí sí: **403 con la cabecera, 200 sin ella**. El
+     rewrite reenvía las cabeceras `Cf-*` de verdad.
+  2. Abrí `http://192.168.1.9:4402/` (la IP de LAN del Mac, no `127.0.0.1`) con un navegador
+     headless: Hoy carga con datos reales del núcleo a través de `/nucleo`. No tengo un
+     segundo dispositivo físico a mano para confirmarlo desde un teléfono de verdad, pero es
+     la misma ruta exacta que seguiría uno en la misma wifi.
+- **Decisiones que tomé sin preguntar:**
+  1. Arreglé el fetch suelto de `page.tsx` aunque no estaba en la frontera: dejarlo con
+     `URL_NUCLEO` absoluto habría roto el panel desde el teléfono en ese botón puntual,
+     justo lo que este encargo existe para arreglar.
+  2. `distDir` configurable por env (`NEXT_DIST_DIR`) en vez de un `next.config.mjs` aparte
+     para Playwright: así hay un solo archivo de config real, coherente con «el puerto sale
+     de config/nucleo.json, no a mano» aplicado también a no duplicar la config de Next.
+- **Dudas abiertas:**
+  1. `GET /config/conexiones` (y cualquier otra ruta `GET /config/*` que se agregue a
+     futuro) no está guardada contra el túnel — hoy es intencional (nunca devuelve el valor
+     completo de una llave), pero si alguna vez un `GET` llega a exponer algo sensible, va a
+     hacer falta sumarle `_si_es_del_tunel_lo_corta()` también.
+  2. No lo probé desde un teléfono físico — solo con la IP de LAN desde el propio Mac.
+- **Cómo probarlo a mano:** `cd apps/panel && npx playwright test`; con el panel real
+  corriendo, `curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Cf-Connecting-Ip: 1.2.3.4'
+  http://127.0.0.1:4402/nucleo/config/conexiones/GROQ_API_KEY/probar` → `403`; desde otro
+  dispositivo de la misma wifi, `http://<ip-del-mac>:4402`.
+
+---
+
 ## 2026-10-01 · Proyectos: constelación con los libros reales · construido · 7610a4f
 
 - **Qué cambió:** un commit. `GET /libros` en `servidor.py` (usa `libros.listar()`, ya
