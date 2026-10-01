@@ -170,6 +170,44 @@ def listar() -> list[Libro]:
     return libros
 
 
+def _raiz_principal_de_worktree(gitfile: Path) -> Path | None:
+    """`gitfile` es el `.git` (archivo, no carpeta) de un worktree: dice
+    `gitdir: <repo-principal>/.git/worktrees/<nombre>`. Devuelve la raíz del
+    repo principal, o None si el archivo no tiene esa forma."""
+    try:
+        contenido = gitfile.read_text().strip()
+    except OSError:
+        return None
+    if not contenido.startswith("gitdir:"):
+        return None
+    gitdir = Path(contenido.split(":", 1)[1].strip())
+    partes = gitdir.parts
+    if "worktrees" not in partes or partes[-2] != "worktrees":
+        return None
+    indice_git = partes.index("worktrees") - 1
+    if indice_git < 0 or partes[indice_git] != ".git":
+        return None
+    return Path(*partes[:indice_git])
+
+
+def _raiz_real(ruta: str) -> str:
+    """Si `ruta` cae dentro de un worktree de git, la reescribe con la raíz
+    del repo principal y el mismo sufijo relativo — un commit en
+    `remi-nucleo` (worktree de `remi`) cae en el libro de `remi`, igual que
+    uno hecho en el checkout principal."""
+    camino = Path(ruta).expanduser().resolve()
+    for candidato in (camino, *camino.parents):
+        git = candidato / ".git"
+        if git.is_file():
+            principal = _raiz_principal_de_worktree(git)
+            if principal is None:
+                return ruta
+            return str(principal / camino.relative_to(candidato))
+        if git.is_dir():
+            return ruta
+    return ruta
+
+
 def _contiene(raiz: str, candidato: str) -> bool:
     """La carpeta del evento está dentro de la ruta del libro, o es ella."""
     try:
@@ -181,6 +219,7 @@ def _contiene(raiz: str, candidato: str) -> bool:
 
 def por_ruta(ruta: str) -> Libro | None:
     """El libro de la ruta más específica que contiene esta carpeta."""
+    ruta = _raiz_real(ruta)
     mejor: Libro | None = None
     mejor_largo = -1
     for libro in listar():
