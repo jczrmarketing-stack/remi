@@ -90,6 +90,23 @@ const PASOS_PROPIO = [
 // (POST /libros/upvisuals/camino/:n lo mueve; /__escenario lo devuelve a 2).
 let hitosUpvisuals = hitosDe(PASOS_UPVISUALS, 2);
 
+// La idea destacada de la semana: una sola (POST /idea/:id/destacar la cambia).
+const DESTACADA_DE_ENTRADA = "99999999-9999-9999-9999-999999999992";
+let destacadaId = DESTACADA_DE_ENTRADA;
+
+// GET /semana: lo cerrado y lo aplazado desde el lunes.
+const SEMANA = {
+  desde: iso(-3 * 86400000),
+  cerrado: [
+    { titulo: "Contrato de UpVisuals", tema: "upvisuals", real_min: 95 },
+    { titulo: "Biblia corta de Omniway", tema: "omniway", real_min: 40 },
+  ],
+  aplazado: [
+    { titulo: "Formulario IRS", tema: "omniway" },
+    { titulo: "Llamada con el banco", tema: null },
+  ],
+};
+
 const PLATA = {
   semana: { cobrado: 500, meta_semanal: 554.27 },
   mes: {
@@ -217,12 +234,14 @@ function bandeja() {
   // A propósito fuera de orden: el panel pone la destacada arriba, después
   // la que ya se puede decidir y después lo que enfría, lo que sale antes primero.
   const todas = [
-    { idea: { id: "99999999-9999-9999-9999-999999999991", texto: "Curso de After Effects", origen: "texto", creada_en: iso(-2 * 3600000), enfria_hasta: iso(46 * 3600000), estado: "enfriando", problema_vision: null, tema: "aprender" }, fria: false, destacada: false },
-    { idea: { id: IDEA_FRIA_ID, texto: "Automatizar las facturas", origen: "texto", creada_en: iso(-50 * 3600000), enfria_hasta: iso(-2 * 3600000), estado: ideaFriaEstado, problema_vision: null, tema: "omniway" }, fria: ideaFriaEstado === "enfriando", destacada: false },
-    { idea: { id: IDEA_TIBIA_ID, texto: "App de recetas con IA", origen: "texto", creada_en: iso(-10 * 3600000), enfria_hasta: iso(38 * 3600000), estado: "enfriando", problema_vision: null, tema: null }, fria: false, destacada: false },
-    { idea: { id: "99999999-9999-9999-9999-999999999992", texto: "Router de leads que agenda solo", origen: "voz", creada_en: iso(-20 * 3600000), enfria_hasta: iso(28 * 3600000), estado: "enfriando", problema_vision: null, tema: "organic-cash" }, fria: false, destacada: true },
+    { idea: { id: "99999999-9999-9999-9999-999999999991", texto: "Curso de After Effects", origen: "texto", creada_en: iso(-2 * 3600000), enfria_hasta: iso(46 * 3600000), estado: "enfriando", problema_vision: null, tema: "aprender" }, fria: false },
+    { idea: { id: IDEA_FRIA_ID, texto: "Automatizar las facturas", origen: "texto", creada_en: iso(-50 * 3600000), enfria_hasta: iso(-2 * 3600000), estado: ideaFriaEstado, problema_vision: null, tema: "omniway" }, fria: ideaFriaEstado === "enfriando" },
+    { idea: { id: IDEA_TIBIA_ID, texto: "App de recetas con IA", origen: "texto", creada_en: iso(-10 * 3600000), enfria_hasta: iso(38 * 3600000), estado: "enfriando", problema_vision: null, tema: null }, fria: false },
+    { idea: { id: "99999999-9999-9999-9999-999999999992", texto: "Router de leads que agenda solo", origen: "voz", creada_en: iso(-20 * 3600000), enfria_hasta: iso(28 * 3600000), estado: "enfriando", problema_vision: null, tema: "organic-cash" }, fria: false },
   ];
-  return todas.filter((f) => f.idea.estado === "enfriando" || f.idea.estado === "lista");
+  return todas
+    .filter((f) => f.idea.estado === "enfriando" || f.idea.estado === "lista")
+    .map((f) => ({ ...f, destacada: f.idea.id === destacadaId }));
 }
 
 function nudge() {
@@ -263,6 +282,7 @@ const servidor = createServer(async (req, res) => {
     nudgeRespuesta = null;
     ideaFriaEstado = "enfriando";
     hitosUpvisuals = hitosDe(PASOS_UPVISUALS, 2);
+    destacadaId = DESTACADA_DE_ENTRADA;
     return enviarJSON(res, 200, { bloque: hayBloque });
   }
   if (req.method === "GET" && ruta === "/hoy") return enviarJSON(res, 200, hayBloque ? [bloqueAbierto(), ...DEMAS_HOY] : DEMAS_HOY);
@@ -298,6 +318,24 @@ const servidor = createServer(async (req, res) => {
   if (req.method === "GET" && ruta === "/ultima-vez") return enviarJSON(res, 200, { minutos: 80 });
   if (req.method === "GET" && ruta === "/entregas") return enviarJSON(res, 200, []);
   if (req.method === "GET" && ruta === "/bandeja") return enviarJSON(res, 200, bandeja());
+  if (req.method === "GET" && ruta === "/semana") {
+    const filas = bandeja();
+    const destacada = filas.find((f) => f.destacada);
+    return enviarJSON(res, 200, {
+      ...SEMANA,
+      ideas_frias: filas.filter((f) => f.fria).length,
+      destacada: destacada ? { id: destacada.idea.id, texto: destacada.idea.texto, tema: destacada.idea.tema } : null,
+    });
+  }
+  if (req.method === "POST" && ruta.match(/^\/idea\/.+\/destacar$/)) {
+    const id = ruta.split("/")[2];
+    const cuerpo = await leerCuerpo(req);
+    if (cuerpo.destacada === true) destacadaId = id;
+    else if (destacadaId === id) destacadaId = null;
+    const fila = bandeja().find((f) => f.idea.id === id);
+    if (!fila) return enviarJSON(res, 404, { detail: "no tengo esa idea en la Bandeja" });
+    return enviarJSON(res, 200, fila);
+  }
   if (req.method === "GET" && ruta === "/plata") return enviarJSON(res, 200, PLATA);
   if (req.method === "GET" && ruta === "/libros") return enviarJSON(res, 200, libros());
   if (req.method === "GET" && ruta === "/nudges/pendiente") return enviarJSON(res, 200, nudge());

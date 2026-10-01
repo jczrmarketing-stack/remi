@@ -94,6 +94,15 @@ export type Plata = {
   // Sin definir mientras el núcleo no lo sirva.
   por_linea?: LineaDelMes[];
 };
+// GET /semana (forma D del plan): la semana desde el lunes, para la revisión.
+// `aplazado` es una lista corta, nunca un contador.
+export type Semana = {
+  desde: string;
+  cerrado: { titulo: string; tema: string | null; real_min: number | null }[];
+  aplazado: { titulo: string; tema: string | null }[];
+  ideas_frias: number;
+  destacada: { id: string; texto: string; tema: string | null } | null;
+};
 export type RespuestaMensaje = { tipo: string; texto: string; voz: string; tarea: Tarea | null; sesion: Sesion | null };
 
 // nucleo/conexiones.py: no es un contrato (contratos/contratos.json no
@@ -123,6 +132,17 @@ export const nucleo = {
     }
   },
 
+  // Un núcleo que todavía no tiene la ruta responde 404: null, y la página
+  // muestra el guion sin datos en vez de romperse.
+  semana: async (): Promise<Semana | null> => {
+    try {
+      return await pedir<Semana>("/semana");
+    } catch (error) {
+      if (error instanceof NucleoApagado && error.status === 404) return null;
+      throw error;
+    }
+  },
+
   responderNudge: (id: string, respuesta: "listo" | "ahora_no") =>
     pedir<Nudge>(`/nudges/${id}/respuesta`, { method: "POST", body: JSON.stringify({ respuesta }) }),
 
@@ -131,6 +151,10 @@ export const nucleo = {
       method: "POST",
       body: JSON.stringify({ decision }),
     }),
+
+  // La idea de la semana: una sola. Destacar otra reemplaza a la anterior.
+  destacarIdea: (id: string, destacada: boolean) =>
+    pedir<IdeaBandeja>(`/idea/${id}/destacar`, { method: "POST", body: JSON.stringify({ destacada }) }),
 
   cerrarBloque: () =>
     pedir<RespuestaMensaje>("/mensaje", { method: "POST", body: JSON.stringify({ texto: "listo" }) }),
