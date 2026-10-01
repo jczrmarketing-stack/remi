@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
 import bandeja
+import boveda_git
 import caminos
 import clasificar
 import conexiones
@@ -1169,6 +1170,34 @@ def libro_de(tema: str) -> LibroDetalle:
         **visible.model_dump(),
         estado_completo=estado_libro.leer_estado(libro.archivo),
         ultimo_episodio=_ultimo_episodio_de(tema),
+    )
+
+
+class HechoNuevo(BaseModel):
+    hecho: bool
+
+
+@app.post("/libros/{tema}/camino/{n}", response_model=Camino)
+def marcar_hito_de_libro(tema: str, n: int, cuerpo: HechoNuevo) -> Camino:
+    """Marca (o desmarca) el hito número `n` (1-indexed) del camino de ese
+    libro — solo esa línea, «- [ ]» <-> «- [x]» — y deja un commit en la
+    bóveda, igual que cualquier otra escritura de Remi ahí."""
+    libro = next((l for l in libros.listar() if l.tema == tema), None)
+    if libro is None:
+        raise HTTPException(status_code=404, detail="no tengo un libro con ese tema")
+    hitos_antes = caminos.leer_hitos(libro.archivo)
+    if not 1 <= n <= len(hitos_antes):
+        raise HTTPException(status_code=404, detail=f"ese libro tiene {len(hitos_antes)} hito(s)")
+    boveda_git.snapshot_antes(f"marcar el hito {n} de {libro.archivo.name}")
+    caminos.marcar_por_indice(libro.archivo, n - 1, cuerpo.hecho)
+    boveda_git.snapshot_despues(
+        f"bóveda: hito {n} de {libro.archivo.name} -> {'hecho' if cuerpo.hecho else 'por hacer'}"
+    )
+    hitos = caminos.leer_hitos(libro.archivo)
+    siguiente = caminos.siguiente_abierto(hitos)
+    return Camino(
+        hitos=[HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos],
+        siguiente=HitoVisible(texto=siguiente.texto, hecho=siguiente.hecho) if siguiente else None,
     )
 
 

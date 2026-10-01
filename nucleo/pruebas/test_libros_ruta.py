@@ -220,3 +220,46 @@ def test_libro_detalle_de_tema_inexistente_es_404(tmp_path, monkeypatch):
     cliente = _cliente(tmp_path, monkeypatch)
     respuesta = cliente.get("/libros/no-existe")
     assert respuesta.status_code == 404
+
+
+def test_marcar_hito_cambia_el_archivo_y_commitea_la_boveda(tmp_path, monkeypatch):
+    _boveda_upvisuals_10_pasos(tmp_path)
+    # boveda_git.raiz() = libros.carpeta().parent: el repo git es la carpeta
+    # QUE CONTIENE "libros" (REMI_CONOCIMIENTO), no "libros" en sí misma —
+    # igual que en producción, conocimiento/ es la bóveda y proyectos/ vive
+    # adentro.
+    archivo_libro = tmp_path / "libros" / "upvisuals.md"
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "inicial"], cwd=tmp_path, check=True)
+
+    cliente = _cliente(tmp_path, monkeypatch)
+
+    respuesta = cliente.post("/libros/upvisuals/camino/3", json={"hecho": True})
+
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert cuerpo["hitos"][2] == {"texto": "Propuesta por fases", "hecho": True}
+    assert cuerpo["siguiente"] == {"texto": "Contrato", "hecho": False}
+
+    texto = archivo_libro.read_text()
+    assert "- [x] Propuesta por fases" in texto
+
+    log = subprocess.run(["git", "log", "--oneline"], cwd=tmp_path, capture_output=True, text=True, check=True)
+    assert "hito 3" in log.stdout
+
+
+def test_marcar_hito_fuera_de_rango_es_404(tmp_path, monkeypatch):
+    _boveda_upvisuals_10_pasos(tmp_path)
+    cliente = _cliente(tmp_path, monkeypatch)
+    respuesta = cliente.post("/libros/upvisuals/camino/99", json={"hecho": True})
+    assert respuesta.status_code == 404
+
+
+def test_marcar_hito_de_tema_inexistente_es_404(tmp_path, monkeypatch):
+    _boveda_upvisuals_10_pasos(tmp_path)
+    cliente = _cliente(tmp_path, monkeypatch)
+    respuesta = cliente.post("/libros/no-existe/camino/1", json={"hecho": True})
+    assert respuesta.status_code == 404
