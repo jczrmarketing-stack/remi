@@ -11,7 +11,18 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 CARPETA = Path(__file__).resolve().parent.parent / "conocimiento" / "proyectos"
+
+
+@dataclass(frozen=True)
+class Fase:
+    nombre: str
+    alcance: str
+    monto: float | None
+    listo_cuando: str
+    estado: str
 
 
 @dataclass(frozen=True)
@@ -22,6 +33,11 @@ class Libro:
     resumen: str
     rutas: tuple[str, ...]
     compartible: bool = False
+    # «tipo: propio|cliente» y «fases:» (lista de Fase) — encargo H, el
+    # camino sale del SOP. Ninguno de los dos es obligatorio: la mayoría de
+    # los libros de hoy no los tienen todavía.
+    tipo: str | None = None
+    fases: tuple[Fase, ...] = ()
 
 
 def carpeta() -> Path:
@@ -74,6 +90,52 @@ def _frontmatter(bloque: str) -> dict[str, str | list[str]]:
     return campos
 
 
+def _fases_de(bloque: str) -> tuple[Fase, ...]:
+    """«fases» es la única clave del frontmatter con estructura anidada
+    (lista de diccionarios). El resto de `_frontmatter()` es a mano porque
+    `resumen`/`titulo` traen dos puntos sueltos («App web: mandás…») que
+    rompen YAML de verdad — probado: `yaml.safe_load()` del frontmatter
+    entero falla en varios libros reales. Acá sí vale la pena: se aísla
+    solo el bloque de «fases:» (desde esa línea hasta la próxima clave de
+    primer nivel) y se lo pasa a `yaml.safe_load()`, aislado del resto.
+    Cualquier error de forma deja fases vacío — nunca rompe `leer()`."""
+    lineas = bloque.splitlines()
+    inicio = next((i for i, l in enumerate(lineas) if l.rstrip() == "fases:" or l.startswith("fases:")), None)
+    if inicio is None:
+        return ()
+    fin = len(lineas)
+    for j in range(inicio + 1, len(lineas)):
+        if lineas[j].strip() and not lineas[j].startswith((" ", "\t", "-")):
+            fin = j
+            break
+    try:
+        datos = yaml.safe_load("\n".join(lineas[inicio:fin]))
+    except yaml.YAMLError:
+        return ()
+    crudas = datos.get("fases") if isinstance(datos, dict) else None
+    if not isinstance(crudas, list):
+        return ()
+    resultado: list[Fase] = []
+    for item in crudas:
+        if not isinstance(item, dict):
+            continue
+        monto_crudo = item.get("monto")
+        try:
+            monto = float(monto_crudo) if monto_crudo is not None else None
+        except (TypeError, ValueError):
+            monto = None
+        resultado.append(
+            Fase(
+                nombre=str(item.get("nombre") or ""),
+                alcance=str(item.get("alcance") or ""),
+                monto=monto,
+                listo_cuando=str(item.get("listo_cuando") or ""),
+                estado=str(item.get("estado") or ""),
+            )
+        )
+    return tuple(resultado)
+
+
 def leer(ruta: Path) -> Libro | None:
     """None si le falta titulo, tema o resumen."""
     texto = ruta.read_text()
@@ -90,7 +152,10 @@ def leer(ruta: Path) -> Libro | None:
         return None
     assert isinstance(titulo, str) and isinstance(tema, str) and isinstance(resumen, str)
     compartible = str(campos.get("compartible", "")).strip().lower() == "true"
-    return Libro(ruta, titulo, tema, resumen, _rutas_de(campos.get("ruta")), compartible)
+    tipo_crudo = campos.get("tipo")
+    tipo = tipo_crudo if isinstance(tipo_crudo, str) and tipo_crudo in ("propio", "cliente") else None
+    fases = _fases_de(partes[1])
+    return Libro(ruta, titulo, tema, resumen, _rutas_de(campos.get("ruta")), compartible, tipo, fases)
 
 
 def listar() -> list[Libro]:

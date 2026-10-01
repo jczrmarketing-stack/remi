@@ -126,3 +126,82 @@ def test_todos_cumplidos_siguiente_es_null(tmp_path, monkeypatch):
 
     cuerpo = cliente.get("/camino/malik").json()
     assert cuerpo["siguiente"] is None
+
+
+# — Plantillas del SOP (encargo H) —
+
+
+def test_bloque_camino_de_propio_tiene_los_7_pasos_de_a():
+    import caminos
+
+    bloque = caminos.bloque_camino_de("propio")
+    assert bloque.startswith("## Camino\n\n")
+    lineas_hito = [l for l in bloque.splitlines() if l.startswith("- [ ]")]
+    assert len(lineas_hito) == 7
+    assert lineas_hito[0] == "- [ ] Bandeja 48 h"
+    assert lineas_hito[-1] == "- [ ] Prioridad por plata"
+
+
+def test_bloque_camino_de_cliente_tiene_los_10_pasos_de_b():
+    import caminos
+
+    bloque = caminos.bloque_camino_de("cliente")
+    lineas_hito = [l for l in bloque.splitlines() if l.startswith("- [ ]")]
+    assert len(lineas_hito) == 10
+    assert lineas_hito[0] == "- [ ] Intake"
+    assert lineas_hito[-1] == "- [ ] Mensualidad"
+
+
+def test_bloque_camino_de_tipo_desconocido_lanza():
+    import caminos
+    import pytest
+
+    with pytest.raises(ValueError):
+        caminos.bloque_camino_de("algo-raro")
+
+
+def test_paso_remi_de_encuentra_el_hito_en_su_plantilla():
+    import caminos
+
+    assert caminos.paso_remi_de("cliente", "Intake") == "Arma la lectura y las preguntas."
+    assert caminos.paso_remi_de("propio", "Biblia corta") == "Ayuda a armar la Biblia corta de una página."
+    # Sin tipo: prueba las dos plantillas igual.
+    assert caminos.paso_remi_de(None, "Contrato") == "Escribe el borrador en la voz de Juan Camilo."
+    assert caminos.paso_remi_de("cliente", "no existe") == ""
+
+
+def test_marcar_por_indice_cambia_solo_esa_linea(tmp_path):
+    import caminos
+
+    archivo = tmp_path / "x.md"
+    archivo.write_text(
+        "---\ntitulo: X\ntema: x\nresumen: Y.\n---\n\n## Camino\n\n- [ ] Uno\n- [ ] Dos\n- [ ] Tres\n"
+    )
+    caminos.marcar_por_indice(archivo, 1, True)
+    hitos = caminos.leer_hitos(archivo)
+    assert [h.hecho for h in hitos] == [False, True, False]
+    assert [h.texto for h in hitos] == ["Uno", "Dos", "Tres"]
+
+    caminos.marcar_por_indice(archivo, 1, False)
+    hitos = caminos.leer_hitos(archivo)
+    assert [h.hecho for h in hitos] == [False, False, False]
+
+
+def test_marcar_por_indice_sin_camino_lanza(tmp_path):
+    import caminos
+    import pytest
+
+    archivo = tmp_path / "x.md"
+    archivo.write_text("---\ntitulo: X\ntema: x\nresumen: Y.\n---\n")
+    with pytest.raises(ValueError):
+        caminos.marcar_por_indice(archivo, 0, True)
+
+
+def test_marcar_por_indice_fuera_de_rango_lanza(tmp_path):
+    import caminos
+    import pytest
+
+    archivo = tmp_path / "x.md"
+    archivo.write_text("---\ntitulo: X\ntema: x\nresumen: Y.\n---\n\n## Camino\n\n- [ ] Uno\n")
+    with pytest.raises(IndexError):
+        caminos.marcar_por_indice(archivo, 5, True)

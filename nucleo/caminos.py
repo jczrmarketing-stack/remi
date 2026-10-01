@@ -25,6 +25,105 @@ class Hito:
     hecho: bool
 
 
+# — Plantillas del SOP (1-oct) —
+#
+# Fuente: oficios/proyectos-sop.md en remi-mente (§A «Proyecto propio,
+# desde cero» = 7 pasos; §B «Proyecto de cliente nuevo» = 10 pasos; «Lo que
+# Remi hace en cada paso» = los cuatro grupos de los que sale `paso_remi`).
+# A mano, no leído del SOP en caliente: la bóveda es datos de Juan Camilo,
+# no código — si el SOP cambia, esto se actualiza acá, a propósito, no con
+# un parser que puede alucinar formato.
+#
+# (texto del hito, qué hace Remi en ese paso). Para los pasos 1–3 de A, el
+# SOP no tiene un «Remi hace» explícito (ese bloque habla sobre todo de
+# cliente): el texto de acá es una extensión razonable de la ley 2
+# (memoria externa) y la ley 6 (enfriamiento), no una cita literal — las
+# demás líneas sí son del SOP.
+PASOS_PROPIO: tuple[tuple[str, str], ...] = (
+    ("Bandeja 48 h", "Cuenta las 48 h del enfriamiento y avisa cuando toca la revisión en frío."),
+    ("Revisión en frío", "Trae el filtro — loco + útil + estratégico — para decidir sin culpa."),
+    ("Biblia corta", "Ayuda a armar la Biblia corta de una página."),
+    ("Mockups A/B/C", "Escribe los encargos y lleva el camino."),
+    ("Encargos a Claude Code", "Escribe los encargos y lleva el camino."),
+    ("Actualizar libro y camino", "Escribe los encargos y lleva el camino."),
+    ("Prioridad por plata", "Escribe los encargos y lleva el camino."),
+)
+
+PASOS_CLIENTE: tuple[tuple[str, str], ...] = (
+    ("Intake", "Arma la lectura y las preguntas."),
+    ("Descubrimiento (5 preguntas)", "Arma la lectura y las preguntas."),
+    ("Propuesta por fases", "Escribe el borrador en la voz de Juan Camilo."),
+    ("Contrato", "Escribe el borrador en la voz de Juan Camilo."),
+    ("Pago antes de arrancar", "Recuerda fechas y promesas; avisa el día antes."),
+    ("Entregas medidas", "Escribe los encargos y lleva el camino."),
+    ("Cobro y cierre", "Recuerda fechas y promesas; avisa el día antes."),
+    ("Producción", "Escribe los encargos y lleva el camino."),
+    ("Entrega y capacitación", "Escribe los encargos y lleva el camino."),
+    ("Mensualidad", "Recuerda fechas y promesas; avisa el día antes."),
+)
+
+
+def plantilla_de(tipo: str) -> tuple[tuple[str, str], ...] | None:
+    """Los (hito, paso_remi) del tipo pedido. None si el tipo no es
+    «propio» ni «cliente» — nunca una plantilla inventada."""
+    if tipo == "propio":
+        return PASOS_PROPIO
+    if tipo == "cliente":
+        return PASOS_CLIENTE
+    return None
+
+
+def bloque_camino_de(tipo: str) -> str:
+    """El texto de «## Camino» entero, un hito por paso, en el orden del
+    SOP — listo para agregar al final de un libro (sembrar_camino.py)."""
+    pasos = plantilla_de(tipo)
+    if pasos is None:
+        raise ValueError(f"tipo desconocido: {tipo!r}")
+    lineas = [TITULO, ""]
+    lineas += [f"- [ ] {texto}" for texto, _ in pasos]
+    return "\n".join(lineas) + "\n"
+
+
+def paso_remi_de(tipo: str | None, texto_hito: str) -> str:
+    """Qué hace Remi en este paso, según el SOP. Si no se sabe el tipo (el
+    frontmatter no lo dice), prueba las dos plantillas — los textos de
+    hito no se repiten entre ellas, así que no hay ambigüedad real."""
+    plantillas = (PASOS_CLIENTE, PASOS_PROPIO) if tipo != "propio" else (PASOS_PROPIO, PASOS_CLIENTE)
+    for plantilla in plantillas:
+        for texto, paso_remi in plantilla:
+            if texto == texto_hito:
+                return paso_remi
+    return ""
+
+
+def marcar_por_indice(archivo: Path, indice: int, hecho: bool) -> None:
+    """Edita SOLO la línea del hito en esa posición (0-indexed, en el
+    orden en que aparecen en ## Camino): «- [ ]» <-> «- [x]». El resto del
+    libro queda intacto. A diferencia de `marcar_hitos_cumplidos` (que solo
+    marca [x] y solo si hay una tarea `hecha` con ese texto), esto es la
+    acción directa de POST /libros/{tema}/camino/{n}: cualquiera de los dos
+    sentidos, por posición."""
+    original = archivo.read_text()
+    lineas = original.splitlines()
+    inicio = _indice(lineas)
+    if inicio is None:
+        raise ValueError("el libro no tiene ## Camino")
+    fin = _fin(lineas, inicio)
+    vistos = -1
+    for i in range(inicio + 1, fin):
+        limpia = lineas[i].strip()
+        if limpia.startswith("- [x]") or limpia.startswith("- [X]") or limpia.startswith("- [ ]"):
+            vistos += 1
+            if vistos == indice:
+                texto_hito = limpia[5:].strip()
+                sangria = lineas[i][: len(lineas[i]) - len(lineas[i].lstrip())]
+                marca = "x" if hecho else " "
+                lineas[i] = f"{sangria}- [{marca}] {texto_hito}"
+                archivo.write_text("\n".join(lineas) + ("\n" if original.endswith("\n") else ""))
+                return
+    raise IndexError(f"no hay un hito en la posición {indice}")
+
+
 def _cuerpo(texto: str) -> str:
     if not texto.startswith("---"):
         return texto

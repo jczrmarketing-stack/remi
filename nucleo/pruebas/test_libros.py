@@ -75,3 +75,49 @@ def test_gana_la_ruta_mas_especifica(tmp_path, monkeypatch):
 def test_sin_libro_no_inventa(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path))
     assert libros.por_ruta("/no/existe") is None
+
+
+def test_tipo_y_fases_del_frontmatter(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path))
+    _libro(
+        tmp_path,
+        "upvisuals.md",
+        "---\n"
+        "titulo: UpVisuals\n"
+        "tema: upvisuals\n"
+        "resumen: Plataforma de Alfonso.\n"
+        "tipo: cliente\n"
+        "fases:\n"
+        "  - nombre: Fase 1\n"
+        "    alcance: Distribución de contenido\n"
+        "    monto: 5000\n"
+        "    listo_cuando: Demo aprobada\n"
+        "    estado: camino\n"
+        "  - nombre: Fase 2\n"
+        "    alcance: Generador de imágenes\n"
+        "    monto: 3700\n"
+        "    listo_cuando: Sin alcance aún\n"
+        "    estado: sin_empezar\n"
+        "---\n",
+    )
+    (libro,) = libros.listar()
+    assert libro.tipo == "cliente"
+    assert len(libro.fases) == 2
+    assert libro.fases[0].nombre == "Fase 1"
+    assert libro.fases[0].monto == 5000.0
+    assert libro.fases[1].estado == "sin_empezar"
+
+
+def test_sin_tipo_ni_fases_quedan_vacios_no_rompe(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path))
+    _libro(tmp_path, "malik.md", "---\ntitulo: Malik\ntema: malik\nresumen: Las cuentas.\n---\n")
+    (libro,) = libros.listar()
+    assert libro.tipo is None
+    assert libro.fases == ()
+
+
+def test_tipo_invalido_queda_none(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path))
+    _libro(tmp_path, "x.md", "---\ntitulo: X\ntema: x\nresumen: Y.\ntipo: inventado\n---\n")
+    (libro,) = libros.listar()
+    assert libro.tipo is None
