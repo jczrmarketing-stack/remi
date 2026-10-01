@@ -215,11 +215,11 @@ entrada de cierre en la bitácora con lo que queda para después de los siete d�
 | J1 | Datos del núcleo (`c0d03ca`) | — | hecho, verificado en vivo |
 | J2 | Hoy completo (`2aa91fb`) | — | hecho, Playwright 23/23, visto en el navegador |
 | C1 | Biblia v3.8: `Pregunta`, `archivada`, «Remi pregunta», fase Q | — | hecho |
-| J3 | Proyectos (3/6, tipo, fecha, Faltan, «Seguir con…», Obsidian, constelación) y la pantalla Proyecto | formas A y B para la barra de cobrado | pendiente |
-| J4 | Metas: nombre y horizonte, botones, por línea, segunda meta dormida | forma C | pendiente |
-| J5 | Bandeja: tema, «suelta», revisión en frío, destacada | forma E | pendiente |
-| C2 | «Remi pregunta» en el lienzo y en el panel: la pregunta aparece donde falta el dato | forma F | pendiente |
-| C3 | Semana contestada con datos | forma D | pendiente |
+| J3 | Proyectos (3/6, tipo, fecha, Faltan, «Seguir con…», Obsidian, constelación) y la pantalla Proyecto (`b58edb8`) | forma A para cobrado, cliente y detalle | hecho contra el núcleo falso; falta verlo con la forma A real |
+| J4 | Metas: nombre y horizonte, botones, por línea, segunda meta dormida (`f8185c7`) | forma C | hecho; falta verlo con la forma C real |
+| J5 | Bandeja: tema, «suelta», revisión en frío, destacada (`d05622a`) | forma E | hecho; falta verlo con la forma E real |
+| C2 | «Remi pregunta» en el lienzo y en el panel: la pregunta aparece donde falta el dato | forma F | diseñado en el lienzo (tres artboards); el código espera el visto bueno de Juan Camilo |
+| C3 | Semana contestada con datos (`6cbbd0d`) | formas D y E | hecho; falta verlo con las formas reales |
 | C4 | Verificar cada fase de la terminal: leer el commit, correr las pruebas, mirarlo en el navegador; marcar el tablero de la Biblia y este archivo | T1…T6 | pendiente |
 | C5 | Cierre: las siete pantallas en escritorio y en 375 px con datos reales; «Estado de Fases»; resumen en la bitácora | todo | pendiente |
 
@@ -244,3 +244,23 @@ a la terminal; cuando la forma real llega, se verifica contra el núcleo de verd
   intactas tras la migración.
 - 1-oct 17:50 · J2 `2aa91fb` · Playwright 23/23 · Hoy visto en escritorio y en 375 px.
 - 1-oct 18:00 · Biblia v3.8 publicada · este plan.
+- 1-oct 18:05 · J3 `b58edb8` · Playwright 39/39 · Proyectos y la pantalla de un proyecto vistas
+  con los siete libros reales, en escritorio y en 375 px.
+- 1-oct 18:12 · J4 `f8185c7` · Playwright 43/43 · Metas vista con la plata real.
+- 1-oct 18:18 · J5 `d05622a` · Playwright 47/47 · Bandeja vista con las ideas reales.
+- 1-oct 18:23 · C3 `6cbbd0d` · Playwright 54/54 · Semana vista; sin `/semana` en el núcleo de
+  hoy, muestra el guion.
+- 1-oct 18:25 · C2 diseñado en el lienzo. Tablero de la Biblia: P·c2 marcado; c3 y c4 esperan
+  las formas reales de la terminal.
+
+## Notas para la terminal (lo que el panel ya espera)
+
+El panel ya lee estas formas como opcionales; cuando el núcleo las sirva, aparecen solas:
+
+- **A**: `cliente` en el libro, `cobrado` en cada fase, `detalle` en cada hito.
+- **C**: `por_linea` en `GET /plata`.
+- **D**: `GET /semana`. Mientras responda 404 el panel muestra el guion sin datos.
+- **E**: `destacada` en cada fila de `GET /bandeja`; `POST /idea/{id}/destacar {destacada}`
+  devuelve la fila (`IdeaBandeja`). Destacar una idea le quita la marca a la anterior.
+- `POST /bloque {titulo, tema}` y `POST /libros/{tema}/camino/{n} {hecho}` ya se usan desde
+  Proyectos, la pantalla de un proyecto y Metas: no cambiar su forma.
