@@ -1,5 +1,6 @@
 {
-  "$comment": "Fuente única del puerto real del núcleo. Python (servidor.py) y la ventanita (src/config.ts, generado) lo leen de acá — nunca un puerto hardcodeado en dos lugares.",
+  "$comment": "Fuente única del puerto real del núcleo y del panel. Python (servidor.py), la ventanita (src/config.ts, generado) y el panel (src/config.ts, generado) lo leen de acá — nunca un puerto hardcodeado en dos lugares. puerto_panel: 3000 es de Organic Cash y Beam, 4401 es de whisper-server — ninguno de los dos es libre.",
   "host": "127.0.0.1",
-  "puerto": 4400
+  "puerto": 4400,
+  "puerto_panel": 4402
 }

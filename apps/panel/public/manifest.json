@@ -1,0 +1,12 @@
+{
+  "name": "Panel de Remi",
+  "short_name": "Remi",
+  "description": "Hoy, Proyectos, Metas y Bandeja — el panel de Remi.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#151112",
+  "theme_color": "#151112",
+  "icons": [
+    { "src": "/icon-brasa.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

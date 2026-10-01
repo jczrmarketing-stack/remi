@@ -1,7 +1,7 @@
 """Consolidación nocturna (ARQUITECTURA-CEREBRO §6): LaunchAgent com.remi.noche
 a las 4:00, después de la copia de restic de las 3:00.
 
-Cuatro pasos, en orden:
+Cinco pasos, en orden:
 1. Episodios de hoy → Estado de cada libro tocado. Solo si hay evidencia real
    (los episodios de hoy son la evidencia); si un libro no tuvo episodios
    hoy, no se toca — mismo mecanismo anti-invento de `estado_libro.py`.
@@ -12,6 +12,10 @@ Cuatro pasos, en orden:
 4. Reordena la mente: vuelve a sembrar los libros de proyecto
    (`sembrar_conocimiento.sembrar()`), que ahora asigna nivel 1 a lo tocado
    en los últimos 7 días y nivel 2 al resto — nunca borra nada.
+5. Reporte de la noche (reemplaza la entrega por voz, descartada): compara
+   el HEAD de la bóveda al arrancar contra el de ahora y manda por
+   `POST /telegram/avisar` «Anoche cambié N libros» con hasta 3 diffs cortos
+   (8 líneas c/u), o «Anoche no toqué nada» si no hubo cambios.
 
 Nada de esto borra una nota: lo que no se toca baja de nivel, no desaparece.
 
@@ -23,18 +27,25 @@ Log: ~/Library/Logs/Remi/noche.log — lo arma `scripts/noche.sh`, igual que
 """
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 import sys
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
+
+import httpx
 
 import boveda_git
 import db
 import estado_libro
 import libros
 import sembrar_conocimiento
+import telegram
 import vectores
+
+RUTA_CONFIG_SERVIDOR = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
 
 
 def _episodios_de_hoy(carpeta: Path, hoy: date) -> list[Path]:
@@ -190,9 +201,95 @@ def reordenar_mente() -> dict[str, int]:
     return sembrar_conocimiento.sembrar()
 
 
+def _head_git() -> str | None:
+    """El HEAD de la bóveda antes de que esta corrida toque nada, o None si
+    la bóveda no es un repo git todavía (o no tiene ningún commit) — mismo
+    criterio de `boveda_git._es_repo`."""
+    raiz = boveda_git.raiz()
+    if not (raiz / ".git").is_dir():
+        return None
+    try:
+        resultado = subprocess.run(
+            ["git", "-C", str(raiz), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        )
+    except subprocess.CalledProcessError:
+        return None
+    return resultado.stdout.strip()
+
+
+def _recortar_diff(diff: str, max_lineas: int) -> str:
+    """Las primeras líneas de `git diff` son cabecera (`diff --git`, `index`,
+    `---`/`+++`) — recortar el texto crudo a `max_lineas` se comía el cambio
+    real antes de llegar a él. Se arranca desde el primer `@@` (el hunk) si
+    hay uno; si no (archivo nuevo/borrado sin hunk, o binario), se recorta
+    tal cual."""
+    lineas = diff.splitlines()
+    for i, linea in enumerate(lineas):
+        if linea.startswith("@@"):
+            lineas = lineas[i:]
+            break
+    return "\n".join(lineas[:max_lineas])
+
+
+def diff_de_la_noche(referencia: str | None, max_lineas: int = 8) -> list[tuple[str, str]]:
+    """[(libro, diff_corto)] de lo que tocó esta corrida en la carpeta de
+    libros (`libros.carpeta()`), comparado contra `referencia` (el HEAD de
+    la bóveda al arrancar `correr()`). Cada diff se recorta a `max_lineas`
+    líneas de hunk (`_recortar_diff`); el nombre es el título del libro si
+    todavía se puede leer, o el nombre de archivo si no (por ejemplo si el
+    libro se borró en la corrida)."""
+    if referencia is None:
+        return []
+    raiz = boveda_git.raiz()
+    try:
+        nombres = subprocess.run(
+            ["git", "-C", str(raiz), "diff", "--name-only", referencia, "--", str(libros.carpeta())],
+            capture_output=True, text=True, check=True,
+        ).stdout.splitlines()
+    except subprocess.CalledProcessError:
+        return []
+
+    cambios: list[tuple[str, str]] = []
+    for nombre_relativo in sorted(nombre for nombre in nombres if nombre):
+        try:
+            diff = subprocess.run(
+                ["git", "-C", str(raiz), "diff", referencia, "--", nombre_relativo],
+                capture_output=True, text=True, check=True,
+            ).stdout
+        except subprocess.CalledProcessError:
+            continue
+        ruta_absoluta = raiz / nombre_relativo
+        libro = libros.leer(ruta_absoluta) if ruta_absoluta.exists() else None
+        etiqueta = libro.titulo if libro is not None else Path(nombre_relativo).stem
+        cambios.append((etiqueta, _recortar_diff(diff, max_lineas)))
+    return cambios
+
+
+def _url_avisar() -> str:
+    config = json.loads(RUTA_CONFIG_SERVIDOR.read_text())
+    return f"http://{config['host']}:{config['puerto']}/telegram/avisar"
+
+
+def enviar_reporte_de_la_noche(cambios: list[tuple[str, str]]) -> None:
+    """POST a `/telegram/avisar` (nunca en proceso: `noche.py` corre aparte
+    del servidor) con el resumen de esta corrida. `urgente: true` porque la
+    consolidación corre a las 4:00, dentro del silencio 23:00–7:00 — sin
+    eso, `avisar()` lo descartaría en silencio y el reporte nunca llegaría
+    (no hay cola ni reintento). Un fallo acá no puede tumbar la
+    consolidación — mismo criterio de `boveda_git._commit`: se anota en
+    stderr y sigue."""
+    texto = telegram.mensaje_reporte_noche(cambios)
+    try:
+        httpx.post(_url_avisar(), json={"texto": texto, "urgente": True}, timeout=10)
+    except Exception as error:  # noqa: BLE001 — un aviso que falla no tumba la noche
+        print(f"[noche] no pude mandar el reporte de la noche ({type(error).__name__}): {error}", file=sys.stderr, flush=True)
+
+
 def correr(hoy: date | None = None) -> None:
     arranque = datetime.now(timezone.utc)
     print(f"[noche] arranca {arranque.isoformat()}")
+    referencia = _head_git()
 
     estados = actualizar_estados_del_dia(hoy)
     for tema, resultado in estados.items():
@@ -214,6 +311,10 @@ def correr(hoy: date | None = None) -> None:
         "[noche] reordenar "
         + " ".join(f"{clave}={valor}" for clave, valor in cuenta.items())
     )
+
+    cambios = diff_de_la_noche(referencia)
+    enviar_reporte_de_la_noche(cambios)
+    print(f"[noche] reporte libros_cambiados={len(cambios)}")
 
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")

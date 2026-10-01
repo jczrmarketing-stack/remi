@@ -1,6 +1,7 @@
 """Consolidación nocturna: solo toca lo que tiene evidencia real del día."""
 import importlib
 import os
+import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone
 
@@ -51,6 +52,23 @@ def _arrancar(tmp_path, monkeypatch):
 
 def _libro(tmp_path, ruta_proyecto="/tmp/malik"):
     (tmp_path / "proyectos" / "malik.md").write_text(LIBRO.format(ruta=ruta_proyecto))
+
+
+def _git(tmp_path, *args):
+    return subprocess.run(["git", "-C", str(tmp_path), *args], capture_output=True, text=True, check=True)
+
+
+def _iniciar_repo_git(tmp_path):
+    """Bóveda de prueba, nunca la remi-mente real: `git init` en el tmpdir
+    del test, con un commit inicial ya hecho por quien llama."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "remi@example.com")
+    _git(tmp_path, "config", "user.name", "Remi de prueba")
+
+
+def _commit(tmp_path, mensaje):
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", mensaje)
 
 
 def _episodio(tmp_path, nombre, titulo, resumen, cuerpo, hoy: date):
@@ -209,3 +227,144 @@ def test_reordenar_mente_baja_de_nivel_lo_que_no_se_toco_en_una_semana(tmp_path,
         conexion.close()
     assert nuevo.nivel == 1
     assert viejo.nivel == 2
+
+
+# — reporte de la noche: diff de git de lo que cambió esta corrida —
+
+
+def test_diff_de_la_noche_sin_referencia_devuelve_vacio(tmp_path, monkeypatch):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    assert noche.diff_de_la_noche(None) == []
+
+
+def test_head_git_none_si_la_boveda_no_es_repo(tmp_path, monkeypatch):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    assert noche._head_git() is None
+
+
+def test_diff_de_la_noche_reporta_el_libro_que_cambio(tmp_path, monkeypatch):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    _iniciar_repo_git(tmp_path)
+    _libro(tmp_path)
+    _commit(tmp_path, "estado inicial de malik")
+
+    referencia = noche._head_git()
+    assert referencia is not None
+
+    (tmp_path / "proyectos" / "malik.md").write_text(
+        LIBRO.format(ruta="/tmp/malik").replace(
+            "Próximo paso: arrancar.", "Próximo paso: seguir con el webhook."
+        )
+    )
+    _commit(tmp_path, "consolidación nocturna: Estado de malik.md")
+
+    cambios = noche.diff_de_la_noche(referencia)
+    assert len(cambios) == 1
+    titulo, diff = cambios[0]
+    assert titulo == "Malik"
+    assert "seguir con el webhook" in diff
+
+
+def test_diff_de_la_noche_no_reporta_libros_que_no_cambiaron(tmp_path, monkeypatch):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    _iniciar_repo_git(tmp_path)
+    _libro(tmp_path)
+    _commit(tmp_path, "estado inicial")
+    referencia = noche._head_git()
+
+    # nada cambia después de la referencia
+    assert noche.diff_de_la_noche(referencia) == []
+
+
+def test_diff_de_la_noche_recorta_a_max_lineas(tmp_path, monkeypatch):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    _iniciar_repo_git(tmp_path)
+    _libro(tmp_path)
+    _commit(tmp_path, "estado inicial")
+    referencia = noche._head_git()
+
+    lineas_nuevas = "\n".join(f"Línea {i}" for i in range(30))
+    (tmp_path / "proyectos" / "malik.md").write_text(
+        LIBRO.format(ruta="/tmp/malik") + "\n" + lineas_nuevas
+    )
+    _commit(tmp_path, "agranda el libro")
+
+    cambios = noche.diff_de_la_noche(referencia, max_lineas=8)
+    assert len(cambios) == 1
+    _, diff = cambios[0]
+    assert len(diff.splitlines()) <= 8
+
+
+def test_diff_de_la_noche_usa_el_nombre_de_archivo_si_el_libro_ya_no_se_puede_leer(tmp_path, monkeypatch):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    _iniciar_repo_git(tmp_path)
+    _libro(tmp_path)
+    _commit(tmp_path, "estado inicial")
+    referencia = noche._head_git()
+
+    (tmp_path / "proyectos" / "malik.md").unlink()
+    _commit(tmp_path, "borra malik")
+
+    cambios = noche.diff_de_la_noche(referencia)
+    assert len(cambios) == 1
+    assert cambios[0][0] == "malik"
+
+
+# — reporte de la noche: POST a /telegram/avisar —
+
+
+def test_enviar_reporte_de_la_noche_postea_el_texto_armado(tmp_path, monkeypatch):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    monkeypatch.setattr(noche, "_url_avisar", lambda: "http://127.0.0.1:4400/telegram/avisar")
+    posteado = {}
+
+    def post_falso(url, json, timeout):
+        posteado["url"] = url
+        posteado["json"] = json
+
+    monkeypatch.setattr(noche.httpx, "post", post_falso)
+
+    noche.enviar_reporte_de_la_noche([("Malik", "diff corto")])
+
+    assert posteado["url"] == "http://127.0.0.1:4400/telegram/avisar"
+    assert posteado["json"]["texto"].startswith("Anoche cambié 1 libro")
+    assert posteado["json"]["urgente"] is True  # si no, avisar() lo descarta en silencio (4:00 cae en 23:00–7:00)
+
+
+def test_enviar_reporte_de_la_noche_sin_cambios_manda_no_toque_nada(tmp_path, monkeypatch):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    monkeypatch.setattr(noche, "_url_avisar", lambda: "http://127.0.0.1:4400/telegram/avisar")
+    posteado = {}
+    monkeypatch.setattr(
+        noche.httpx, "post", lambda url, json, timeout: posteado.update(url=url, json=json)
+    )
+
+    noche.enviar_reporte_de_la_noche([])
+
+    assert posteado["json"]["texto"] == "Anoche no toqué nada"
+
+
+def test_enviar_reporte_de_la_noche_no_revienta_si_falla_el_post(tmp_path, monkeypatch, capsys):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    monkeypatch.setattr(noche, "_url_avisar", lambda: "http://127.0.0.1:4400/telegram/avisar")
+
+    def post_roto(url, json, timeout):
+        raise RuntimeError("sin conexión")
+
+    monkeypatch.setattr(noche.httpx, "post", post_roto)
+
+    noche.enviar_reporte_de_la_noche([("Malik", "diff")])  # no revienta
+    assert "sin conexión" in capsys.readouterr().err
+
+
+def test_correr_manda_el_reporte_de_la_noche(tmp_path, monkeypatch):
+    """Integración de punta a punta de `correr()`: sin bóveda git, no hay
+    cambios que reportar y el mensaje es «Anoche no toqué nada»."""
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    enviados = []
+    monkeypatch.setattr(noche, "enviar_reporte_de_la_noche", lambda cambios: enviados.append(cambios))
+    monkeypatch.setattr(noche, "recalcular_vectores", lambda: 0)
+
+    noche.correr(date.today())
+
+    assert enviados == [[]]

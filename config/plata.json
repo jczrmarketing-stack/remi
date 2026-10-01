@@ -1,0 +1,5 @@
+{
+  "$comment": "Meta mensual de plata. nucleo/plata.py la lee de acá; Juan Camilo la cambia a mano.",
+  "meta_mensual": 2400,
+  "moneda": "USD"
+}
