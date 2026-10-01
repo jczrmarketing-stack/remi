@@ -19,8 +19,8 @@ Tres riesgos reales, ninguno es «falta código»:
 ### Robustez: plan B en todo lo que sale del Mac
 - Todo proveedor externo: timeout, un reintento, respaldo, una línea de log. Nada rompe el turno.
 - **Cerebro con respaldo**: si Claude (Max) devuelve límite o `claude -p` falla, el turno se reintenta con OpenRouter · DeepSeek V4-Pro y la respuesta lleva `motor_usado`; la ventanita muestra el chip real. Cuando Claude vuelve, vuelve.
-- Motores por nombre de proveedor: Claude (default, Haiku/Sonnet/Opus por nivel), Groq (gratis, rutina), OpenRouter (DeepSeek Flash / V4-Pro, Kimi K2, Qwen3-Coder por nivel; `models` con caída automática y `provider.sort=price`), Venice (manual, pago), Ollama (sin red). Modelos en `config/motores.json`, nunca en código.
-- **Trastienda** (resumen vivo, claves, títulos de episodios, consolidación nocturna): Groq · Kimi K2 → OpenRouter · DeepSeek Flash → Ollama. Max queda para la voz de Remi.
+- Motores por nombre de proveedor: Claude (default, Haiku/Sonnet/Opus por nivel), Groq (gratis, rutina), OpenRouter (DeepSeek Flash / V4-Pro, openai/gpt-oss-120b, Qwen3-Coder por nivel; `models` con caída automática y `provider.sort=price`), Venice (manual, pago), Ollama (sin red). Modelos en `config/motores.json`, nunca en código.
+- **Trastienda** (resumen vivo, claves, títulos de episodios, consolidación nocturna): Groq · openai/gpt-oss-120b → OpenRouter · DeepSeek Flash → Ollama. Max queda para la voz de Remi.
 - Vectores: siempre locales (Ollama).
 
 ### Mantenimiento casi nulo: menos piezas, una prueba diaria
@@ -31,7 +31,7 @@ Tres riesgos reales, ninguno es «falta código»:
 
 ### Alucinación baja: la IA propone, las reglas y Juan Camilo deciden
 - Los Estados de la bóveda se escriben solo desde evidencia literal (mensajes de commit, frases del transcript). Sin cita, no hay línea. Es la regla única, no una de varias.
-- Trastienda con Kimi K2 en vez de gemma3:4b: el modelo que más inventaba era el más flojo.
+- Trastienda con openai/gpt-oss-120b en vez de gemma3:4b: el modelo que más inventaba era el más flojo.
 - **Reporte de la noche por Telegram**: «anoche cambié esto en N libros», con diff corto de la bóveda. Cualquier invento se revierte con `git revert` en `remi-mente`.
 - La verificación mecánica de entidades corre también como test en la suite.
 

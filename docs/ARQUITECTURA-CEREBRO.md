@@ -116,15 +116,15 @@ SQLite y la página de Notion. Un libro, tres vistas.
 | **Inteligente** | Claude Opus por Max, con razonamiento | Decisiones, estrategia, planes. 8–15 s. |
 
 **Chips por proveedor (30-sep, plan de robustez):** Claude (al frente, siempre; Haiku/Sonnet/Opus
-según el nivel), Groq (gratis: Llama 4, Kimi K2), OpenRouter (DeepSeek Flash en equilibrio,
-DeepSeek V4-Pro en inteligente y Prompt, respaldo Kimi K2 / Qwen3-Coder; `models` con caída
+según el nivel), Groq (gratis: Llama 4, openai/gpt-oss-120b), OpenRouter (DeepSeek Flash en equilibrio,
+DeepSeek V4-Pro en inteligente y Prompt, respaldo openai/gpt-oss-120b / Qwen3-Coder; `models` con caída
 automática y `provider.sort=price`), Venice (manual, pago), Ollama (sin red). Los modelos viven
 en `config/motores.json`, nunca en código. **Respaldo del cerebro**: si Max devuelve límite o
 `claude -p` falla, el turno se reintenta por OpenRouter · DeepSeek V4-Pro y la respuesta lleva
 `motor_usado`; la ventanita muestra el chip real.
 
 **La trastienda es gratis y ya no la hace el modelo más flojo:** resumen vivo, claves, títulos
-de episodios y consolidación corren en Groq · Kimi K2 → OpenRouter · DeepSeek Flash → Ollama.
+de episodios y consolidación corren en Groq · openai/gpt-oss-120b → OpenRouter · DeepSeek Flash → Ollama.
 Los embeddings siguen locales (Ollama). Así el límite semanal de Max se gasta en la voz de Remi,
 y los Estados de la bóveda los escribe un modelo serio, con la verificación mecánica de siempre.
 
