@@ -47,7 +47,7 @@ Escribe Claude (la sesión de la app), que esta vez trabajó directo en el repo.
 - **Dudas abiertas:** hay tres archivos modificados sin commitear que no son míos
   (`CLAUDE.md`, `.claude/skills/remi/SKILL.md`, `docs/GUIA-HOY.md`): los resuelve T0 ·
   «Remi pregunta» en el panel (C2) está diseñado en el lienzo y espera el visto bueno.
-- **Cómo probarlo a mano:** `./scripts/recargar.sh todo` (pytest 521 + mypy, Playwright 54/54,
+- **Cómo probarlo a mano:** `./scripts/recargar.sh todo` (pytest 525 + mypy, Playwright 54/54,
   recarga). En `http://127.0.0.1:4402`: Proyectos → tocar un círculo → «Ver el proyecto»;
   Metas; Bandeja; Semana → «Siguiente paso». Lo mismo a 375 px.
 

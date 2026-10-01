@@ -89,7 +89,7 @@ reinicio del núcleo, entrada en la bitácora, `/compact`.
 4. `git worktree add ../remi-nucleo -b f-nucleo main`, y adentro
    `ln -s ../remi-mente conocimiento` (está en `.gitignore` y hay pruebas que leen los
    oficios reales). `cd nucleo && uv sync` usa el caché: no baja nada de nuevo.
-5. Línea base: `uv run pytest -q && uv run mypy .` (521) y `npm test` en la ventanita (86).
+5. Línea base: `uv run pytest -q && uv run mypy .` (525) y `npm test` en la ventanita (86).
 
 **Listo cuando:** worktree creado y línea base en verde, anotada en la bitácora.
 
