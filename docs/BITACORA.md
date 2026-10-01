@@ -74,6 +74,68 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · cierre del 30-sep · construido · 7d94dd8
+
+- **Qué cambió:** último lote de merges del día, todos `--no-ff`, pytest completo después de
+  cada uno. Hashes de merge de hoy, en orden:
+  1. `284ef5b` f-ventanita (Fase F · 3f ventanita final)
+  2. `a958fae` f-fase3 (Bandeja + caminos + iniciativa)
+  3. `97b42bf` f-notion (Notion ida y vuelta)
+  4. `c2bc091` f-telegram (Fase 4 · el teléfono)
+  5. `1a320ac` f-panel (apps/panel + /plata)
+  6. `4aba7bb` f-telegram (reporte de la noche)
+  7. `d86305d` f-tunel (doctor.sh, vigía, túnel cloudflared)
+  8. `1ea32b3` f-config (configuración desde el panel — Conexiones)
+  9. `5d6deba` f-tunel (nota de bitácora: medición de `/telegram/avisar` lento)
+  10. `f2973fd` f-chips (motor de charla Groq/OpenRouter, se fue el deepseek directo)
+  11. `7d94dd8` f-aviso (`avisar()` no bloquea: hilo de fondo con reintento)
+  Entre el 10 y el 11, un commit suelto (`d5ddad0`): saqué `DEEPSEEK_API_KEY` de las llaves
+  esperadas de `scripts/doctor.sh` — el motor directo se fue con f-chips, y esa llave ya no
+  la lee nadie. `f-motores` no llegó a existir: quedó vacía, f-chips la cubrió entera.
+- **Números finales:** 466 pytest, mypy limpio (81 módulos), 86 vitest (`apps/ventanita`),
+  10/10 Playwright (`apps/panel`, núcleo falso aislado).
+- **Verificado en vivo contra el núcleo real, después del `scripts/actualizar.sh` final**
+  (instaló `7d94dd8`):
+  1. `POST /telegram/avisar` respondió en **0.035 s** (antes: hasta 41 s) — `avisar()` ya no
+     bloquea el request; el log confirma el envío real 8.7 s después, en el hilo de fondo:
+     `[telegram] avisé (ms=8678)`.
+  2. `GET /pensar/motores` lista `groq` (`openai/gpt-oss-120b`) y `openrouter`
+     (`deepseek/deepseek-v4-flash`), los dos `disponible: true`.
+  3. `scripts/doctor.sh`:
+     ```
+     OK     núcleo (/salud :4400)
+     FALLA  panel (:4402) — no responde
+     OK     whisper (whisper-server residente :4401)
+     OK     kokoro (paquete instalado)
+     OK     ollama (:11434)
+     OK     LaunchAgents com.remi.* (10 cargados)
+     OK     bóveda git limpia (/Users/juancamilo/proyectos/remi-mente)
+     OK     llaves en nucleo/.env (7 nombres)
+     OK     frescura (copia cifrada <26h, episodio <48h)
+     OK     disco (168 GB libres)
+
+     doctor: 1 chequeo(s) en FALLA
+     ```
+- **Decisiones que tomé sin preguntar:** ninguna nueva — este cierre fue solo mergear,
+  verificar y escribir.
+- **Lo pendiente** (`DEEPSEEK_API_KEY` ya NO es pendiente: se fue con f-chips):
+  1. **El panel no corre como servicio.** `doctor.sh` lo chequea en `:4402` y falla porque
+     nadie lo dejó corriendo — no es un LaunchAgent todavía. Si el túnel
+     (`remi.inv3rza.com`) va a servirlo de verdad, hace falta decidir cómo se mantiene vivo
+     (¿otro LaunchAgent, `pm2`, algo con Next en modo `start`?).
+  2. `NOTION_VUELTA` sigue apagada (solo de ida) — a propósito, hasta que Remi lleve un mes
+     de uso real (`docs/ROBUSTEZ.md`).
+  3. `docs/ARQUITECTURA-CEREBRO.md` y `docs/ROBUSTEZ.md` siguen mencionando «Kimi K2» en la
+     prosa; el código real usa `openai/gpt-oss-120b` desde la verificación en vivo de hoy.
+  4. El envío de `/telegram/avisar` ahora es fire-and-forget con reintento en un hilo: no hay
+     forma de confirmar éxito/fracaso desde la respuesta HTTP (siempre 204) — solo queda en
+     el log. Si algún día hace falta saber si llegó, hay que agregar algo más que el log.
+- **Cómo probarlo a mano:** `git log --oneline --merges -11`; `cd nucleo && uv run pytest -q
+  && uv run mypy .`; `cd ../apps/ventanita && npx vitest run`; `cd ../panel && npx playwright
+  test`; `scripts/doctor.sh`.
+
+---
+
 ## 2026-09-30 · Configuración desde el panel · cierre (4 y 5) · 6c4dac9
 
 - **Qué cambió:** el bloqueo de la entrada anterior se resolvió rebasando `f-config` sobre
