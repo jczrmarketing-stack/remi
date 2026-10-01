@@ -50,6 +50,11 @@ def test_un_commit_en_la_carpeta_cae_en_su_libro(tmp_path, monkeypatch):
 
 def test_sin_ficha_entra_a_la_bandeja_una_sola_vez(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
+    # `repo` vive bajo tmp_path, que a su vez vive bajo la carpeta temporal
+    # de pytest — lo que este test quiere probar es la idempotencia de
+    # «sin ficha», no el filtro de carpetas de prueba (ver test aparte más
+    # abajo), así que se neutraliza solo para este caso.
+    monkeypatch.setattr(servidor.trabajo, "_es_carpeta_de_pruebas", lambda carpeta: False)
     cliente = TestClient(servidor.app)
     # Un proyecto sin libro es un repo de git de verdad.
     repo = tmp_path / "desconocido"
@@ -89,3 +94,24 @@ def test_la_carpeta_personal_y_una_sin_git_no_son_proyectos(tmp_path, monkeypatc
     finally:
         conexion.close()
     assert not (tmp_path / "boveda" / "episodios").exists() or list((tmp_path / "boveda" / "episodios").glob("*.md")) == []
+
+
+def test_un_commit_en_un_repo_temporal_no_crea_idea(tmp_path, monkeypatch):
+    """1-oct: cientos de «proyecto sin ficha: /private/var/folders/.../
+    pytest-of-…» en la Bandeja real, una por corrida de pytest — un repo de
+    verdad (con .git) pero bajo una carpeta de pruebas nunca debe anotarse."""
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    repo = tmp_path / "pytest-of-juancamilo" / "pytest-123" / "test_algo0" / "repo"
+    (repo / ".git").mkdir(parents=True)
+
+    respuesta = cliente.post("/evento", json={"tipo": "commit", "ruta": str(repo), "datos": {}})
+
+    assert respuesta.json()["anotado"] is False
+    import db
+
+    conexion = db.conectar()
+    try:
+        assert conexion.execute("SELECT COUNT(*) FROM ideas").fetchone()[0] == 0
+    finally:
+        conexion.close()

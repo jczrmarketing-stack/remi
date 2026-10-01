@@ -1,15 +1,17 @@
 #!/usr/bin/env python
-"""Las tareas de prueba que quedaron de probar Remi.
+"""Lo que quedó de probar Remi en la base real — dos patrones, nada más:
 
-Sin argumentos no borra nada: imprime numeradas las tareas en estado `hoy`
-con sus sesiones, para que Juan Camilo elija. Con `--borrar 1,4,7` borra
-esas y sus sesiones, después de imprimir qué se va.
+1. Ideas «proyecto sin ficha: <ruta>» donde <ruta> es una carpeta de
+   pruebas (trabajo.es_ruta_de_pruebas: pytest-of-, $TMPDIR, /private/var/
+   folders, /tmp). Quedaron de antes de que es_carpeta_de_proyecto() y los
+   hooks de test las filtraran (1-oct): cientos, una por corrida.
+2. Tareas tituladas exactamente «hola», sin ninguna sesión.
+
+Sin --borrar, solo cuenta y lista — no borra nada. Con --borrar, borra
+exactamente esas dos cosas y nada más.
 
     cd nucleo && uv run python limpiar_pruebas.py
-    cd nucleo && uv run python limpiar_pruebas.py --borrar 1,4,7
-
-Elegir cuáles no es decisión de este script: una tarea borrada no se
-recupera. Las ideas de la Bandeja no se tocan nunca desde acá.
+    cd nucleo && uv run python limpiar_pruebas.py --borrar
 """
 from __future__ import annotations
 
@@ -18,79 +20,68 @@ import sqlite3
 from uuid import UUID
 
 import db
+import trabajo
+
+PREFIJO_SIN_FICHA = "proyecto sin ficha: "
 
 
-def _listar(conexion: sqlite3.Connection) -> list[tuple[UUID, str, list[int], int]]:
-    """Por cada tarea `hoy`: id, título, minutos de cada sesión y el total."""
-    filas = []
-    for tarea in db.listar_tareas_hoy(conexion):
-        sesiones = db.listar_sesiones_tarea(conexion, tarea.id)
-        minutos = [s.real_min for s in sesiones]
-        filas.append((tarea.id, tarea.titulo, minutos, sum(minutos)))
-    return filas
+def _ideas_de_prueba(conexion: sqlite3.Connection) -> list[tuple[UUID, str]]:
+    resultado: list[tuple[UUID, str]] = []
+    for idea in db.listar_ideas(conexion):
+        if not idea.texto.startswith(PREFIJO_SIN_FICHA):
+            continue
+        ruta = idea.texto[len(PREFIJO_SIN_FICHA):]
+        if trabajo.es_ruta_de_pruebas(ruta):
+            resultado.append((idea.id, idea.texto))
+    return resultado
 
 
-def _imprimir(filas: list[tuple[UUID, str, list[int], int]]) -> None:
-    if not filas:
-        print("No hay tareas en estado `hoy`.")
-        return
-    print(f"{len(filas)} tarea(s) en estado `hoy`:\n")
-    for numero, (_id, titulo, minutos, total) in enumerate(filas, start=1):
-        recortado = titulo if len(titulo) <= 52 else titulo[:51] + "…"
-        detalle = f"{len(minutos)} sesión(es), {total} min" if minutos else "sin sesiones"
-        print(f"  {numero:>2}. {recortado:<52}  {detalle}")
+def _tareas_hola_sin_sesiones(conexion: sqlite3.Connection) -> list[tuple[UUID, str]]:
+    resultado: list[tuple[UUID, str]] = []
+    for fila in conexion.execute("SELECT id, titulo FROM tareas WHERE titulo = 'hola'").fetchall():
+        tiene_sesion = conexion.execute(
+            "SELECT 1 FROM sesiones WHERE tarea_id = ? LIMIT 1", (fila["id"],)
+        ).fetchone()
+        if tiene_sesion is None:
+            resultado.append((UUID(fila["id"]), fila["titulo"]))
+    return resultado
 
 
-def _borrar(conexion: sqlite3.Connection, filas, numeros: list[int]) -> int:
-    elegidas = []
-    for numero in numeros:
-        if not 1 <= numero <= len(filas):
-            print(f"No hay una tarea {numero}: hay {len(filas)}. No borré nada.")
-            return 0
-        elegidas.append(filas[numero - 1])
-
-    print("\nSe van estas, con sus sesiones:")
-    for numero, (_id, titulo, minutos, total) in zip(numeros, elegidas):
-        print(f"  {numero:>2}. {titulo}  ({len(minutos)} sesión(es), {total} min)")
-
-    for tarea_id, _titulo, _minutos, _total in elegidas:
-        # Las sesiones primero: la clave ajena apunta a la tarea.
-        conexion.execute("DELETE FROM sesiones WHERE tarea_id = ?", (str(tarea_id),))
-        conexion.execute("DELETE FROM tareas WHERE id = ?", (str(tarea_id),))
-    conexion.commit()
-    return len(elegidas)
+def _recortar(texto: str, largo: int = 90) -> str:
+    return texto if len(texto) <= largo else texto[: largo - 1] + "…"
 
 
 def main() -> int:
-    analizador = argparse.ArgumentParser(description=__doc__)
+    analizador = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     analizador.add_argument(
-        "--borrar",
-        metavar="1,4,7",
-        help="números de la lista, separados por comas. Sin esto no se borra nada.",
+        "--borrar", action="store_true", help="borra lo que lista. Sin esto, solo cuenta y lista."
     )
     argumentos = analizador.parse_args()
 
     conexion = db.conectar()
     try:
-        filas = _listar(conexion)
-        _imprimir(filas)
+        ideas = _ideas_de_prueba(conexion)
+        tareas = _tareas_hola_sin_sesiones(conexion)
+        total = len(ideas) + len(tareas)
 
-        if argumentos.borrar is None:
-            print("\nNada borrado. Para borrar: --borrar 1,4,7")
+        print(f"{len(ideas)} idea(s) «proyecto sin ficha:» con ruta de pruebas:")
+        for _id, texto in ideas:
+            print(f"  - {_recortar(texto)}")
+        print(f"\n{len(tareas)} tarea(s) «hola» sin sesiones:")
+        for tarea_id, _titulo in tareas:
+            print(f"  - {tarea_id}")
+        print(f"\nTotal: {total}.")
+
+        if not argumentos.borrar:
+            print("\nNada borrado. Para borrar: --borrar")
             return 0
 
-        try:
-            numeros = [int(n) for n in argumentos.borrar.split(",") if n.strip()]
-        except ValueError:
-            print("\n--borrar espera números separados por comas, como 1,4,7.")
-            return 1
-        if not numeros:
-            print("\n--borrar sin números: no borré nada.")
-            return 1
-
-        cuantas = _borrar(conexion, filas, numeros)
-        if cuantas:
-            print(f"\n{cuantas} tarea(s) borrada(s). Las ideas de la Bandeja no se tocaron.")
+        for idea_id, _texto in ideas:
+            conexion.execute("DELETE FROM ideas WHERE id = ?", (str(idea_id),))
+        for tarea_id, _titulo in tareas:
+            conexion.execute("DELETE FROM tareas WHERE id = ?", (str(tarea_id),))
+        conexion.commit()
+        print(f"\n{total} fila(s) borrada(s).")
         return 0
     finally:
         conexion.close()

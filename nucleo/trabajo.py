@@ -32,14 +32,50 @@ HORAS_DE_ENFRIAMIENTO = 48
 MINUTOS_ENTRE_ESTADOS = 10
 
 
-def es_carpeta_de_proyecto(ruta: str) -> bool:
-    """Un proyecto sin libro solo cuenta si la carpeta está dentro de un repo
-    de git. Abrir Claude Code en la carpeta personal (30/09, 00:47) o en una
-    temporal no es un proyecto: antes dejaba «proyecto sin ficha:
-    /Users/juancamilo» en la Bandeja."""
+_CARPETAS_DE_PRUEBAS = ("/private/var/folders", "/private/tmp", "/tmp")
+
+
+def es_ruta_de_pruebas(ruta: str) -> bool:
+    """Una carpeta temporal de pytest (tmp_path, tempfile.mkdtemp) nunca es
+    un proyecto real: ni vale la pena resolverla primero, un string crudo
+    con «pytest-of-» ya alcanza. Pública porque limpiar_pruebas.py la usa
+    contra ideas ya guardadas, no solo contra carpetas nuevas."""
+    if "pytest-of-" in ruta:
+        return True
     try:
         carpeta = Path(ruta).expanduser().resolve()
     except (OSError, RuntimeError):
+        return False
+    return _es_carpeta_de_pruebas(carpeta)
+
+
+def _es_carpeta_de_pruebas(carpeta: Path) -> bool:
+    texto = str(carpeta)
+    if "pytest-of-" in texto:
+        return True
+    tmpdir = os.environ.get("TMPDIR")
+    if tmpdir:
+        try:
+            raiz = Path(tmpdir).expanduser().resolve()
+            if carpeta == raiz or raiz in carpeta.parents:
+                return True
+        except (OSError, RuntimeError):
+            pass
+    return any(texto == base or texto.startswith(base + "/") for base in _CARPETAS_DE_PRUEBAS)
+
+
+def es_carpeta_de_proyecto(ruta: str) -> bool:
+    """Un proyecto sin libro solo cuenta si la carpeta está dentro de un repo
+    de git. Abrir Claude Code en la carpeta personal (30/09, 00:47), en una
+    temporal o en una carpeta de pruebas de pytest (1-oct) no es un
+    proyecto: antes dejaba «proyecto sin ficha: /Users/juancamilo» o
+    «proyecto sin ficha: /private/var/folders/.../pytest-of-…» en la
+    Bandeja — esto último, cientos de veces, una por corrida de pytest."""
+    try:
+        carpeta = Path(ruta).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return False
+    if _es_carpeta_de_pruebas(carpeta):
         return False
     casa = Path.home().resolve()
     if carpeta == casa:

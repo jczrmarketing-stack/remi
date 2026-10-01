@@ -19,6 +19,24 @@ os.environ.setdefault(
 # ciclo de vida del servidor; las que prueban la siembra la piden explícito.
 os.environ.setdefault("REMI_SEMBRAR_CONOCIMIENTO", "0")
 
+# Un commit en un repo de prueba (test_boveda_git.py, test_notion_sync.py,
+# etc.) no puede disparar el hook global de post-commit (avisar-commit.py):
+# con `init.templateDir` apuntando a él en el .gitconfig real, cada `git
+# init` de una prueba lo copiaba igual, y terminaba avisándole al núcleo
+# real de un commit que no existe (1-oct: cientos de «proyecto sin ficha»
+# en la Bandeja real). Un GIT_CONFIG_GLOBAL vacío hace que git ignore el
+# .gitconfig de Juan Camilo durante toda la corrida.
+_GIT_CONFIG_VACIO = tempfile.NamedTemporaryFile(
+    prefix="remi-pruebas-sin-git-config-", suffix=".gitconfig", delete=False
+)
+_GIT_CONFIG_VACIO.close()
+os.environ.setdefault("GIT_CONFIG_GLOBAL", _GIT_CONFIG_VACIO.name)
+
+# Por si acaso el hook corre igual (un .git/hooks/post-commit que ya estaba
+# ahí, copiado antes de este fix): un puerto que nadie escucha nunca llega
+# al núcleo real.
+os.environ.setdefault("REMI_NUCLEO_URL", "http://127.0.0.1:1")
+
 
 import pytest
 

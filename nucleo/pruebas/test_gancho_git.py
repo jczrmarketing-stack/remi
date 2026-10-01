@@ -60,7 +60,10 @@ def test_un_commit_avisa_repo_rama_mensaje_y_archivos(tmp_path: Path) -> None:
         hecho = subprocess.run(
             ["python3", str(AVISAR)],
             cwd=repo,
-            env={**os.environ, "REMI_NUCLEO_URL": url},
+            # El repo de fixture vive bajo tmp_path (una carpeta de pruebas
+            # de pytest de verdad): sin esto, la guarda de 1-oct lo saltaría
+            # y este test, que prueba el AVISO en sí, no probaría nada.
+            env={**os.environ, "REMI_NUCLEO_URL": url, "REMI_PRUEBA_FORZAR_AVISO": "1"},
             check=False,
         )
     finally:
@@ -73,6 +76,42 @@ def test_un_commit_avisa_repo_rama_mensaje_y_archivos(tmp_path: Path) -> None:
     assert cuerpo["datos"]["mensaje"] == "el mosaico"
     assert cuerpo["datos"]["archivos"] == ["a.txt"]
     assert cuerpo["datos"]["repo"] == str(repo)
+
+
+def test_remi_sin_hooks_no_avisa(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    servidor, url = _servidor()
+    try:
+        hecho = subprocess.run(
+            ["python3", str(AVISAR)],
+            cwd=repo,
+            env={**os.environ, "REMI_NUCLEO_URL": url, "REMI_SIN_HOOKS": "1"},
+            check=False,
+        )
+    finally:
+        servidor.shutdown()
+    assert hecho.returncode == 0
+    assert _Anota.veces == 0
+
+
+def test_un_repo_bajo_una_carpeta_de_pruebas_no_avisa(tmp_path: Path) -> None:
+    """1-oct: avisar-commit.py es la segunda guarda, por si el .gitconfig de
+    pruebas no bastara — no depende de nucleo/, solo del path del repo."""
+    base = tmp_path / "pytest-of-alguien" / "pytest-1" / "test_algo0"
+    base.mkdir(parents=True)
+    repo = _repo(base)
+    servidor, url = _servidor()
+    try:
+        hecho = subprocess.run(
+            ["python3", str(AVISAR)],
+            cwd=repo,
+            env={**os.environ, "REMI_NUCLEO_URL": url},
+            check=False,
+        )
+    finally:
+        servidor.shutdown()
+    assert hecho.returncode == 0
+    assert _Anota.veces == 0
 
 
 def test_nucleo_apagado_no_frena(tmp_path: Path) -> None:
@@ -99,7 +138,7 @@ def test_encadena_el_gancho_local_y_no_se_llama_a_si_mismo(tmp_path: Path) -> No
         hecho = subprocess.run(
             [str(enlace)],
             cwd=repo,
-            env={**os.environ, "REMI_NUCLEO_URL": url},
+            env={**os.environ, "REMI_NUCLEO_URL": url, "REMI_PRUEBA_FORZAR_AVISO": "1"},
             check=False,
             timeout=5,
         )
@@ -118,7 +157,7 @@ def test_encadena_el_gancho_local_y_no_se_llama_a_si_mismo(tmp_path: Path) -> No
         hecho2 = subprocess.run(
             [str(enlace)],
             cwd=repo,
-            env={**os.environ, "REMI_NUCLEO_URL": url2},
+            env={**os.environ, "REMI_NUCLEO_URL": url2, "REMI_PRUEBA_FORZAR_AVISO": "1"},
             check=False,
             timeout=5,
         )
@@ -149,6 +188,28 @@ def test_otro_nombre_solo_encadena(tmp_path: Path) -> None:
         servidor.shutdown()
     assert marca.read_text().strip() == "pre"
     assert _Anota.veces == 0
+
+
+def test_git_config_global_de_las_pruebas_aisla_el_hook_real(tmp_path: Path) -> None:
+    """conftest.py pone GIT_CONFIG_GLOBAL a un archivo vacío para toda la
+    corrida (1-oct): un `git commit` normal, SIN `-c core.hooksPath=/dev/
+    null`, no debe heredar el core.hooksPath real de Juan Camilo (que
+    apunta a git-gancho/avisar-commit.py). Si este test corriera con el
+    .gitconfig real, un commit acá avisaría al núcleo de verdad."""
+    assert os.environ.get("GIT_CONFIG_GLOBAL"), "conftest.py debería haberlo puesto"
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    efectivo = subprocess.run(
+        ["git", "config", "--get", "core.hooksPath"], cwd=repo, capture_output=True, text=True
+    )
+    assert efectivo.returncode != 0 or efectivo.stdout.strip() == ""
+    (repo / "a.txt").write_text("hola\n")
+    subprocess.run(["git", "add", "a.txt"], cwd=repo, check=True)
+    hecho = subprocess.run(["git", "commit", "-q", "-m", "x"], cwd=repo, check=False)
+    assert hecho.returncode == 0
 
 
 def test_instalar_enlaza_sin_tocar_la_config(tmp_path: Path) -> None:
