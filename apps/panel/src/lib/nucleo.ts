@@ -37,6 +37,7 @@ export type Salud = { ok: boolean; db: boolean };
 export type IdeaBandeja = { idea: Idea; fria: boolean };
 export type Hito = { texto: string; hecho: boolean };
 export type Camino = { hitos: Hito[]; siguiente: Hito | null };
+export type EntregaCercana = { cliente: string; fecha: string; monto: number };
 export type Libro = {
   tema: string;
   titulo: string;
@@ -46,10 +47,16 @@ export type Libro = {
   quedaste: string;
   proximo_paso: string;
   hitos: Hito[];
+  // La entrega viva (con dinero) más cercana de este libro, para el orden
+  // del líder en Proyectos.
+  entrega_cercana: EntregaCercana | null;
+  // mtime del archivo del libro (ISO): el último escalón de ese orden.
+  ultimo_estado_en: string;
 };
+export type EntregaCobrada = { cliente: string; fecha: string; monto: number };
 export type Plata = {
   semana: { cobrado: number; meta_semanal: number };
-  mes: { cobrado: number; meta: number; faltan: number };
+  mes: { cobrado: number; meta: number; faltan: number; entregas: EntregaCobrada[] };
   proximo: { cliente: string; fecha: string; monto: number } | null;
 };
 export type RespuestaMensaje = { tipo: string; texto: string; voz: string; tarea: Tarea | null; sesion: Sesion | null };

@@ -83,6 +83,40 @@ def test_libro_sin_estado_ni_camino_viene_vacio_no_ausente(tmp_path, monkeypatch
     assert "Cuerpo sin ## Estado" not in respuesta.text
 
 
+def test_libros_trae_la_entrega_cercana_y_el_mtime(tmp_path, monkeypatch):
+    _boveda(tmp_path)
+    cliente = _cliente(tmp_path, monkeypatch)
+    import db
+    import entregas
+    from datetime import datetime, timezone
+    from uuid import uuid4
+
+    conexion = db.conectar()
+    conexion.execute(
+        "INSERT INTO entregas (id, cliente, proyecto_id, fecha, monto, estado, compartible) "
+        "VALUES (?, ?, ?, ?, ?, 'camino', 1)",
+        (
+            str(uuid4()),
+            "Alfonso",
+            str(entregas._proyecto_id_de_tema("upvisuals")),
+            datetime(2026, 10, 18, tzinfo=timezone.utc).isoformat(),
+            5000,
+        ),
+    )
+    conexion.commit()
+    conexion.close()
+
+    respuesta = cliente.get("/libros")
+    por_tema = {l["tema"]: l for l in respuesta.json()}
+
+    upvisuals = por_tema["upvisuals"]
+    assert upvisuals["entrega_cercana"]["cliente"] == "Alfonso"
+    assert upvisuals["entrega_cercana"]["monto"] == 5000
+    assert upvisuals["ultimo_estado_en"]  # un ISO no vacío
+
+    assert por_tema["malik"]["entrega_cercana"] is None
+
+
 def test_libros_vacio_sin_bitacora(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path / "no-existe"))
     cliente = TestClient(servidor.app)

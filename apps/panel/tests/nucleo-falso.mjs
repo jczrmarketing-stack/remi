@@ -38,7 +38,12 @@ const CAMINO_UPVISUALS = {
 
 const PLATA = {
   semana: { cobrado: 500, meta_semanal: 554.27 },
-  mes: { cobrado: 500, meta: 2400, faltan: 1900 },
+  mes: {
+    cobrado: 500,
+    meta: 2400,
+    faltan: 1900,
+    entregas: [{ cliente: "Beto", fecha: iso(-5 * 86400000), monto: 500 }],
+  },
   proximo: { cliente: "Alfonso", fecha: iso(3 * 86400000), monto: 1000 },
 };
 
@@ -51,6 +56,8 @@ const LIBROS = [
     quedaste: "armando el contrato.",
     proximo_paso: "mandar la propuesta.",
     hitos: CAMINO_UPVISUALS.hitos,
+    entrega_cercana: { cliente: "Alfonso", fecha: iso(3 * 86400000), monto: 1000 },
+    ultimo_estado_en: iso(-1 * 3600000),
   },
   {
     tema: "malik",
@@ -60,6 +67,19 @@ const LIBROS = [
     quedaste: "",
     proximo_paso: "",
     hitos: [],
+    entrega_cercana: null,
+    ultimo_estado_en: iso(-48 * 3600000),
+  },
+  {
+    tema: "omniway",
+    titulo: "Omniway",
+    resumen: "La empresa.",
+    compartible: false,
+    quedaste: "",
+    proximo_paso: "",
+    hitos: [],
+    entrega_cercana: null,
+    ultimo_estado_en: iso(-200 * 3600000),
   },
 ];
 

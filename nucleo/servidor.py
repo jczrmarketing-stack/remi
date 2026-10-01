@@ -1001,6 +1001,12 @@ def camino_de(tema: str) -> Camino:
         conexion.close()
 
 
+class EntregaCercana(BaseModel):
+    cliente: str
+    fecha: datetime
+    monto: float
+
+
 class LibroVisible(BaseModel):
     tema: str
     titulo: str
@@ -1012,6 +1018,12 @@ class LibroVisible(BaseModel):
     proximo_paso: str
     # De caminos.leer_hitos: [] si no tiene ## Camino.
     hitos: list[HitoVisible]
+    # La entrega viva (no pagada, con monto) más próxima de este libro, si
+    # tiene una — para el orden del líder en Proyectos (panel).
+    entrega_cercana: EntregaCercana | None
+    # mtime del archivo del libro: el Estado vive ahí, así que esto es
+    # «cuándo se tocó por última vez» — el último escalón del orden.
+    ultimo_estado_en: datetime
 
 
 def _quedaste_de(estado_texto: str) -> str:
@@ -1033,22 +1045,34 @@ def _proximo_paso_de(estado_texto: str) -> str:
 def libros_de() -> list[LibroVisible]:
     """La constelación de proyectos para el panel: un resumen por libro,
     nunca el cuerpo completo."""
-    resultado: list[LibroVisible] = []
-    for libro in libros.listar():
-        estado_texto = estado_libro.leer_estado(libro.archivo)
-        hitos = caminos.leer_hitos(libro.archivo)
-        resultado.append(
-            LibroVisible(
-                tema=libro.tema,
-                titulo=libro.titulo,
-                resumen=libro.resumen,
-                compartible=libro.compartible,
-                quedaste=_quedaste_de(estado_texto),
-                proximo_paso=_proximo_paso_de(estado_texto),
-                hitos=[HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos],
+    conexion = db.conectar()
+    try:
+        resultado: list[LibroVisible] = []
+        for libro in libros.listar():
+            estado_texto = estado_libro.leer_estado(libro.archivo)
+            hitos = caminos.leer_hitos(libro.archivo)
+            entrega = entregas.entrega_del_proyecto(conexion, entregas._proyecto_id_de_tema(libro.tema))
+            resultado.append(
+                LibroVisible(
+                    tema=libro.tema,
+                    titulo=libro.titulo,
+                    resumen=libro.resumen,
+                    compartible=libro.compartible,
+                    quedaste=_quedaste_de(estado_texto),
+                    proximo_paso=_proximo_paso_de(estado_texto),
+                    hitos=[HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos],
+                    # entrega_del_proyecto() ya filtra monto IS NOT NULL.
+                    entrega_cercana=(
+                        EntregaCercana(cliente=entrega.cliente, fecha=entrega.fecha, monto=entrega.monto)
+                        if entrega is not None and entrega.monto is not None
+                        else None
+                    ),
+                    ultimo_estado_en=datetime.fromtimestamp(libro.archivo.stat().st_mtime, tz=timezone.utc),
+                )
             )
-        )
-    return resultado
+        return resultado
+    finally:
+        conexion.close()
 
 
 # — Configuración (Panel → Ajustes): llaves y tokens, nunca por el túnel —

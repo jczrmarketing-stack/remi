@@ -40,9 +40,31 @@ export default function PaginaProyectos() {
   }
 
   const abiertoTema = datos.hoy.bloque?.tema ?? null;
-  const librosOrdenados = [...datos.libros].sort((a, b) =>
-    a.tema === abiertoTema ? -1 : b.tema === abiertoTema ? 1 : 0
-  );
+
+  // El orden del líder: 1) el libro con la entrega con dinero más cercana
+  // (una sola — la de fecha más próxima entre todos los que tienen una);
+  // 2) el del bloque abierto, si no es ya el líder; 3) el resto, por fecha
+  // de último Estado (más reciente primero). El tamaño del título sigue
+  // esta misma prioridad, en tres escalas.
+  const conEntrega = datos.libros.filter((l) => l.entrega_cercana);
+  const lider = conEntrega.length
+    ? conEntrega.reduce((a, b) =>
+        new Date(a.entrega_cercana!.fecha).getTime() <= new Date(b.entrega_cercana!.fecha).getTime() ? a : b
+      )
+    : null;
+
+  function prioridad(libro: Libro): 1 | 2 | 3 {
+    if (lider && libro.tema === lider.tema) return 1;
+    if (libro.tema === abiertoTema) return 2;
+    return 3;
+  }
+
+  const librosOrdenados = [...datos.libros].sort((a, b) => {
+    const diferencia = prioridad(a) - prioridad(b);
+    if (diferencia !== 0) return diferencia;
+    // Dentro del mismo escalón 3, el Estado tocado más reciente primero.
+    return new Date(b.ultimo_estado_en).getTime() - new Date(a.ultimo_estado_en).getTime();
+  });
 
   // `caminoManual.camino` puede ser null de verdad (ese libro no tiene ##
   // Camino): con `??` un null explícito volvería al del bloque abierto por
@@ -75,6 +97,7 @@ export default function PaginaProyectos() {
               <FilaLibro
                 key={libro.tema}
                 libro={libro}
+                prioridad={prioridad(libro)}
                 abierto={libro.tema === abiertoTema}
                 seleccionado={libro.tema === tema}
                 onTocar={() => abrirCamino(libro.tema)}
@@ -102,13 +125,18 @@ export default function PaginaProyectos() {
   );
 }
 
+// Tres escalas de título, una por escalón de prioridad — nunca un cuarto tamaño.
+const TAMANO_TITULO: Record<1 | 2 | 3, number> = { 1: 26, 2: 21, 3: 17 };
+
 function FilaLibro({
   libro,
+  prioridad,
   abierto,
   seleccionado,
   onTocar,
 }: {
   libro: Libro;
+  prioridad: 1 | 2 | 3;
   abierto: boolean;
   seleccionado: boolean;
   onTocar: () => void;
@@ -127,9 +155,16 @@ function FilaLibro({
         borderColor: seleccionado ? "var(--brasa)" : "var(--line)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-        <h3 className="display-md" style={{ fontSize: 20 }}>{libro.titulo}</h3>
-        {abierto ? <Chip punto="var(--brasa)">Abierto ahora</Chip> : null}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <h3 className="display-md" style={{ fontSize: TAMANO_TITULO[prioridad] }}>{libro.titulo}</h3>
+        <div style={{ display: "flex", gap: 8 }}>
+          {prioridad === 1 && libro.entrega_cercana ? (
+            <Chip punto="var(--dinero)">
+              {libro.entrega_cercana.cliente} · ${Math.round(libro.entrega_cercana.monto).toLocaleString("es-CO")}
+            </Chip>
+          ) : null}
+          {abierto ? <Chip punto="var(--brasa)">Abierto ahora</Chip> : null}
+        </div>
       </div>
       <p className="body-muted">{libro.resumen}</p>
       <p style={{ fontSize: 14, color: "var(--ink)" }}>
