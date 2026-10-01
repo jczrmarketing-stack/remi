@@ -1242,6 +1242,16 @@ class FaseVisible(BaseModel):
     monto: float | None
     listo_cuando: str
     estado: str
+    # Forma A (T2): lo pagado del proyecto, repartido en cascada.
+    cobrado: float
+
+
+class HitoConDetalle(BaseModel):
+    texto: str
+    hecho: bool
+    # Forma A (T2): la línea del SOP que explica este paso. "" si el hito
+    # no es del SOP (uno escrito a mano).
+    detalle: str
 
 
 class UltimoEpisodio(BaseModel):
@@ -1255,12 +1265,16 @@ class LibroVisible(BaseModel):
     titulo: str
     resumen: str
     compartible: bool
+    # Forma A (T2): el cliente del proyecto (frontmatter `cliente:`). None
+    # si no es de un cliente, o nadie lo escribió todavía (lo pregunta
+    # Remi, T3).
+    cliente: str | None
     # De estado_libro.leer_estado: vacíos si el libro no tiene ## Estado
     # todavía. Nunca el cuerpo completo del libro.
     quedaste: str
     proximo_paso: str
     # De caminos.leer_hitos: [] si no tiene ## Camino.
-    hitos: list[HitoVisible]
+    hitos: list[HitoConDetalle]
     # La entrega viva (no pagada, con monto) más próxima de este libro, si
     # tiene una — para el orden del líder en Proyectos (panel).
     entrega_cercana: EntregaCercana | None
@@ -1276,8 +1290,8 @@ class LibroVisible(BaseModel):
     fase_actual_n: int | None
     # El primer hito sin marcar, y hasta 3 que vienen después — nunca el
     # camino entero de nuevo (para eso está `hitos`).
-    hito_actual: HitoVisible | None
-    siguientes: list[HitoVisible]
+    hito_actual: HitoConDetalle | None
+    siguientes: list[HitoConDetalle]
     # Qué hace Remi en el paso de `hito_actual`, según el SOP. "" sin hito
     # actual (camino vacío o terminado) o si el texto no matchea ninguna
     # plantilla (un hito escrito a mano, fuera del SOP).
@@ -1354,17 +1368,23 @@ def _fase_actual_n(fases: tuple[libros.Fase, ...]) -> int | None:
 def _libro_visible(libro: libros.Libro, conexion: Any) -> LibroVisible:
     estado_texto = estado_libro.leer_estado(libro.archivo)
     hitos_crudos = caminos.leer_hitos(libro.archivo)
-    hitos = [HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos_crudos]
+    hitos = [
+        HitoConDetalle(texto=h.texto, hecho=h.hecho, detalle=caminos.detalle_de(libro.tipo, h.texto))
+        for h in hitos_crudos
+    ]
     idx_actual = next((i for i, h in enumerate(hitos) if not h.hecho), None)
     hito_actual = hitos[idx_actual] if idx_actual is not None else None
     siguientes = hitos[idx_actual + 1 : idx_actual + 4] if idx_actual is not None else []
     paso_remi = caminos.paso_remi_de(libro.tipo, hito_actual.texto) if hito_actual is not None else ""
     entrega = entregas.entrega_del_proyecto(conexion, entregas._proyecto_id_de_tema(libro.tema))
+    total_pagado = entregas.total_pagado_proyecto(conexion, entregas._proyecto_id_de_tema(libro.tema))
+    cobrados = entregas.cobrado_en_cascada([f.monto for f in libro.fases], total_pagado)
     return LibroVisible(
         tema=libro.tema,
         titulo=libro.titulo,
         resumen=libro.resumen,
         compartible=libro.compartible,
+        cliente=libro.cliente,
         quedaste=_quedaste_de(estado_texto),
         proximo_paso=_proximo_paso_de(estado_texto),
         hitos=hitos,
@@ -1377,8 +1397,11 @@ def _libro_visible(libro: libros.Libro, conexion: Any) -> LibroVisible:
         ultimo_estado_en=datetime.fromtimestamp(libro.archivo.stat().st_mtime, tz=timezone.utc),
         tipo=libro.tipo,
         fases=[
-            FaseVisible(nombre=f.nombre, alcance=f.alcance, monto=f.monto, listo_cuando=f.listo_cuando, estado=f.estado)
-            for f in libro.fases
+            FaseVisible(
+                nombre=f.nombre, alcance=f.alcance, monto=f.monto, listo_cuando=f.listo_cuando,
+                estado=f.estado, cobrado=cobrado,
+            )
+            for f, cobrado in zip(libro.fases, cobrados)
         ],
         fase_actual_n=_fase_actual_n(libro.fases),
         hito_actual=hito_actual,

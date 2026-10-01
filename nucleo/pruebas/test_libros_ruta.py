@@ -62,8 +62,8 @@ def test_libros_devuelve_los_dos_con_estado_y_camino(tmp_path, monkeypatch):
     assert upvisuals["quedaste"] == "armando el contrato."
     assert upvisuals["proximo_paso"] == "mandar la propuesta."
     assert upvisuals["hitos"] == [
-        {"texto": "Contrato firmado", "hecho": True},
-        {"texto": "Distribución", "hecho": False},
+        {"texto": "Contrato firmado", "hecho": True, "detalle": ""},
+        {"texto": "Distribución", "hecho": False, "detalle": ""},
     ]
 
 
@@ -177,13 +177,15 @@ def test_libros_trae_tipo_fases_hito_actual_siguientes_y_paso_remi(tmp_path, mon
             "monto": 5000.0,
             "listo_cuando": "Demo aprobada por Alfonso",
             "estado": "camino",
+            "cobrado": 0.0,
         }
     ]
-    assert upvisuals["hito_actual"] == {"texto": "Propuesta por fases", "hecho": False}
-    assert upvisuals["siguientes"] == [
-        {"texto": "Contrato", "hecho": False},
-        {"texto": "Pago antes de arrancar", "hecho": False},
-        {"texto": "Entregas medidas", "hecho": False},
+    assert upvisuals["hito_actual"]["texto"] == "Propuesta por fases"
+    assert upvisuals["hito_actual"]["detalle"] == (
+        "Cada fase con alcance, monto y «listo cuando». Fase 1 pequeña y cobrable."
+    )
+    assert [h["texto"] for h in upvisuals["siguientes"]] == [
+        "Contrato", "Pago antes de arrancar", "Entregas medidas",
     ]
     assert upvisuals["paso_remi"] == "Escribe el borrador en la voz de Juan Camilo."
 

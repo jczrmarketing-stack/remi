@@ -38,6 +38,9 @@ class Libro:
     # los libros de hoy no los tienen todavía.
     tipo: str | None = None
     fases: tuple[Fase, ...] = ()
+    # Forma A (T2): el cliente del proyecto, del frontmatter `cliente:`.
+    # None si no es de un tipo cliente o nadie lo escribió todavía.
+    cliente: str | None = None
 
 
 def carpeta() -> Path:
@@ -155,7 +158,9 @@ def leer(ruta: Path) -> Libro | None:
     tipo_crudo = campos.get("tipo")
     tipo = tipo_crudo if isinstance(tipo_crudo, str) and tipo_crudo in ("propio", "cliente") else None
     fases = _fases_de(partes[1])
-    return Libro(ruta, titulo, tema, resumen, _rutas_de(campos.get("ruta")), compartible, tipo, fases)
+    cliente_crudo = campos.get("cliente")
+    cliente = cliente_crudo if isinstance(cliente_crudo, str) and cliente_crudo else None
+    return Libro(ruta, titulo, tema, resumen, _rutas_de(campos.get("ruta")), compartible, tipo, fases, cliente)
 
 
 def listar() -> list[Libro]:

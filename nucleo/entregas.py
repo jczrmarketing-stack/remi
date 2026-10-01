@@ -127,6 +127,31 @@ def entrega_del_proyecto(conexion: sqlite3.Connection, proyecto_id: UUID) -> Ent
     return _fila_a_entrega(fila) if fila else None
 
 
+def total_pagado_proyecto(conexion: sqlite3.Connection, proyecto_id: UUID) -> float:
+    """Forma A (T2): lo que ya se cobró de este proyecto, para repartir en
+    cascada entre sus fases."""
+    fila = conexion.execute(
+        "SELECT COALESCE(SUM(monto), 0) AS total FROM entregas WHERE proyecto_id = ? AND estado = 'pagada'",
+        (str(proyecto_id),),
+    ).fetchone()
+    return float(fila["total"])
+
+
+def cobrado_en_cascada(montos: list[float | None], total_pagado: float) -> list[float]:
+    """Reparte lo pagado del proyecto entre sus fases en orden: llena la
+    primera hasta su monto, lo que sobra pasa a la siguiente. Una fase sin
+    monto se queda en 0 (no se le puede llenar nada) sin bloquear lo que
+    sigue repartiéndose."""
+    resultado: list[float] = []
+    restante = total_pagado
+    for monto in montos:
+        tope = monto or 0.0
+        asignado = min(restante, tope) if tope > 0 else 0.0
+        resultado.append(asignado)
+        restante = max(0.0, restante - asignado)
+    return resultado
+
+
 def actualizar_estado_entrega(conexion: sqlite3.Connection, entrega_id: UUID, estado: str) -> Entrega | None:
     conexion.execute("UPDATE entregas SET estado = ? WHERE id = ?", (estado, str(entrega_id)))
     conexion.commit()
