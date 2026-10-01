@@ -103,6 +103,18 @@ export type Semana = {
   ideas_frias: number;
   destacada: { id: string; texto: string; tema: string | null } | null;
 };
+// Lo que Remi pregunta cuando le falta un dato (contrato `Pregunta` de la
+// Biblia v3.8, forma F del plan). `campo` dice qué dato es: «libro.tipo»,
+// «fase.2.listo_cuando», «fase.1.cobrado»…
+export type Pregunta = {
+  id: string;
+  tema: string | null;
+  campo: string;
+  voz: string;
+  estado: "pendiente" | "respondida" | "despues";
+  respuesta: string | null;
+  creada_en: string;
+};
 export type RespuestaMensaje = { tipo: string; texto: string; voz: string; tarea: Tarea | null; sesion: Sesion | null };
 
 // nucleo/conexiones.py: no es un contrato (contratos/contratos.json no
@@ -142,6 +154,22 @@ export const nucleo = {
       throw error;
     }
   },
+
+  // Las preguntas pendientes de un libro, tres como mucho y en el orden del
+  // líder. Un núcleo que todavía no pregunta responde 404: ninguna.
+  preguntas: async (tema: string): Promise<Pregunta[]> => {
+    try {
+      return await pedir<Pregunta[]>(`/preguntas?tema=${encodeURIComponent(tema)}`);
+    } catch (error) {
+      if (error instanceof NucleoApagado && error.status === 404) return [];
+      throw error;
+    }
+  },
+  // `voz` es lo que Remi dice: la confirmación, o la repregunta con el
+  // formato si no entendió (y entonces `pregunta.estado` sigue «pendiente»).
+  responderPregunta: (id: string, texto: string) =>
+    pedir<{ pregunta: Pregunta; voz: string }>(`/preguntas/${id}/respuesta`, { method: "POST", body: JSON.stringify({ texto }) }),
+  dejarPreguntaParaDespues: (id: string) => pedir<Pregunta>(`/preguntas/${id}/despues`, { method: "POST" }),
 
   responderNudge: (id: string, respuesta: "listo" | "ahora_no") =>
     pedir<Nudge>(`/nudges/${id}/respuesta`, { method: "POST", body: JSON.stringify({ respuesta }) }),

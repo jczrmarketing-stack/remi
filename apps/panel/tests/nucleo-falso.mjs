@@ -94,6 +94,18 @@ let hitosUpvisuals = hitosDe(PASOS_UPVISUALS, 2);
 const DESTACADA_DE_ENTRADA = "99999999-9999-9999-9999-999999999992";
 let destacadaId = DESTACADA_DE_ENTRADA;
 
+// Lo que Remi pregunta (forma F): a UpVisuals le falta el «listo cuando» de la
+// Fase 2 y la carpeta del código; a Malik, saber si es de un cliente o propio.
+// Contestar escribe el dato (acá, en memoria; en el núcleo real, en el libro).
+const preguntasDeEntrada = () => [
+  { id: "aaaaaaaa-0000-0000-0000-000000000001", tema: "upvisuals", campo: "fase.2.listo_cuando", voz: "¿Cuándo está lista la Fase 2 de Upvisuals?", estado: "pendiente", respuesta: null, creada_en: iso(-3600000) },
+  { id: "aaaaaaaa-0000-0000-0000-000000000002", tema: "upvisuals", campo: "libro.ruta", voz: "¿En qué carpeta está el código de Upvisuals?", estado: "pendiente", respuesta: null, creada_en: iso(-3600000) },
+  { id: "aaaaaaaa-0000-0000-0000-000000000003", tema: "malik", campo: "libro.tipo", voz: "¿Malik es de un cliente o es tuyo?", estado: "pendiente", respuesta: null, creada_en: iso(-3600000) },
+];
+let preguntas = preguntasDeEntrada();
+let listoCuandoFase2 = "";
+let tipoDeMalik = null;
+
 // GET /semana: lo cerrado y lo aplazado desde el lunes.
 const SEMANA = {
   desde: iso(-3 * 86400000),
@@ -161,7 +173,7 @@ const libros = () => [
       // 1.500 cobrados del proyecto: en cascada, todo cae en la Fase 1.
       fases: [
         { nombre: "Fase 1", alcance: "Distribución de contenido + seguridad crítica", monto: 5000, listo_cuando: "La demo de distribución corre con datos reales.", estado: "pagando", cobrado: 1500 },
-        { nombre: "Fase 2", alcance: "Generador de imágenes", monto: 3700, listo_cuando: "", estado: "propuesta", cobrado: 0 },
+        { nombre: "Fase 2", alcance: "Generador de imágenes", monto: 3700, listo_cuando: listoCuandoFase2, estado: "propuesta", cobrado: 0 },
         { nombre: "Fase 3", alcance: "Multi-cliente para agencias", monto: null, listo_cuando: "", estado: "sin alcance", cobrado: 0 },
       ],
       fase_actual_n: 1,
@@ -199,7 +211,7 @@ const libros = () => [
     hitos: [],
     entrega_cercana: null,
     ultimo_estado_en: iso(-48 * 3600000),
-    tipo: null,
+    tipo: tipoDeMalik,
     cliente: null,
     fases: [],
     fase_actual_n: null,
@@ -283,6 +295,9 @@ const servidor = createServer(async (req, res) => {
     ideaFriaEstado = "enfriando";
     hitosUpvisuals = hitosDe(PASOS_UPVISUALS, 2);
     destacadaId = DESTACADA_DE_ENTRADA;
+    preguntas = preguntasDeEntrada();
+    listoCuandoFase2 = "";
+    tipoDeMalik = null;
     return enviarJSON(res, 200, { bloque: hayBloque });
   }
   if (req.method === "GET" && ruta === "/hoy") return enviarJSON(res, 200, hayBloque ? [bloqueAbierto(), ...DEMAS_HOY] : DEMAS_HOY);
@@ -318,6 +333,31 @@ const servidor = createServer(async (req, res) => {
   if (req.method === "GET" && ruta === "/ultima-vez") return enviarJSON(res, 200, { minutos: 80 });
   if (req.method === "GET" && ruta === "/entregas") return enviarJSON(res, 200, []);
   if (req.method === "GET" && ruta === "/bandeja") return enviarJSON(res, 200, bandeja());
+  if (req.method === "GET" && ruta === "/preguntas") {
+    const tema = url.searchParams.get("tema");
+    const pendientes = preguntas.filter((p) => p.estado === "pendiente" && (!tema || p.tema === tema));
+    return enviarJSON(res, 200, pendientes.slice(0, 3));
+  }
+  if (req.method === "POST" && ruta.match(/^\/preguntas\/[^/]+\/(respuesta|despues)$/)) {
+    const [, , id, accion] = ruta.split("/");
+    const pregunta = preguntas.find((p) => p.id === id);
+    if (!pregunta) return enviarJSON(res, 404, { detail: "no tengo esa pregunta" });
+    if (accion === "despues") {
+      pregunta.estado = "despues";
+      return enviarJSON(res, 200, pregunta);
+    }
+    const texto = String((await leerCuerpo(req)).texto ?? "").trim();
+    // Una respuesta que no se entiende: Remi repregunta con el formato y no guarda nada.
+    if (texto.length < 3) {
+      return enviarJSON(res, 200, { pregunta, voz: "No te entendí. Dímelo en una frase corta." });
+    }
+    pregunta.estado = "respondida";
+    pregunta.respuesta = texto;
+    if (pregunta.campo === "fase.2.listo_cuando") listoCuandoFase2 = texto;
+    if (pregunta.campo === "libro.tipo") tipoDeMalik = /cliente/i.test(texto) ? "cliente" : "propio";
+    const voz = pregunta.campo === "libro.tipo" ? `Anotado: Malik es ${tipoDeMalik}.` : "Anotado. Quedó en el libro de Upvisuals.";
+    return enviarJSON(res, 200, { pregunta, voz });
+  }
   if (req.method === "GET" && ruta === "/semana") {
     const filas = bandeja();
     const destacada = filas.find((f) => f.destacada);

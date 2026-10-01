@@ -160,6 +160,31 @@ button { font: inherit; cursor: pointer; color: inherit; }
 
 .nudge { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--pensar); border-radius: var(--radius-lg); padding: 20px var(--space-6); display: flex; flex-direction: column; gap: 14px; }
 
+/* — Remi pregunta: el campo y los dos botones en una fila; en el teléfono,
+     el campo arriba y los botones repartidos debajo. — */
+
+.pregunta-fila { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.pregunta-campo {
+  flex: 1 1 240px;
+  min-width: 0;
+  height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+.pregunta-campo::placeholder { color: var(--ink-muted); }
+.pregunta-botones { display: flex; gap: 10px; }
+@media (max-width: 720px) {
+  .pregunta-fila { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+  .pregunta-campo { flex: none; width: 100%; }
+  .pregunta-botones { gap: var(--space-2); }
+  .pregunta-botones .btn { flex: 1 1 0; }
+}
+
 /* — Móvil: barra inferior de pestañas, >= 44px — */
 
 .tabbar {

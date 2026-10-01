@@ -11,6 +11,7 @@ import { Header } from "@/components/Header";
 import { TabBar } from "@/components/TabBar";
 import { Apagado } from "@/components/Apagado";
 import { Chip } from "@/components/Chip";
+import { PreguntaDeRemi } from "@/components/PreguntaDeRemi";
 import { ProjectPath } from "@/components/ProjectPath";
 import { Tramo } from "@/components/Tramo";
 import { Bionica } from "@/components/Bionica";
@@ -72,6 +73,7 @@ export default function PaginaProyecto() {
       <Header />
       <div className="contenedor">
         <Titulo libro={libro} />
+        <PreguntaDeRemi tema={libro.tema} nombre={nombreCorto(libro.titulo)} onAnotado={recargar} />
         <FaseYPlata libro={libro} />
         {libro.hitos.length > 0 ? <CaminoDelProyecto libro={libro} esElAbierto={esElAbierto} recargar={recargar} /> : null}
         {libro.fases.length > 0 || libro.siguientes.length > 0 ? (
