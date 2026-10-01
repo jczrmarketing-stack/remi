@@ -20,6 +20,60 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Chips Groq y OpenRouter en la charla · construido · a5e87c5
+
+- **Qué cambió:** `config/motores.json` suma una sección `charla` (un id real por nivel
+  rápido/equilibrio/inteligente, para Groq y OpenRouter — los mismos ids verificados en vivo
+  en la bitácora `ad9506e`: `openai/gpt-oss-20b|120b` y `deepseek/deepseek-v4-flash|pro`).
+  `nucleo/pensar.py`: `MOTORES` pasa a `(claude, venice, groq, openrouter, ollama)`; se quitó
+  el motor `deepseek` entero (`MODELOS_DEEPSEEK`, `DEEPSEEK_URL`, `_llamar_deepseek`,
+  `_modelo_deepseek`, `_pensar_con_deepseek` — nunca tuvo llave real). `_pensar_con_charla()`
+  (nueva, genérica para los dos proveedores) despacha por `_llamar_openai_compatible`,
+  resuelve el id de modelo con `_modelo_charla()` desde `config/motores.json` (nunca a mano),
+  loguea `ms=` y deja `motor_usado` en la respuesta. `motores_disponibles()` etiqueta «Groq
+  (gratis)» y «OpenRouter (centavos)», solo si hay llave en `.env`. 24 pruebas nuevas/
+  reemplazadas; 463 de `nucleo/` en verde, mypy limpio.
+- **Decisiones que tomé sin preguntar:**
+  1. **Un línea en `servidor.py` fuera de la frontera literal**: el `Literal` de
+     `MensajeEntrante.motor` no incluía `"groq"` ni `"openrouter"` (ni `"deepseek"` antes,
+     de hecho — ese motor nunca estuvo expuesto por HTTP). Sin sumarlos, `POST /mensaje`
+     devolvía 422 aunque `GET /pensar/motores` ya los mostrara disponibles, y el «listo
+     cuando» pedía justo que cada chip conteste un turno real.
+  2. Para elegir el nivel del chip en Groq/OpenRouter usé el mismo `modo_pedido`
+     (rápido/equilibrio/inteligente) que ya manda la ventanita para Claude, en vez de
+     inventar un parámetro nuevo — es el mismo concepto, y así no hace falta tocar
+     `apps/ventanita` para que el nivel viaje.
+  3. Un nivel que no está en `config/motores.json` → charla cae al de `MODO_POR_DEFECTO`
+     («equilibrio»), igual que el resto del código cuando el modo pedido no existe.
+  4. No toqué `apps/ventanita`: ningún chip está hardcodeado ahí (Claude/Ollama/Venice sí
+     tienen `<optgroup>` propio en `ChipCerebro.tsx`, pero Groq/OpenRouter no estaban ni
+     antes ni ahora) — la frontera decía tocarlo «solo si» eso pasaba, y no pasa.
+- **Verificado en vivo, de punta a punta, con las claves reales de este Mac (nunca
+  commiteadas):**
+  - `GET /pensar/motores` (núcleo aislado en 4497, nunca el de producción en 4400): Groq y
+    OpenRouter `disponible: true`.
+  - **Groq**: `POST /mensaje` con `motor: "groq"`, turno real → **755 ms**
+    (`[groq] modelo=groq/openai/gpt-oss-120b ms=755 tokens entrada=1462 salida=172`).
+  - **OpenRouter**: turno real → **2394 ms**
+    (`[openrouter] modelo=openrouter/deepseek/deepseek-v4-flash ms=2394 tokens entrada=1636
+    salida=25`). La primera corrida dio 401 — el mismo hallazgo de `ad9506e`: mi shell tenía
+    un `OPENROUTER_API_KEY` contaminando el entorno, con prioridad sobre el `.env` real
+    (`_ajuste()`: entorno > archivo). `env -u OPENROUTER_API_KEY` antes de levantar el
+    núcleo de prueba lo arregló. El servicio real (`com.remi.nucleo` por `launchd`) no
+    hereda el perfil de shell, así que esto no afecta producción — solo pruebas a mano
+    desde una terminal con ese perfil cargado.
+  - Las dos, muy por debajo de los 4 s del «listo cuando».
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:**
+  1. `cd nucleo && uv run pytest -q && uv run mypy .` — 463 en verde, limpio.
+  2. Con las claves reales en `nucleo/.env` y `env -u OPENROUTER_API_KEY` (por si el
+     placeholder sigue en el perfil de shell): levantar el núcleo en un puerto de prueba y
+     `curl -s -X POST localhost:<puerto>/mensaje -H 'Content-Type: application/json' -d
+     '{"texto":"...", "think":true, "motor":"groq"}'` (y de nuevo con `"openrouter"`).
+  3. `git status`: `nucleo/.env` no aparece.
+
+---
+
 ## 2026-09-30 · Configuración desde el panel · cierre (4 y 5) · 6c4dac9
 
 - **Qué cambió:** el bloqueo de la entrada anterior se resolvió rebasando `f-config` sobre
