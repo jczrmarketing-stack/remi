@@ -30,6 +30,8 @@ RUTA_ENV = Path(__file__).resolve().parent / ".env"
 BOGOTA = ZoneInfo("America/Bogota")
 
 TIMEOUT_POLLING_SEGUNDOS = 30
+TIMEOUT_ENVIO_SEGUNDOS = 8
+REINTENTO_AVISO_SEGUNDOS = 2
 HORA_SILENCIO_DESDE = 23
 HORA_SILENCIO_HASTA = 7
 
@@ -78,11 +80,18 @@ class Transporte(Protocol):
 
 
 class ClienteBotAPI:
-    """Transporte real: httpx sobre la Bot API de Telegram."""
+    """Transporte real: httpx sobre la Bot API de Telegram.
+
+    Dos clientes httpx separados, cada uno con su propio timeout: `_http`
+    para el long polling de getUpdates (TIMEOUT_POLLING_SEGUNDOS, de sobra
+    porque Telegram puede tardarse hasta ese tiempo en responder sin
+    novedades) y `_http_envios` para `enviar_mensaje` (TIMEOUT_ENVIO_SEGUNDOS,
+    mucho más corto porque a este no lo puede bloquear nadie)."""
 
     def __init__(self, token: str) -> None:
         self._base = f"https://api.telegram.org/bot{token}"
         self._http = httpx.Client(timeout=TIMEOUT_POLLING_SEGUNDOS + 10)
+        self._http_envios = httpx.Client(timeout=TIMEOUT_ENVIO_SEGUNDOS)
 
     def obtener_actualizaciones(self, offset: int | None) -> list[dict]:
         parametros: dict[str, int] = {"timeout": TIMEOUT_POLLING_SEGUNDOS}
@@ -93,7 +102,7 @@ class ClienteBotAPI:
         return respuesta.json().get("result", [])
 
     def enviar_mensaje(self, chat_id: int | str, texto: str) -> None:
-        self._http.post(f"{self._base}/sendMessage", json={"chat_id": chat_id, "text": texto})
+        self._http_envios.post(f"{self._base}/sendMessage", json={"chat_id": chat_id, "text": texto})
 
 
 def _fecha_corta(fecha: datetime) -> str:
@@ -270,11 +279,61 @@ class AvisoSaliente(BaseModel):
     urgente: bool = False
 
 
+# Un solo transporte para los avisos salientes, reutilizado entre llamadas a
+# avisar() — nunca uno nuevo por aviso. Se recrea si cambia el token (p. ej.
+# tras reiniciar_hilo) o si cambia el constructor ClienteBotAPI (las pruebas
+# lo monkeypatchean caso por caso).
+_avisos_cache_clave: tuple[object, str] | None = None
+_avisos_cache_transporte: Transporte | None = None
+
+
+def _transporte_para_avisar(tok: str) -> Transporte:
+    global _avisos_cache_clave, _avisos_cache_transporte
+    clave = (ClienteBotAPI, tok)
+    if clave != _avisos_cache_clave:
+        _avisos_cache_clave = clave
+        _avisos_cache_transporte = ClienteBotAPI(tok)
+    assert _avisos_cache_transporte is not None
+    return _avisos_cache_transporte
+
+
+def _enviar_con_reintento(transporte: Transporte, chat_id: int | str, texto: str) -> None:
+    """Corre en un hilo daemon, lejos de quien llamó a avisar(): nunca debe
+    tumbar nada, pase lo que pase con el envío real. Un solo reintento, a
+    los REINTENTO_AVISO_SEGUNDOS, si el primer intento falla; cada llamada
+    HTTP (exitosa o no) deja su propio `ms=` en el log."""
+    motivo = ""
+    ms = 0.0
+    for intento in range(2):
+        if intento == 1:
+            time.sleep(REINTENTO_AVISO_SEGUNDOS)
+        inicio = time.perf_counter()
+        try:
+            transporte.enviar_mensaje(chat_id, texto)
+        except Exception as error:  # nunca tumbar el hilo de fondo
+            ms = (time.perf_counter() - inicio) * 1000
+            motivo = f"{type(error).__name__}: {error}"
+            print(
+                f"[telegram] intento {intento + 1} de avisar falló ({motivo}, ms={ms:.0f})",
+                file=sys.stderr,
+                flush=True,
+            )
+            continue
+        ms = (time.perf_counter() - inicio) * 1000
+        print(f"[telegram] avisé (ms={ms:.0f})", file=sys.stderr, flush=True)
+        return
+    print(f"[telegram] falló avisar ({motivo}, ms={ms:.0f})", file=sys.stderr, flush=True)
+
+
 @router.post("/avisar", status_code=204)
 def avisar(cuerpo: AvisoSaliente) -> None:
     """La única puerta de salida hacia el teléfono: la llaman el motor de
     iniciativa y el vigía (f-fase3), nunca este módulo. Respeta el
-    silencio 23:00–7:00 salvo `urgente: true`."""
+    silencio 23:00–7:00 salvo `urgente: true`.
+
+    Responde 204 de inmediato: el envío real (con su reintento) corre en un
+    hilo daemon, para que ni el vigía ni la iniciativa se queden esperando
+    a Telegram."""
     if en_silencio() and not cuerpo.urgente:
         return
     configurado = chat_id_configurado()
@@ -285,4 +344,10 @@ def avisar(cuerpo: AvisoSaliente) -> None:
     if tok is None:
         print("[telegram] sin TELEGRAM_TOKEN: no puedo avisar", file=sys.stderr, flush=True)
         return
-    ClienteBotAPI(tok).enviar_mensaje(configurado, cuerpo.texto)
+    transporte = _transporte_para_avisar(tok)
+    hilo = threading.Thread(
+        target=_enviar_con_reintento,
+        args=(transporte, configurado, cuerpo.texto),
+        daemon=True,
+    )
+    hilo.start()
