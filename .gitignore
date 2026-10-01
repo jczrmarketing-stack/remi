@@ -35,3 +35,6 @@ apps/ventanita/src-tauri/icons/ios/
 
 # Sistema
 .DS_Store
+
+# El ayudante del Mac (scripts/recargar.sh): pedidos y salidas, nunca código.
+.recargar/

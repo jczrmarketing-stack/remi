@@ -1,6 +1,7 @@
 node_modules
 .next
 .next-rewrite
+.next-pruebas
 package-lock.json
 tsconfig.tsbuildinfo
 next-env.d.ts
