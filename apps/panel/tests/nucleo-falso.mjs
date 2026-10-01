@@ -214,9 +214,13 @@ const libros = () => [
 function bandeja() {
   // Igual que bandeja.listar_abiertas: solo estado enfriando|lista queda
   // en la lista — soltada y proyecto salen.
+  // A propósito fuera de orden: el panel pone la destacada arriba, después
+  // la que ya se puede decidir y después lo que enfría, lo que sale antes primero.
   const todas = [
-    { idea: { id: IDEA_FRIA_ID, texto: "Automatizar las facturas", origen: "texto", creada_en: iso(-50 * 3600000), enfria_hasta: iso(-2 * 3600000), estado: ideaFriaEstado, problema_vision: null, tema: "omniway" }, fria: ideaFriaEstado === "enfriando" },
-    { idea: { id: IDEA_TIBIA_ID, texto: "App de recetas con IA", origen: "texto", creada_en: iso(-10 * 3600000), enfria_hasta: iso(38 * 3600000), estado: "enfriando", problema_vision: null, tema: null }, fria: false },
+    { idea: { id: "99999999-9999-9999-9999-999999999991", texto: "Curso de After Effects", origen: "texto", creada_en: iso(-2 * 3600000), enfria_hasta: iso(46 * 3600000), estado: "enfriando", problema_vision: null, tema: "aprender" }, fria: false, destacada: false },
+    { idea: { id: IDEA_FRIA_ID, texto: "Automatizar las facturas", origen: "texto", creada_en: iso(-50 * 3600000), enfria_hasta: iso(-2 * 3600000), estado: ideaFriaEstado, problema_vision: null, tema: "omniway" }, fria: ideaFriaEstado === "enfriando", destacada: false },
+    { idea: { id: IDEA_TIBIA_ID, texto: "App de recetas con IA", origen: "texto", creada_en: iso(-10 * 3600000), enfria_hasta: iso(38 * 3600000), estado: "enfriando", problema_vision: null, tema: null }, fria: false, destacada: false },
+    { idea: { id: "99999999-9999-9999-9999-999999999992", texto: "Router de leads que agenda solo", origen: "voz", creada_en: iso(-20 * 3600000), enfria_hasta: iso(28 * 3600000), estado: "enfriando", problema_vision: null, tema: "organic-cash" }, fria: false, destacada: true },
   ];
   return todas.filter((f) => f.idea.estado === "enfriando" || f.idea.estado === "lista");
 }

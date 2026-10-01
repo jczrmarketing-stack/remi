@@ -192,10 +192,43 @@ button { font: inherit; cursor: pointer; color: inherit; }
      lista de caminos en el teléfono. — */
 
 .solo-escritorio { display: flex; }
-.solo-telefono { display: none; }
+.solo-escritorio-en-linea { display: inline; }
+.solo-telefono, .solo-telefono-en-linea { display: none; }
 @media (max-width: 720px) {
-  .solo-escritorio { display: none; }
+  .solo-escritorio, .solo-escritorio-en-linea { display: none; }
   .solo-telefono { display: flex; }
+  .solo-telefono-en-linea { display: inline; }
+}
+
+/* — Bandeja: una idea por fila. En el teléfono el estado baja debajo del
+     texto y los botones se acortan. — */
+
+.idea-fila {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 14px var(--space-4);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.idea-estado {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--tono);
+  color: var(--tono);
+  white-space: nowrap;
+}
+.idea-boton { height: 40px; }
+@media (max-width: 720px) {
+  .idea-fila { grid-template-columns: auto minmax(0, 1fr); align-items: start; row-gap: 6px; }
+  .idea-fila > .punto { margin-top: 7px; }
+  .idea-estado { grid-column: 2; justify-self: start; padding: 0; border: 0; }
+  .idea-boton { padding: 0 14px; }
 }
 
 /* — Pantalla de un proyecto: columnas que se apilan solas — */
