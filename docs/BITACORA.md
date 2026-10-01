@@ -74,6 +74,31 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · panel como servicio + docs al día · construido · 719649e
+
+- **Qué cambió:** dos commits.
+  1. `2abac59` — `scripts/instalar.sh` suma `com.remi.panel` (mismo patrón que
+     `com.remi.tunel`): `npm run build` una sola vez al instalar/actualizar, y
+     `KeepAlive` solo relanza `npm run start` (que ya lee `puerto_panel` de
+     `config/nucleo.json` por su cuenta, sin repetirlo en el plist). Log en
+     `~/Library/Logs/Remi/panel.log`, build en `panel-build.log`. Sin `npm` o sin
+     `apps/panel`, se salta solo, igual que el túnel sin `cloudflared`.
+     `scripts/desinstalar.sh` lo suma a la lista de agentes que baja.
+  2. `719649e` — «Kimi K2» reemplazado por `openai/gpt-oss-120b` (el modelo real de
+     `config/motores.json`, desde la verificación en vivo de ayer) en `docs/
+     ARQUITECTURA-CEREBRO.md` y `docs/ROBUSTEZ.md`. Solo texto, cinco ocurrencias.
+  466 pytest en verde (sin tests nuevos: son scripts y prosa).
+- **Verificado:** `scripts/actualizar.sh` instaló `719649e`; `npm start` a mano en
+  `apps/panel` chocó con `EADDRINUSE :4402` (el LaunchAgent ya lo tenía tomado — buena
+  señal). `curl -s -o /dev/null -w '%{http_code}' 127.0.0.1:4402` → `200`.
+  `scripts/doctor.sh` → **10/10 OK, 0 FALLA**.
+- **Decisiones que tomé sin preguntar:** ninguna nueva.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `launchctl list | grep com.remi.panel`; `curl -s -o /dev/null -w
+  '%{http_code}\n' 127.0.0.1:4402`; `./scripts/doctor.sh`.
+
+---
+
 ## 2026-09-30 · cierre del 30-sep · construido · 7d94dd8
 
 - **Qué cambió:** último lote de merges del día, todos `--no-ff`, pytest completo después de
