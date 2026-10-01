@@ -39,6 +39,7 @@ echo "  repo:  $RAIZ"
 # — El puerto sale de config/nucleo.json, que es la única fuente —
 PUERTO="$(python3 -c "import json;print(json.load(open('$RAIZ/config/nucleo.json'))['puerto'])")"
 HOST="$(python3 -c "import json;print(json.load(open('$RAIZ/config/nucleo.json'))['host'])")"
+PUERTO_PANEL="$(python3 -c "import json;print(json.load(open('$RAIZ/config/nucleo.json'))['puerto_panel'])")"
 echo "  puerto: $HOST:$PUERTO"
 
 # — uv es quien levanta el servidor: sin él no hay nada que instalar —
@@ -448,6 +449,61 @@ PLISTTEOF
   echo "  túnel:  remi.inv3rza.com -> el panel (KeepAlive; si falta el login, revisá $LOGS/tunel.log)"
 else
   echo "  túnel:  sin cloudflared — lo salto (./scripts/tunel.sh lo instala con brew si hace falta)"
+fi
+
+# — El panel como servicio (apps/panel): `next start` en el puerto que diga
+# config/nucleo.json (puerto_panel). El build corre acá, una sola vez por
+# instalación/actualización — KeepAlive solo relanza `next start` contra lo
+# ya construido, nunca recompila solo. `npm run start` ya lee el puerto de
+# config/nucleo.json (scripts/puerto-panel.mjs), así que no se repite a mano
+# en el plist. Sin npm o sin apps/panel, se salta solo.
+ETIQUETA_PANEL="com.remi.panel"
+PLIST_PANEL="$HOME/Library/LaunchAgents/$ETIQUETA_PANEL.plist"
+PANEL="$RAIZ/apps/panel"
+bajar_agente "$ETIQUETA_PANEL" "$PLIST_PANEL" || true
+NPM="$(command -v npm || true)"
+if [[ -n "$NPM" && -d "$PANEL" ]]; then
+  echo "  panel:  compilando..."
+  if (cd "$PANEL" && "$NPM" run build > "$LOGS/panel-build.log" 2>&1); then
+    cat > "$PLIST_PANEL" <<PLISTPEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$ETIQUETA_PANEL</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>$NPM</string>
+		<string>run</string>
+		<string>start</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>$PANEL</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>$RUTA</string>
+		<key>HOME</key>
+		<string>$HOME</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>$LOGS/panel.log</string>
+	<key>StandardErrorPath</key>
+	<string>$LOGS/panel.log</string>
+</dict>
+</plist>
+PLISTPEOF
+    plutil -lint "$PLIST_PANEL" > /dev/null
+    launchctl bootstrap "gui/$UID" "$PLIST_PANEL" 2>/dev/null || launchctl load "$PLIST_PANEL"
+    echo "  panel:  puerto $PUERTO_PANEL (KeepAlive; log en $LOGS/panel.log)"
+  else
+    echo "  panel:  falló el build — revisá $LOGS/panel-build.log, no quedó instalado" >&2
+  fi
+else
+  echo "  panel:  sin \`npm\` o sin apps/panel — lo salto"
 fi
 
 # — Segundo agente: abrir Remi al iniciar sesión —
