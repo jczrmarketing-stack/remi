@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Header } from "@/components/Header";
 import { TabBar } from "@/components/TabBar";
 import { Apagado } from "@/components/Apagado";
@@ -8,12 +8,37 @@ import { MoneyRow } from "@/components/MoneyRow";
 import { NudgeCard } from "@/components/NudgeCard";
 import { Reloj } from "@/components/Reloj";
 import { Bionica } from "@/components/Bionica";
-import { usePreferencias } from "@/hooks/PreferenciasContext";
+import { usePreferencias, type PielReloj } from "@/hooks/PreferenciasContext";
 import { useCargaNucleo } from "@/hooks/useCargaNucleo";
-import { cargarHoy, formatoDuracion, formatoMoneda, minutosDesde } from "@/lib/hoy";
-import { nucleo, NucleoApagado } from "@/lib/nucleo";
+import { cargarHoy, formatoDuracion, formatoMoneda, minutosDesde, type BloqueAbierto, type Propuesta } from "@/lib/hoy";
+import { cuandoEsLaRevision, diaDeLaSemana, fechaCorta, formatoHora, nombreCorto, venceTexto } from "@/lib/formato";
+import { faseDe, hitoDe } from "@/lib/lider";
+import { nucleo, NucleoApagado, type AgendaDeHoy, type RevisionFria, type TareaConHistorial, type Vencimiento } from "@/lib/nucleo";
+import type { Tarea } from "@/contratos";
 
 const MINUTOS_PARA_FOCO = 20;
+
+// «UpVisuals · Fase 1 · entrega vie 3»: de qué proyecto es el bloque, en
+// qué fase va y cuándo se entrega. Sin libro, queda el tema o «Hoy».
+function etiquetaDelBloque(bloque: BloqueAbierto): string {
+  const libro = bloque.libro;
+  if (!libro) return bloque.tema ?? "Hoy";
+  return [
+    nombreCorto(libro.titulo),
+    faseDe(libro),
+    libro.entrega_cercana ? `entrega ${fechaCorta(libro.entrega_cercana.fecha)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+// El hito encendido del libro del bloque: «hito 5 de 10». Sin camino, 1 de 1.
+function hitoDelBloque(bloque: BloqueAbierto): { n: number; total: number } {
+  const hitos = bloque.libro?.hitos ?? bloque.camino?.hitos ?? [];
+  if (hitos.length === 0) return { n: 1, total: 1 };
+  const encendido = hitoDe({ hitos });
+  return { n: encendido ? encendido.n : hitos.length, total: hitos.length };
+}
 
 export default function PaginaHoy() {
   const { prefs } = usePreferencias();
@@ -21,7 +46,7 @@ export default function PaginaHoy() {
   const [ahoraMs, setAhoraMs] = useState(() => Date.now());
   const [foco, setFoco] = useState(false);
   const [celebrando, setCelebrando] = useState(false);
-  const [cerrado, setCerrado] = useState<{ voz: string; minutos: number } | null>(null);
+  const [cerrado, setCerrado] = useState<{ voz: string; minutos: number; etiqueta: string; hito: { n: number; total: number } } | null>(null);
   const [cerrando, setCerrando] = useState(false);
   const [cliente, setCliente] = useState("");
   const [copiado, setCopiado] = useState(false);
@@ -49,12 +74,18 @@ export default function PaginaHoy() {
   }, [minutos]);
 
   async function cerrarHito() {
+    if (!datos?.bloque) return;
+    const bloque = datos.bloque;
     setCerrando(true);
     try {
       const respuesta = await nucleo.cerrarBloque();
+      // A quién avisar: si el bloque era de una entrega, ya se sabe.
+      const aQuien = bloque.libro?.entrega_cercana?.cliente;
+      if (aQuien) setCliente((actual) => actual || aQuien);
+      // La celebración: 900 ms, una sola vez.
       setCelebrando(true);
       setTimeout(() => setCelebrando(false), 900);
-      setCerrado({ voz: respuesta.voz, minutos });
+      setCerrado({ voz: respuesta.voz, minutos, etiqueta: etiquetaDelBloque(bloque), hito: hitoDelBloque(bloque) });
       setFoco(false);
     } finally {
       setCerrando(false);
@@ -85,20 +116,23 @@ export default function PaginaHoy() {
   if (foco && datos.bloque) {
     const tarea = datos.bloque.tarea.tarea;
     const siguiente = datos.demasHoy[0];
+    const hito = hitoDelBloque(datos.bloque);
     return (
       <div className="shell" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, textAlign: "center" }}>
-        <div className="label">{datos.bloque.tema ?? "Hoy"} · una sola cosa</div>
+        <div className="label">{datos.bloque.libro ? nombreCorto(datos.bloque.libro.titulo) : datos.bloque.tema ?? "Hoy"} · una sola cosa</div>
         <p className="voz" style={{ color: "var(--ink-muted)", fontSize: 26, lineHeight: "27px" }}>{tarea.titulo}</p>
         <div className="num-lg" style={{ fontSize: 96, lineHeight: "96px", color: "var(--dinero)" }}>
           {String(Math.floor(minutos / 60)).padStart(2, "0")}:{String(minutos % 60).padStart(2, "0")}:00
         </div>
         <div className="mono-sm">
           la última vez: <span style={{ color: "var(--dinero)" }}>{datos.bloque.tarea.ultima_vez_min != null ? formatoDuracion(datos.bloque.tarea.ultima_vez_min) : "sin dato"}</span>
+          {datos.bloque.camino ? ` · hito ${hito.n} de ${hito.total}` : ""}
         </div>
-        <div style={{ width: 320, height: 1, background: "var(--line)", margin: "16px 0" }} />
+        <div style={{ width: 320, maxWidth: "100%", height: 1, background: "var(--line)", margin: "16px 0" }} />
         {siguiente ? (
           <p className="body-muted" style={{ maxWidth: "46ch" }}>
-            Después: <span style={{ color: "var(--ink)" }}>{siguiente.tarea.titulo}</span>. Nada más existe hasta entonces.
+            Después: <span style={{ color: "var(--ink)" }}>{siguiente.tarea.titulo}</span>
+            {siguiente.tarea.hora ? ` a las ${formatoHora(siguiente.tarea.hora)}` : ""}. Nada más existe hasta entonces.
           </p>
         ) : null}
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
@@ -117,7 +151,7 @@ export default function PaginaHoy() {
         <MoneyRow plata={datos.plata} />
 
         {cerrado ? (
-          <PantallaCerrado voz={cerrado.voz} minutos={cerrado.minutos} celebrando={celebrando} />
+          <PantallaCerrado cerrado={cerrado} celebrando={celebrando} />
         ) : datos.bloque ? (
           <BloqueActivo
             bloque={datos.bloque}
@@ -128,7 +162,7 @@ export default function PaginaHoy() {
             onFoco={() => setFoco(true)}
           />
         ) : (
-          <SinNadaAbierto plata={datos.plata} />
+          <SinNadaAbierto propuesta={datos.propuesta} onEmpezado={recargar} />
         )}
 
         {!cerrado && datos.nudge ? <NudgeCard nudge={datos.nudge} onRespondido={recargar} /> : null}
@@ -140,17 +174,13 @@ export default function PaginaHoy() {
           </div>
         ) : (
           <div className="card-grid-2">
-            <ListaDemasHoy tareas={datos.demasHoy} />
-            <ListaVence plata={datos.plata} />
+            <ListaDemasHoy tareas={datos.demasHoy} manana={datos.agenda.manana} />
+            <ListaVence agenda={datos.agenda} />
           </div>
         )}
 
         {datos.ideasFrias.length > 0 ? (
-          <a href="/bandeja" style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, padding: "8px 4px" }} className="body-muted">
-            <i className="punto" style={{ background: "var(--pensar)", boxShadow: "var(--glow-pensar)" }} />
-            <span style={{ flexGrow: 1 }}>{datos.ideasFrias.length} ideas frías esperan la revisión</span>
-            <span className="mono-sm">ver →</span>
-          </a>
+          <IdeasFrias cuantas={datos.ideasFrias.length} revision={datos.plata.revision_fria} />
         ) : null}
 
         <p className="body-txt" style={{ maxWidth: "72ch" }}>
@@ -163,57 +193,89 @@ export default function PaginaHoy() {
 }
 
 function BloqueActivo({ bloque, minutos, piel, cerrando, onCerrar, onFoco }: {
-  bloque: NonNullable<import("@/lib/hoy").DatosHoy["bloque"]>;
+  bloque: BloqueAbierto;
   minutos: number;
-  piel: import("@/hooks/PreferenciasContext").PielReloj;
+  piel: PielReloj;
   cerrando: boolean;
   onCerrar: () => void;
   onFoco: () => void;
 }) {
+  const [pasoVisible, setPasoVisible] = useState(false);
   const tarea = bloque.tarea.tarea;
-  const hitoTotal = bloque.camino?.hitos.length ?? 1;
-  // JSON.parse no conserva identidad de objeto: comparar `siguiente` por
-  // referencia contra `hitos` siempre da -1. Se busca por `hecho`.
-  const hitoActual = bloque.camino ? bloque.camino.hitos.findIndex((h) => !h.hecho) + 1 || hitoTotal : 1;
+  const hito = hitoDelBloque(bloque);
+  const entrega = bloque.libro?.entrega_cercana ?? null;
 
   return (
-    <section aria-label="Lo único de ahora" className="card" style={{ position: "relative", padding: 32, display: "grid", gridTemplateColumns: "168px minmax(0, 1fr)", gap: 32, alignItems: "center" }}>
-      <Reloj minutos={minutos} hitoActual={hitoActual} hitoTotal={hitoTotal} piel={piel} />
+    <section aria-label="Lo único de ahora" className="card foco-card">
+      <Reloj minutos={minutos} hitoActual={hito.n} hitoTotal={hito.total} piel={piel} />
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-        <div className="label">{bloque.tema ?? "Hoy"}</div>
+        <div className="label">{etiquetaDelBloque(bloque)}</div>
         <h1 className="display-xl">{tarea.titulo}</h1>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {entrega ? (
+            <>
+              <Chip punto="var(--dinero)">Entrega {fechaCorta(entrega.fecha)}</Chip>
+              <Chip mono>{formatoMoneda(entrega.monto)}</Chip>
+            </>
+          ) : null}
           <Chip mono>{minutos}&apos; del bloque</Chip>
           {bloque.tarea.ultima_vez_min != null ? <Chip mono>la última vez: {formatoDuracion(bloque.tarea.ultima_vez_min)}</Chip> : null}
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 6 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
           <button type="button" className="btn btn-luz" disabled={cerrando} onClick={onCerrar}>Cerrar hito</button>
+          <button type="button" className="btn btn-secundario" aria-expanded={pasoVisible} onClick={() => setPasoVisible((v) => !v)}>Paso mínimo</button>
           <button type="button" className="btn btn-secundario" onClick={onFoco}>Modo foco</button>
         </div>
+        {/* Ley 3: lo que no arranca se encoge. El paso mínimo es la voz de Remi. */}
+        {pasoVisible ? <p className="voz">{tarea.paso_minimo}</p> : null}
       </div>
     </section>
   );
 }
 
-function SinNadaAbierto({ plata }: { plata: import("@/lib/nucleo").Plata }) {
-  async function empezar() {
-    if (!plata.proximo) return;
-    await nucleo.cerrarBloque().catch(() => undefined); // por si quedó algo colgado
-    await nucleo.abrirDesdeTexto(`entrega de ${plata.proximo.cliente}`);
-    location.reload();
+function vozDeLaPropuesta(propuesta: Propuesta): string {
+  if (propuesta.entrega) {
+    return `¿Qué es lo único de hoy? Por orden, la entrega de ${propuesta.entrega.cliente} va primero: ${venceTexto(propuesta.entrega.fecha)} y trae ${formatoMoneda(propuesta.entrega.monto)}.`;
   }
+  return `¿Qué es lo único de hoy? Por orden sigue ${propuesta.proyecto}: ${propuesta.hito ? propuesta.hito.texto.toLowerCase() : "su próximo paso"}.`;
+}
+
+function SinNadaAbierto({ propuesta, onEmpezado }: { propuesta: Propuesta | null; onEmpezado: () => void }) {
+  const [empezando, setEmpezando] = useState(false);
+
+  async function empezar() {
+    if (!propuesta) return;
+    setEmpezando(true);
+    try {
+      await nucleo.abrirBloque(propuesta.titulo, propuesta.tema);
+    } catch {
+      // 409: ya había un bloque abierto. Recargar lo muestra tal cual está.
+    } finally {
+      setEmpezando(false);
+      onEmpezado();
+    }
+  }
+
   return (
     <section aria-label="Nada abierto" className="card" style={{ padding: "48px 32px", display: "flex", flexDirection: "column", gap: 20, alignItems: "flex-start" }}>
-      <div className="label">Nada abierto</div>
+      <div className="label">{diaDeLaSemana()} · nada abierto</div>
       <h1 className="display-xl" style={{ color: "var(--ink-muted)" }}>Nada abierto.</h1>
-      {plata.proximo ? (
+      {propuesta ? (
         <>
-          <p className="voz">
-            <Bionica texto={`¿Qué es lo único de hoy? Por orden, la entrega de ${plata.proximo.cliente} va primero: trae ${formatoMoneda(plata.proximo.monto)}.`} />
-          </p>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button type="button" className="btn btn-brasa" onClick={empezar}>Empezar con eso</button>
-            <button type="button" className="btn btn-secundario">Otra cosa</button>
+          <p className="voz">{vozDeLaPropuesta(propuesta)}</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {propuesta.entrega ? (
+              <>
+                <Chip punto="var(--dinero)">Entrega {fechaCorta(propuesta.entrega.fecha)}</Chip>
+                <Chip mono>{formatoMoneda(propuesta.entrega.monto)}</Chip>
+              </>
+            ) : null}
+            {propuesta.fase ? <Chip mono>{propuesta.fase}</Chip> : null}
+            {propuesta.hito ? <Chip mono>hito {propuesta.hito.n} de {propuesta.hito.total}</Chip> : null}
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-brasa" disabled={empezando} onClick={empezar}>Empezar con eso</button>
+            <a href="/proyectos" className="btn btn-secundario">Otra cosa</a>
           </div>
         </>
       ) : (
@@ -223,24 +285,42 @@ function SinNadaAbierto({ plata }: { plata: import("@/lib/nucleo").Plata }) {
   );
 }
 
-function PantallaCerrado({ voz, minutos, celebrando }: {
-  voz: string; minutos: number; celebrando: boolean;
+// Dónde nace cada chispa y hacia dónde sube: ocho, como en el playground de
+// la Biblia. Solo se animan con `prefers-reduced-motion: no-preference`.
+const CHISPAS: { left: number; top: number; dx: number; dy: number; espera: number }[] = [
+  { left: 150, top: 96, dx: -26, dy: -58, espera: 0 },
+  { left: 190, top: 88, dx: -10, dy: -72, espera: 60 },
+  { left: 230, top: 100, dx: 8, dy: -64, espera: 120 },
+  { left: 120, top: 110, dx: 24, dy: -52, espera: 50 },
+  { left: 260, top: 104, dx: -38, dy: -40, espera: 140 },
+  { left: 205, top: 120, dx: 38, dy: -42, espera: 100 },
+  { left: 170, top: 128, dx: -18, dy: -84, espera: 180 },
+  { left: 95, top: 116, dx: 16, dy: -88, espera: 200 },
+];
+
+function PantallaCerrado({ cerrado, celebrando }: {
+  cerrado: { voz: string; minutos: number; etiqueta: string; hito: { n: number; total: number } };
+  celebrando: boolean;
 }) {
   return (
     <section
       aria-label="Hito cerrado"
-      className="card"
-      style={{
-        position: "relative", overflow: "hidden", padding: 32, display: "grid", gridTemplateColumns: "168px minmax(0, 1fr)", gap: 32, alignItems: "center",
-        background: "var(--luz)", borderColor: "var(--luz)", color: "var(--on-luz)",
-        transition: "background 900ms, color 900ms",
-        opacity: celebrando ? 1 : 1,
-      }}
+      className={`card foco-card ${celebrando ? "celebrando" : ""}`}
+      style={{ overflow: "hidden", background: "var(--luz)", borderColor: "var(--luz)", color: "var(--on-luz)" }}
     >
-      <Reloj minutos={minutos} hitoActual={1} hitoTotal={1} piel="instrumento" cerrado />
+      {CHISPAS.map((c, i) => (
+        <i
+          key={i}
+          aria-hidden
+          className="chispa"
+          style={{ left: c.left, top: c.top, "--dx": `${c.dx}px`, "--dy": `${c.dy}px`, animationDelay: `${c.espera}ms` } as CSSProperties}
+        />
+      ))}
+      <Reloj minutos={cerrado.minutos} hitoActual={cerrado.hito.n} hitoTotal={cerrado.hito.total} piel="instrumento" cerrado />
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-        <p className="voz-grande" style={{ color: "var(--on-luz)" }}>{voz}</p>
-        <p className="voz" style={{ color: "var(--on-luz)", opacity: 0.75 }}>Eso tomó {formatoDuracion(minutos)}. Lo anoto para la próxima.</p>
+        <div className="label" style={{ color: "var(--on-luz)", opacity: 0.75 }}>{cerrado.etiqueta}</div>
+        <p className="voz-grande" style={{ color: "var(--on-luz)" }}>{cerrado.voz}</p>
+        <p className="voz" style={{ color: "var(--on-luz)", opacity: 0.75 }}>Eso tomó {formatoDuracion(cerrado.minutos)}. Lo anoto para la próxima.</p>
       </div>
     </section>
   );
@@ -282,7 +362,7 @@ function ListaDeCierre({ cliente, setCliente, copiado, onCopiar }: {
   );
 }
 
-function LoQueSigue({ siguiente, onSiguiente }: { siguiente: import("@/lib/nucleo").TareaConHistorial | null; onSiguiente: () => void }) {
+function LoQueSigue({ siguiente, onSiguiente }: { siguiente: TareaConHistorial | null; onSiguiente: () => void }) {
   return (
     <section className="card">
       <div className="label">Lo que sigue</div>
@@ -291,12 +371,13 @@ function LoQueSigue({ siguiente, onSiguiente }: { siguiente: import("@/lib/nucle
           <div className="fila">
             <i className="punto" style={{ background: "var(--brasa)" }} />
             <span style={{ flexGrow: 1 }}>{siguiente.tarea.titulo}</span>
+            {siguiente.tarea.hora ? <span className="mono-sm">{formatoHora(siguiente.tarea.hora)}</span> : null}
           </div>
         ) : (
           <p className="body-muted">Nada más anotado para hoy.</p>
         )}
       </div>
-      <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+      <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button type="button" className="btn btn-brasa" onClick={onSiguiente}>Empezar el siguiente</button>
         <button type="button" className="btn btn-secundario" onClick={onSiguiente}>Respirar 10 min</button>
       </div>
@@ -304,42 +385,78 @@ function LoQueSigue({ siguiente, onSiguiente }: { siguiente: import("@/lib/nucle
   );
 }
 
-function ListaDemasHoy({ tareas }: { tareas: import("@/lib/nucleo").TareaConHistorial[] }) {
+function ListaDemasHoy({ tareas, manana }: { tareas: TareaConHistorial[]; manana: Tarea[] }) {
+  const asoma = manana[0] ?? null;
   return (
-    <section className="card">
+    <section className="card" aria-label="Además hoy">
       <div className="label">Además hoy · máximo tres</div>
       <div style={{ marginTop: 12 }}>
-        {tareas.length === 0 ? (
+        {tareas.length === 0 && !asoma ? (
           <p className="body-muted" style={{ marginTop: 12 }}>Nada más por hoy.</p>
-        ) : (
-          tareas.map((t) => (
-            <div key={t.tarea.id} className="fila">
-              <i className="punto" style={{ background: "var(--brasa)" }} />
-              <span style={{ flexGrow: 1 }}>{t.tarea.titulo}</span>
-            </div>
-          ))
-        )}
+        ) : null}
+        {tareas.map((t) => (
+          <div key={t.tarea.id} className="fila">
+            <i className="punto" style={{ background: "var(--brasa)" }} />
+            <span style={{ flexGrow: 1 }}>{t.tarea.titulo}</span>
+            {t.tarea.hora ? <span className="mono-sm">{formatoHora(t.tarea.hora)}</span> : null}
+          </div>
+        ))}
+        {/* Lo de mañana solo asoma: un punto vacío, sin hora que apure. */}
+        {asoma ? (
+          <div className="fila">
+            <i className="punto" style={{ background: "transparent", border: "1px solid var(--ink-faint)" }} />
+            <span style={{ flexGrow: 1 }}>Mañana asoma: {asoma.titulo}</span>
+            <span className="mono-sm">{asoma.hora ? formatoHora(asoma.hora) : "—"}</span>
+          </div>
+        ) : null}
       </div>
     </section>
   );
 }
 
-function ListaVence({ plata }: { plata: import("@/lib/nucleo").Plata }) {
+// Dinero para lo que trae plata, alerta solo cuando el día llegó, y en voz
+// baja todo lo demás. El rojo habla de tiempo; nunca cuenta días.
+function colorDe(v: Vencimiento): { punto: string; texto: string } {
+  if (v.vence_hoy) return { punto: "var(--alerta)", texto: "var(--alerta)" };
+  if (v.monto != null) return { punto: "var(--dinero)", texto: "var(--dinero)" };
+  return { punto: "var(--baja)", texto: "var(--ink-muted)" };
+}
+
+function ListaVence({ agenda }: { agenda: AgendaDeHoy }) {
   return (
-    <section className="card">
+    <section className="card" aria-label="Vence">
       <div className="label">Vence</div>
       <div style={{ marginTop: 12 }}>
-        {plata.proximo ? (
-          <div className="fila">
-            <i className="punto" style={{ background: "var(--dinero)" }} />
-            <span style={{ flexGrow: 1 }}>Entrega {plata.proximo.cliente}</span>
-            <span className="mono-sm" style={{ color: "var(--dinero)" }}>{formatoMoneda(plata.proximo.monto)}</span>
-          </div>
-        ) : (
+        {agenda.vence.length === 0 ? (
           <p className="body-muted">Nada con fecha por ahora.</p>
+        ) : (
+          agenda.vence.map((v, i) => {
+            const color = colorDe(v);
+            return (
+              <div className="fila" key={`${v.titulo}-${i}`}>
+                <i className="punto" style={{ background: color.punto }} />
+                <span style={{ flexGrow: 1 }}>{v.titulo}</span>
+                <span className="mono-sm" style={{ color: color.texto, whiteSpace: "nowrap" }}>
+                  {fechaCorta(v.fecha)}{v.monto != null ? ` · ${formatoMoneda(v.monto)}` : ""}
+                </span>
+              </div>
+            );
+          })
         )}
       </div>
       <p className="body-muted" style={{ marginTop: 14 }}>El rojo solo habla de tiempo. Nunca de vos.</p>
     </section>
+  );
+}
+
+function IdeasFrias({ cuantas, revision }: { cuantas: number; revision: RevisionFria | null }) {
+  const cuando = cuandoEsLaRevision(revision);
+  const frase = cuantas === 1 ? "1 idea fría espera la revisión" : `${cuantas} ideas frías esperan la revisión`;
+  return (
+    <a href="/bandeja" style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, padding: "8px 4px" }} className="body-muted">
+      <i className="punto" style={{ background: "var(--pensar)", boxShadow: "var(--glow-pensar)" }} />
+      <span style={{ flexGrow: 1 }}>{frase}{cuando ? ` · ${cuando}` : ""}</span>
+      <span className="mono-sm">ver →</span>
+    </a>
   );
 }

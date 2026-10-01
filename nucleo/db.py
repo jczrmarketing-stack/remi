@@ -319,6 +319,16 @@ def listar_tareas_hoy(conexion: sqlite3.Connection, hoy: date | None = None) -> 
     return [_fila_a_tarea(fila) for fila in filas]
 
 
+def tarea_abierta_por_titulo(conexion: sqlite3.Connection, titulo: str) -> Tarea | None:
+    """La tarea sin cerrar con ese título exacto, la más nueva. Sobre ella
+    se abre un bloque repetido, para que la ley 1 junte todas las veces."""
+    fila = conexion.execute(
+        "SELECT * FROM tareas WHERE titulo = ? AND estado != 'hecha' ORDER BY rowid DESC LIMIT 1",
+        (titulo,),
+    ).fetchone()
+    return _fila_a_tarea(fila) if fila else None
+
+
 def listar_tareas_con_fecha(conexion: sqlite3.Connection) -> list[Tarea]:
     """Lo que tiene fecha y sigue abierto, lo más cercano primero. De acá
     salen «Mañana asoma» y «Vence» del panel."""

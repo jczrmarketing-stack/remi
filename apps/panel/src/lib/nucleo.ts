@@ -38,6 +38,8 @@ export type IdeaBandeja = { idea: Idea; fria: boolean };
 export type Hito = { texto: string; hecho: boolean };
 export type Camino = { hitos: Hito[]; siguiente: Hito | null };
 export type EntregaCercana = { cliente: string; fecha: string; monto: number };
+// Una fase de la propuesta, tal como está en el frontmatter del libro.
+export type Fase = { nombre: string; alcance: string; monto: number | null; listo_cuando: string; estado: string };
 export type Libro = {
   tema: string;
   titulo: string;
@@ -52,12 +54,32 @@ export type Libro = {
   entrega_cercana: EntregaCercana | null;
   // mtime del archivo del libro (ISO): el último escalón de ese orden.
   ultimo_estado_en: string;
+  // El camino sale del SOP: «propio» | «cliente» | null si el libro no lo dice.
+  tipo: string | null;
+  fases: Fase[];
+  // La fase en la que está, contando desde 1. null sin fases.
+  fase_actual_n: number | null;
+  // El primer hito sin marcar y hasta tres que vienen después.
+  hito_actual: Hito | null;
+  siguientes: Hito[];
+  // Qué hace Remi en el paso actual, según el SOP. "" si no aplica.
+  paso_remi: string;
 };
+export type UltimoEpisodio = { titulo: string; resumen: string; archivo: string };
+// GET /libros/{tema}: lo mismo, más el Estado entero y el último episodio.
+export type LibroDetalle = Libro & { estado_completo: string; ultimo_episodio: UltimoEpisodio | null };
+// GET /hoy/agenda: lo que la base sabe de fechas.
+export type Vencimiento = { titulo: string; fecha: string; monto: number | null; origen: "tarea" | "entrega"; vence_hoy: boolean };
+export type AgendaDeHoy = { manana: Tarea[]; vence: Vencimiento[] };
+export type Meta = { nombre: string; horizonte_meses: number | null; monto_mes: number; activa: boolean; activa_desde_pct: number | null };
+export type RevisionFria = { dia: string; hora: string; minutos: number | null };
 export type EntregaCobrada = { cliente: string; fecha: string; monto: number };
 export type Plata = {
   semana: { cobrado: number; meta_semanal: number };
   mes: { cobrado: number; meta: number; faltan: number; entregas: EntregaCobrada[] };
   proximo: { cliente: string; fecha: string; monto: number } | null;
+  metas: Meta[];
+  revision_fria: RevisionFria | null;
 };
 export type RespuestaMensaje = { tipo: string; texto: string; voz: string; tarea: Tarea | null; sesion: Sesion | null };
 
@@ -86,6 +108,16 @@ export const nucleo = {
   nudgePendiente: () => pedir<Nudge | null>("/nudges/pendiente"),
   plata: () => pedir<Plata>("/plata"),
   libros: () => pedir<Libro[]>("/libros"),
+  agenda: () => pedir<AgendaDeHoy>("/hoy/agenda"),
+  // Igual que `camino`: sin libro para ese tema, null y no una excepción.
+  libro: async (tema: string): Promise<LibroDetalle | null> => {
+    try {
+      return await pedir<LibroDetalle>(`/libros/${encodeURIComponent(tema)}`);
+    } catch (error) {
+      if (error instanceof NucleoApagado && error.status === 404) return null;
+      throw error;
+    }
+  },
 
   responderNudge: (id: string, respuesta: "listo" | "ahora_no") =>
     pedir<Nudge>(`/nudges/${id}/respuesta`, { method: "POST", body: JSON.stringify({ respuesta }) }),
@@ -101,6 +133,11 @@ export const nucleo = {
 
   abrirDesdeTexto: (texto: string) =>
     pedir<RespuestaMensaje>("/mensaje", { method: "POST", body: JSON.stringify({ texto }) }),
+
+  // Un botón del panel abre un bloque sin pasar por el clasificador. 409 si
+  // ya hay otro abierto: una cosa a la vez.
+  abrirBloque: (titulo: string, tema: string | null) =>
+    pedir<{ tarea: Tarea; sesion: Sesion }>("/bloque", { method: "POST", body: JSON.stringify({ titulo, tema }) }),
 
   pasoMinimo: (tareaId: string, paso_minimo: string) =>
     pedir<Tarea>(`/tarea/${tareaId}/paso-minimo`, { method: "POST", body: JSON.stringify({ paso_minimo }) }),

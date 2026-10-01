@@ -623,6 +623,73 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
     )
 
 
+class BloqueNuevo(BaseModel):
+    titulo: str = Field(min_length=1)
+    # El libro al que pertenece: queda en `sesion.app_contexto`, que es de
+    # donde el panel saca el proyecto, la fase y el hito del bloque.
+    tema: str | None = None
+
+
+class BloqueAbierto(BaseModel):
+    tarea: Tarea
+    sesion: Sesion
+
+
+@app.post("/bloque", response_model=BloqueAbierto, status_code=201)
+def abrir_bloque_del_panel(cuerpo: BloqueNuevo) -> BloqueAbierto:
+    """Abre un bloque desde un botón del panel («Empezar con eso», «Seguir
+    con…»). Sin clasificador ni modelo: un botón no hay que interpretarlo.
+
+    Una cosa a la vez: con otro bloque abierto responde 409 y no abre nada.
+    Si ya existe una tarea sin cerrar con ese mismo título, el bloque se
+    abre sobre ella — así «la última vez» (ley 1) junta todas las veces que
+    se trabajó en lo mismo."""
+    titulo = cuerpo.titulo.strip()
+    if not titulo:
+        raise HTTPException(status_code=422, detail="falta el título")
+    conexion = db.conectar()
+    try:
+        abierta = db.sesion_abierta_mas_reciente(conexion)
+        tarea = db.tarea_abierta_por_titulo(conexion, titulo)
+        if abierta is not None:
+            sesiones = db.listar_sesiones_tarea(conexion, tarea.id) if tarea is not None else []
+            misma = next((s for s in sesiones if s.id == abierta), None)
+            if tarea is not None and misma is not None:
+                # Ya estaba abierto ese mismo: tocar el botón dos veces no duplica.
+                return BloqueAbierto(tarea=tarea, sesion=misma)
+            raise HTTPException(status_code=409, detail="ya hay un bloque abierto")
+        if tarea is None:
+            tarea = Tarea(
+                id=uuid4(),
+                titulo=titulo,
+                proyecto_id=None,
+                estado="hoy",
+                paso_minimo=PASO_MINIMO_INICIAL,
+                estimado_min=None,
+                real_min=None,
+                hora=None,
+                fecha_limite=None,
+                compartible=False,
+            )
+            db.crear_tarea(conexion, tarea)
+        elif tarea.estado != "hoy":
+            actualizada = db.actualizar_estado_tarea(conexion, tarea.id, "hoy")
+            assert actualizada is not None
+            tarea = actualizada
+        sesion = Sesion(
+            id=uuid4(),
+            tarea_id=tarea.id,
+            inicio=datetime.now(timezone.utc),
+            fin=None,
+            real_min=0,
+            app_contexto=cuerpo.tema or trabajo.tema_activo(),
+        )
+        db.crear_sesion(conexion, sesion)
+        return BloqueAbierto(tarea=tarea, sesion=sesion)
+    finally:
+        conexion.close()
+
+
 @app.post("/sesion/{sesion_id}/cerrar", response_model=Sesion)
 def cerrar_sesion(sesion_id: UUID) -> Sesion:
     conexion = db.conectar()
@@ -1204,6 +1271,9 @@ class LibroVisible(BaseModel):
     # «propio» | «cliente» | None si el frontmatter no lo dice todavía.
     tipo: str | None
     fases: list[FaseVisible]
+    # La fase en la que está el proyecto, contando desde 1: la primera que
+    # todavía no se entregó. None sin fases, o con todas entregadas.
+    fase_actual_n: int | None
     # El primer hito sin marcar, y hasta 3 que vienen después — nunca el
     # camino entero de nuevo (para eso está `hitos`).
     hito_actual: HitoVisible | None
@@ -1269,6 +1339,18 @@ def _ultimo_episodio_de(tema: str) -> UltimoEpisodio | None:
     )
 
 
+# Una fase deja de ser «la actual» cuando ya se entregó. Cualquier otro
+# estado (propuesta, pagando, pagada, en curso…) sigue abierto.
+ESTADOS_DE_FASE_CERRADA = frozenset({"entregada", "cobrada", "cerrada", "hecha"})
+
+
+def _fase_actual_n(fases: tuple[libros.Fase, ...]) -> int | None:
+    for n, fase in enumerate(fases, start=1):
+        if fase.estado.strip().lower() not in ESTADOS_DE_FASE_CERRADA:
+            return n
+    return None
+
+
 def _libro_visible(libro: libros.Libro, conexion: Any) -> LibroVisible:
     estado_texto = estado_libro.leer_estado(libro.archivo)
     hitos_crudos = caminos.leer_hitos(libro.archivo)
@@ -1298,6 +1380,7 @@ def _libro_visible(libro: libros.Libro, conexion: Any) -> LibroVisible:
             FaseVisible(nombre=f.nombre, alcance=f.alcance, monto=f.monto, listo_cuando=f.listo_cuando, estado=f.estado)
             for f in libro.fases
         ],
+        fase_actual_n=_fase_actual_n(libro.fases),
         hito_actual=hito_actual,
         siguientes=siguientes,
         paso_remi=paso_remi,

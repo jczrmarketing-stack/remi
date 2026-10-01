@@ -17,6 +17,34 @@ const iso = (msDelta) => new Date(AHORA + msDelta).toISOString();
 
 let nudgeRespuesta = null;
 let ideaFriaEstado = "enfriando";
+// Solo para las pruebas: POST /__escenario deja el núcleo falso como recién
+// arrancado (el nudge sin contestar, la idea fría en la Bandeja), y con
+// { bloque: false } deja Hoy sin nada abierto; POST /bloque lo vuelve a
+// abrir — igual que el núcleo real.
+let hayBloque = true;
+
+const tareaSuelta = (id, titulo, hora) => ({
+  tarea: { id, titulo, proyecto_id: null, estado: "hoy", paso_minimo: "Cinco minutos.", estimado_min: null, real_min: null, hora, fecha_limite: null, compartible: false },
+  sesiones: [],
+  ultima_vez_min: null,
+});
+
+// Lo anotado para hoy sin bloque abierto: ya viene ordenado por hora.
+const DEMAS_HOY = [
+  tareaSuelta("66666666-6666-6666-6666-666666666666", "Enviar factura a Alfonso", "15:00"),
+  tareaSuelta("77777777-7777-7777-7777-777777777777", "Revisar Bandeja", "16:30"),
+];
+
+const AGENDA = {
+  manana: [
+    { id: "88888888-8888-8888-8888-888888888888", titulo: "Llamada con el banco", proyecto_id: null, estado: "camino", paso_minimo: "Cinco minutos.", estimado_min: null, real_min: null, hora: null, fecha_limite: iso(86400000), compartible: false },
+  ],
+  vence: [
+    { titulo: "Factura Omniway", fecha: iso(0), monto: null, origen: "tarea", vence_hoy: true },
+    { titulo: "Entrega Alfonso", fecha: iso(3 * 86400000), monto: 1000, origen: "entrega", vence_hoy: false },
+    { titulo: "Formulario IRS", fecha: iso(20 * 86400000), monto: null, origen: "tarea", vence_hoy: false },
+  ],
+};
 
 const HOY = [
   {
@@ -64,6 +92,16 @@ const LIBROS = [
     hitos: CAMINO_UPVISUALS.hitos,
     entrega_cercana: { cliente: "Alfonso", fecha: iso(3 * 86400000), monto: 1000 },
     ultimo_estado_en: iso(-1 * 3600000),
+    tipo: "cliente",
+    fases: [
+      { nombre: "Fase 1", alcance: "Distribución de contenido + seguridad crítica", monto: 5000, listo_cuando: "La demo de distribución corre con datos reales.", estado: "pagando" },
+      { nombre: "Fase 2", alcance: "Generador de imágenes", monto: 3700, listo_cuando: "Genera una imagen desde el panel.", estado: "propuesta" },
+      { nombre: "Fase 3", alcance: "Multi-cliente para agencias", monto: null, listo_cuando: "", estado: "sin alcance" },
+    ],
+    fase_actual_n: 1,
+    hito_actual: { texto: "Distribución", hecho: false },
+    siguientes: [{ texto: "Seguridad crítica", hecho: false }],
+    paso_remi: "Escribe los encargos y lleva el camino.",
   },
   {
     tema: "malik",
@@ -75,6 +113,12 @@ const LIBROS = [
     hitos: [],
     entrega_cercana: null,
     ultimo_estado_en: iso(-48 * 3600000),
+    tipo: null,
+    fases: [],
+    fase_actual_n: null,
+    hito_actual: null,
+    siguientes: [],
+    paso_remi: "",
   },
   {
     tema: "omniway",
@@ -86,6 +130,12 @@ const LIBROS = [
     hitos: [],
     entrega_cercana: null,
     ultimo_estado_en: iso(-200 * 3600000),
+    tipo: null,
+    fases: [],
+    fase_actual_n: null,
+    hito_actual: null,
+    siguientes: [],
+    paso_remi: "",
   },
 ];
 
@@ -129,7 +179,31 @@ const servidor = createServer(async (req, res) => {
   if (req.method === "OPTIONS") return enviarJSON(res, 200);
 
   if (req.method === "GET" && ruta === "/salud") return enviarJSON(res, 200, { ok: true, db: true });
-  if (req.method === "GET" && ruta === "/hoy") return enviarJSON(res, 200, HOY);
+  if (req.method === "POST" && ruta === "/__escenario") {
+    const cuerpo = await leerCuerpo(req);
+    hayBloque = cuerpo.bloque !== false;
+    nudgeRespuesta = null;
+    ideaFriaEstado = "enfriando";
+    return enviarJSON(res, 200, { bloque: hayBloque });
+  }
+  if (req.method === "GET" && ruta === "/hoy") return enviarJSON(res, 200, hayBloque ? [...HOY, ...DEMAS_HOY] : DEMAS_HOY);
+  if (req.method === "GET" && ruta === "/hoy/agenda") return enviarJSON(res, 200, AGENDA);
+  if (req.method === "POST" && ruta === "/bloque") {
+    const cuerpo = await leerCuerpo(req);
+    if (hayBloque) return enviarJSON(res, 409, { detail: "ya hay un bloque abierto" });
+    hayBloque = true;
+    return enviarJSON(res, 201, { tarea: { ...HOY[0].tarea, titulo: cuerpo.titulo }, sesion: { ...HOY[0].sesiones[0], app_contexto: cuerpo.tema ?? null } });
+  }
+  if (req.method === "GET" && ruta.startsWith("/libros/")) {
+    const tema = decodeURIComponent(ruta.split("/")[2] || "");
+    const libro = LIBROS.find((l) => l.tema === tema);
+    if (!libro) return enviarJSON(res, 404, { detail: "no tengo un libro con ese tema" });
+    return enviarJSON(res, 200, {
+      ...libro,
+      estado_completo: libro.quedaste ? `Quedaste: ${libro.quedaste}\nDecisiones: cuotas con cinco días de tolerancia.\nPróximo paso: ${libro.proximo_paso}` : "",
+      ultimo_episodio: null,
+    });
+  }
   if (req.method === "GET" && ruta === "/ultima-vez") return enviarJSON(res, 200, { minutos: 80 });
   if (req.method === "GET" && ruta === "/entregas") return enviarJSON(res, 200, []);
   if (req.method === "GET" && ruta === "/bandeja") return enviarJSON(res, 200, bandeja());
