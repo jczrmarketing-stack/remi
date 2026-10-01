@@ -1,6 +1,7 @@
 "use client";
 import { Header } from "@/components/Header";
 import { Bionica } from "@/components/Bionica";
+import { Conexiones } from "@/components/Conexiones";
 import { usePreferencias, type PielReloj } from "@/hooks/PreferenciasContext";
 
 const EJEMPLO = "Llevás 42 minutos en distribución. La factura de Alfonso vence a las 3 de la tarde.";
@@ -91,6 +92,8 @@ export default function PaginaAjustes() {
             </Fila>
           </div>
         </section>
+
+        <Conexiones />
 
         <p className="voz"><Bionica texto="Para vos se siente como alivio. Por eso existe." /></p>
       </div>

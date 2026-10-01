@@ -43,6 +43,12 @@ export type Plata = {
 };
 export type RespuestaMensaje = { tipo: string; texto: string; voz: string; tarea: Tarea | null; sesion: Sesion | null };
 
+// nucleo/conexiones.py: no es un contrato (contratos/contratos.json no
+// las tiene), son los tipos propios de esa ruta.
+export type Prueba = { ok: boolean; mensaje_humano: string };
+export type Conexion = { puesta: boolean; termina_en: string | null; ultima_prueba: Prueba | null };
+export type ConexionesEstado = Record<string, Conexion>;
+
 export const nucleo = {
   salud: () => pedir<Salud>("/salud"),
   hoy: () => pedir<TareaConHistorial[]>("/hoy"),
@@ -82,5 +88,21 @@ export const nucleo = {
     pedir<RespuestaMensaje>("/mensaje", {
       method: "POST",
       body: JSON.stringify({ texto, think: true }),
+    }),
+
+  // Ajustes → Conexiones. Solo funciona desde el Mac: con una cabecera
+  // Cf-* (vino por el túnel) el núcleo responde 403.
+  conexiones: () => pedir<ConexionesEstado>("/config/conexiones"),
+  guardarConexion: (nombre: string, valor: string) =>
+    pedir<Conexion>(`/config/conexiones/${encodeURIComponent(nombre)}`, {
+      method: "PUT",
+      body: JSON.stringify({ valor }),
+    }),
+  probarConexion: (nombre: string) =>
+    pedir<Prueba>(`/config/conexiones/${encodeURIComponent(nombre)}/probar`, { method: "POST" }),
+  guardarMetaMensual: (meta_mensual: number) =>
+    pedir<{ meta_mensual: number; moneda: string }>("/config/plata", {
+      method: "PUT",
+      body: JSON.stringify({ meta_mensual }),
     }),
 };
