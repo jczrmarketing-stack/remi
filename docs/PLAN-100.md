@@ -252,10 +252,12 @@ a la terminal; cuando la forma real llega, se verifica contra el núcleo de verd
 - 1-oct 18:18 · J5 `d05622a` · Playwright 47/47 · Bandeja vista con las ideas reales.
 - 1-oct 18:23 · C3 `6cbbd0d` · Playwright 54/54 · Semana vista; sin `/semana` en el núcleo de
   hoy, muestra el guion.
-- 1-oct 18:45 · C2 `e3d672e` · Playwright 63/63 · la tarjeta de la pregunta, vista en capturas
-  de escritorio y de 375 px; con el núcleo de hoy (`/preguntas` 404) no aparece.
 - 1-oct 18:25 · C2 diseñado en el lienzo. Tablero de la Biblia: P·c2 marcado; c3 y c4 esperan
   las formas reales de la terminal.
+- 1-oct 18:45 · C2 `e3d672e` · Playwright 63/63 · la tarjeta de la pregunta, vista en capturas
+  de escritorio y de 375 px; con el núcleo de hoy (`/preguntas` 404) no aparece.
+- 1-oct 18:50 · **T0 de la terminal verificado** (`3753cbc`, `9e395a7`, `8ee73d2`): solo docs y
+  el skill, sin llaves en el diff; worktree `remi-nucleo` en `f-nucleo`; línea base 525 / 86.
 
 ## Notas para la terminal (lo que el panel ya espera)
 
