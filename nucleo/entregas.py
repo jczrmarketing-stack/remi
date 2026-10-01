@@ -18,10 +18,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import db
+import libros
 import plata
 from modelos import Entrega
 
 router = APIRouter(prefix="/entregas", tags=["entregas"])
+router_cobros = APIRouter(tags=["cobros"])
 
 _MESES = {
     "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
@@ -215,6 +217,45 @@ def crear_desde_texto(cuerpo: CrearEntregaDesdeTexto) -> Entrega:
         monto=parseada.monto,
         estado="camino",
         linea=cuerpo.linea or plata.linea_de_tema(cuerpo.tema),
+        compartible=True,
+    )
+    conexion = db.conectar()
+    try:
+        crear_entrega(conexion, entrega)
+        return entrega
+    finally:
+        conexion.close()
+
+
+class CrearCobro(BaseModel):
+    tema: str
+    monto: float
+    # "YYYY-MM-DD"; sin ella, ahora.
+    fecha: str | None = None
+
+
+@router_cobros.post("/cobros", response_model=Entrega, status_code=201)
+def crear_cobro(cuerpo: CrearCobro) -> Entrega:
+    """Forma B (T2): un pago que ya entró, sin pasar por el chat. 404 si
+    el tema no tiene libro — nunca inventa un cliente."""
+    libro = next((l for l in libros.listar() if l.tema == cuerpo.tema), None)
+    if libro is None:
+        raise HTTPException(status_code=404, detail="no tengo un libro con ese tema")
+    if cuerpo.fecha is not None:
+        try:
+            fecha = datetime.strptime(cuerpo.fecha, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="fecha debe tener la forma YYYY-MM-DD")
+    else:
+        fecha = datetime.now(timezone.utc)
+    entrega = Entrega(
+        id=uuid4(),
+        cliente=libro.cliente or libro.titulo,
+        proyecto_id=_proyecto_id_de_tema(cuerpo.tema),
+        fecha=fecha,
+        monto=cuerpo.monto,
+        estado="pagada",
+        linea=plata.linea_de_tema(cuerpo.tema),
         compartible=True,
     )
     conexion = db.conectar()

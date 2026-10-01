@@ -82,6 +82,7 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 app.include_router(entregas.router)
+app.include_router(entregas.router_cobros)
 app.include_router(notion.router)
 app.include_router(plata.router)
 app.include_router(telegram.router)
