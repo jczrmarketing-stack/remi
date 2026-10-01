@@ -20,6 +20,56 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Configuración desde el panel · a medio hacer (1–3 de 5) · c6fc2a3
+
+- **Qué cambió:** `nucleo/conexiones.py` (nuevo) — lista blanca de 8 nombres, `estado()`
+  que nunca devuelve el valor completo (`termina_en`: últimos 4, solo en los 5 secretos
+  reales), `guardar()` que reescribe `nucleo/.env` atómico (temporal + chmod 600 +
+  `Path.replace()`, conserva comentarios y líneas ajenas, deja `.env.bak`, vacío quita la
+  línea), `probar()` con timeout de 8 s contra el proveedor real que nunca lanza. Rutas
+  `GET/PUT /config/conexiones[/{nombre}]` y `POST .../probar` en `servidor.py`, cortadas con
+  403 si la petición trae alguna cabecera `Cf-*` (vino por el túnel). `telegram.py` suma
+  `reiniciar_hilo()`: para el polling viejo con un `Event` y arranca uno nuevo, sin
+  reiniciar el núcleo — lo llama `conexiones.guardar()` al guardar `TELEGRAM_TOKEN` o
+  `TELEGRAM_CHAT_ID`. 44 pruebas nuevas; las 435 de `nucleo/` en verde, mypy limpio.
+- **Decisiones que tomé sin preguntar:**
+  1. **Clasifiqué la lista blanca en secretos vs. no secretos** (`TELEGRAM_TOKEN`,
+     `NOTION_TOKEN`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `VENICE_API_KEY` son secretos;
+     `TELEGRAM_CHAT_ID`, `NOTION_PAGINA_ID`, `NOTION_VUELTA` no) porque el encargo pedía
+     `termina_en` «solo secretos» sin decir cuáles. Un chat_id o un page_id de Notion no es
+     un secreto que haga falta ocultar.
+  2. **`probar()` para los tres no-secretos** (`TELEGRAM_CHAT_ID`, `NOTION_PAGINA_ID`,
+     `NOTION_VUELTA`) devuelve `ok: true, "Guardado. No hay una prueba automática para
+     esto."` en vez de 400: el encargo solo listó pruebas reales para los 5 secretos, y un
+     botón que nunca sirve es peor que uno que dice la verdad.
+  3. Cambié la firma del `threading.Thread` en `arrancar_hilo()` (ahora pasa también
+     `seguir`, para que `reiniciar_hilo()` pueda apagar el hilo viejo) y actualicé el test
+     existente que miraba esa firma exacta (`test_arranca_hilo_cuando_hay_token`).
+- **Dudas abiertas / bloqueo real:**
+  1. **El punto 4 (Ajustes → «Conexiones» en `apps/panel`) no se puede hacer en esta
+     rama.** `f-config` sale de `main`, y en `main` `apps/panel/` todavía solo tiene el
+     README — el Next.js de verdad (con la pantalla Ajustes) vive en `f-panel`, sin
+     mergear. Hace falta decidir: ¿mergeo `f-panel` a `main` primero, rebaso `f-config`
+     sobre `f-panel`, o hago el punto 4 en una rama aparte que sí tenga el panel? No lo
+     decidí yo — toqué 0 archivos de `apps/`.
+  2. El punto 5 (tests) quedó repartido dentro de los commits 1–3, no en uno aparte:
+     cada pieza trae sus propias pruebas. Si se prefiere un commit de tests solo, se puede
+     reorganizar.
+- **Cómo probarlo a mano:**
+  1. `cd nucleo && uv run pytest -q && uv run mypy .` — 435 en verde, limpio.
+  2. Con el núcleo real corriendo: `curl -s localhost:4400/config/conexiones` — ningún
+     valor completo en la respuesta.
+  3. `curl -s -X PUT localhost:4400/config/conexiones/GROQ_API_KEY -d
+     '{"valor":"gsk-falsa"}' -H 'Content-Type: application/json'` y después `curl -s -X
+     POST localhost:4400/config/conexiones/GROQ_API_KEY/probar` → `ok: false`. Con la
+     llave real guardada → `ok: true` (probado a mano con la clave real de este Mac, sin
+     imprimirla).
+  4. `curl -s -X PUT localhost:4400/config/conexiones/GROQ_API_KEY -d '{"valor":"x"}' -H
+     'Content-Type: application/json' -H 'Cf-Connecting-Ip: 1.2.3.4'` → 403.
+  5. `git status` en este worktree: `nucleo/.env` no aparece.
+
+---
+
 ## 2026-09-30 · verificación en vivo del punto 5: modelos reales · construido · 54586b4
 
 - **Qué cambió:** con las claves reales de `GROQ_API_KEY` y `OPENROUTER_API_KEY` puestas en
