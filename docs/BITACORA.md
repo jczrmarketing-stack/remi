@@ -20,6 +20,37 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · f-tunel · medición: /telegram/avisar lento
+
+- **Por qué:** al construir `doctor.sh`/`vigia.sh` en esta rama, el agente detectó que
+  `POST /telegram/avisar` contra el núcleo real (127.0.0.1:4400) tarda mucho más de los 5 s de
+  timeout que pone `doctor.sh`. No lo toco acá — `nucleo/telegram.py` lo está tocando `f-config`
+  en paralelo y un cambio ahí chocaría. Solo mido, para saber en qué fijarse cuando se audite.
+- **Qué sabemos:** tres llamadas directas al endpoint local (`time curl -s -X POST
+  127.0.0.1:4400/telegram/avisar -H 'content-type: application/json' -d '{"texto":"prueba
+  doctor","urgente":true}'`):
+  1. 41.829 s
+  2. 40.672 s
+  3. 0.637 s
+  En paralelo, tres llamadas directas a Telegram (`curl -s -o /dev/null -w
+  '%{time_namelookup} %{time_connect} %{time_appconnect} %{time_total}\n'
+  https://api.telegram.org`):
+  1. dns=0.002 connect=0.376 tls=0.550 total=0.718
+  2. dns=0.002 connect=0.365 tls=0.530 total=0.692
+  3. dns=0.003 connect=0.379 tls=0.587 total=0.757
+- **Lectura:** DNS, conexión TCP y TLS hacia `api.telegram.org` son rápidos y estables desde
+  esta máquina (~0.7 s parejo en las tres corridas) — Telegram mismo no es el cuello de botella
+  y no es un problema de resolución DNS ni de handshake TLS. El endpoint local, en cambio, tardó
+  ~41 s en las dos primeras llamadas y 0.6 s en la tercera: el patrón (lento, lento, rápido) no
+  encaja con latencia de red hacia Telegram (que ya se midió aparte y es constante), apunta más
+  bien a algo dentro del propio cliente saliente del núcleo (p. ej. intento de IPv6 antes de caer
+  a IPv4, o un pool de conexiones que recién se calienta) — no a DNS/TLS/Telegram.
+- **Hipótesis, no confirmado:** no entré a `nucleo/telegram.py` a leer el cliente HTTP que arma
+  la llamada saliente, para no chocar con `f-config`. Queda para quien audite ese archivo.
+- **Cómo repetirlo:** los dos comandos `curl` de arriba, corridos tres veces cada uno.
+
+---
+
 ## 2026-09-30 · merge f-panel + f-telegram (reporte nocturno) · construido · 4aba7bb
 
 - **Qué cambió:** dos merges a `main`, sin squash, pytest completo después de cada uno:
