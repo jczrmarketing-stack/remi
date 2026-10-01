@@ -123,3 +123,100 @@ def test_libros_vacio_sin_bitacora(tmp_path, monkeypatch):
     respuesta = cliente.get("/libros")
     assert respuesta.status_code == 200
     assert respuesta.json() == []
+
+
+# — Encargo H: el camino sale del SOP —
+
+CLIENTE_10_PASOS = """---
+titulo: UpVisuals
+tema: upvisuals
+resumen: Plataforma de Alfonso.
+tipo: cliente
+fases:
+  - nombre: Fase 1
+    alcance: Distribución de contenido + seguridad crítica
+    monto: 5000
+    listo_cuando: Demo aprobada por Alfonso
+    estado: camino
+---
+
+## Camino
+
+- [x] Intake
+- [x] Descubrimiento (5 preguntas)
+- [ ] Propuesta por fases
+- [ ] Contrato
+- [ ] Pago antes de arrancar
+- [ ] Entregas medidas
+- [ ] Cobro y cierre
+- [ ] Producción
+- [ ] Entrega y capacitación
+- [ ] Mensualidad
+"""
+
+
+def _boveda_upvisuals_10_pasos(tmp_path) -> None:
+    carpeta = tmp_path / "libros"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    (carpeta / "upvisuals.md").write_text(CLIENTE_10_PASOS)
+
+
+def test_libros_trae_tipo_fases_hito_actual_siguientes_y_paso_remi(tmp_path, monkeypatch):
+    _boveda_upvisuals_10_pasos(tmp_path)
+    cliente = _cliente(tmp_path, monkeypatch)
+
+    respuesta = cliente.get("/libros")
+    (upvisuals,) = respuesta.json()
+
+    assert upvisuals["tipo"] == "cliente"
+    assert len(upvisuals["hitos"]) == 10
+    assert upvisuals["fases"] == [
+        {
+            "nombre": "Fase 1",
+            "alcance": "Distribución de contenido + seguridad crítica",
+            "monto": 5000.0,
+            "listo_cuando": "Demo aprobada por Alfonso",
+            "estado": "camino",
+        }
+    ]
+    assert upvisuals["hito_actual"] == {"texto": "Propuesta por fases", "hecho": False}
+    assert upvisuals["siguientes"] == [
+        {"texto": "Contrato", "hecho": False},
+        {"texto": "Pago antes de arrancar", "hecho": False},
+        {"texto": "Entregas medidas", "hecho": False},
+    ]
+    assert upvisuals["paso_remi"] == "Escribe el borrador en la voz de Juan Camilo."
+
+
+def test_libro_detalle_trae_estado_completo_y_ultimo_episodio(tmp_path, monkeypatch):
+    _boveda_upvisuals_10_pasos(tmp_path)
+    cliente = _cliente(tmp_path, monkeypatch)
+    # episodios.carpeta_episodios() lee REMI_BOVEDA, no REMI_CONOCIMIENTO —
+    # en producción los dos viven bajo la misma bóveda (conocimiento/
+    # proyectos y conocimiento/episodios), así que acá también.
+    monkeypatch.setenv("REMI_BOVEDA", str(tmp_path / "libros"))
+    episodios_dir = tmp_path / "libros" / "episodios"
+    episodios_dir.mkdir(parents=True)
+    (episodios_dir / "2026-09-20-primero.md").write_text(
+        '---\ntitulo: "Primero"\ntema: upvisuals\nresumen: "Viejo."\n---\n\nCuerpo viejo.\n'
+    )
+    (episodios_dir / "2026-09-30-segundo.md").write_text(
+        '---\ntitulo: "Segundo"\ntema: upvisuals\nresumen: "Nuevo."\n---\n\nCuerpo nuevo, no debe salir.\n'
+    )
+
+    respuesta = cliente.get("/libros/upvisuals")
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+
+    assert cuerpo["tipo"] == "cliente"
+    assert "## Camino" not in cuerpo["estado_completo"]  # estado_completo es solo ## Estado
+    assert cuerpo["ultimo_episodio"]["titulo"] == "Segundo"
+    assert cuerpo["ultimo_episodio"]["archivo"] == "2026-09-30-segundo.md"
+    assert "Cuerpo nuevo" not in respuesta.text  # nunca el cuerpo del episodio
+
+
+def test_libro_detalle_de_tema_inexistente_es_404(tmp_path, monkeypatch):
+    _boveda_upvisuals_10_pasos(tmp_path)
+    cliente = _cliente(tmp_path, monkeypatch)
+    respuesta = cliente.get("/libros/no-existe")
+    assert respuesta.status_code == 404

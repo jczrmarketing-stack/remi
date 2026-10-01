@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from collections.abc import AsyncIterator
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -1007,6 +1007,20 @@ class EntregaCercana(BaseModel):
     monto: float
 
 
+class FaseVisible(BaseModel):
+    nombre: str
+    alcance: str
+    monto: float | None
+    listo_cuando: str
+    estado: str
+
+
+class UltimoEpisodio(BaseModel):
+    titulo: str
+    resumen: str
+    archivo: str
+
+
 class LibroVisible(BaseModel):
     tema: str
     titulo: str
@@ -1024,6 +1038,26 @@ class LibroVisible(BaseModel):
     # mtime del archivo del libro: el Estado vive ahí, así que esto es
     # «cuándo se tocó por última vez» — el último escalón del orden.
     ultimo_estado_en: datetime
+    # — Encargo H: el camino sale del SOP (oficios/proyectos-sop.md) —
+    # «propio» | «cliente» | None si el frontmatter no lo dice todavía.
+    tipo: str | None
+    fases: list[FaseVisible]
+    # El primer hito sin marcar, y hasta 3 que vienen después — nunca el
+    # camino entero de nuevo (para eso está `hitos`).
+    hito_actual: HitoVisible | None
+    siguientes: list[HitoVisible]
+    # Qué hace Remi en el paso de `hito_actual`, según el SOP. "" sin hito
+    # actual (camino vacío o terminado) o si el texto no matchea ninguna
+    # plantilla (un hito escrito a mano, fuera del SOP).
+    paso_remi: str
+
+
+class LibroDetalle(LibroVisible):
+    # Solo en el detalle de un libro: el Estado entero (no solo quedaste/
+    # próximo paso) y el último episodio — el resumen de la constelación
+    # (LibroVisible) se queda liviano a propósito.
+    estado_completo: str
+    ultimo_episodio: UltimoEpisodio | None
 
 
 def _quedaste_de(estado_texto: str) -> str:
@@ -1041,38 +1075,101 @@ def _proximo_paso_de(estado_texto: str) -> str:
     return ""
 
 
+def _ultimo_episodio_de(tema: str) -> UltimoEpisodio | None:
+    """El episodio más nuevo de este tema — el nombre de archivo empieza
+    con la fecha (YYYY-MM-DD-…), así que ordenar por nombre alcanza."""
+    carpeta = episodios.carpeta_episodios()
+    if not carpeta.is_dir():
+        return None
+    candidatos: list[tuple[str, dict[str, str | list[str]]]] = []
+    for ruta in carpeta.glob("*.md"):
+        texto = ruta.read_text()
+        if not texto.startswith("---"):
+            continue
+        partes = texto.split("---", 2)
+        if len(partes) < 3:
+            continue
+        campos = libros._frontmatter(partes[1])
+        if campos.get("tema") == tema:
+            candidatos.append((ruta.name, campos))
+    if not candidatos:
+        return None
+    nombre, campos = max(candidatos, key=lambda par: par[0])
+    titulo = campos.get("titulo")
+    resumen = campos.get("resumen")
+    return UltimoEpisodio(
+        # Los episodios escriben titulo/resumen entre comillas
+        # (cierre.py/episodios.py); _frontmatter() no las saca — acá sí,
+        # porque esto lo lee el panel tal cual.
+        titulo=titulo.strip('"') if isinstance(titulo, str) else "",
+        resumen=resumen.strip('"') if isinstance(resumen, str) else "",
+        archivo=nombre,
+    )
+
+
+def _libro_visible(libro: libros.Libro, conexion: Any) -> LibroVisible:
+    estado_texto = estado_libro.leer_estado(libro.archivo)
+    hitos_crudos = caminos.leer_hitos(libro.archivo)
+    hitos = [HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos_crudos]
+    idx_actual = next((i for i, h in enumerate(hitos) if not h.hecho), None)
+    hito_actual = hitos[idx_actual] if idx_actual is not None else None
+    siguientes = hitos[idx_actual + 1 : idx_actual + 4] if idx_actual is not None else []
+    paso_remi = caminos.paso_remi_de(libro.tipo, hito_actual.texto) if hito_actual is not None else ""
+    entrega = entregas.entrega_del_proyecto(conexion, entregas._proyecto_id_de_tema(libro.tema))
+    return LibroVisible(
+        tema=libro.tema,
+        titulo=libro.titulo,
+        resumen=libro.resumen,
+        compartible=libro.compartible,
+        quedaste=_quedaste_de(estado_texto),
+        proximo_paso=_proximo_paso_de(estado_texto),
+        hitos=hitos,
+        # entrega_del_proyecto() ya filtra monto IS NOT NULL.
+        entrega_cercana=(
+            EntregaCercana(cliente=entrega.cliente, fecha=entrega.fecha, monto=entrega.monto)
+            if entrega is not None and entrega.monto is not None
+            else None
+        ),
+        ultimo_estado_en=datetime.fromtimestamp(libro.archivo.stat().st_mtime, tz=timezone.utc),
+        tipo=libro.tipo,
+        fases=[
+            FaseVisible(nombre=f.nombre, alcance=f.alcance, monto=f.monto, listo_cuando=f.listo_cuando, estado=f.estado)
+            for f in libro.fases
+        ],
+        hito_actual=hito_actual,
+        siguientes=siguientes,
+        paso_remi=paso_remi,
+    )
+
+
 @app.get("/libros", response_model=list[LibroVisible])
 def libros_de() -> list[LibroVisible]:
     """La constelación de proyectos para el panel: un resumen por libro,
     nunca el cuerpo completo."""
     conexion = db.conectar()
     try:
-        resultado: list[LibroVisible] = []
-        for libro in libros.listar():
-            estado_texto = estado_libro.leer_estado(libro.archivo)
-            hitos = caminos.leer_hitos(libro.archivo)
-            entrega = entregas.entrega_del_proyecto(conexion, entregas._proyecto_id_de_tema(libro.tema))
-            resultado.append(
-                LibroVisible(
-                    tema=libro.tema,
-                    titulo=libro.titulo,
-                    resumen=libro.resumen,
-                    compartible=libro.compartible,
-                    quedaste=_quedaste_de(estado_texto),
-                    proximo_paso=_proximo_paso_de(estado_texto),
-                    hitos=[HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos],
-                    # entrega_del_proyecto() ya filtra monto IS NOT NULL.
-                    entrega_cercana=(
-                        EntregaCercana(cliente=entrega.cliente, fecha=entrega.fecha, monto=entrega.monto)
-                        if entrega is not None and entrega.monto is not None
-                        else None
-                    ),
-                    ultimo_estado_en=datetime.fromtimestamp(libro.archivo.stat().st_mtime, tz=timezone.utc),
-                )
-            )
-        return resultado
+        return [_libro_visible(libro, conexion) for libro in libros.listar()]
     finally:
         conexion.close()
+
+
+@app.get("/libros/{tema}", response_model=LibroDetalle)
+def libro_de(tema: str) -> LibroDetalle:
+    """El detalle de un libro: lo mismo que /libros, más el Estado entero
+    y el último episodio — demasiado para la lista, justo para su pantalla."""
+    libro = next((l for l in libros.listar() if l.tema == tema), None)
+    if libro is None:
+        raise HTTPException(status_code=404, detail="no tengo un libro con ese tema")
+    conexion = db.conectar()
+    try:
+        visible = _libro_visible(libro, conexion)
+    finally:
+        conexion.close()
+    return LibroDetalle(
+        **visible.model_dump(),
+        estado_completo=estado_libro.leer_estado(libro.archivo),
+        ultimo_episodio=_ultimo_episodio_de(tema),
+    )
 
 
 # — Configuración (Panel → Ajustes): llaves y tokens, nunca por el túnel —
