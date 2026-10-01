@@ -125,6 +125,26 @@ def test_proximo_es_la_entrega_con_dinero_mas_cercana_sin_cobrar(tmp_path, monke
     assert resultado.proximo.monto == 500
 
 
+def test_mes_entregas_lista_una_linea_por_pagada_del_mes(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    import db
+
+    conexion = db.conectar()
+    ahora = datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc)
+    primero = plata._primero_del_mes(ahora)
+
+    _entrega(conexion, primero, 500, "pagada", cliente="Alfonso")
+    _entrega(conexion, ahora, 300, "pagada", cliente="Beto")
+    _entrega(conexion, primero - timedelta(days=1), 999, "pagada", cliente="MesPasado")
+    _entrega(conexion, ahora, 700, "camino", cliente="NoPagada")
+    conexion.close()
+
+    resultado = plata.calcular(db.conectar(), ahora)
+    clientes = [e.cliente for e in resultado.mes.entregas]
+    assert clientes == ["Alfonso", "Beto"]
+    assert [e.monto for e in resultado.mes.entregas] == [500, 300]
+
+
 def test_nunca_hay_texto_que_regane(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
     cliente = TestClient(servidor.app)

@@ -37,10 +37,18 @@ class Semana(BaseModel):
     meta_semanal: float
 
 
+class EntregaCobrada(BaseModel):
+    cliente: str
+    fecha: datetime
+    monto: float
+
+
 class Mes(BaseModel):
     cobrado: float
     meta: float
     faltan: float
+    # Una línea por entrega pagada del mes — «ingreso por línea» (Metas).
+    entregas: list[EntregaCobrada]
 
 
 class EntregaProxima(BaseModel):
@@ -75,6 +83,18 @@ def _cobrado_desde(conexion: sqlite3.Connection, desde: datetime, hasta: datetim
     return sum(fila["monto"] for fila in filas)
 
 
+def _entregas_pagadas_desde(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[EntregaCobrada]:
+    filas = conexion.execute(
+        "SELECT cliente, fecha, monto FROM entregas WHERE estado = 'pagada' AND monto IS NOT NULL "
+        "AND fecha >= ? AND fecha <= ? ORDER BY fecha",
+        (desde.isoformat(), hasta.isoformat()),
+    ).fetchall()
+    return [
+        EntregaCobrada(cliente=fila["cliente"], fecha=datetime.fromisoformat(fila["fecha"]), monto=fila["monto"])
+        for fila in filas
+    ]
+
+
 def _proxima_con_dinero(conexion: sqlite3.Connection, ahora: datetime) -> EntregaProxima | None:
     fila = conexion.execute(
         "SELECT cliente, fecha, monto FROM entregas WHERE estado != 'pagada' "
@@ -94,11 +114,17 @@ def calcular(conexion: sqlite3.Connection, ahora: datetime) -> Plata:
     meta_semanal = meta_mensual / SEMANAS_POR_MES
 
     cobrado_semana = _cobrado_desde(conexion, _lunes(ahora), ahora)
-    cobrado_mes = _cobrado_desde(conexion, _primero_del_mes(ahora), ahora)
+    primero_del_mes = _primero_del_mes(ahora)
+    cobrado_mes = _cobrado_desde(conexion, primero_del_mes, ahora)
 
     return Plata(
         semana=Semana(cobrado=cobrado_semana, meta_semanal=meta_semanal),
-        mes=Mes(cobrado=cobrado_mes, meta=meta_mensual, faltan=max(0.0, meta_mensual - cobrado_mes)),
+        mes=Mes(
+            cobrado=cobrado_mes,
+            meta=meta_mensual,
+            faltan=max(0.0, meta_mensual - cobrado_mes),
+            entregas=_entregas_pagadas_desde(conexion, primero_del_mes, ahora),
+        ),
         proximo=_proxima_con_dinero(conexion, ahora),
     )
 

@@ -11,8 +11,19 @@ import { Apagado } from "@/components/Apagado";
 import { MoneyRow } from "@/components/MoneyRow";
 import { Bionica } from "@/components/Bionica";
 import { useCargaNucleo } from "@/hooks/useCargaNucleo";
-import { nucleo, NucleoApagado } from "@/lib/nucleo";
+import { nucleo, NucleoApagado, type Plata } from "@/lib/nucleo";
 import { formatoMoneda } from "@/lib/hoy";
+
+// Debajo de la brecha, siempre una acción con número — nunca solo el
+// diagnóstico. Con una entrega pendiente, cobrarla es la acción concreta;
+// sin ninguna, el tamaño de entrega que haría falta conseguir.
+function accionParaCerrarLaBrecha(plata: Plata): string {
+  if (plata.proximo) {
+    const cierra = Math.min(plata.proximo.monto, plata.mes.faltan);
+    return `Cobrar la de ${plata.proximo.cliente} cierra ${formatoMoneda(cierra)}.`;
+  }
+  return `Para cerrar la brecha: una entrega de ${formatoMoneda(plata.mes.faltan)}.`;
+}
 
 export default function PaginaMetas() {
   const { datos: plata, error, recargar } = useCargaNucleo(nucleo.plata);
@@ -61,9 +72,10 @@ export default function PaginaMetas() {
               este mes vas en <span style={{ color: "var(--dinero)" }}>{formatoMoneda(plata.mes.cobrado)}</span>
             </div>
             {plata.mes.faltan > 0 ? (
-              <p className="body-txt">Brecha: <strong>{formatoMoneda(plata.mes.faltan)}</strong>.{" "}
-                {plata.proximo ? `La entrega de ${plata.proximo.cliente} (${formatoMoneda(plata.proximo.monto)}) la reduce.` : ""}
-              </p>
+              <>
+                <p className="body-txt">Brecha: <strong>{formatoMoneda(plata.mes.faltan)}</strong>.</p>
+                <p className="body-txt">{accionParaCerrarLaBrecha(plata)}</p>
+              </>
             ) : (
               <p className="body-txt">Meta del mes cumplida.</p>
             )}
@@ -80,6 +92,24 @@ export default function PaginaMetas() {
             </div>
           ) : (
             <p className="body-muted" style={{ marginTop: 12 }}>No hay ninguna entrega con monto pendiente todavía.</p>
+          )}
+        </section>
+
+        <section aria-label="Ingreso por línea" className="card">
+          <div className="label">Ingreso del mes · por línea</div>
+          {plata.mes.entregas.length === 0 ? (
+            <p className="body-muted" style={{ marginTop: 12 }}>Ninguna entrega cobrada todavía este mes.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+              {plata.mes.entregas.map((entrega, i) => (
+                <div className="fila" key={i}>
+                  <i className="punto" style={{ background: "var(--dinero)" }} />
+                  <span style={{ flexGrow: 1 }}>{entrega.cliente}</span>
+                  <span className="mono-sm">{new Date(entrega.fecha).toLocaleDateString("es-CO", { day: "numeric", month: "short" })}</span>
+                  <span className="mono-sm" style={{ color: "var(--dinero)" }}>{formatoMoneda(entrega.monto)}</span>
+                </div>
+              ))}
+            </div>
           )}
         </section>
 
