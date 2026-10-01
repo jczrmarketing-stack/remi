@@ -20,6 +20,44 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · Configuración desde el panel · cierre (4 y 5) · 6c4dac9
+
+- **Qué cambió:** el bloqueo de la entrada anterior se resolvió rebasando `f-config` sobre
+  `f-panel` (decisión de Juan Camilo) — sin conflictos, 447 pruebas en verde. Con el panel
+  de verdad ya en la rama: `PUT /config/plata` (nuevo, `conexiones.escribir_meta_mensual()`,
+  atómico, conserva `$comment`/`moneda`, 0 o negativo es 422) y `apps/panel/src/components/
+  Conexiones.tsx`, montado en Ajustes. Una fila por conexión de la lista blanca (Claude fija,
+  sin llave) con campo vacío siempre, placeholder con `termina_en` cuando ya está puesta,
+  Guardar y Probar; la meta mensual junto a las conexiones. Sin lectura biónica en campos
+  ni botones.
+- **Decisiones que tomé sin preguntar:**
+  1. `PUT /config/plata` no estaba nombrado en el encargo, pero «rutas /config/* en
+     servidor.py» lo cubre como wildcard, y hacía falta para que la meta mensual se pudiera
+     editar desde Ajustes tal como pedía el punto 4. La función vive en `conexiones.py`
+     (ya en la frontera); no hizo falta ningún archivo nuevo en `nucleo/`.
+  2. Agregué tipos y cuatro funciones a `apps/panel/src/lib/nucleo.ts` (compartido, no «la
+     pantalla Ajustes») porque la pantalla necesita un cliente para pegarle al núcleo. Es
+     el mismo patrón de extensión mínima y aditiva que ya tenía el resto del panel.
+  3. Creé `src/components/Conexiones.tsx` en vez de meter todo en `ajustes/page.tsx`: la
+     sección es grande (8 filas + Claude + meta mensual) y el resto de Ajustes ya seguía el
+     patrón de componer piezas chicas.
+- **Dudas abiertas:** ninguna nueva. Las de la Fase 3 y del Panel (listado de proyectos,
+  `/donde-quede` sin el siguiente hito, Semana sin ruta propia) siguen igual.
+- **Cómo probarlo a mano:**
+  1. `cd nucleo && uv run pytest -q && uv run mypy .` — 447 en verde, limpio.
+  2. `cd apps/panel && npm install && npx tsc --noEmit && npm run build` — sin errores.
+  3. Con un núcleo real corriendo y el panel apuntado ahí: Ajustes → Conexiones, pegar una
+     llave de Groq falsa → «Guardar» → «Probar» → «✗ Groq no reconoce esa llave.»; pegar la
+     real → «✓ Groq la acepta.» **Probado a mano** contra un núcleo aislado con la
+     `GROQ_API_KEY` real de este Mac (sin imprimirla, sin tocar el `.env` de producción):
+     los dos resultados salieron exactamente así.
+  4. `git status` en este worktree: `nucleo/.env` no aparece.
+  5. Falta probar el chip de Groq de la ventanita «sin reiniciar el núcleo» end-to-end (el
+     gancho `reiniciar_hilo()` solo se probó con la ventanita apagada, vía pruebas y curl
+     directo a `/config/conexiones`) — queda para quien tenga la ventanita corriendo.
+
+---
+
 ## 2026-09-30 · Configuración desde el panel · a medio hacer (1–3 de 5) · c6fc2a3
 
 - **Qué cambió:** `nucleo/conexiones.py` (nuevo) — lista blanca de 8 nombres, `estado()`
