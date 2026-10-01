@@ -74,6 +74,34 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · Proyectos: constelación con los libros reales · construido · 7610a4f
+
+- **Qué cambió:** un commit. `GET /libros` en `servidor.py` (usa `libros.listar()`, ya
+  existía) — por libro: `tema`, `titulo`, `resumen`, `compartible`, `quedaste` y
+  `proximo_paso` (de `estado_libro.leer_estado`, vacíos sin `## Estado`) e `hitos` (de
+  `caminos.leer_hitos`, `[]` sin `## Camino`); nunca el cuerpo completo. `apps/panel`:
+  Proyectos ahora lista todos los libros de `/libros`, el del bloque abierto primero y con
+  el chip «Abierto ahora»; tocar uno abre su camino (la ruta `/camino/{tema}` ya existía).
+  Se fue el campo «buscar por tema» — ya había de dónde sacar la lista completa.
+  `nucleo/pruebas/test_libros_ruta.py` (bóveda falsa de 2 libros, uno sin `## Estado`);
+  `nucleo-falso.mjs` suma `/libros`; Playwright cubre la constelación y tocar un libro sin
+  camino. 469 pytest, mypy limpio, 11/11 Playwright.
+- **Verificado en vivo** tras `scripts/actualizar.sh`: `GET /libros` contra el núcleo real
+  devuelve los 7 libros de `remi-mente`; abriendo `http://127.0.0.1:4402/proyectos` (con
+  Playwright headless, sin bloque abierto en este momento) aparecen los 7, cada uno con su
+  próximo paso real — ninguno marcado «Abierto ahora» porque no hay sesión activa, que es lo
+  correcto.
+- **Decisiones que tomé sin preguntar:**
+  1. El orden de la lista es el de `libros.listar()` (alfabético por archivo) salvo que haya
+     un bloque abierto, que sube al primero — no inventé un orden nuevo.
+  2. Un libro sin `## Camino` tocado muestra «todavía no tiene `## Camino`» en vez de no
+     reaccionar: mismo criterio que el 404 de `/camino/{tema}`, pero como dato, no como error.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `curl -s 127.0.0.1:4400/libros | jq`; con
+  `com.remi.panel` corriendo, abrir `http://127.0.0.1:4402/proyectos`.
+
+---
+
 ## 2026-10-01 · panel como servicio + docs al día · construido · 719649e
 
 - **Qué cambió:** dos commits.
