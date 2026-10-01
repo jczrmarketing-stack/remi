@@ -20,6 +20,52 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · merge f-panel + f-telegram (reporte nocturno) · construido · 4aba7bb
+
+- **Qué cambió:** dos merges a `main`, sin squash, pytest completo después de cada uno:
+  1. `1a320ac` **f-panel** (`apps/panel`: Next.js 15 + PWA, Hoy/Proyectos/Metas/Bandeja/
+     Ajustes, lectura biónica; `nucleo/plata.py` con `GET /plata`). Se automergeó limpio, sin
+     un solo conflicto — ni en `docs/BITACORA.md` ni en el `import plata` de
+     `nucleo/servidor.py` (quedó en su lugar alfabético, entre `pensar` y
+     `sembrar_conocimiento`, sin tocar nada a mano). 413 pytest después del merge.
+  2. `4aba7bb` **f-telegram** (reporte de la noche: `noche.py` compara el HEAD de la bóveda al
+     arrancar contra el de ahora, arma «Anoche cambié N libros» con hasta 3 diffs cortos, y lo
+     manda por `POST /telegram/avisar` con `urgente: true`). Conflicto solo en
+     `docs/BITACORA.md` (append-only, combiné las dos listas); `nucleo/servidor.py` esta vez
+     ni apareció en el diff de la rama — no hubo nada que resolver ahí. 427 pytest después.
+  mypy limpio (78 módulos), 86 vitest (`apps/ventanita`, sin cambios ahí), `tsc --noEmit`
+  limpio en `apps/panel`.
+- **Panel en vivo:** `npm install` + `npm run dev` en `apps/panel` (puerto 4402, contra el
+  núcleo real de 4400, sin `NEXT_PUBLIC_URL_NUCLEO` — ese es solo para Playwright). Las
+  cuatro rutas (`/`, `/proyectos`, `/bandeja`, `/metas`) devolvieron 200 y el log del núcleo
+  mostró `GET /hoy` y `GET /nudges/pendiente` en 200: Hoy carga de verdad contra datos reales,
+  no el núcleo falso de las pruebas. Playwright (`npx playwright test`, su propio núcleo falso
+  en 4498 + build+start del panel en 4403, aislado de todo lo anterior): **10/10 en verde**.
+  Apagué el panel manual al terminar — no es un servicio de `launchd`, no tenía por qué seguir
+  corriendo.
+- **`scripts/actualizar.sh`:** corrió sobre `4aba7bb`; el log confirma «Instalada la de:
+  4aba7bb merge: f-telegram (reporte de la noche) en main». `launchctl list | grep com.remi`
+  muestra `com.remi.nucleo` y `com.remi.notion` con PID activo, y `com.remi.noche` /
+  `com.remi.vigia` cargados sin PID — es lo esperado: `noche` es
+  `StartCalendarInterval` (solo a las 4:00) y `vigia` es `StartInterval=60` (corre y sale),
+  ninguno de los dos es un daemon persistente. `tail -5` del log del núcleo: sin `Traceback`
+  ni `409`, solo warnings de carga de Kokoro/torch (preexistentes, no nuevos). `GET /salud` →
+  `{"ok": true, "db": true}`.
+- **Decisiones que tomé sin preguntar:**
+  1. Lancé el panel con `npm run dev` en segundo plano (no `next build && next start`): el
+     encargo pedía «arrancarlo y abrir», no un build de producción — y Playwright ya trae su
+     propio build+start aislado para las pruebas.
+  2. Interpreté «vivos» en el chequeo de `launchctl list` como «cargados en la lista», no
+     «con un proceso corriendo ahora mismo»: `noche` y `vigia` nunca van a mostrar un PID
+     fuera de su ventana (4:00 AM / cada 60 s que dura el chequeo), eso no es una falla.
+- **Dudas abiertas:** ninguna de este encargo. Quedan las ya anotadas en entradas anteriores
+  (Notion con `NOTION_VUELTA` apagada, docs con «Kimi K2» desactualizado).
+- **Cómo probarlo a mano:** `git log --oneline -3` → `4aba7bb`, `1a320ac`; `cd nucleo && uv
+  run pytest -q && uv run mypy .`; `cd ../apps/panel && npm run dev` y abrir
+  `http://127.0.0.1:4402`; `npx playwright test` en el mismo directorio.
+
+---
+
 ## 2026-09-30 · verificación en vivo del punto 5: modelos reales · construido · 54586b4
 
 - **Qué cambió:** con las claves reales de `GROQ_API_KEY` y `OPENROUTER_API_KEY` puestas en
