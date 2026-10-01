@@ -80,12 +80,17 @@ export type AgendaDeHoy = { manana: Tarea[]; vence: Vencimiento[] };
 export type Meta = { nombre: string; horizonte_meses: number | null; monto_mes: number; activa: boolean; activa_desde_pct: number | null };
 export type RevisionFria = { dia: string; hora: string; minutos: number | null };
 export type EntregaCobrada = { cliente: string; fecha: string; monto: number };
+// Lo que trajo cada línea de ingreso en el mes y los minutos que se le
+// dedicaron (forma C del plan): una por línea de config/plata.json.
+export type LineaDelMes = { id: string; nombre: string; cobrado_mes: number; minutos_mes: number };
 export type Plata = {
   semana: { cobrado: number; meta_semanal: number };
   mes: { cobrado: number; meta: number; faltan: number; entregas: EntregaCobrada[] };
   proximo: { cliente: string; fecha: string; monto: number } | null;
   metas: Meta[];
   revision_fria: RevisionFria | null;
+  // Sin definir mientras el núcleo no lo sirva.
+  por_linea?: LineaDelMes[];
 };
 export type RespuestaMensaje = { tipo: string; texto: string; voz: string; tarea: Tarea | null; sesion: Sesion | null };
 

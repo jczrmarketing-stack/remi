@@ -207,6 +207,13 @@ button { font: inherit; cursor: pointer; color: inherit; }
   .primero-en-telefono { order: -1; }
 }
 
+/* — Metas: el anillo al lado en escritorio, arriba en el teléfono — */
+
+.meta-card { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-6); align-items: center; }
+@media (max-width: 720px) {
+  .meta-card { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+}
+
 /* — FocusCard: el Reloj al lado en escritorio, arriba en el teléfono — */
 
 .foco-card {

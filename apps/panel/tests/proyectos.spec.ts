@@ -67,7 +67,7 @@ test("elegir otro proyecto muestra su camino y la última entrega cobrada", asyn
   await page.goto("/proyectos");
   await page.getByRole("button", { name: "BeaM: ver su camino" }).click();
   const camino = page.locator('section[aria-label="Camino de BeaM"]');
-  await expect(camino.getByText("Faltan 7 · última entrega cobrada: $500")).toBeVisible();
+  await expect(camino.getByText("Faltan 7 · última entrega cobrada: $400")).toBeVisible();
   await expect(camino.locator('li[aria-current="step"]')).toHaveText("Contrato");
   await expect(camino.getByRole("button", { name: "Seguir con contrato" })).toBeVisible();
 });

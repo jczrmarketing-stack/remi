@@ -96,7 +96,10 @@ const PLATA = {
     cobrado: 500,
     meta: 2400,
     faltan: 1900,
-    entregas: [{ cliente: "Beto", fecha: iso(-5 * 86400000), monto: 500 }],
+    entregas: [
+      { cliente: "Beto", fecha: iso(-5 * 86400000), monto: 400 },
+      { cliente: "Canal de Malik", fecha: iso(-2 * 86400000), monto: 100 },
+    ],
   },
   proximo: { cliente: "Alfonso", fecha: iso(3 * 86400000), monto: 1000 },
   // 500 de 2.400 = 21 %: la segunda meta todavía duerme (despierta al 50 %).
@@ -105,6 +108,11 @@ const PLATA = {
     { nombre: "Carro", horizonte_meses: 18, monto_mes: 1100, activa: false, activa_desde_pct: 50 },
   ],
   revision_fria: { dia: "viernes", hora: "16:30", minutos: 10 },
+  // Software: 400 en 2 h = 200 por hora. Malik: 100 en 2 h = 50 por hora.
+  por_linea: [
+    { id: "software", nombre: "Software (clientes)", cobrado_mes: 400, minutos_mes: 120 },
+    { id: "malik", nombre: "Malik (contenido)", cobrado_mes: 100, minutos_mes: 120 },
+  ],
 };
 
 // Lo que el núcleo deriva del camino: el hito encendido, hasta tres que
