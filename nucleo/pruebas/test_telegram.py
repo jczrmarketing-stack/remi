@@ -56,7 +56,9 @@ def test_arranca_hilo_cuando_hay_token(monkeypatch):
 
     monkeypatch.setattr(telegram.threading, "Thread", HiloFalso)
     telegram.arrancar_hilo()
-    assert arrancado["args"] == ("transporte-falso",)
+    transporte, seguir = arrancado["args"]
+    assert transporte == "transporte-falso"
+    assert callable(seguir)
     assert arrancado["daemon"] is True
     assert arrancado["iniciado"] is True
 
@@ -68,6 +70,49 @@ def test_remi_telegram_0_apaga_el_hilo_aunque_haya_token(monkeypatch):
         telegram.threading, "Thread", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no debía arrancar"))
     )
     telegram.arrancar_hilo()  # no revienta: no llegó a crear el hilo
+
+
+# — reiniciar_hilo: el gancho que llama conexiones.guardar() —
+
+
+def test_reiniciar_hilo_para_el_evento_viejo_y_arranca_uno_nuevo(monkeypatch):
+    monkeypatch.setattr(telegram, "token", lambda: "token-nuevo")
+    monkeypatch.setattr(telegram, "ClienteBotAPI", lambda tok: "transporte-falso")
+
+    class HiloFalso:
+        def __init__(self, target, args, daemon):
+            self.args = args
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(telegram.threading, "Thread", HiloFalso)
+
+    evento_viejo = telegram.threading.Event()
+    monkeypatch.setattr(telegram, "_evento_detener", evento_viejo)
+    assert not evento_viejo.is_set()
+
+    telegram.reiniciar_hilo()
+
+    assert evento_viejo.is_set()  # el polling de antes ya sabe que debe parar
+    assert telegram._evento_detener is not evento_viejo  # y hay uno nuevo para el hilo nuevo
+
+
+def test_reiniciar_hilo_sin_token_apaga_y_lo_dice(monkeypatch, capsys):
+    monkeypatch.setattr(telegram, "token", lambda: None)
+    monkeypatch.setattr(
+        telegram.threading, "Thread", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no debía arrancar"))
+    )
+    telegram.reiniciar_hilo()
+    assert "TELEGRAM_TOKEN" in capsys.readouterr().err
+
+
+def test_reiniciar_hilo_respeta_remi_telegram_0(monkeypatch):
+    monkeypatch.setenv("REMI_TELEGRAM", "0")
+    monkeypatch.setattr(
+        telegram.threading, "Thread", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no debía arrancar"))
+    )
+    telegram.reiniciar_hilo()  # no revienta: no llegó a tocar nada
 
 
 # — 1. chat ajeno ignorado —

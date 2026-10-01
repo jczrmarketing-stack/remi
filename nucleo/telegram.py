@@ -183,6 +183,21 @@ def escuchar(transporte: Transporte, seguir: Callable[[], bool] | None = None) -
                 print(f"[telegram] falló al procesar una actualización ({type(error).__name__}: {error})", file=sys.stderr, flush=True)
 
 
+# El evento de parada del hilo que está corriendo ahora, si hay uno.
+# `reiniciar_hilo()` lo usa para apagar el polling viejo al arrancar uno
+# nuevo, sin tocar el proceso del núcleo.
+_evento_detener: threading.Event | None = None
+
+
+def _iniciar_polling(tok: str) -> None:
+    global _evento_detener
+    evento = threading.Event()
+    _evento_detener = evento
+    transporte = ClienteBotAPI(tok)
+    hilo = threading.Thread(target=escuchar, args=(transporte, lambda: not evento.is_set()), daemon=True)
+    hilo.start()
+
+
 def arrancar_hilo() -> None:
     """Se llama desde el startup de servidor.py. Sin TELEGRAM_TOKEN, el bot
     no arranca y lo dice una vez; el núcleo sigue igual.
@@ -199,9 +214,26 @@ def arrancar_hilo() -> None:
         print("[telegram] sin TELEGRAM_TOKEN en nucleo/.env: el bot no arranca", file=sys.stderr, flush=True)
         return
 
-    transporte = ClienteBotAPI(tok)
-    hilo = threading.Thread(target=escuchar, args=(transporte,), daemon=True)
-    hilo.start()
+    _iniciar_polling(tok)
+
+
+def reiniciar_hilo() -> None:
+    """Para el polling viejo (si había uno) y arranca uno nuevo con el
+    token/chat_id de ahora — lo llama nucleo/conexiones.py al guardar
+    TELEGRAM_TOKEN o TELEGRAM_CHAT_ID desde el panel. El hilo viejo puede
+    tardar hasta TIMEOUT_POLLING_SEGUNDOS en notar el evento y salir —
+    está bien, el nuevo ya está sirviendo mientras tanto, y los dos con
+    el mismo token nunca duran más que eso superpuestos."""
+    if os.environ.get("REMI_TELEGRAM", "1") == "0":
+        return
+    if _evento_detener is not None:
+        _evento_detener.set()
+
+    tok = token()
+    if tok is None:
+        print("[telegram] sin TELEGRAM_TOKEN tras guardar: el bot queda apagado", file=sys.stderr, flush=True)
+        return
+    _iniciar_polling(tok)
 
 
 def en_silencio(ahora: datetime | None = None) -> bool:
