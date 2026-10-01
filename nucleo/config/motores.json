@@ -1,4 +1,17 @@
 {
   "$comment": "La trastienda: motores baratos/rápidos para resumen vivo, claves, títulos de episodios y consolidación nocturna — nunca la charla. Se leen en orden; si uno falla (sin responder, respuesta vacía, o rechazado por la verificación anti-invento de quien llama) se cae al siguiente. Ver pensar.trastienda() en nucleo/pensar.py.",
-  "trastienda": ["groq/openai/gpt-oss-120b", "openrouter/deepseek/deepseek-v4-flash", "ollama/gemma3:4b"]
+  "trastienda": ["groq/openai/gpt-oss-120b", "openrouter/deepseek/deepseek-v4-flash", "ollama/gemma3:4b"],
+  "charla": {
+    "$comment": "Los chips Groq y OpenRouter del dropdown de la ventanita: un id por nivel (rápido/equilibrio/inteligente), siempre un id real de GET /models (bitácora ad9506e), nunca a mano en pensar.py. Ver pensar._modelo_charla().",
+    "groq": {
+      "rapido": "openai/gpt-oss-20b",
+      "equilibrio": "openai/gpt-oss-120b",
+      "inteligente": "openai/gpt-oss-120b"
+    },
+    "openrouter": {
+      "rapido": "deepseek/deepseek-v4-flash",
+      "equilibrio": "deepseek/deepseek-v4-flash",
+      "inteligente": "deepseek/deepseek-v4-pro"
+    }
+  }
 }
