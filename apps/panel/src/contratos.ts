@@ -12,6 +12,8 @@ export interface Tarea {
   paso_minimo: string;
   estimado_min: number | null;
   real_min: number | null;
+  hora: string | null;
+  fecha_limite: ISODateString | null;
   compartible: boolean;
 }
 
@@ -23,6 +25,7 @@ export interface Idea {
   enfria_hasta: ISODateString;
   estado: "enfriando" | "lista" | "proyecto" | "soltada";
   problema_vision: number | null;
+  tema: string | null;
 }
 
 export interface Sesion {
@@ -61,5 +64,6 @@ export interface Entrega {
   fecha: ISODateString;
   monto: number | null;
   estado: "camino" | "entregada" | "pagada";
+  linea: string | null;
   compartible: boolean;
 }

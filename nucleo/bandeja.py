@@ -47,6 +47,7 @@ def _fila_a_idea(fila: sqlite3.Row) -> Idea:
         enfria_hasta=fila["enfria_hasta"],
         estado=fila["estado"],
         problema_vision=fila["problema_vision"],
+        tema=fila["tema"],
     )
 
 
@@ -108,14 +109,16 @@ def revisar(
         paso_minimo=PASO_MINIMO_INICIAL,
         estimado_min=None,
         real_min=None,
+        hora=None,
+        fecha_limite=None,
         compartible=False,
     )
     conexion.execute(
         """
-        INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible, hora, fecha_limite)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (str(tarea.id), tarea.titulo, None, tarea.estado, tarea.paso_minimo, None, None, 0),
+        (str(tarea.id), tarea.titulo, None, tarea.estado, tarea.paso_minimo, None, None, 0, None, None),
     )
     conexion.execute("UPDATE ideas SET estado = 'proyecto' WHERE id = ?", (str(idea.id),))
     conexion.commit()

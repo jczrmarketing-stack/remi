@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import db
+import plata
 from modelos import Entrega
 
 router = APIRouter(prefix="/entregas", tags=["entregas"])
@@ -76,8 +77,8 @@ def _proyecto_id_de_tema(tema: str | None) -> UUID:
 def crear_entrega(conexion: sqlite3.Connection, entrega: Entrega) -> None:
     conexion.execute(
         """
-        INSERT INTO entregas (id, cliente, proyecto_id, fecha, monto, estado, compartible)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO entregas (id, cliente, proyecto_id, fecha, monto, estado, compartible, linea)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(entrega.id),
@@ -87,6 +88,7 @@ def crear_entrega(conexion: sqlite3.Connection, entrega: Entrega) -> None:
             entrega.monto,
             entrega.estado,
             int(entrega.compartible),
+            entrega.linea,
         ),
     )
     conexion.commit()
@@ -100,6 +102,7 @@ def _fila_a_entrega(fila: sqlite3.Row) -> Entrega:
         fecha=datetime.fromisoformat(fila["fecha"]),
         monto=fila["monto"],
         estado=fila["estado"],
+        linea=fila["linea"],
         compartible=bool(fila["compartible"]),
     )
 
@@ -135,6 +138,9 @@ def actualizar_estado_entrega(conexion: sqlite3.Connection, entrega_id: UUID, es
 class CrearEntregaDesdeTexto(BaseModel):
     texto: str
     tema: str | None = None
+    # La línea de ingreso. Sin decirla, sale del libro (config/plata.json →
+    # `lineas`); un libro que no es de ninguna línea la deja en null.
+    linea: str | None = None
 
 
 @router.get("", response_model=list[Entrega])
@@ -183,6 +189,7 @@ def crear_desde_texto(cuerpo: CrearEntregaDesdeTexto) -> Entrega:
         fecha=parseada.fecha,
         monto=parseada.monto,
         estado="camino",
+        linea=cuerpo.linea or plata.linea_de_tema(cuerpo.tema),
         compartible=True,
     )
     conexion = db.conectar()

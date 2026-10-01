@@ -22,6 +22,8 @@ class Tarea(BaseModel):
     paso_minimo: str
     estimado_min: int | None
     real_min: int | None
+    hora: str | None
+    fecha_limite: datetime | None
     compartible: bool = False
 
 
@@ -35,6 +37,7 @@ class Idea(BaseModel):
     enfria_hasta: datetime
     estado: Literal["enfriando", "lista", "proyecto", "soltada"]
     problema_vision: int | None = Field(ge=1, le=6, default=None)
+    tema: str | None
 
 
 class Sesion(BaseModel):
@@ -81,4 +84,5 @@ class Entrega(BaseModel):
     fecha: datetime
     monto: float | None
     estado: Literal["camino", "entregada", "pagada"]
+    linea: str | None
     compartible: bool = True

@@ -20,7 +20,7 @@ let ideaFriaEstado = "enfriando";
 
 const HOY = [
   {
-    tarea: { id: TAREA_ID, titulo: "Terminar el flujo de distribución", proyecto_id: null, estado: "hoy", paso_minimo: "Cinco minutos.", estimado_min: null, real_min: null, compartible: false },
+    tarea: { id: TAREA_ID, titulo: "Terminar el flujo de distribución", proyecto_id: null, estado: "hoy", paso_minimo: "Cinco minutos.", estimado_min: null, real_min: null, hora: null, fecha_limite: null, compartible: false },
     sesiones: [{ id: SESION_ID, tarea_id: TAREA_ID, inicio: iso(-10 * 60000), fin: null, real_min: 0, app_contexto: "upvisuals" }],
     ultima_vez_min: 80,
   },
@@ -45,6 +45,12 @@ const PLATA = {
     entregas: [{ cliente: "Beto", fecha: iso(-5 * 86400000), monto: 500 }],
   },
   proximo: { cliente: "Alfonso", fecha: iso(3 * 86400000), monto: 1000 },
+  // 500 de 2.400 = 21 %: la segunda meta todavía duerme (despierta al 50 %).
+  metas: [
+    { nombre: "Vivir solo", horizonte_meses: 12, monto_mes: 2400, activa: true, activa_desde_pct: null },
+    { nombre: "Carro", horizonte_meses: 18, monto_mes: 1100, activa: false, activa_desde_pct: 50 },
+  ],
+  revision_fria: { dia: "viernes", hora: "16:30", minutos: 10 },
 };
 
 const LIBROS = [
@@ -87,8 +93,8 @@ function bandeja() {
   // Igual que bandeja.listar_abiertas: solo estado enfriando|lista queda
   // en la lista — soltada y proyecto salen.
   const todas = [
-    { idea: { id: IDEA_FRIA_ID, texto: "Automatizar las facturas", origen: "texto", creada_en: iso(-50 * 3600000), enfria_hasta: iso(-2 * 3600000), estado: ideaFriaEstado, problema_vision: null }, fria: ideaFriaEstado === "enfriando" },
-    { idea: { id: IDEA_TIBIA_ID, texto: "App de recetas con IA", origen: "texto", creada_en: iso(-10 * 3600000), enfria_hasta: iso(38 * 3600000), estado: "enfriando", problema_vision: null }, fria: false },
+    { idea: { id: IDEA_FRIA_ID, texto: "Automatizar las facturas", origen: "texto", creada_en: iso(-50 * 3600000), enfria_hasta: iso(-2 * 3600000), estado: ideaFriaEstado, problema_vision: null, tema: "omniway" }, fria: ideaFriaEstado === "enfriando" },
+    { idea: { id: IDEA_TIBIA_ID, texto: "App de recetas con IA", origen: "texto", creada_en: iso(-10 * 3600000), enfria_hasta: iso(38 * 3600000), estado: "enfriando", problema_vision: null, tema: null }, fria: false },
   ];
   return todas.filter((f) => f.idea.estado === "enfriando" || f.idea.estado === "lista");
 }
@@ -145,7 +151,7 @@ const servidor = createServer(async (req, res) => {
     if (cuerpo.decision === "soltar") ideaFriaEstado = "soltada";
     if (cuerpo.decision === "tarea") ideaFriaEstado = "proyecto";
     if (cuerpo.decision === "mantener") ideaFriaEstado = "enfriando";
-    return enviarJSON(res, 200, { idea: { id: IDEA_FRIA_ID, texto: "Automatizar las facturas", origen: "texto", creada_en: iso(-50 * 3600000), enfria_hasta: iso(-2 * 3600000), estado: ideaFriaEstado, problema_vision: null }, tarea: null });
+    return enviarJSON(res, 200, { idea: { id: IDEA_FRIA_ID, texto: "Automatizar las facturas", origen: "texto", creada_en: iso(-50 * 3600000), enfria_hasta: iso(-2 * 3600000), estado: ideaFriaEstado, problema_vision: null, tema: "omniway" }, tarea: null });
   }
   if (req.method === "POST" && ruta === "/mensaje") {
     const cuerpo = await leerCuerpo(req);

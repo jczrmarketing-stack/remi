@@ -16,6 +16,8 @@ def test_tarea_rechaza_campo_fuera_de_contrato():
             paso_minimo="voy a llamar al banco",
             estimado_min=None,
             real_min=None,
+            hora=None,
+            fecha_limite=None,
             compartible=False,
             urgente=True,  # campo inventado: no está en contratos.json
         )

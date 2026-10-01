@@ -82,3 +82,23 @@ def test_de_proyecto_sin_entrega_da_null(tmp_path, monkeypatch):
     respuesta = cliente.get(f"/entregas/de-proyecto/{_proyecto_id_de_tema('nada')}")
     assert respuesta.status_code == 200
     assert respuesta.json() is None
+
+
+# — J1 (Biblia v3.7): la línea de ingreso de una entrega —
+
+
+def test_la_entrega_nace_con_la_linea_de_su_libro(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    import plata
+
+    monkeypatch.setattr(plata, "linea_de_tema", lambda tema: {"upvisuals": "software"}.get(tema or ""))
+    cliente = TestClient(servidor.app)
+
+    con_libro = cliente.post("/entregas", json={"texto": "entrega para Alfonso el 18 de octubre por 5.000", "tema": "upvisuals"})
+    sin_libro = cliente.post("/entregas", json={"texto": "entrega para Beto el 20 de octubre por 300"})
+    a_mano = cliente.post("/entregas", json={"texto": "entrega para Malik el 22 de octubre por 200", "linea": "malik"})
+
+    assert con_libro.status_code == 201 and con_libro.json()["linea"] == "software"
+    assert sin_libro.json()["linea"] is None
+    assert a_mano.json()["linea"] == "malik"
+    assert [e["linea"] for e in cliente.get("/entregas").json()] == ["software", None, "malik"]

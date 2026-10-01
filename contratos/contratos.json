@@ -9,6 +9,8 @@
     "paso_minimo": "string",
     "estimado_min": "int|null",
     "real_min": "int|null",
+    "hora": "string|null",
+    "fecha_limite": "iso|null",
     "compartible": false
   },
   "Idea": {
@@ -18,7 +20,8 @@
     "creada_en": "iso",
     "enfria_hasta": "iso(+48h)",
     "estado": "enfriando|lista|proyecto|soltada",
-    "problema_vision": "1-6|null"
+    "problema_vision": "1-6|null",
+    "tema": "string|null"
   },
   "Sesion": {
     "id": "uuid",
@@ -53,6 +56,7 @@
     "fecha": "iso",
     "monto": "number|null",
     "estado": "camino|entregada|pagada",
+    "linea": "string|null",
     "compartible": true
   }
 }

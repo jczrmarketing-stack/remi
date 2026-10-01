@@ -48,7 +48,7 @@ def _idea(conexion, ahora: datetime, fria: bool) -> None:
     enfria_hasta = ahora - timedelta(hours=1) if fria else ahora + timedelta(hours=1)
     db.crear_idea(
         conexion,
-        Idea(id=uuid4(), texto="algo", origen="texto", creada_en=creada, enfria_hasta=enfria_hasta, estado="enfriando", problema_vision=None),
+        Idea(id=uuid4(), texto="algo", origen="texto", creada_en=creada, enfria_hasta=enfria_hasta, estado="enfriando", problema_vision=None, tema=None),
     )
 
 

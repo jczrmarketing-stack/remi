@@ -1,5 +1,14 @@
 {
-  "$comment": "Meta mensual de plata. nucleo/plata.py la lee de acá; Juan Camilo la cambia a mano.",
+  "$comment": "La plata de Remi. nucleo/plata.py la lee de acá. meta_mensual es el número de la primera meta (se cambia desde Ajustes); `metas` les pone nombre y horizonte, y la segunda duerme hasta que la primera pase de `activa_desde_pct` en el mes. `lineas` dice qué libros suman a cada línea de ingreso. `revision_fria` es cuándo se revisa la Bandeja en frío. Los nombres y montos salen del diseño del panel; Juan Camilo los cambia a mano.",
   "meta_mensual": 2400,
-  "moneda": "USD"
+  "moneda": "USD",
+  "metas": [
+    { "nombre": "Vivir solo", "horizonte_meses": 12 },
+    { "nombre": "Carro", "horizonte_meses": 18, "monto_mes": 1100, "activa_desde_pct": 50 }
+  ],
+  "lineas": [
+    { "id": "software", "nombre": "Software (clientes)", "temas": ["upvisuals", "beam", "shopify-cliente", "organic-cash"] },
+    { "id": "malik", "nombre": "Malik (contenido)", "temas": ["malik"] }
+  ],
+  "revision_fria": { "dia": "viernes", "hora": "16:30", "minutos": 10 }
 }

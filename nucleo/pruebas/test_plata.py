@@ -164,3 +164,114 @@ def _valores_string(obj):
             yield from _valores_string(v)
     elif isinstance(obj, str):
         yield obj
+
+
+# — J1 (Biblia v3.7): metas con nombre, la segunda dormida, revisión en frío —
+
+
+def _config(tmp_path, monkeypatch, contenido: dict) -> None:
+    import json
+
+    ruta = tmp_path / "plata.json"
+    ruta.write_text(json.dumps(contenido))
+    monkeypatch.setattr(plata, "RUTA_CONFIG", ruta)
+
+
+CONFIG_CON_METAS = {
+    "meta_mensual": 2400,
+    "moneda": "USD",
+    "metas": [
+        {"nombre": "Vivir solo", "horizonte_meses": 12},
+        {"nombre": "Carro", "horizonte_meses": 18, "monto_mes": 1100, "activa_desde_pct": 50},
+    ],
+    "lineas": [
+        {"id": "software", "nombre": "Software (clientes)", "temas": ["upvisuals", "beam"]},
+        {"id": "malik", "nombre": "Malik (contenido)", "temas": ["malik"]},
+    ],
+    "revision_fria": {"dia": "viernes", "hora": "16:30", "minutos": 10},
+}
+
+
+def test_la_primera_meta_lleva_nombre_y_el_numero_de_meta_mensual(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    _config(tmp_path, monkeypatch, CONFIG_CON_METAS)
+    import db
+
+    resultado = plata.calcular(db.conectar(), datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc))
+
+    primera = resultado.metas[0]
+    assert (primera.nombre, primera.horizonte_meses, primera.monto_mes, primera.activa) == ("Vivir solo", 12, 2400, True)
+
+
+def test_la_segunda_meta_duerme_hasta_que_la_primera_pasa_de_la_mitad(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    _config(tmp_path, monkeypatch, CONFIG_CON_METAS)
+    import db
+
+    ahora = datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc)
+    conexion = db.conectar()
+    _entrega(conexion, ahora - timedelta(days=2), 1000, "pagada")  # 41 % de 2.400
+
+    dormida = plata.calcular(conexion, ahora).metas[1]
+    assert (dormida.nombre, dormida.monto_mes, dormida.activa, dormida.activa_desde_pct) == ("Carro", 1100, False, 50)
+
+    _entrega(conexion, ahora - timedelta(days=1), 300, "pagada")  # 54 %
+    assert plata.calcular(conexion, ahora).metas[1].activa is True
+
+
+def test_sin_metas_en_la_config_queda_la_mensual_de_siempre(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    _config(tmp_path, monkeypatch, {"meta_mensual": 2400, "moneda": "USD"})
+    import db
+
+    resultado = plata.calcular(db.conectar(), datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc))
+
+    assert [(m.nombre, m.monto_mes, m.activa) for m in resultado.metas] == [("Meta mensual", 2400, True)]
+    assert resultado.revision_fria is None
+
+
+def test_una_meta_mal_escrita_se_salta_y_no_rompe_plata(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    _config(
+        tmp_path,
+        monkeypatch,
+        {"meta_mensual": 2400, "metas": [{"nombre": "Vivir solo"}, {"nombre": "Sin monto"}, "texto suelto", {"monto_mes": 5}]},
+    )
+    import db
+
+    resultado = plata.calcular(db.conectar(), datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc))
+
+    assert [m.nombre for m in resultado.metas] == ["Vivir solo"]
+
+
+def test_la_revision_en_frio_sale_de_la_config(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    _config(tmp_path, monkeypatch, CONFIG_CON_METAS)
+    import db
+
+    revision = plata.calcular(db.conectar(), datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc)).revision_fria
+
+    assert revision is not None
+    assert (revision.dia, revision.hora, revision.minutos) == ("viernes", "16:30", 10)
+
+
+def test_la_linea_de_un_libro_sale_de_la_config(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    _config(tmp_path, monkeypatch, CONFIG_CON_METAS)
+
+    assert plata.linea_de_tema("upvisuals") == "software"
+    assert plata.linea_de_tema("malik") == "malik"
+    # Remi y Omniway no son una línea de ingreso.
+    assert plata.linea_de_tema("remi") is None
+    assert plata.linea_de_tema(None) is None
+
+
+def test_la_config_real_del_repo_trae_metas_lineas_y_revision(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+
+    cuerpo = cliente.get("/plata").json()
+
+    assert cuerpo["metas"][0]["monto_mes"] == cuerpo["mes"]["meta"]
+    assert all(set(m) == {"nombre", "horizonte_meses", "monto_mes", "activa", "activa_desde_pct"} for m in cuerpo["metas"])
+    assert cuerpo["revision_fria"] is None or set(cuerpo["revision_fria"]) == {"dia", "hora", "minutos"}

@@ -9,7 +9,7 @@ import sys
 import threading
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from collections.abc import AsyncIterator
 from typing import Any, Literal
@@ -36,6 +36,7 @@ import pensar
 import plata
 import sembrar_conocimiento
 import telegram
+import temas
 import trabajo
 import tts
 from modelos import Idea, Memoria, Nudge, Sesion, Tarea
@@ -143,6 +144,19 @@ def para_hablar(texto: str) -> str:
 def frase_remi(titulo: str) -> str:
     """Voz de Remi: display-it, ≤20 palabras, sin exclamaciones, un paso pequeño (Ley 3, 4)."""
     return recortar_voz(f"Hoy solo esto: {titulo}.")
+
+
+def hoy_en_bogota(ahora: datetime | None = None) -> date:
+    """El día de Juan Camilo: «hoy» y «mañana» se cortan a medianoche de
+    Bogotá, no de UTC (el mismo corte que usan plata.py e iniciativa.py)."""
+    return (ahora or datetime.now(timezone.utc)).astimezone(plata.BOGOTA).date()
+
+
+def _dia_de(fecha: datetime) -> date:
+    """El día al que apunta una fecha guardada: las fechas de tareas y
+    entregas se guardan a las 00:00 UTC del día que nombran (ver
+    entregas.parsear_entrega), así que el día es el de su parte de fecha."""
+    return fecha.date()
 
 
 def formatear_duracion(minutos: int) -> str:
@@ -408,6 +422,8 @@ def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
         enfria_hasta=ahora + timedelta(hours=HORAS_DE_ENFRIAMIENTO),
         estado="enfriando",
         problema_vision=None,
+        # Sin IA: el libro que la frase nombra, o None (una idea suelta).
+        tema=temas.tema_de_texto(mensaje.texto),
     )
     conexion = db.conectar()
     try:
@@ -569,6 +585,8 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
         paso_minimo=paso_minimo,
         estimado_min=None,
         real_min=None,
+        hora=None,
+        fecha_limite=None,
         compartible=False,
     )
     sesion = Sesion(
@@ -628,6 +646,70 @@ def actualizar_estado(tarea_id: UUID, cuerpo: EstadoNuevo) -> Tarea:
             abierta = db.sesion_abierta_de_tarea(conexion, tarea_id)
             if abierta is not None:
                 db.cerrar_sesion(conexion, abierta)
+        return tarea
+    finally:
+        conexion.close()
+
+
+# «HH:MM» de 24 horas, hora de Bogotá. El panel la muestra como «3:00 p».
+PATRON_HORA = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+class TareaPlaneada(BaseModel):
+    """Algo que se anota para después, sin abrir un bloque: no hay sesión
+    ni reloj hasta que se arranque de verdad (ley 1: solo se mide lo que
+    se hizo)."""
+
+    titulo: str = Field(min_length=1)
+    hora: str | None = Field(default=None, pattern=PATRON_HORA)
+    # El día (YYYY-MM-DD). Se guarda como las fechas de Entrega: 00:00 UTC.
+    fecha_limite: date | None = None
+
+
+class AgendaNueva(BaseModel):
+    hora: str | None = Field(default=None, pattern=PATRON_HORA)
+    fecha_limite: date | None = None
+
+
+def _a_medianoche_utc(dia: date | None) -> datetime | None:
+    return datetime(dia.year, dia.month, dia.day, tzinfo=timezone.utc) if dia else None
+
+
+@app.post("/tarea", response_model=Tarea, status_code=201)
+def planear_tarea(cuerpo: TareaPlaneada) -> Tarea:
+    """Anota una tarea con su hora y su día, sin abrir bloque. Con fecha
+    futura nace en `camino` y aparece sola en Hoy cuando llega el día; sin
+    fecha, o con la de hoy, nace en `hoy`."""
+    hoy = hoy_en_bogota()
+    tarea = Tarea(
+        id=uuid4(),
+        titulo=cuerpo.titulo.strip(),
+        proyecto_id=None,
+        estado="camino" if cuerpo.fecha_limite is not None and cuerpo.fecha_limite > hoy else "hoy",
+        paso_minimo=PASO_MINIMO_INICIAL,
+        estimado_min=None,
+        real_min=None,
+        hora=cuerpo.hora,
+        fecha_limite=_a_medianoche_utc(cuerpo.fecha_limite),
+        compartible=False,
+    )
+    conexion = db.conectar()
+    try:
+        db.crear_tarea(conexion, tarea)
+    finally:
+        conexion.close()
+    return tarea
+
+
+@app.post("/tarea/{tarea_id}/agenda", response_model=Tarea)
+def fijar_agenda(tarea_id: UUID, cuerpo: AgendaNueva) -> Tarea:
+    """Fija la hora y el día de una tarea que ya existe. Lo que venga en
+    null se quita: mandar los dos en null la deja sin agenda."""
+    conexion = db.conectar()
+    try:
+        tarea = db.actualizar_agenda_tarea(conexion, tarea_id, cuerpo.hora, _a_medianoche_utc(cuerpo.fecha_limite))
+        if tarea is None:
+            raise HTTPException(status_code=404, detail="no existe esa tarea")
         return tarea
     finally:
         conexion.close()
@@ -857,7 +939,7 @@ def borrar_una_memoria(memoria_id: UUID) -> Response:
 def listar_hoy() -> list[TareaConHistorial]:
     conexion = db.conectar()
     try:
-        tareas = db.listar_tareas_hoy(conexion)
+        tareas = db.listar_tareas_hoy(conexion, hoy_en_bogota())
         return [
             TareaConHistorial(
                 tarea=tarea,
@@ -870,6 +952,59 @@ def listar_hoy() -> list[TareaConHistorial]:
         ]
     finally:
         conexion.close()
+
+
+class Vencimiento(BaseModel):
+    titulo: str
+    fecha: datetime
+    monto: float | None
+    origen: Literal["tarea", "entrega"]
+    # Solo habla de tiempo (ley 3): el día llegó. El panel lo pinta en
+    # `alerta`; nunca cuenta cuántos días pasaron.
+    vence_hoy: bool
+
+
+class AgendaDeHoy(BaseModel):
+    # Lo de mañana que conviene saber hoy («Mañana asoma: …»).
+    manana: list[Tarea]
+    # Lo que tiene fecha y sigue abierto: tareas y entregas, lo más cercano
+    # primero.
+    vence: list[Vencimiento]
+
+
+MAXIMO_VENCIMIENTOS = 5
+
+
+@app.get("/hoy/agenda", response_model=AgendaDeHoy)
+def agenda_de_hoy() -> AgendaDeHoy:
+    """Lo que la base sabe de fechas, para la pantalla Hoy. Va aparte de
+    GET /hoy para no cambiarle la forma a esa respuesta (la ventanita la
+    lee como lista)."""
+    hoy = hoy_en_bogota()
+    manana = hoy + timedelta(days=1)
+    conexion = db.conectar()
+    try:
+        con_fecha = db.listar_tareas_con_fecha(conexion)
+        pendientes = [e for e in entregas.listar_entregas(conexion) if e.estado != "pagada"]
+    finally:
+        conexion.close()
+    vence = [
+        Vencimiento(
+            titulo=t.titulo, fecha=t.fecha_limite, monto=None, origen="tarea", vence_hoy=_dia_de(t.fecha_limite) <= hoy
+        )
+        for t in con_fecha
+        if t.fecha_limite is not None
+    ] + [
+        Vencimiento(
+            titulo=f"Entrega {e.cliente}", fecha=e.fecha, monto=e.monto, origen="entrega", vence_hoy=_dia_de(e.fecha) <= hoy
+        )
+        for e in pendientes
+    ]
+    vence.sort(key=lambda v: v.fecha)
+    return AgendaDeHoy(
+        manana=[t for t in con_fecha if t.fecha_limite is not None and _dia_de(t.fecha_limite) == manana],
+        vence=vence[:MAXIMO_VENCIMIENTOS],
+    )
 
 
 class UltimaVez(BaseModel):
@@ -922,9 +1057,35 @@ def listar_bandeja() -> list[IdeaBandeja]:
     try:
         ahora = datetime.now(timezone.utc)
         return [
-            IdeaBandeja(idea=idea, fria=fria)
+            IdeaBandeja(idea=_con_tema(idea), fria=fria)
             for idea, fria in bandeja.listar_abiertas(conexion, ahora)
         ]
+    finally:
+        conexion.close()
+
+
+def _con_tema(idea: Idea) -> Idea:
+    """Las ideas de antes de la v3.7 no tienen tema guardado: se les lee
+    con la misma regla, sin escribirles nada (ninguna fila vieja cambia)."""
+    if idea.tema is not None:
+        return idea
+    return idea.model_copy(update={"tema": temas.tema_de_texto(idea.texto)})
+
+
+class TemaNuevo(BaseModel):
+    # None la deja suelta.
+    tema: str | None
+
+
+@app.post("/idea/{idea_id}/tema", response_model=Idea)
+def fijar_tema_de_idea(idea_id: UUID, cuerpo: TemaNuevo) -> Idea:
+    """Corrige a mano el libro de una idea, cuando la regla no acertó."""
+    conexion = db.conectar()
+    try:
+        idea = db.actualizar_tema_idea(conexion, idea_id, cuerpo.tema.strip() if cuerpo.tema and cuerpo.tema.strip() else None)
+        if idea is None:
+            raise HTTPException(status_code=404, detail="no tengo esa idea")
+        return idea
     finally:
         conexion.close()
 

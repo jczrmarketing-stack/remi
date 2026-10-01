@@ -77,7 +77,7 @@ def test_el_bloque_abierto_gana_al_ultimo_tocado(tmp_path, monkeypatch):
 
         tarea = Tarea(
             id=uuid4(), titulo="x", proyecto_id=None, estado="hoy",
-            paso_minimo="x", estimado_min=None, real_min=None, compartible=False,
+            paso_minimo="x", estimado_min=None, real_min=None, hora=None, fecha_limite=None, compartible=False,
         )
         db.crear_tarea(conexion, tarea)
         sesion = Sesion(

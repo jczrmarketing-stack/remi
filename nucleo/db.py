@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
@@ -32,7 +32,11 @@ CREATE TABLE IF NOT EXISTS tareas (
     paso_minimo TEXT NOT NULL,
     estimado_min INTEGER,
     real_min INTEGER,
-    compartible INTEGER NOT NULL
+    compartible INTEGER NOT NULL,
+    -- Agenda (Biblia v3.7): cuándo toca («HH:MM», hora de Bogotá) y cuándo
+    -- vence. Nulos en casi todas: una tarea no nace con hora.
+    hora TEXT,
+    fecha_limite TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sesiones (
@@ -54,7 +58,9 @@ CREATE TABLE IF NOT EXISTS ideas (
     creada_en TEXT NOT NULL,
     enfria_hasta TEXT NOT NULL,
     estado TEXT NOT NULL,
-    problema_vision INTEGER
+    problema_vision INTEGER,
+    -- El libro al que pertenece (Biblia v3.7). Nulo: una idea suelta.
+    tema TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nudges (
@@ -114,7 +120,9 @@ CREATE TABLE IF NOT EXISTS entregas (
     fecha TEXT NOT NULL,
     monto REAL,
     estado TEXT NOT NULL,
-    compartible INTEGER NOT NULL
+    compartible INTEGER NOT NULL,
+    -- La línea de ingreso (Biblia v3.7): «software», «malik»…
+    linea TEXT
 );
 
 -- Lo que las herramientas avisan solas (3d): un commit, un arranque o un
@@ -200,6 +208,12 @@ _COLUMNAS_NUEVAS = (
     ("memoria", "claves", "TEXT"),
     ("memoria", "nivel", "INTEGER"),
     ("turnos", "conversacion_id", "TEXT"),
+    # Biblia v3.7: lo que el panel pedía y la base no guardaba. Solo se
+    # agregan columnas; ninguna fila existente cambia.
+    ("tareas", "hora", "TEXT"),
+    ("tareas", "fecha_limite", "TEXT"),
+    ("ideas", "tema", "TEXT"),
+    ("entregas", "linea", "TEXT"),
 )
 
 
@@ -222,8 +236,8 @@ def conectar(ruta: Path | None = None) -> sqlite3.Connection:
 def crear_tarea(conexion: sqlite3.Connection, tarea: Tarea) -> None:
     conexion.execute(
         """
-        INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible, hora, fecha_limite)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(tarea.id),
@@ -234,6 +248,8 @@ def crear_tarea(conexion: sqlite3.Connection, tarea: Tarea) -> None:
             tarea.estimado_min,
             tarea.real_min,
             int(tarea.compartible),
+            tarea.hora,
+            tarea.fecha_limite.isoformat() if tarea.fecha_limite else None,
         ),
     )
     conexion.commit()
@@ -248,6 +264,8 @@ def _fila_a_tarea(fila: sqlite3.Row) -> Tarea:
         paso_minimo=fila["paso_minimo"],
         estimado_min=fila["estimado_min"],
         real_min=fila["real_min"],
+        hora=fila["hora"],
+        fecha_limite=fila["fecha_limite"],
         compartible=bool(fila["compartible"]),
     )
 
@@ -280,11 +298,48 @@ def leer_tarea(conexion: sqlite3.Connection, tarea_id: UUID) -> Tarea | None:
     return _fila_a_tarea(fila) if fila else None
 
 
-def listar_tareas_hoy(conexion: sqlite3.Connection) -> list[Tarea]:
+def listar_tareas_hoy(conexion: sqlite3.Connection, hoy: date | None = None) -> list[Tarea]:
+    """Las de estado `hoy`. Con `hoy` (la fecha de Bogotá), también las de
+    `camino` cuya fecha ya llegó: lo que se anotó «para mañana» aparece
+    solo cuando es mañana, sin que nadie le cambie el estado.
+
+    Primero las que tienen hora, en orden de reloj; después el resto, como
+    entraron."""
+    if hoy is None:
+        filas = conexion.execute(
+            "SELECT * FROM tareas WHERE estado = 'hoy' ORDER BY (hora IS NULL), hora, rowid"
+        ).fetchall()
+    else:
+        filas = conexion.execute(
+            "SELECT * FROM tareas WHERE estado = 'hoy' "
+            "OR (estado = 'camino' AND fecha_limite IS NOT NULL AND substr(fecha_limite, 1, 10) <= ?) "
+            "ORDER BY (hora IS NULL), hora, rowid",
+            (hoy.isoformat(),),
+        ).fetchall()
+    return [_fila_a_tarea(fila) for fila in filas]
+
+
+def listar_tareas_con_fecha(conexion: sqlite3.Connection) -> list[Tarea]:
+    """Lo que tiene fecha y sigue abierto, lo más cercano primero. De acá
+    salen «Mañana asoma» y «Vence» del panel."""
     filas = conexion.execute(
-        "SELECT * FROM tareas WHERE estado = 'hoy' ORDER BY rowid"
+        "SELECT * FROM tareas WHERE estado != 'hecha' AND fecha_limite IS NOT NULL "
+        "ORDER BY fecha_limite, rowid"
     ).fetchall()
     return [_fila_a_tarea(fila) for fila in filas]
+
+
+def actualizar_agenda_tarea(
+    conexion: sqlite3.Connection, tarea_id: UUID, hora: str | None, fecha_limite: datetime | None
+) -> Tarea | None:
+    """Fija (o quita, con None) la hora y la fecha de una tarea. None si no
+    existe. Los dos valores ya vienen validados por el endpoint."""
+    conexion.execute(
+        "UPDATE tareas SET hora = ?, fecha_limite = ? WHERE id = ?",
+        (hora, fecha_limite.isoformat() if fecha_limite else None, str(tarea_id)),
+    )
+    conexion.commit()
+    return leer_tarea(conexion, tarea_id)
 
 
 # — La Bandeja: lo suelto entra acá y enfría 48 h (ley 6) —
@@ -293,8 +348,8 @@ def listar_tareas_hoy(conexion: sqlite3.Connection) -> list[Tarea]:
 def crear_idea(conexion: sqlite3.Connection, idea: Idea) -> None:
     conexion.execute(
         """
-        INSERT INTO ideas (id, texto, origen, creada_en, enfria_hasta, estado, problema_vision)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO ideas (id, texto, origen, creada_en, enfria_hasta, estado, problema_vision, tema)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(idea.id),
@@ -304,6 +359,7 @@ def crear_idea(conexion: sqlite3.Connection, idea: Idea) -> None:
             idea.enfria_hasta.isoformat(),
             idea.estado,
             idea.problema_vision,
+            idea.tema,
         ),
     )
     conexion.commit()
@@ -318,7 +374,16 @@ def _fila_a_idea(fila: sqlite3.Row) -> Idea:
         enfria_hasta=fila["enfria_hasta"],
         estado=fila["estado"],
         problema_vision=fila["problema_vision"],
+        tema=fila["tema"],
     )
+
+
+def actualizar_tema_idea(conexion: sqlite3.Connection, idea_id: UUID, tema: str | None) -> Idea | None:
+    """A qué libro pertenece la idea (None = suelta). None si no existe."""
+    conexion.execute("UPDATE ideas SET tema = ? WHERE id = ?", (tema, str(idea_id)))
+    conexion.commit()
+    fila = conexion.execute("SELECT * FROM ideas WHERE id = ?", (str(idea_id),)).fetchone()
+    return _fila_a_idea(fila) if fila else None
 
 
 def listar_ideas(conexion: sqlite3.Connection) -> list[Idea]:

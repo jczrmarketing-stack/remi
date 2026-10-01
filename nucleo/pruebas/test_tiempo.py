@@ -55,6 +55,8 @@ def test_suma_claude_y_el_bloque_de_remi(tmp_path, monkeypatch) -> None:
             paso_minimo="un paso",
             estimado_min=None,
             real_min=None,
+            hora=None,
+            fecha_limite=None,
             compartible=False,
         )
         db.crear_tarea(conexion, tarea)

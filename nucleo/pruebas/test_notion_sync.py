@@ -183,6 +183,7 @@ def test_solo_de_ida_no_lee_el_estado_de_la_entrega_por_defecto(monkeypatch, tmp
         fecha=datetime.now(timezone.utc),
         monto=5000.0,
         estado="camino",
+        linea=None,
         compartible=True,
     )
     entregas.crear_entrega(conexion, entrega)
@@ -269,6 +270,7 @@ def test_entrega_compartible_se_crea_y_el_estado_vuelve_desde_notion(monkeypatch
         fecha=datetime.now(timezone.utc),
         monto=5000.0,
         estado="camino",
+        linea=None,
         compartible=True,
     )
     entregas.crear_entrega(conexion, entrega)

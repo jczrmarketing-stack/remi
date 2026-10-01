@@ -109,6 +109,7 @@ def _anotar_sin_ficha(ruta: str, ahora: datetime) -> bool:
                 enfria_hasta=ahora + timedelta(hours=HORAS_DE_ENFRIAMIENTO),
                 estado="enfriando",
                 problema_vision=None,
+                tema=None,
             ),
         )
     finally:
