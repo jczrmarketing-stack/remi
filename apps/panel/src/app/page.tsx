@@ -199,11 +199,7 @@ function SinNadaAbierto({ plata }: { plata: import("@/lib/nucleo").Plata }) {
   async function empezar() {
     if (!plata.proximo) return;
     await nucleo.cerrarBloque().catch(() => undefined); // por si quedó algo colgado
-    await fetch(`${(await import("@/config")).URL_NUCLEO}/mensaje`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texto: `entrega de ${plata.proximo.cliente}` }),
-    });
+    await nucleo.abrirDesdeTexto(`entrega de ${plata.proximo.cliente}`);
     location.reload();
   }
   return (

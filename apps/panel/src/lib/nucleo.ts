@@ -1,11 +1,12 @@
 // Cliente del núcleo: fetch simples contra las rutas reales de servidor.py.
-// Nada de mocks acá — tests/ trae su propio núcleo falso para Playwright,
-// apuntado con NEXT_PUBLIC_URL_NUCLEO (nunca usado en producción: ahí
-// manda config/nucleo.json vía src/config.ts, generado).
-import { URL_NUCLEO } from "@/config";
+// Nada de mocks acá — tests/ trae su propio núcleo falso para Playwright.
+// En producción, "/nucleo" es mismo origen: next.config.mjs reenvía
+// /nucleo/:path* al núcleo real (127.0.0.1:puerto, de config/nucleo.json),
+// cabeceras incluidas — así el panel sirve desde el teléfono sin CORS ni la
+// IP del Mac a mano. NEXT_PUBLIC_URL_NUCLEO solo manda en Playwright.
 import type { Entrega, Idea, Nudge, Sesion, Tarea } from "@/contratos";
 
-const BASE = process.env.NEXT_PUBLIC_URL_NUCLEO || URL_NUCLEO;
+const BASE = process.env.NEXT_PUBLIC_URL_NUCLEO || "/nucleo";
 
 export class NucleoApagado extends Error {
   status?: number;
@@ -90,6 +91,9 @@ export const nucleo = {
 
   cerrarBloque: () =>
     pedir<RespuestaMensaje>("/mensaje", { method: "POST", body: JSON.stringify({ texto: "listo" }) }),
+
+  abrirDesdeTexto: (texto: string) =>
+    pedir<RespuestaMensaje>("/mensaje", { method: "POST", body: JSON.stringify({ texto }) }),
 
   pasoMinimo: (tareaId: string, paso_minimo: string) =>
     pedir<Tarea>(`/tarea/${tareaId}/paso-minimo`, { method: "POST", body: JSON.stringify({ paso_minimo }) }),
