@@ -20,6 +20,69 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · El camino de cada proyecto sale del SOP (Encargo H) · construido · 09caf9c
+
+- **Qué cambió:** 4 commits, uno por punto, más dos commits en remi-mente al sembrar.
+  1. `nucleo/caminos.py`: `PASOS_PROPIO` (7 hitos, SOP §A) y `PASOS_CLIENTE` (10 hitos, SOP
+     §B), a mano desde `oficios/proyectos-sop.md` — no leído en caliente, la bóveda es datos,
+     no código. `plantilla_de()`, `bloque_camino_de()`, `paso_remi_de()` (qué hace Remi en
+     cada paso, del bloque «Lo que Remi hace en cada paso» del SOP), `marcar_por_indice()`
+     (toggle bidireccional por posición). `nucleo/libros.py`: `Fase` (dataclass) y
+     `Libro.tipo`/`Libro.fases`; `_fases_de()` aísla solo el bloque `fases:` del frontmatter y
+     lo parsea con `yaml.safe_load()` — el resto del frontmatter sigue con el parser a mano
+     porque `resumen`/`titulo` traen dos puntos sueltos que rompen YAML real (confirmado
+     contra remi.md, shopify-cliente.md, beam.md). `pyyaml` pasa a dependencia directa.
+  2. `nucleo/servidor.py`: `LibroVisible` suma `tipo`, `fases`, `hito_actual`, `siguientes`
+     (hasta 3) y `paso_remi`; refactor a `_libro_visible()` compartido. `GET /libros/{tema}`
+     nueva (`LibroDetalle`): Estado completo + último episodio (`_ultimo_episodio_de`, por
+     nombre de archivo ya que empieza con la fecha); 404 si el tema no existe.
+  3. `scripts/sembrar_camino.py` (nuevo, fuera de `nucleo/` — agrega `nucleo/` a `sys.path`):
+     por cada libro sin `## Camino`, pregunta el tipo si el frontmatter no lo dice (nunca lo
+     adivina) y agrega los hitos de esa plantilla, nada más del archivo. Dry-run por defecto;
+     `--escribir` hace el commit real en la bóveda, uno por libro.
+  4. `POST /libros/{tema}/camino/{n}` (1-indexed, `hecho: true|false`): edita solo esa línea
+     vía `marcar_por_indice()`, con `snapshot_antes`/`snapshot_despues`. 404 si no existe el
+     tema o `n` está fuera de rango.
+  - 25 pruebas nuevas (`test_caminos.py`, `test_libros.py`, `test_libros_ruta.py`); 495 de
+    `nucleo/` en verde, mypy limpio (83 módulos).
+- **Decisiones que tomé sin preguntar:**
+  1. Los 3 commits de servidor.py/tests (puntos 2 y 4) se escribieron primero como una sola
+     edición; los separé reconstruyendo a mano la versión intermedia (sin el bloque POST) para
+     poder cumplir «un commit por punto» igual, en vez de aplanarlos en uno solo.
+  2. `_ultimo_episodio_de()` saca las comillas de `titulo`/`resumen` (`cierre.py`/
+     `episodios.py` los escriben entre comillas; `libros._frontmatter()` no las saca) — scope
+     acotado a esta función nueva, no toqué el parser compartido.
+  3. Para los 5 pasos de §A sin un «Remi hace» explícito en el SOP (Bandeja 48h, Revisión en
+     frío, Biblia corta), el texto de `paso_remi` es una extensión razonable de las leyes 2 y
+     6, documentada como tal en el comentario — no una cita literal del SOP.
+- **Dudas abiertas:**
+  - Ninguno de los 7 libros reales tenía `tipo:`/`fases:` en el frontmatter todavía — la
+    restricción de «la bóveda solo se edita vía el script del punto 3, y solo agrega» significa
+    que `fases` viene vacío en todos por ahora. `GET /libros/upvisuals` no trae las dos fases
+    reales (USD 5.000 / USD 3.700) hasta que alguien agregue `fases:` a mano al libro.
+- **Verificado en vivo:**
+  - `uv run --project nucleo python scripts/sembrar_camino.py` (dry-run) contra
+    `remi-mente/proyectos`: listó los 7 libros reales sin camino.
+  - El tipo de beam y malik no era obvio del libro solo (ninguno dice «cliente de X» ni «mi
+    propio producto» explícito); se lo pregunté a Juan Camilo en vez de adivinar — dijo
+    beam=cliente, malik=propio. Los otros 5 (organic-cash, omniway, remi=propio;
+    shopify-cliente, upvisuals=cliente) salían del título/resumen sin ambigüedad.
+  - `--escribir` con los 7 tipos: sembró los 7, un commit por libro en remi-mente (`4f95414` …
+    `0175259`).
+  - `scripts/actualizar.sh`: reinstaló con el commit de H punto 4; `doctor.sh` → 10/10 OK.
+  - `GET /libros/upvisuals` en vivo: 10 hitos (tipo cliente), `hito_actual` = «Intake»,
+    `siguientes` trae los 3 que siguen, `paso_remi` = «Arma la lectura y las preguntas.»
+  - `POST /libros/upvisuals/camino/1 {"hecho": true}`: marcó `- [x] Intake` en el archivo real
+    y dejó un commit en remi-mente (`2c21a61`); lo volví a `{"hecho": false}` después de
+    confirmar, para no dejar un marcado falso en la bóveda real (otro commit, `09caf9c`) — las
+    dos escrituras quedan en el historial, append-only, no se revierten con `git reset`.
+- **Cómo probarlo a mano:**
+  - `curl -s 127.0.0.1:4400/libros/upvisuals | python3 -m json.tool`
+  - `curl -s -X POST 127.0.0.1:4400/libros/upvisuals/camino/3 -d '{"hecho": true}'`
+  - `cd nucleo && uv run python ../scripts/sembrar_camino.py` (dry-run, sin tocar nada)
+
+---
+
 ## 2026-09-30 · Chips Groq y OpenRouter en la charla · construido · a5e87c5
 
 - **Qué cambió:** `config/motores.json` suma una sección `charla` (un id real por nivel
