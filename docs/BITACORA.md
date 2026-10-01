@@ -108,6 +108,52 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-09-30 · merge f-panel + f-telegram (reporte nocturno) · construido · 4aba7bb
+
+- **Qué cambió:** dos merges a `main`, sin squash, pytest completo después de cada uno:
+  1. `1a320ac` **f-panel** (`apps/panel`: Next.js 15 + PWA, Hoy/Proyectos/Metas/Bandeja/
+     Ajustes, lectura biónica; `nucleo/plata.py` con `GET /plata`). Se automergeó limpio, sin
+     un solo conflicto — ni en `docs/BITACORA.md` ni en el `import plata` de
+     `nucleo/servidor.py` (quedó en su lugar alfabético, entre `pensar` y
+     `sembrar_conocimiento`, sin tocar nada a mano). 413 pytest después del merge.
+  2. `4aba7bb` **f-telegram** (reporte de la noche: `noche.py` compara el HEAD de la bóveda al
+     arrancar contra el de ahora, arma «Anoche cambié N libros» con hasta 3 diffs cortos, y lo
+     manda por `POST /telegram/avisar` con `urgente: true`). Conflicto solo en
+     `docs/BITACORA.md` (append-only, combiné las dos listas); `nucleo/servidor.py` esta vez
+     ni apareció en el diff de la rama — no hubo nada que resolver ahí. 427 pytest después.
+  mypy limpio (78 módulos), 86 vitest (`apps/ventanita`, sin cambios ahí), `tsc --noEmit`
+  limpio en `apps/panel`.
+- **Panel en vivo:** `npm install` + `npm run dev` en `apps/panel` (puerto 4402, contra el
+  núcleo real de 4400, sin `NEXT_PUBLIC_URL_NUCLEO` — ese es solo para Playwright). Las
+  cuatro rutas (`/`, `/proyectos`, `/bandeja`, `/metas`) devolvieron 200 y el log del núcleo
+  mostró `GET /hoy` y `GET /nudges/pendiente` en 200: Hoy carga de verdad contra datos reales,
+  no el núcleo falso de las pruebas. Playwright (`npx playwright test`, su propio núcleo falso
+  en 4498 + build+start del panel en 4403, aislado de todo lo anterior): **10/10 en verde**.
+  Apagué el panel manual al terminar — no es un servicio de `launchd`, no tenía por qué seguir
+  corriendo.
+- **`scripts/actualizar.sh`:** corrió sobre `4aba7bb`; el log confirma «Instalada la de:
+  4aba7bb merge: f-telegram (reporte de la noche) en main». `launchctl list | grep com.remi`
+  muestra `com.remi.nucleo` y `com.remi.notion` con PID activo, y `com.remi.noche` /
+  `com.remi.vigia` cargados sin PID — es lo esperado: `noche` es
+  `StartCalendarInterval` (solo a las 4:00) y `vigia` es `StartInterval=60` (corre y sale),
+  ninguno de los dos es un daemon persistente. `tail -5` del log del núcleo: sin `Traceback`
+  ni `409`, solo warnings de carga de Kokoro/torch (preexistentes, no nuevos). `GET /salud` →
+  `{"ok": true, "db": true}`.
+- **Decisiones que tomé sin preguntar:**
+  1. Lancé el panel con `npm run dev` en segundo plano (no `next build && next start`): el
+     encargo pedía «arrancarlo y abrir», no un build de producción — y Playwright ya trae su
+     propio build+start aislado para las pruebas.
+  2. Interpreté «vivos» en el chequeo de `launchctl list` como «cargados en la lista», no
+     «con un proceso corriendo ahora mismo»: `noche` y `vigia` nunca van a mostrar un PID
+     fuera de su ventana (4:00 AM / cada 60 s que dura el chequeo), eso no es una falla.
+- **Dudas abiertas:** ninguna de este encargo. Quedan las ya anotadas en entradas anteriores
+  (Notion con `NOTION_VUELTA` apagada, docs con «Kimi K2» desactualizado).
+- **Cómo probarlo a mano:** `git log --oneline -3` → `4aba7bb`, `1a320ac`; `cd nucleo && uv
+  run pytest -q && uv run mypy .`; `cd ../apps/panel && npm run dev` y abrir
+  `http://127.0.0.1:4402`; `npx playwright test` en el mismo directorio.
+
+---
+
 ## 2026-09-30 · verificación en vivo del punto 5: modelos reales · construido · 54586b4
 
 - **Qué cambió:** con las claves reales de `GROQ_API_KEY` y `OPENROUTER_API_KEY` puestas en
@@ -375,6 +421,54 @@ Formato de una entrada construida:
 - **Cómo probarlo a mano:** `cd nucleo && uv run pytest pruebas/test_pensar.py
   pruebas/test_bandeja.py -v`; con `DEEPSEEK_API_KEY` real en `nucleo/.env`,
   `curl -s 127.0.0.1:4400/pensar/motores | jq` debe listar `deepseek` con `disponible: true`.
+
+---
+
+## 2026-09-30 · Fase 4 Telegram · reporte de la noche · construido · e74fb7a
+
+- **Qué cambió:** el cuarto punto de la Fase 4 pasa a ser el reporte de la noche —
+  reemplaza la entrega por voz con Whisper, descartada por Milo. `nucleo/noche.py`:
+  `_head_git()` toma el HEAD de la bóveda (`boveda_git.raiz()`) al arrancar `correr()`;
+  `diff_de_la_noche(referencia)` compara ese HEAD contra el de ahora, restringido a
+  `libros.carpeta()`, y devuelve `[(libro, diff_corto)]` — el nombre es el título del libro
+  si todavía se puede leer, o el nombre de archivo si se borró; `_recortar_diff()` arranca
+  desde el primer `@@` (el hunk real, no la cabecera de `git diff`) y corta a 8 líneas;
+  `enviar_reporte_de_la_noche()` hace `POST /telegram/avisar` con `urgente: true` y el texto
+  armado y, si falla, lo anota en stderr sin tumbar la consolidación. `nucleo/telegram.py`:
+  `mensaje_reporte_noche()`, el formato — «Anoche cambié N libros» con hasta 3 diffs, «y M
+  más» si sobran, o literalmente «Anoche no toqué nada» sin cambios. Los cuatro pasos de
+  `correr()` quedan en cinco. `nucleo/pruebas/test_noche.py` y `test_telegram.py`: 21
+  pruebas nuevas, con un repo git de fixture (`git init` en `tmp_path`, nunca contra la
+  `remi-mente` real).
+- **Decisiones que tomé sin preguntar:**
+  1. El diff se recorta desde el primer `@@`, no desde el principio crudo de `git diff`: las
+     4 líneas de cabecera (`diff --git`, `index`, `---`, `+++`) se comían el cambio real
+     dentro del límite de 8 líneas — lo probé con la fixture antes de decidirlo.
+  2. Mandé el aviso por `httpx.post` a `POST /telegram/avisar` (la URL sale de
+     `config/nucleo.json`, mismo archivo que lee `servidor.py`) en vez de llamar
+     `telegram.avisar()` en proceso: `noche.py` corre como script aparte (`uv run python
+     noche.py` desde `scripts/noche.sh`), no dentro del servidor — no hay garantía de que
+     comparta el mismo proceso que el hilo de Telegram.
+  3. El HEAD de referencia se toma **al arrancar** `correr()`, antes de los otros cuatro
+     pasos — así el reporte es «lo que tocó esta corrida», no un acumulado de corridas
+     anteriores.
+  4. `urgente: true` en el `POST`: la consolidación corre a las 4:00, dentro del silencio
+     23:00–7:00 de `avisar()`; con `urgente=false` (el default de `AvisoSaliente`) el reporte
+     se habría descartado en silencio, siempre, sin excepción — no hay cola ni reintento, así
+     que habría sido letra muerta. `urgente` acá no es «suena la alarma»: es «no lo tires»;
+     igual llega calladito al teléfono y espera a que Juan Camilo lo abra de mañana.
+- **Dudas abiertas:**
+  1. Igual que con `/telegram/avisar` en general (ver la entrada de `830f5ab`): no lo probé
+     contra el bot real ni contra la `remi-mente` real, solo con la fixture de git. Si el
+     núcleo (`servidor.py`) no está corriendo a las 4:00, el `POST` falla y solo queda en
+     `noche.log` — no hay reintento.
+- **Cómo probarlo a mano:**
+  1. `cd nucleo && uv run pytest -q pruebas/test_noche.py pruebas/test_telegram.py` — verde.
+  2. `cd nucleo && uv run pytest -q && uv run mypy .` — 350 pruebas y mypy en verde (puede
+     variar ±4 según si Ollama está corriendo: `test_vectores.py` se salta si no).
+  3. Con el núcleo corriendo (`uv run python servidor.py`) y `TELEGRAM_TOKEN`/`CHAT_ID`
+     configurados, `cd nucleo && uv run python noche.py` sin episodios de hoy — llega
+     «Anoche no toqué nada» al teléfono aunque sean las 4:00.
 
 ---
 
