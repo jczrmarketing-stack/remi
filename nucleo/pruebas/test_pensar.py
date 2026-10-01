@@ -465,95 +465,140 @@ def test_la_clave_de_venice_no_se_exporta_a_la_cli_de_claude(monkeypatch, tmp_pa
     assert "VENICE_API_KEY" not in pensar._entorno()
 
 
-# — El motor de DeepSeek —
+# — Los chips de charla: Groq y OpenRouter —
 
 
-def test_deepseek_sin_clave_sigue_sin_ia(monkeypatch, tmp_path):
+def _motores_json_de_prueba(tmp_path):
+    ruta = tmp_path / "motores.json"
+    ruta.write_text(
+        json.dumps(
+            {
+                "charla": {
+                    "groq": {"rapido": "groq-rapido", "equilibrio": "groq-equilibrio", "inteligente": "groq-inteligente"},
+                    "openrouter": {"rapido": "or-rapido", "equilibrio": "or-equilibrio", "inteligente": "or-inteligente"},
+                }
+            }
+        )
+    )
+    return ruta
+
+
+def test_groq_sin_clave_sigue_sin_ia(monkeypatch, tmp_path):
     pensar = _importar_pensar()
-    monkeypatch.setenv("REMI_PENSADOR", "deepseek")
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setenv("REMI_PENSADOR", "groq")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", _motores_json_de_prueba(tmp_path))
     monkeypatch.setattr(pensar, "_indice", lambda: [])
     assert pensar.pensar("algo") is None
 
 
-def test_deepseek_nunca_es_el_motor_por_defecto(monkeypatch, tmp_path):
+def test_openrouter_sin_clave_sigue_sin_ia(monkeypatch, tmp_path):
     pensar = _importar_pensar()
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave-de-prueba")
+    monkeypatch.setenv("REMI_PENSADOR", "openrouter")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", _motores_json_de_prueba(tmp_path))
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    assert pensar.pensar("algo") is None
+
+
+def test_ni_groq_ni_openrouter_son_el_motor_por_defecto(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("GROQ_API_KEY", "clave-de-prueba")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "clave-de-prueba")
     monkeypatch.delenv("REMI_PENSADOR", raising=False)
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
     assert pensar.motor() == "claude"
 
 
-def test_deepseek_lee_el_texto_y_los_tokens(monkeypatch, tmp_path):
+def test_groq_lee_el_texto_y_los_tokens_con_ms_en_el_log(monkeypatch, tmp_path, capsys):
     pensar = _importar_pensar()
-    monkeypatch.setenv("REMI_PENSADOR", "deepseek")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave-de-prueba")
-    monkeypatch.setenv("REMI_DEEPSEEK_MODELO", "modelo-x")
+    monkeypatch.setenv("REMI_PENSADOR", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "clave-de-prueba")
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", _motores_json_de_prueba(tmp_path))
     monkeypatch.setattr(pensar, "_indice", lambda: [])
     visto = {}
 
-    def falsa_llamada(clave, nombre_modelo, instrucciones, frase):
-        visto.update(clave=clave, modelo=nombre_modelo, instrucciones=instrucciones, frase=frase)
+    def falsa_llamada(url, clave, nombre_modelo, instrucciones, frase, timeout):
+        visto.update(url=url, clave=clave, modelo=nombre_modelo, instrucciones=instrucciones, frase=frase)
         return {
-            "model": "modelo-x-1-2",
+            "model": "groq-equilibrio-real",
             "choices": [{"message": {"content": "  Abrí el correo y respondé el primero.  "}}],
             "usage": {"prompt_tokens": 1578, "completion_tokens": 9},
         }
 
-    monkeypatch.setattr(pensar, "_llamar_deepseek", falsa_llamada)
+    monkeypatch.setattr(pensar, "_llamar_openai_compatible", falsa_llamada)
     pensado = pensar.pensar("tengo el correo lleno")
     assert pensado is not None
     assert pensado.paso_minimo == "Abrí el correo y respondé el primero."
     assert (pensado.tokens_entrada, pensado.tokens_salida) == (1578, 9)
-    assert pensado.modelo == "deepseek/modelo-x-1-2"
+    assert pensado.modelo == "groq/groq-equilibrio-real"
+    assert pensado.motor_usado == "groq"
     assert pensado.leyo_memoria is False
-    assert visto["clave"] == "clave-de-prueba" and visto["modelo"] == "modelo-x"
+    assert visto["clave"] == "clave-de-prueba"
+    assert visto["modelo"] == "groq-equilibrio"  # el del nivel «equilibrio» por defecto
+    assert visto["url"] == pensar.PROVEEDORES_TRASTIENDA["groq"][0]
     assert visto["frase"] == "tengo el correo lleno"
     assert visto["instrucciones"].startswith(pensar.caracter()[:40])
+    assert "[groq] modelo=groq/groq-equilibrio-real ms=" in capsys.readouterr().err
 
 
-def test_deepseek_el_chip_elige_entre_flash_y_pro(monkeypatch, tmp_path):
+def test_openrouter_el_nivel_elige_el_modelo_del_json(monkeypatch, tmp_path):
     pensar = _importar_pensar()
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave-de-prueba")
-    monkeypatch.setenv("REMI_DEEPSEEK_MODELO", "modelo-x")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "clave-de-prueba")
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", _motores_json_de_prueba(tmp_path))
     monkeypatch.setattr(pensar, "_indice", lambda: [])
     visto = {}
 
-    def falsa_llamada(clave, nombre_modelo, instrucciones, frase):
+    def falsa_llamada(url, clave, nombre_modelo, instrucciones, frase, timeout):
         visto["modelo"] = nombre_modelo
         return {"model": nombre_modelo, "choices": [{"message": {"content": "Listo."}}], "usage": {}}
 
-    monkeypatch.setattr(pensar, "_llamar_deepseek", falsa_llamada)
-    pensar.pensar("cómo funciona", "deepseek", modelo_deepseek="deepseek-v4-pro")
-    assert visto["modelo"] == "deepseek-v4-pro"
-    pensar.pensar("cómo funciona", "deepseek", modelo_deepseek="deepseek-flash")
-    assert visto["modelo"] == "deepseek-flash"
-    pensar.pensar("cómo funciona", "deepseek", modelo_deepseek="otro")
-    assert visto["modelo"] == "modelo-x"
+    monkeypatch.setattr(pensar, "_llamar_openai_compatible", falsa_llamada)
+    pensar.pensar("cómo funciona", "openrouter", "inteligente")
+    assert visto["modelo"] == "or-inteligente"
+    pensar.pensar("cómo funciona", "openrouter", "rapido")
+    assert visto["modelo"] == "or-rapido"
+    pensar.pensar("cómo funciona", "openrouter", "un-nivel-que-no-existe")
+    assert visto["modelo"] == "or-equilibrio"  # cae al modo por defecto
 
 
-def test_deepseek_con_respuesta_vacia_sigue_sin_ia(monkeypatch, tmp_path):
+def test_sin_seccion_charla_en_el_json_sigue_sin_ia(monkeypatch, tmp_path):
     pensar = _importar_pensar()
-    monkeypatch.setenv("REMI_PENSADOR", "deepseek")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave")
+    monkeypatch.setenv("REMI_PENSADOR", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "clave")
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", tmp_path / "no-existe.json")
     monkeypatch.setattr(pensar, "_indice", lambda: [])
-    monkeypatch.setattr(pensar, "_llamar_deepseek", lambda *a: {"choices": []})
+    monkeypatch.setattr(
+        pensar, "_llamar_openai_compatible", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no debía llamar sin modelo"))
+    )
     assert pensar.pensar("algo") is None
 
 
-def test_la_clave_de_deepseek_no_se_exporta_a_la_cli_de_claude(monkeypatch, tmp_path):
+def test_groq_con_respuesta_vacia_sigue_sin_ia(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("REMI_PENSADOR", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "clave")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", _motores_json_de_prueba(tmp_path))
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    monkeypatch.setattr(pensar, "_llamar_openai_compatible", lambda *a, **k: {"choices": []})
+    assert pensar.pensar("algo") is None
+
+
+def test_la_clave_de_groq_no_se_exporta_a_la_cli_de_claude(monkeypatch, tmp_path):
     """La clave se lee del .env a un dict; el subproceso de Claude no la ve."""
     pensar = _importar_pensar()
     ruta = tmp_path / ".env"
-    ruta.write_text("DEEPSEEK_API_KEY=secreta\nREMI_PENSADOR=claude\n")
+    ruta.write_text("GROQ_API_KEY=secreta\nREMI_PENSADOR=claude\n")
     monkeypatch.setattr(pensar, "RUTA_ENV", ruta)
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    assert pensar._ajuste("DEEPSEEK_API_KEY", "") == "secreta"
-    assert "DEEPSEEK_API_KEY" not in pensar._entorno()
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    assert pensar._ajuste("GROQ_API_KEY", "") == "secreta"
+    assert "GROQ_API_KEY" not in pensar._entorno()
 
 
 # — El motor elegido desde la ventanita —
@@ -572,22 +617,30 @@ def test_los_motores_disponibles_dicen_que_les_falta(monkeypatch, tmp_path):
     pensar = _importar_pensar()
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
     monkeypatch.delenv("VENICE_API_KEY", raising=False)
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.setattr(pensar.shutil if hasattr(pensar, "shutil") else __import__("shutil"), "which", lambda _b: None)
     motores = {m.id: m for m in pensar.motores_disponibles()}
-    assert set(motores) == {"claude", "venice", "deepseek", "ollama"}
+    assert set(motores) == {"claude", "venice", "groq", "openrouter", "ollama"}
     assert motores["claude"].disponible is False and "claude" in motores["claude"].detalle
     assert motores["venice"].disponible is False and "VENICE_API_KEY" in motores["venice"].detalle
-    assert motores["deepseek"].disponible is False and "DEEPSEEK_API_KEY" in motores["deepseek"].detalle
+    assert motores["groq"].disponible is False and "GROQ_API_KEY" in motores["groq"].detalle
+    assert motores["openrouter"].disponible is False and "OPENROUTER_API_KEY" in motores["openrouter"].detalle
+    assert motores["groq"].label == "Groq (gratis)"
+    assert motores["openrouter"].label == "OpenRouter (centavos)"
 
 
-def test_deepseek_disponible_cuando_hay_clave(monkeypatch, tmp_path):
+def test_groq_y_openrouter_disponibles_cuando_hay_clave(monkeypatch, tmp_path):
     pensar = _importar_pensar()
     monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "clave-de-prueba")
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", _motores_json_de_prueba(tmp_path))
+    monkeypatch.setenv("GROQ_API_KEY", "clave-de-prueba")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "clave-de-prueba")
     motores = {m.id: m for m in pensar.motores_disponibles()}
-    assert motores["deepseek"].disponible is True
-    assert "DeepSeek" in motores["deepseek"].detalle
+    assert motores["groq"].disponible is True
+    assert motores["groq"].detalle.startswith("groq-equilibrio")
+    assert motores["openrouter"].disponible is True
+    assert motores["openrouter"].detalle.startswith("or-equilibrio")
 
 
 # — Ollama, local —

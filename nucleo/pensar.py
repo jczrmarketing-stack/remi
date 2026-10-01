@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,7 +35,8 @@ RUTA_ENV = Path(__file__).resolve().parent / ".env"
 # Motores: "claude" (la membresía Max, por la CLI, con acceso al estante) y
 # los OpenAI-compatibles, que comparten un solo cliente y no tienen
 # herramientas —el índice viaja en el system prompt pero no pueden bajar
-# nada del estante—: "venice" (pago por token), "deepseek" (pago por token)
+# nada del estante—: "venice" (pago por token), "groq" (gratis) y
+# "openrouter" (centavos) con el modelo que diga config/motores.json → charla,
 # y "ollama" (local, gratis, nada sale del Mac).
 MOTOR_POR_DEFECTO = "claude"
 VENICE_URL = "https://api.venice.ai/api/v1/chat/completions"
@@ -44,14 +46,6 @@ VENICE_URL = "https://api.venice.ai/api/v1/chat/completions"
 MODELOS_VENICE = ("z-ai-glm-5-3-flash", "grok-4-7")
 VENICE_MODELO_POR_DEFECTO = MODELOS_VENICE[0]
 VENICE_TIMEOUT_SEGUNDOS = 20.0
-DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
-# El primero (flash) es para los modos rápido/equilibrio del chip; el
-# segundo (pro) es para inteligente y para Modo Prompt, donde conviene el
-# que menos inventa. Manual, nunca el motor por defecto. Otro id del
-# cliente cae al del entorno, igual que con Venice.
-MODELOS_DEEPSEEK = ("deepseek-flash", "deepseek-v4-pro")
-DEEPSEEK_MODELO_POR_DEFECTO = MODELOS_DEEPSEEK[0]
-DEEPSEEK_TIMEOUT_SEGUNDOS = 20.0
 OLLAMA_BASE = "http://127.0.0.1:11434"
 OLLAMA_URL = f"{OLLAMA_BASE}/v1/chat/completions"
 # gemma3:4b: buen español, ~3,3 GB, cabe holgado en 16 GB y contesta en
@@ -401,9 +395,9 @@ class Pensado:
     # Cuántas cosas tenía presentes y si llegó a bajar alguna del estante.
     entradas_en_indice: int = 0
     leyo_memoria: bool = False
-    # El motor real que contestó ("claude", "venice", "deepseek", "ollama",
-    # un proveedor de la trastienda, o "openrouter" cuando fue el respaldo
-    # de charla): lo que el chip de la ventanita debería mostrar, a
+    # El motor real que contestó ("claude", "venice", "groq", "openrouter",
+    # "ollama", o un proveedor de la trastienda): lo que el chip de la
+    # ventanita debería mostrar, a
     # diferencia de `modelo`, que es el alias/id del modelo dentro de ese
     # motor.
     motor_usado: str = "claude"
@@ -478,7 +472,7 @@ def cadena_de_modos(elegido: Modo) -> list[Modo]:
     return [MODOS[n] for n in reversed(ORDEN_DE_MODOS[: hasta + 1])]
 
 
-MOTORES = ("claude", "venice", "deepseek", "ollama")
+MOTORES = ("claude", "venice", "groq", "openrouter", "ollama")
 
 
 def motor(pedido: str | None = None) -> str:
@@ -522,7 +516,8 @@ def motores_disponibles() -> list[MotorDisponible]:
 
     hay_cli = shutil.which(BINARIO) is not None
     hay_clave_venice = bool(_ajuste("VENICE_API_KEY", ""))
-    hay_clave_deepseek = bool(_ajuste("DEEPSEEK_API_KEY", ""))
+    hay_clave_groq = bool(_ajuste("GROQ_API_KEY", ""))
+    hay_clave_openrouter = bool(_ajuste("OPENROUTER_API_KEY", ""))
     modelo_ollama = _ajuste("REMI_OLLAMA_MODELO", OLLAMA_MODELO_POR_DEFECTO)
     bajados = _modelos_de_ollama()
     if bajados is None:
@@ -549,13 +544,23 @@ def motores_disponibles() -> list[MotorDisponible]:
             ),
         ),
         MotorDisponible(
-            id="deepseek",
-            label="DeepSeek (pago)",
-            disponible=hay_clave_deepseek,
+            id="groq",
+            label="Groq (gratis)",
+            disponible=hay_clave_groq,
             detalle=(
-                "DeepSeek Flash o V4 Pro, sin acceso al estante"
-                if hay_clave_deepseek
-                else "sin DEEPSEEK_API_KEY en nucleo/.env"
+                f"{_modelo_charla('groq', None)}, sin acceso al estante"
+                if hay_clave_groq
+                else "sin GROQ_API_KEY en nucleo/.env"
+            ),
+        ),
+        MotorDisponible(
+            id="openrouter",
+            label="OpenRouter (centavos)",
+            disponible=hay_clave_openrouter,
+            detalle=(
+                f"{_modelo_charla('openrouter', None)}, sin acceso al estante"
+                if hay_clave_openrouter
+                else "sin OPENROUTER_API_KEY en nucleo/.env"
             ),
         ),
         MotorDisponible(
@@ -810,7 +815,6 @@ def pensar(
     buscar: bool = False,
     modelo_ollama: str | None = None,
     modelo_venice: str | None = None,
-    modelo_deepseek: str | None = None,
 ) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
@@ -839,8 +843,10 @@ def pensar(
         instrucciones = f"{instrucciones}\n\n{INSTRUCCIONES_BUSQUEDA}"
     if elegido == "venice":
         pensado = _pensar_con_venice(mensaje, instrucciones, len(indice), modelo_venice)
-    elif elegido == "deepseek":
-        pensado = _pensar_con_deepseek(mensaje, instrucciones, len(indice), modelo_deepseek)
+    elif elegido == "groq":
+        pensado = _pensar_con_charla("groq", "GROQ_API_KEY", mensaje, instrucciones, len(indice), modo_pedido)
+    elif elegido == "openrouter":
+        pensado = _pensar_con_charla("openrouter", "OPENROUTER_API_KEY", mensaje, instrucciones, len(indice), modo_pedido)
     elif elegido == "ollama":
         pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice), modelo_ollama)
     else:
@@ -863,7 +869,7 @@ def pensar(
     return pensado
 
 
-# — Los OpenAI-compatibles: Venice, DeepSeek y Ollama comparten cliente y lector —
+# — Los OpenAI-compatibles: Venice, Groq, OpenRouter y Ollama comparten cliente y lector —
 
 
 def _llamar_openai_compatible(
@@ -893,12 +899,6 @@ def _llamar_openai_compatible(
 
 def _llamar_venice(clave: str, nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
     return _llamar_openai_compatible(VENICE_URL, clave, nombre_modelo, instrucciones, frase, VENICE_TIMEOUT_SEGUNDOS)
-
-
-def _llamar_deepseek(clave: str, nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
-    return _llamar_openai_compatible(
-        DEEPSEEK_URL, clave, nombre_modelo, instrucciones, frase, DEEPSEEK_TIMEOUT_SEGUNDOS
-    )
 
 
 def _llamar_ollama(nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
@@ -968,38 +968,53 @@ def _pensar_con_venice(
     return pensado
 
 
-def _modelo_deepseek(pedido: str | None) -> str:
-    """El del chip si es uno de los dos. Si no, el del entorno."""
-    if pedido in MODELOS_DEEPSEEK:
-        return pedido
-    if pedido:
-        print(f"[deepseek] modelo desconocido {pedido!r}: uso el del entorno", file=sys.stderr)
-    return _ajuste("REMI_DEEPSEEK_MODELO", DEEPSEEK_MODELO_POR_DEFECTO)
-
-
-def _pensar_con_deepseek(
-    frase: str, instrucciones: str, entradas: int, modelo_pedido: str | None = None
-) -> Pensado | None:
-    clave = _ajuste("DEEPSEEK_API_KEY", "")
-    if not clave:
-        print("[deepseek] sin DEEPSEEK_API_KEY en nucleo/.env: sigo sin IA", file=sys.stderr)
+def _modelo_charla(proveedor: str, nivel_pedido: str | None) -> str | None:
+    """El id de modelo de `proveedor` para charla, por nivel (rápido/
+    equilibrio/inteligente) — siempre de config/motores.json → "charla",
+    nunca a mano acá. None si el archivo no tiene esa sección o ese
+    proveedor: el que llama decide qué hacer sin IA."""
+    datos = _motores_json()
+    charla = datos.get("charla") if isinstance(datos, dict) else None
+    por_proveedor = charla.get(proveedor) if isinstance(charla, dict) else None
+    if not isinstance(por_proveedor, dict):
         return None
-    nombre_modelo = _modelo_deepseek(modelo_pedido)
+    clave = nivel_pedido if nivel_pedido in por_proveedor else MODO_POR_DEFECTO
+    modelo = por_proveedor.get(clave) or por_proveedor.get(MODO_POR_DEFECTO)
+    return modelo if isinstance(modelo, str) and modelo else None
+
+
+def _pensar_con_charla(
+    proveedor: str, clave_env: str, frase: str, instrucciones: str, entradas: int, modo_pedido: str | None = None
+) -> Pensado | None:
+    """Groq y OpenRouter en la charla: mismo cliente OpenAI-compatible que
+    la trastienda, pero el id de modelo sale de config/motores.json → charla
+    según el nivel pedido, y acá sí se guarda el turno (pensar() lo hace)."""
+    clave = _ajuste(clave_env, "")
+    if not clave:
+        print(f"[{proveedor}] sin {clave_env} en nucleo/.env: sigo sin IA", file=sys.stderr)
+        return None
+    nombre_modelo = _modelo_charla(proveedor, modo_pedido)
+    if nombre_modelo is None:
+        print(f"[{proveedor}] sin modelo de charla en config/motores.json: sigo sin IA", file=sys.stderr)
+        return None
+    url, _ = PROVEEDORES_TRASTIENDA[proveedor]
+    arranque = time.perf_counter()
     try:
-        datos = _llamar_deepseek(clave, nombre_modelo, instrucciones, frase)
+        datos = _llamar_openai_compatible(url, clave, nombre_modelo, instrucciones, frase, TRASTIENDA_TIMEOUT_SEGUNDOS)
     except httpx.HTTPStatusError as error:
-        print(f"[deepseek] la API respondió {error.response.status_code}: sigo sin IA", file=sys.stderr)
+        print(f"[{proveedor}] la API respondió {error.response.status_code}: sigo sin IA", file=sys.stderr)
         return None
     except httpx.HTTPError as error:
-        print(f"[deepseek] sin conexión ({type(error).__name__}): sigo sin IA", file=sys.stderr)
+        print(f"[{proveedor}] sin conexión ({type(error).__name__}): sigo sin IA", file=sys.stderr)
         return None
+    ms = (time.perf_counter() - arranque) * 1000
 
-    pensado = _leer_respuesta_venice(datos, nombre_modelo, entradas, proveedor="deepseek")
+    pensado = _leer_respuesta_venice(datos, nombre_modelo, entradas, proveedor=proveedor)
     if pensado is None:
-        print("[deepseek] respuesta vacía: sigo sin IA", file=sys.stderr)
+        print(f"[{proveedor}] respuesta vacía: sigo sin IA", file=sys.stderr)
         return None
     print(
-        f"[deepseek] modelo={pensado.modelo} tokens entrada={pensado.tokens_entrada} "
+        f"[{proveedor}] modelo={pensado.modelo} ms={ms:.0f} tokens entrada={pensado.tokens_entrada} "
         f"salida={pensado.tokens_salida} memoria={entradas} leyó=no (sin herramientas)",
         file=sys.stderr,
     )
@@ -1012,15 +1027,23 @@ def _llamar_proveedor(proveedor: str, nombre_modelo: str, instrucciones: str, fr
     return _llamar_openai_compatible(url, clave, nombre_modelo, instrucciones, frase, TRASTIENDA_TIMEOUT_SEGUNDOS)
 
 
-def trastienda() -> list[tuple[str, str]]:
-    """[(proveedor, modelo), ...] de `config/motores.json`, en orden. Si el
-    archivo no está, no es JSON, o no trae una lista `trastienda` usable, la
-    cadena por defecto (la misma que documenta ese archivo)."""
+def _motores_json() -> dict[str, Any]:
+    """El contenido de config/motores.json (o REMI_MOTORES en pruebas).
+    {} si el archivo no está o no es JSON válido — quien llama decide el
+    default, esto nunca lanza."""
     ruta = Path(os.environ.get("REMI_MOTORES") or RUTA_MOTORES)
     try:
         datos = json.loads(ruta.read_text())
     except (OSError, json.JSONDecodeError):
-        return list(TRASTIENDA_POR_DEFECTO)
+        return {}
+    return datos if isinstance(datos, dict) else {}
+
+
+def trastienda() -> list[tuple[str, str]]:
+    """[(proveedor, modelo), ...] de `config/motores.json`, en orden. Si el
+    archivo no está, no es JSON, o no trae una lista `trastienda` usable, la
+    cadena por defecto (la misma que documenta ese archivo)."""
+    datos = _motores_json()
     lista = datos.get("trastienda") if isinstance(datos, dict) else None
     if not isinstance(lista, list):
         return list(TRASTIENDA_POR_DEFECTO)

@@ -157,7 +157,7 @@ class MensajeEntrante(BaseModel):
     think: bool = False
     # Con qué motor pensar, elegido a conciencia en la ventanita. None = el
     # del .env.
-    motor: Literal["claude", "venice", "ollama"] | None = None
+    motor: Literal["claude", "venice", "groq", "openrouter", "ollama"] | None = None
     # Rápido (Haiku), equilibrio (Sonnet, por defecto) o inteligente (Opus
     # con razonamiento). Solo aplica al motor claude.
     # «prompt» no es un cerebro sino un formato: arma un encargo para Claude
