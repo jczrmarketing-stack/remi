@@ -64,10 +64,36 @@ hacer_pytest() {
   (cd "$RAIZ/nucleo" && uv run pytest -q && uv run mypy .)
 }
 
+# Los puertos de playwright.config.ts: el núcleo falso y los dos paneles de
+# prueba. Si una corrida anterior murió a medias, alguno queda escuchando y
+# Playwright no arranca (EADDRINUSE).
+PUERTOS_DE_PRUEBA="4498 4403 4404"
+
+liberar_puertos_de_prueba() {
+  local puerto pid orden
+  for puerto in $PUERTOS_DE_PRUEBA; do
+    for pid in $(lsof -nP -tiTCP:"$puerto" -sTCP:LISTEN 2>/dev/null); do
+      orden="$(ps -o command= -p "$pid" 2>/dev/null)"
+      case "$orden" in
+        *nucleo-falso.mjs*|*next-server*|*"next start"*|*"next/dist/bin/next"*)
+          echo "   :$puerto ocupado por un servidor de prueba que quedó vivo (pid $pid) — lo cierro"
+          kill "$pid" 2>/dev/null
+          ;;
+        *)
+          # No es nuestro: se informa y no se toca.
+          echo "   :$puerto ocupado por otra cosa (pid $pid: $orden) — no lo toco"
+          ;;
+      esac
+    done
+  done
+  sleep 1
+}
+
 hacer_panel() {
   # NEXT_DIST_DIR aparte: el build de las pruebas no pisa el .next que está
   # sirviendo el panel de verdad (next.config.mjs ya lee esa variable).
   echo "== panel: lint + Playwright"
+  liberar_puertos_de_prueba
   (cd "$RAIZ/apps/panel" && npm run generar && npm run lint && NEXT_DIST_DIR=.next-pruebas npx playwright test)
 }
 
