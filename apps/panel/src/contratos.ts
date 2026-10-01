@@ -8,7 +8,7 @@ export interface Tarea {
   id: UUID;
   titulo: string;
   proyecto_id: UUID | null;
-  estado: "hoy" | "camino" | "hecha";
+  estado: "hoy" | "camino" | "hecha" | "archivada";
   paso_minimo: string;
   estimado_min: number | null;
   real_min: number | null;
@@ -23,7 +23,7 @@ export interface Idea {
   origen: "voz" | "texto";
   creada_en: ISODateString;
   enfria_hasta: ISODateString;
-  estado: "enfriando" | "lista" | "proyecto" | "soltada";
+  estado: "enfriando" | "lista" | "proyecto" | "soltada" | "archivada";
   problema_vision: number | null;
   tema: string | null;
 }

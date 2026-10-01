@@ -18,7 +18,7 @@ class Tarea(BaseModel):
     id: UUID
     titulo: str
     proyecto_id: UUID | None
-    estado: Literal["hoy", "camino", "hecha"]
+    estado: Literal["hoy", "camino", "hecha", "archivada"]
     paso_minimo: str
     estimado_min: int | None
     real_min: int | None
@@ -35,7 +35,7 @@ class Idea(BaseModel):
     origen: Literal["voz", "texto"]
     creada_en: datetime
     enfria_hasta: datetime
-    estado: Literal["enfriando", "lista", "proyecto", "soltada"]
+    estado: Literal["enfriando", "lista", "proyecto", "soltada", "archivada"]
     problema_vision: int | None = Field(ge=1, le=6, default=None)
     tema: str | None
 

@@ -5,7 +5,7 @@
     "id": "uuid",
     "titulo": "string",
     "proyecto_id": "uuid|null",
-    "estado": "hoy|camino|hecha",
+    "estado": "hoy|camino|hecha|archivada",
     "paso_minimo": "string",
     "estimado_min": "int|null",
     "real_min": "int|null",
@@ -19,7 +19,7 @@
     "origen": "voz|texto",
     "creada_en": "iso",
     "enfria_hasta": "iso(+48h)",
-    "estado": "enfriando|lista|proyecto|soltada",
+    "estado": "enfriando|lista|proyecto|soltada|archivada",
     "problema_vision": "1-6|null",
     "tema": "string|null"
   },

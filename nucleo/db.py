@@ -333,8 +333,8 @@ def listar_tareas_con_fecha(conexion: sqlite3.Connection) -> list[Tarea]:
     """Lo que tiene fecha y sigue abierto, lo más cercano primero. De acá
     salen «Mañana asoma» y «Vence» del panel."""
     filas = conexion.execute(
-        "SELECT * FROM tareas WHERE estado != 'hecha' AND fecha_limite IS NOT NULL "
-        "ORDER BY fecha_limite, rowid"
+        "SELECT * FROM tareas WHERE estado NOT IN ('hecha', 'archivada') "
+        "AND fecha_limite IS NOT NULL ORDER BY fecha_limite, rowid"
     ).fetchall()
     return [_fila_a_tarea(fila) for fila in filas]
 
@@ -450,8 +450,9 @@ def ultima_sesion_cerrada_min(conexion: sqlite3.Connection, tarea_id: UUID) -> i
     """El dato que pide la ley 1: cuánto tardó la última vez. None si la
     tarea nunca tuvo una sesión cerrada — no hay de dónde sacarlo."""
     fila = conexion.execute(
-        "SELECT real_min FROM sesiones WHERE tarea_id = ? AND fin IS NOT NULL "
-        "ORDER BY fin DESC LIMIT 1",
+        "SELECT s.real_min FROM sesiones s JOIN tareas t ON t.id = s.tarea_id "
+        "WHERE s.tarea_id = ? AND s.fin IS NOT NULL AND t.estado != 'archivada' "
+        "ORDER BY s.fin DESC LIMIT 1",
         (str(tarea_id),),
     ).fetchone()
     return fila["real_min"] if fila else None
@@ -489,7 +490,9 @@ def ultima_sesion_cerrada(conexion: sqlite3.Connection) -> Sesion | None:
     Es lo que el reposo muestra como «la última vez»: un dato medido, no un
     reloj. None si todavía no se cerró ninguno — no se inventa."""
     fila = conexion.execute(
-        "SELECT * FROM sesiones WHERE fin IS NOT NULL ORDER BY fin DESC LIMIT 1"
+        "SELECT s.* FROM sesiones s JOIN tareas t ON t.id = s.tarea_id "
+        "WHERE s.fin IS NOT NULL AND t.estado != 'archivada' "
+        "ORDER BY s.fin DESC LIMIT 1"
     ).fetchone()
     return _fila_a_sesion(fila) if fila else None
 
