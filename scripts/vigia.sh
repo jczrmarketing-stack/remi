@@ -41,3 +41,26 @@ else
   fi
 fi
 printf '%s %s\n' "$fallas" "$avisado" > "$ESTADO"
+
+# — Doctor a las 7:30 (docs/ROBUSTEZ.md §2) —
+# vigia.sh no tiene cron propio: ya lo dispara el LaunchAgent com.remi.vigia
+# cada minuto (StartInterval 60, scripts/instalar.sh), así que alcanza con
+# mirar el reloj acá y no repetirlo dos veces el mismo día si el LaunchAgent
+# dispara tarde (Mac dormida a las 7:30, por ejemplo). Si doctor.sh sale 0
+# (todo OK), silencio total: no se manda nada.
+DOCTOR="$(dirname "${BASH_SOURCE[0]}")/doctor.sh"
+MARCA_DOCTOR="$HOME/Library/Application Support/Remi/vigia.doctor-fecha"
+HOY_BOGOTA="$(TZ="America/Bogota" date '+%F')"
+HORA_BOGOTA="$(TZ="America/Bogota" date '+%H:%M')"
+if [[ "$HORA_BOGOTA" == "07:30" && "$(cat "$MARCA_DOCTOR" 2>/dev/null)" != "$HOY_BOGOTA" ]]; then
+  echo "$HOY_BOGOTA" > "$MARCA_DOCTOR"
+  if [[ -x "$DOCTOR" ]] && ! salida_doctor="$("$DOCTOR" 2>&1)"; then
+    fallas_doctor="$(grep '^FALLA' <<<"$salida_doctor")"
+    anotar "doctor de las 7:30 con fallas, aviso por Telegram"
+    cuerpo="$(python3 -c 'import json, sys; print(json.dumps({"texto": sys.argv[1]}))' \
+      "Doctor de Remi, $HOY_BOGOTA:
+$fallas_doctor")"
+    curl -s -f --max-time 5 -X POST "${URL%/salud}/telegram/avisar" \
+      -H 'Content-Type: application/json' -d "$cuerpo" >/dev/null 2>&1 || true
+  fi
+fi

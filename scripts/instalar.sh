@@ -406,6 +406,50 @@ plutil -lint "$PLIST_VIGIA" > /dev/null
 launchctl bootstrap "gui/$UID" "$PLIST_VIGIA" 2>/dev/null || launchctl load "$PLIST_VIGIA"
 echo "  vigía:  cada minuto; si Remi cae 5 min, notificación"
 
+# — El túnel (remi.inv3rza.com -> el panel): solo si cloudflared está —
+# scripts/tunel.sh hace el setup (crear/reusar el túnel, escribir su config,
+# la ruta DNS) y termina con `exec cloudflared tunnel run`: el proceso que
+# KeepAlive vigila es cloudflared de verdad. Sin cloudflared instalado, este
+# bloque se salta solo — nunca rompe el resto de la instalación.
+ETIQUETA_TUNEL="com.remi.tunel"
+PLIST_TUNEL="$HOME/Library/LaunchAgents/$ETIQUETA_TUNEL.plist"
+bajar_agente "$ETIQUETA_TUNEL" "$PLIST_TUNEL" || true
+if command -v cloudflared > /dev/null 2>&1; then
+  cat > "$PLIST_TUNEL" <<PLISTTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$ETIQUETA_TUNEL</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>$RAIZ/scripts/tunel.sh</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>$RUTA</string>
+		<key>HOME</key>
+		<string>$HOME</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>$LOGS/tunel.log</string>
+	<key>StandardErrorPath</key>
+	<string>$LOGS/tunel.log</string>
+</dict>
+</plist>
+PLISTTEOF
+  plutil -lint "$PLIST_TUNEL" > /dev/null
+  launchctl bootstrap "gui/$UID" "$PLIST_TUNEL" 2>/dev/null || launchctl load "$PLIST_TUNEL"
+  echo "  túnel:  remi.inv3rza.com -> el panel (KeepAlive; si falta el login, revisá $LOGS/tunel.log)"
+else
+  echo "  túnel:  sin cloudflared — lo salto (./scripts/tunel.sh lo instala con brew si hace falta)"
+fi
+
 # — Segundo agente: abrir Remi al iniciar sesión —
 # Sin KeepAlive a propósito: si cerrás la ventanita, se queda cerrada hasta
 # el próximo inicio de sesión. El núcleo sí se relevanta; la app es tuya.
