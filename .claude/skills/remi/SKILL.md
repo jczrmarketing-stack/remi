@@ -10,7 +10,7 @@ Remi (apodo Lucho) es el asistente personal para TDAH de Juan Camilo: ventanita 
 ## Jerarquía de fuentes (obligatoria)
 1. **Design System "Remi"** (artefacto) = fuente única de tokens; su export es `design/tokens.json` en el repo. Jamás un hex a mano.
 2. **Biblia de Remi** (artefacto) = fuente única de leyes, pantallas, arquitectura y estado de fases.
-3. **Notion** = la vitrina y la operación, de ida y vuelta. Editar ahí un campo de operación (estado, próxima acción, fecha, monto) vuelve a Remi; la prosa del libro nunca se edita desde ahí.
+3. **Notion** = la vitrina, solo de ida (Remi → Notion). La vuelta de campos de operación es opt-in (`NOTION_VUELTA=1`) y se decide al mes de uso; la prosa del libro nunca se edita desde ahí. Cada libro de proyecto declara `tipo: cliente | propio` y su `## Camino` nace del SOP (`oficios/proyectos-sop.md`).
 Si este skill contradice a esas fuentes, ganan ellas.
 
 ## Las 6 leyes (ninguna función, pantalla o texto puede violarlas)
