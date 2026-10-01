@@ -3,6 +3,7 @@ ninguna prueba toca la red ni el TELEGRAM_TOKEN real."""
 from __future__ import annotations
 
 import re
+import time
 from datetime import datetime
 
 from fastapi.testclient import TestClient
@@ -21,6 +22,20 @@ class _TransporteFalso:
 
     def enviar_mensaje(self, chat_id, texto):
         self.enviados.append((chat_id, texto))
+
+
+class _HiloInmediato:
+    """Reemplaza a threading.Thread en las pruebas de avisar() que no son
+    sobre tiempos: corre el target ahí mismo, en el hilo de la prueba, para
+    que el resultado del envío de fondo quede listo antes del assert."""
+
+    def __init__(self, target, args=(), kwargs=None, daemon=None):
+        self._target = target
+        self._args = args
+        self._kwargs = kwargs or {}
+
+    def start(self) -> None:
+        self._target(*self._args, **self._kwargs)
 
 
 def _actualizacion(chat_id: int, texto: str) -> dict:
@@ -216,6 +231,7 @@ def test_avisar_manda_fuera_del_silencio(monkeypatch):
     monkeypatch.setattr(telegram, "chat_id_configurado", lambda: "123")
     monkeypatch.setattr(telegram, "token", lambda: "un-token")
     monkeypatch.setattr(telegram, "en_silencio", lambda *_a, **_k: False)
+    monkeypatch.setattr(telegram.threading, "Thread", _HiloInmediato)
     transporte = _TransporteFalso()
     monkeypatch.setattr(telegram, "ClienteBotAPI", lambda tok: transporte)
 
@@ -229,6 +245,7 @@ def test_avisar_respeta_el_silencio_salvo_urgente(monkeypatch):
     monkeypatch.setattr(telegram, "chat_id_configurado", lambda: "123")
     monkeypatch.setattr(telegram, "token", lambda: "un-token")
     monkeypatch.setattr(telegram, "en_silencio", lambda *_a, **_k: True)
+    monkeypatch.setattr(telegram.threading, "Thread", _HiloInmediato)
     transporte = _TransporteFalso()
     monkeypatch.setattr(telegram, "ClienteBotAPI", lambda tok: transporte)
     cliente = TestClient(servidor.app)
@@ -238,6 +255,75 @@ def test_avisar_respeta_el_silencio_salvo_urgente(monkeypatch):
 
     cliente.post("/telegram/avisar", json={"texto": "urgente de verdad", "urgente": True})
     assert transporte.enviados == [("123", "urgente de verdad")]
+
+
+# — avisar() no bloquea: el envío real corre en un hilo de fondo —
+
+
+def test_avisar_no_bloquea_aunque_el_transporte_tarde(monkeypatch):
+    """avisar() debe volver en menos de 100ms aunque el transporte (falso)
+    tarde 3 segundos en responder — medimos el tiempo de la llamada a
+    avisar(), nunca el del hilo de fondo."""
+    monkeypatch.setattr(telegram, "chat_id_configurado", lambda: "123")
+    monkeypatch.setattr(telegram, "token", lambda: "un-token")
+    monkeypatch.setattr(telegram, "en_silencio", lambda *_a, **_k: False)
+
+    class _TransporteLento:
+        def enviar_mensaje(self, chat_id, texto):
+            time.sleep(3)
+
+    monkeypatch.setattr(telegram, "ClienteBotAPI", lambda tok: _TransporteLento())
+
+    inicio = time.perf_counter()
+    respuesta = TestClient(servidor.app).post(
+        "/telegram/avisar", json={"texto": "prueba lenta", "urgente": True}
+    )
+    duracion_ms = (time.perf_counter() - inicio) * 1000
+
+    assert respuesta.status_code == 204
+    assert duracion_ms < 100
+
+
+def test_avisar_reintenta_una_vez_si_falla(monkeypatch):
+    monkeypatch.setattr(telegram, "chat_id_configurado", lambda: "123")
+    monkeypatch.setattr(telegram, "token", lambda: "un-token")
+    monkeypatch.setattr(telegram, "en_silencio", lambda *_a, **_k: False)
+    monkeypatch.setattr(telegram.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(telegram.threading, "Thread", _HiloInmediato)
+
+    llamadas = {"n": 0}
+
+    class _TransporteFallaUnaVez:
+        def enviar_mensaje(self, chat_id, texto):
+            llamadas["n"] += 1
+            if llamadas["n"] == 1:
+                raise RuntimeError("timeout simulado")
+
+    monkeypatch.setattr(telegram, "ClienteBotAPI", lambda tok: _TransporteFallaUnaVez())
+
+    respuesta = TestClient(servidor.app).post("/telegram/avisar", json={"texto": "prueba"})
+
+    assert respuesta.status_code == 204
+    assert llamadas["n"] == 2
+
+
+def test_avisar_con_transporte_siempre_roto_nunca_lanza(monkeypatch, capsys):
+    monkeypatch.setattr(telegram, "chat_id_configurado", lambda: "123")
+    monkeypatch.setattr(telegram, "token", lambda: "un-token")
+    monkeypatch.setattr(telegram, "en_silencio", lambda *_a, **_k: False)
+    monkeypatch.setattr(telegram.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(telegram.threading, "Thread", _HiloInmediato)
+
+    class _TransporteRoto:
+        def enviar_mensaje(self, chat_id, texto):
+            raise RuntimeError("siempre falla")
+
+    monkeypatch.setattr(telegram, "ClienteBotAPI", lambda tok: _TransporteRoto())
+
+    respuesta = TestClient(servidor.app).post("/telegram/avisar", json={"texto": "prueba"})
+
+    assert respuesta.status_code == 204
+    assert "falló avisar" in capsys.readouterr().err
 
 
 def test_en_silencio_23_a_7_en_bogota():
