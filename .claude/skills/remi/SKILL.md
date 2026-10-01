@@ -50,11 +50,12 @@ Volver a `reposo` cierra terminal y reloj. `brasa` es «el bloque en curso», ja
 Canónicos en `contratos/contratos.json` del repo:
 ```json
 {
-  "Tarea":   {"id":"uuid","titulo":"string","proyecto_id":"uuid|null","estado":"hoy|camino|hecha","paso_minimo":"string","estimado_min":"int|null","real_min":"int|null","compartible":false},
-  "Idea":    {"id":"uuid","texto":"string","origen":"voz|texto","creada_en":"iso","enfria_hasta":"iso(+48h)","estado":"enfriando|lista|proyecto|soltada","problema_vision":"1-6|null"},
+  "Tarea":   {"id":"uuid","titulo":"string","proyecto_id":"uuid|null","estado":"hoy|camino|hecha","paso_minimo":"string","estimado_min":"int|null","real_min":"int|null","hora":"string|null","fecha_limite":"iso|null","compartible":false},
+  "Idea":    {"id":"uuid","texto":"string","origen":"voz|texto","creada_en":"iso","enfria_hasta":"iso(+48h)","estado":"enfriando|lista|proyecto|soltada","problema_vision":"1-6|null","tema":"string|null"},
   "Sesion":  {"id":"uuid","tarea_id":"uuid","inicio":"iso","fin":"iso|null","real_min":"int","app_contexto":"string|null"},
-  "Nudge":   {"id":"uuid","tipo":"cuerpo|ritual|encoger","voz":"string","salida_amable":true,"respuesta":"listo|ahora_no|null"},
-  "Entrega": {"id":"uuid","cliente":"string","proyecto_id":"uuid","fecha":"iso","monto":"number|null","estado":"camino|entregada|pagada","compartible":true}
+  "Nudge":   {"id":"uuid","tipo":"cuerpo|ritual|encoger|rumbo","voz":"string","salida_amable":true,"respuesta":"listo|ahora_no|null"},
+  "Memoria": {"id":"uuid","titulo":"string(80)","resumen":"string(240)","tema":"string","fecha":"iso","cuerpo":"string","fuente":"conversacion|manual|ollama","claves":"string|null","nivel":"0-3|null"},
+  "Entrega": {"id":"uuid","cliente":"string","proyecto_id":"uuid","fecha":"iso","monto":"number|null","estado":"camino|entregada|pagada","linea":"string|null","compartible":true}
 }
 ```
 Regla de privacidad por arquitectura: solo objetos con `compartible: true` pueden tocar los espejos (Notion, Google Calendar, Telegram). Los módulos de espejo no leen nada más. `remi.db` jamás entra a git.
