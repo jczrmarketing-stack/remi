@@ -27,7 +27,9 @@ import correcciones
 import db
 import entregas
 import episodios
+import estado_libro
 import iniciativa
+import libros
 import notion
 import pensar
 import plata
@@ -997,6 +999,56 @@ def camino_de(tema: str) -> Camino:
         )
     finally:
         conexion.close()
+
+
+class LibroVisible(BaseModel):
+    tema: str
+    titulo: str
+    resumen: str
+    compartible: bool
+    # De estado_libro.leer_estado: vacíos si el libro no tiene ## Estado
+    # todavía. Nunca el cuerpo completo del libro.
+    quedaste: str
+    proximo_paso: str
+    # De caminos.leer_hitos: [] si no tiene ## Camino.
+    hitos: list[HitoVisible]
+
+
+def _quedaste_de(estado_texto: str) -> str:
+    for linea in estado_texto.splitlines():
+        if linea.strip().lower().startswith("quedaste:"):
+            return linea.split(":", 1)[1].strip()
+    return ""
+
+
+def _proximo_paso_de(estado_texto: str) -> str:
+    for linea in estado_texto.splitlines():
+        limpia = linea.strip().lower()
+        if limpia.startswith("próximo paso:") or limpia.startswith("proximo paso:"):
+            return linea.split(":", 1)[1].strip()
+    return ""
+
+
+@app.get("/libros", response_model=list[LibroVisible])
+def libros_de() -> list[LibroVisible]:
+    """La constelación de proyectos para el panel: un resumen por libro,
+    nunca el cuerpo completo."""
+    resultado: list[LibroVisible] = []
+    for libro in libros.listar():
+        estado_texto = estado_libro.leer_estado(libro.archivo)
+        hitos = caminos.leer_hitos(libro.archivo)
+        resultado.append(
+            LibroVisible(
+                tema=libro.tema,
+                titulo=libro.titulo,
+                resumen=libro.resumen,
+                compartible=libro.compartible,
+                quedaste=_quedaste_de(estado_texto),
+                proximo_paso=_proximo_paso_de(estado_texto),
+                hitos=[HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos],
+            )
+        )
+    return resultado
 
 
 # — Configuración (Panel → Ajustes): llaves y tokens, nunca por el túnel —

@@ -36,6 +36,16 @@ export type Salud = { ok: boolean; db: boolean };
 export type IdeaBandeja = { idea: Idea; fria: boolean };
 export type Hito = { texto: string; hecho: boolean };
 export type Camino = { hitos: Hito[]; siguiente: Hito | null };
+export type Libro = {
+  tema: string;
+  titulo: string;
+  resumen: string;
+  compartible: boolean;
+  // Vacíos si el libro no tiene ## Estado todavía — nunca ausentes.
+  quedaste: string;
+  proximo_paso: string;
+  hitos: Hito[];
+};
 export type Plata = {
   semana: { cobrado: number; meta_semanal: number };
   mes: { cobrado: number; meta: number; faltan: number };
@@ -67,6 +77,7 @@ export const nucleo = {
   },
   nudgePendiente: () => pedir<Nudge | null>("/nudges/pendiente"),
   plata: () => pedir<Plata>("/plata"),
+  libros: () => pedir<Libro[]>("/libros"),
 
   responderNudge: (id: string, respuesta: "listo" | "ahora_no") =>
     pedir<Nudge>(`/nudges/${id}/respuesta`, { method: "POST", body: JSON.stringify({ respuesta }) }),

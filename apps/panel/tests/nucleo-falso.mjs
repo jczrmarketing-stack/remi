@@ -42,6 +42,27 @@ const PLATA = {
   proximo: { cliente: "Alfonso", fecha: iso(3 * 86400000), monto: 1000 },
 };
 
+const LIBROS = [
+  {
+    tema: "upvisuals",
+    titulo: "Upvisuals",
+    resumen: "Distribución de contenido para el artista.",
+    compartible: true,
+    quedaste: "armando el contrato.",
+    proximo_paso: "mandar la propuesta.",
+    hitos: CAMINO_UPVISUALS.hitos,
+  },
+  {
+    tema: "malik",
+    titulo: "Malik",
+    resumen: "Las cuentas de X y Reddit.",
+    compartible: false,
+    quedaste: "",
+    proximo_paso: "",
+    hitos: [],
+  },
+];
+
 function bandeja() {
   // Igual que bandeja.listar_abiertas: solo estado enfriando|lista queda
   // en la lista — soltada y proyecto salen.
@@ -87,6 +108,7 @@ const servidor = createServer(async (req, res) => {
   if (req.method === "GET" && ruta === "/entregas") return enviarJSON(res, 200, []);
   if (req.method === "GET" && ruta === "/bandeja") return enviarJSON(res, 200, bandeja());
   if (req.method === "GET" && ruta === "/plata") return enviarJSON(res, 200, PLATA);
+  if (req.method === "GET" && ruta === "/libros") return enviarJSON(res, 200, LIBROS);
   if (req.method === "GET" && ruta === "/nudges/pendiente") return enviarJSON(res, 200, nudge());
   if (req.method === "GET" && ruta.startsWith("/camino/")) {
     const tema = decodeURIComponent(ruta.split("/")[2] || "");

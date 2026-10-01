@@ -1,30 +1,26 @@
 "use client";
-// Constelación de proyectos (README del diseño): el panel no tiene hoy
-// ninguna ruta que liste los libros/temas que existen (solo /camino/{tema},
-// que ya necesita el tema). Sin esa ruta no hay de dónde sacar la
-// constelación completa sin inventar datos — así que esta página muestra
-// el único proyecto del que sí hay datos reales: el del bloque abierto.
-// Documentado en la bitácora como duda abierta para quien siga.
+// Constelación de proyectos: todos los libros de /libros, el del bloque
+// abierto primero y marcado. Tocar uno abre su camino debajo.
 import { useState } from "react";
 import { Header } from "@/components/Header";
 import { TabBar } from "@/components/TabBar";
 import { Apagado } from "@/components/Apagado";
 import { MoneyRow } from "@/components/MoneyRow";
 import { ProjectPath } from "@/components/ProjectPath";
+import { Chip } from "@/components/Chip";
 import { Bionica } from "@/components/Bionica";
 import { useCargaNucleo } from "@/hooks/useCargaNucleo";
-import { nucleo, NucleoApagado, type Camino } from "@/lib/nucleo";
+import { nucleo, NucleoApagado, type Camino, type Libro } from "@/lib/nucleo";
 import { cargarHoy } from "@/lib/hoy";
 
 async function cargarProyectos() {
-  const [hoy, plata] = await Promise.all([cargarHoy(), nucleo.plata()]);
-  return { hoy, plata: plata };
+  const [hoy, plata, libros] = await Promise.all([cargarHoy(), nucleo.plata(), nucleo.libros()]);
+  return { hoy, plata, libros };
 }
 
 export default function PaginaProyectos() {
   const { datos, error, recargar } = useCargaNucleo(cargarProyectos);
   const [caminoManual, setCaminoManual] = useState<{ tema: string; camino: Camino | null } | null>(null);
-  const [temaBuscado, setTemaBuscado] = useState("");
 
   if (error instanceof NucleoApagado) {
     return (
@@ -43,18 +39,25 @@ export default function PaginaProyectos() {
     );
   }
 
-  // `caminoManual.camino` puede ser null de verdad (ese tema no tiene
-  // libro): con `??` un null explícito cae al bloque abierto por error.
-  // Una vez que se buscó a mano, manda la búsqueda, resultado o no.
-  const tema = caminoManual ? caminoManual.tema : (datos.hoy.bloque?.tema ?? null);
-  const camino = caminoManual ? caminoManual.camino : (datos.hoy.bloque?.camino ?? null);
-  const titulo = datos.hoy.bloque?.tarea.tarea.titulo ?? null;
+  const abiertoTema = datos.hoy.bloque?.tema ?? null;
+  const librosOrdenados = [...datos.libros].sort((a, b) =>
+    a.tema === abiertoTema ? -1 : b.tema === abiertoTema ? 1 : 0
+  );
 
-  async function buscar() {
-    const tema = temaBuscado.trim();
-    if (!tema) return;
-    const c = await nucleo.camino(tema); // null si no hay libro con ese tema
-    setCaminoManual({ tema, camino: c });
+  // `caminoManual.camino` puede ser null de verdad (ese libro no tiene ##
+  // Camino): con `??` un null explícito volvería al del bloque abierto por
+  // error. Sin selección manual, manda el bloque abierto.
+  const tema = caminoManual ? caminoManual.tema : abiertoTema;
+  const camino = caminoManual ? caminoManual.camino : (datos.hoy.bloque?.camino ?? null);
+  const libroDelCamino = tema ? librosOrdenados.find((l) => l.tema === tema) ?? null : null;
+
+  async function abrirCamino(libroTema: string) {
+    if (libroTema === abiertoTema) {
+      setCaminoManual(null); // el del bloque abierto ya está cargado
+      return;
+    }
+    const c = await nucleo.camino(libroTema);
+    setCaminoManual({ tema: libroTema, camino: c });
   }
 
   return (
@@ -63,42 +66,75 @@ export default function PaginaProyectos() {
       <div className="contenedor">
         <MoneyRow plata={datos.plata} />
 
-        <section aria-label="Proyecto activo" className="card" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div className="label">Proyectos · sin lista completa todavía</div>
-          <p className="body-muted">
-            El núcleo no expone aún un listado de proyectos — solo <code>/camino/&#123;tema&#125;</code>. Esto muestra el del bloque abierto; para otro, escribí su tema (el mismo nombre del libro en <code>conocimiento/proyectos/</code>).
-          </p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              value={temaBuscado}
-              onChange={(e) => setTemaBuscado(e.target.value)}
-              placeholder="tema del libro, p. ej. upvisuals"
-              aria-label="Buscar camino por tema"
-              style={{ flexGrow: 1, maxWidth: 320, height: 44, borderRadius: "var(--radius-pill)", padding: "0 16px", border: "1px solid var(--line)", background: "var(--surface-2)", color: "var(--ink)" }}
-            />
-            <button type="button" className="btn btn-secundario" onClick={buscar}>Ver camino</button>
-          </div>
+        <section aria-label="Constelación de proyectos" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="label">Proyectos</div>
+          {librosOrdenados.length === 0 ? (
+            <p className="body-muted">Todavía no hay ningún libro en la bóveda.</p>
+          ) : (
+            librosOrdenados.map((libro) => (
+              <FilaLibro
+                key={libro.tema}
+                libro={libro}
+                abierto={libro.tema === abiertoTema}
+                seleccionado={libro.tema === tema}
+                onTocar={() => abrirCamino(libro.tema)}
+              />
+            ))
+          )}
         </section>
 
         {camino ? (
           <section id="camino" aria-label={`Camino de ${tema}`} className="card" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16 }}>
-              <h2 className="display-md">{titulo && tema === datos.hoy.bloque?.tema ? `${tema} · ${titulo}` : tema}</h2>
-            </div>
+            <h2 className="display-md">{libroDelCamino ? libroDelCamino.titulo : tema}</h2>
             <ProjectPath hitos={camino.hitos} />
             <p className="voz"><Bionica texto="Un solo paso encendido. Lo recorrido queda en luz; el futuro, apagado. Nunca un árbol." /></p>
           </section>
-        ) : (
+        ) : tema ? (
           <section className="card">
-            <p className="body-muted">
-              {tema ? "Ese tema no tiene un libro con ## Camino." : "No hay un bloque abierto ahora mismo: abrí uno desde la ventanita o buscá un tema arriba."}
-            </p>
+            <p className="body-muted">«{libroDelCamino?.titulo ?? tema}» todavía no tiene ## Camino.</p>
           </section>
-        )}
+        ) : null}
 
         <p className="body-muted">Remi ordena el día así: entregas con dinero → bugs en producción → propuestas → mejoras → ideas.</p>
       </div>
       <TabBar />
     </div>
+  );
+}
+
+function FilaLibro({
+  libro,
+  abierto,
+  seleccionado,
+  onTocar,
+}: {
+  libro: Libro;
+  abierto: boolean;
+  seleccionado: boolean;
+  onTocar: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onTocar}
+      className="card"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        textAlign: "left",
+        width: "100%",
+        borderColor: seleccionado ? "var(--brasa)" : "var(--line)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <h3 className="display-md" style={{ fontSize: 20 }}>{libro.titulo}</h3>
+        {abierto ? <Chip punto="var(--brasa)">Abierto ahora</Chip> : null}
+      </div>
+      <p className="body-muted">{libro.resumen}</p>
+      <p style={{ fontSize: 14, color: "var(--ink)" }}>
+        {libro.proximo_paso || <span className="body-muted">sin Estado todavía</span>}
+      </p>
+    </button>
   );
 }
