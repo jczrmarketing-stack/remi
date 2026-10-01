@@ -1042,6 +1042,19 @@ def probar_conexion(nombre: str, request: Request) -> conexiones.Prueba:
         raise HTTPException(status_code=400, detail="ese nombre no está en la lista blanca") from None
 
 
+class MetaMensualNueva(BaseModel):
+    meta_mensual: float
+
+
+@app.put("/config/plata")
+def guardar_meta_mensual(cuerpo: MetaMensualNueva, request: Request) -> dict[str, object]:
+    _si_es_del_tunel_lo_corta(request)
+    try:
+        return conexiones.escribir_meta_mensual(cuerpo.meta_mensual)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+
+
 if __name__ == "__main__":
     import uvicorn
 

@@ -200,3 +200,35 @@ def test_guardar_otra_cosa_no_reinicia_el_hilo(tmp_path, monkeypatch):
     monkeypatch.setattr(telegram, "reiniciar_hilo", lambda: llamado.append(True))
     conexiones.guardar("GROQ_API_KEY", "gsk-x")
     assert llamado == []
+
+
+# — meta mensual: la edita el mismo Ajustes → Conexiones —
+
+
+def _plata(tmp_path, monkeypatch, contenido: dict):
+    import json
+
+    ruta = tmp_path / "plata.json"
+    ruta.write_text(json.dumps(contenido))
+    monkeypatch.setattr(conexiones, "RUTA_PLATA", ruta)
+    return ruta
+
+
+def test_escribir_meta_mensual_conserva_moneda_y_comentario(tmp_path, monkeypatch):
+    ruta = _plata(tmp_path, monkeypatch, {"$comment": "ojo", "meta_mensual": 2400, "moneda": "USD"})
+    conexiones.escribir_meta_mensual(3000)
+
+    import json
+
+    guardado = json.loads(ruta.read_text())
+    assert guardado["meta_mensual"] == 3000
+    assert guardado["moneda"] == "USD"
+    assert guardado["$comment"] == "ojo"
+
+
+def test_escribir_meta_mensual_cero_o_negativa_es_invalida(tmp_path, monkeypatch):
+    _plata(tmp_path, monkeypatch, {"meta_mensual": 2400, "moneda": "USD"})
+    with pytest.raises(ValueError):
+        conexiones.escribir_meta_mensual(0)
+    with pytest.raises(ValueError):
+        conexiones.escribir_meta_mensual(-100)

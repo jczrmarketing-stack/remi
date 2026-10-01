@@ -84,3 +84,37 @@ def test_probar_llama_al_proveedor_real_con_monkeypatch(tmp_path, monkeypatch):
     respuesta = cliente.post("/config/conexiones/GROQ_API_KEY/probar")
     assert respuesta.status_code == 200
     assert respuesta.json()["ok"] is True
+
+
+def _plata(tmp_path, monkeypatch):
+    import json
+
+    ruta = tmp_path / "plata.json"
+    ruta.write_text(json.dumps({"meta_mensual": 2400, "moneda": "USD"}))
+    monkeypatch.setattr(conexiones, "RUTA_PLATA", ruta)
+    return ruta
+
+
+def test_put_plata_cambia_la_meta_mensual(tmp_path, monkeypatch):
+    cliente = _cliente(tmp_path, monkeypatch)
+    _plata(tmp_path, monkeypatch)
+    respuesta = cliente.put("/config/plata", json={"meta_mensual": 3200})
+    assert respuesta.status_code == 200
+    assert respuesta.json()["meta_mensual"] == 3200
+
+
+def test_put_plata_con_cabecera_cf_es_403(tmp_path, monkeypatch):
+    cliente = _cliente(tmp_path, monkeypatch)
+    ruta = _plata(tmp_path, monkeypatch)
+    respuesta = cliente.put("/config/plata", json={"meta_mensual": 3200}, headers={"Cf-Ray": "x"})
+    assert respuesta.status_code == 403
+    import json
+
+    assert json.loads(ruta.read_text())["meta_mensual"] == 2400  # sin tocar
+
+
+def test_put_plata_cero_es_422(tmp_path, monkeypatch):
+    cliente = _cliente(tmp_path, monkeypatch)
+    _plata(tmp_path, monkeypatch)
+    respuesta = cliente.put("/config/plata", json={"meta_mensual": 0})
+    assert respuesta.status_code == 422

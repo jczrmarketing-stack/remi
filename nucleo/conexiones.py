@@ -11,6 +11,7 @@ un error de programa. Timeout corto (8 s) para no colgar el panel.
 """
 from __future__ import annotations
 
+import json
 import re
 import shutil
 from pathlib import Path
@@ -19,6 +20,7 @@ import httpx
 from pydantic import BaseModel
 
 RUTA_ENV = Path(__file__).resolve().parent / ".env"
+RUTA_PLATA = Path(__file__).resolve().parent.parent / "config" / "plata.json"
 TIMEOUT_PRUEBA_SEGUNDOS = 8.0
 VERSION_NOTION = "2022-06-28"
 
@@ -194,3 +196,28 @@ def _probar_telegram(token: str) -> Prueba:
         usuario = cuerpo.get("result", {}).get("username", "")
         return Prueba(ok=True, mensaje_humano=f"Conectado como @{usuario}." if usuario else "Telegram lo acepta.")
     return Prueba(ok=False, mensaje_humano="Telegram no reconoce ese token.")
+
+
+# — La meta mensual (Ajustes → Conexiones la edita junto a las llaves) —
+
+
+def leer_meta_mensual() -> dict[str, object]:
+    if not RUTA_PLATA.exists():
+        return {"meta_mensual": 0, "moneda": "USD"}
+    return json.loads(RUTA_PLATA.read_text())
+
+
+def escribir_meta_mensual(valor: float) -> dict[str, object]:
+    """Cambia solo `meta_mensual`; `$comment` y `moneda` quedan igual.
+    Mismo patrón atómico que guardar() — temporal + replace —, sin chmod
+    600 ni .bak: config/plata.json no es un secreto, va al repo."""
+    if valor <= 0:
+        raise ValueError("la meta mensual tiene que ser mayor que cero")
+
+    config = leer_meta_mensual()
+    config["meta_mensual"] = valor
+
+    temporal = RUTA_PLATA.parent / (RUTA_PLATA.name + ".tmp")
+    temporal.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
+    temporal.replace(RUTA_PLATA)
+    return config
