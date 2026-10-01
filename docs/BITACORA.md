@@ -74,6 +74,46 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · los tests nunca tocan la base real · construido · 092e74e
+
+- **Qué cambió:** un commit. Tres guardas independientes contra la contaminación de
+  `remi.db` por pytest (venía pasando desde hace tiempo, sin que nadie lo notara):
+  `trabajo.es_carpeta_de_proyecto()`/`es_ruta_de_pruebas()` descartan rutas de pruebas;
+  `conftest.py` aísla `GIT_CONFIG_GLOBAL` + `REMI_NUCLEO_URL` para toda la corrida; 
+  `avisar-commit.py` suma su propia guarda, sin depender de `nucleo/`. `limpiar_pruebas.py`
+  reescrito: ya no selecciona tareas a mano, cuenta/borra exactamente dos patrones. 477
+  pytest, mypy limpio.
+- **Corrido contra la base real:** `uv run python limpiar_pruebas.py` encontró 939 ideas
+  «proyecto sin ficha» con ruta de pytest y 0 tareas «hola» sin sesiones (las 4 que hay
+  tienen 1 sesión cada una — no es el ≈3 que se esperaba; lo digo tal cual salió, no
+  inventé un criterio distinto para forzar ese número). `--borrar` las quitó: 939 filas
+  menos. Reinicié `com.remi.nucleo` para que la corrección de `es_carpeta_de_proyecto`
+  quedara viva ya mismo, no en el próximo `actualizar.sh`.
+- **Decisiones que tomé sin preguntar:**
+  1. `REMI_PRUEBA_FORZAR_AVISO=1`: dos tests existentes (`test_gancho_git.py`) probaban el
+     aviso real de `avisar-commit.py` contra un repo de fixture que vive, como todo
+     `tmp_path`, bajo una carpeta de pruebas — exactamente lo que la guarda nueva existe
+     para frenar. Sin un escape explícito (solo para pruebas, documentado en el docstring
+     del script) esos dos tests se habrían quedado sin poder probar nada.
+  2. Arreglé de paso que `/tmp` es un symlink a `/private/tmp` en macOS: `Path.resolve()`
+     lo normaliza, así que `_CARPETAS_DE_PRUEBAS` necesitaba las dos formas o `/tmp/algo`
+     no calzaba con ningún prefijo después de resolver.
+- **Dudas abiertas:**
+  1. **La Bandeja NO quedó en 0**, a diferencia de lo que decía el «listo cuando» del
+     encargo. Quedan 69 ideas reales: ~15 son «proyecto sin ficha» con una ruta de verdad
+     (`remi-mente`, `kit-inicial`, `remi-notion`, …) y ~54 son dictados de voz genuinos de
+     Juan Camilo (incluido ruido de fondo transcrito). Ninguna de las dos es uno de los dos
+     patrones del encargo («nada más, nunca»), así que no las toqué — borrarlas habría sido
+     inventar un tercer criterio no pedido, con datos reales de por medio.
+  2. Los 4 «hola» con 1 sesión cada uno siguen en la base: si en algún momento se decide que
+     también son ruido de prueba, hace falta un criterio explícito nuevo (hoy el encargo pide
+     «sin sesiones», y tienen una).
+- **Cómo probarlo a mano:** `cd nucleo && uv run python limpiar_pruebas.py` → `Total: 0.`;
+  `uv run pytest -q` dos veces seguidas y comparar el conteo antes/después (no debería
+  cambiar); `uv run pytest pruebas/test_trabajo.py pruebas/test_gancho_git.py -v`.
+
+---
+
 ## 2026-10-01 · el panel sirve desde el teléfono (rewrite /nucleo) · construido · 239a773
 
 - **Qué cambió:** un commit. `next.config.mjs` suma un rewrite `/nucleo/:path* ->
