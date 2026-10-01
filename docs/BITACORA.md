@@ -20,6 +20,58 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · T1 · Día cero · construido · b7a24e3 (código) + copia/limpieza en la base real
+
+Escribe la terminal.
+
+- **Qué cambió:**
+  1. `d08bdad` **T1.1** — `archivada` en Tarea e Idea (contrato, modelos Python, tipos TS de
+     ventanita y panel regenerados). `nucleo/db.py`: `listar_tareas_con_fecha`,
+     `ultima_sesion_cerrada` y `ultima_sesion_cerrada_min` dejan de ver archivadas; `/hoy` y
+     `/bandeja` ya las excluían por construcción.
+  2. `f95f083` **T1.2** — `nucleo/limpiar_pruebas.py --dia-cero [--si|--deshacer]`: ideas
+     creadas antes del 1-oct-2026 00:00 (Bogotá) y tareas cuya primera sesión es anterior o
+     que no tienen ninguna. Nunca un DELETE: archiva; `--deshacer` corre el mismo criterio
+     sobre lo archivado y lo devuelve (`enfriando`/`hoy`).
+  3. `f780f70` **T1.3** — `nucleo/libros.py`: `por_ruta` resuelve la raíz de un worktree de
+     git al repo principal (lee el `.git` que apunta a `.../worktrees/<nombre>`) antes de
+     comparar contra `ruta:` del libro.
+  4. En `remi-mente` (bóveda), un commit por libro: `tipo:` en los siete (`da7a1f5` beam
+     cliente, `ec6d0e3` malik propio, `4a3748f` omniway propio, `5eff62a` organic-cash
+     propio, `d9d48fb` remi propio, `f43d9cf` shopify-cliente cliente, confirmados por Juan
+     Camilo el 1-oct); `51134d1` upvisuals suma `cliente: Alfonso` y las tres fases
+     (`pagando`/`propuesta`/`sin alcance`, `listo_cuando` vacío — lo pregunta Remi en T3).
+  5. Hitos 1 a 4 del Camino de UpVisuals marcados `hecho` vía `POST /libros/upvisuals/camino/N`
+     contra el núcleo real (`d8e95fb`…`d829376` en la bóveda): Intake, Descubrimiento,
+     Propuesta por fases, Contrato.
+  6. `df3bd9e` beam: suma `~/beam-notifications` y `~/beam-admin-preview` a `ruta:`. El
+     nombre del cliente queda sin escribir, como pide el plan.
+  7. **T1 punto 2, la base real:** `scripts/copia.sh` (snapshot `4751d088`, integrity_check
+     ok) → `limpiar_pruebas.py --dia-cero` sin `--si` (lista guardada en
+     `~/Library/Logs/Remi/dia-cero.txt`, 68 ideas + 15 tareas, total 83) → conté filas
+     (15 tareas, 77 ideas) → `--si` → conté otra vez (mismos 15 y 77, 83 marcadas
+     `archivada`) → `GET /hoy` vacío, `GET /bandeja` con las 9 ideas reales post-1-oct.
+- **Decisiones que tomé sin preguntar:**
+  1. `--deshacer` no guarda el estado exacto de antes de archivar (no hay dónde guardarlo sin
+     tocar el contrato): vuelve la idea a `enfriando` y la tarea a `hoy`, que es lo que eran
+     las 83 filas reales de este corte. Si algún día se archiva algo que no venía de ahí,
+     `--deshacer` lo devolvería a ese mismo lugar, no al suyo — documentado en el docstring.
+  2. El `tipo:` y la confirmación cliente/propio de los siete libros los tomé de la bitácora
+     del commit `09caf9c` (29-30 sep, Juan Camilo ya los había confirmado para el Encargo H);
+     no volví a preguntar.
+- **Dudas abiertas:**
+  - `nucleo/pruebas/test_noche.py` postea contra `http://127.0.0.1:4400/telegram/avisar`
+    (el núcleo de producción, no uno aislado) en sus pruebas del reporte de la noche; vi un
+    `[telegram] avisé` real en la salida de `pytest` corriendo la suite completa. No es de
+    T0/T1 y no lo tOQUÉ — lo anoto para T5 (las pruebas frágiles) o antes, porque si hay
+    `TELEGRAM_TOKEN` real en el entorno de pruebas, cada corrida de `pytest` le manda un
+    mensaje de Telegram a Juan Camilo.
+- **Cómo probarlo a mano:** `curl -s 127.0.0.1:4400/libros/upvisuals` → `tipo: cliente`,
+  `fase_actual_n: 1`, `hito_actual` «Pago antes de arrancar». `curl -s 127.0.0.1:4400/hoy` →
+  `[]`. `curl -s 127.0.0.1:4400/bandeja` → 9 ideas, ninguna de antes del 1-oct.
+
+---
+
 ## 2026-10-01 · T0 · Arranque · construido · 9e395a7
 
 Escribe la terminal.
