@@ -15,13 +15,14 @@ from collections.abc import AsyncIterator
 from typing import Literal
 from uuid import UUID, uuid4
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
 import bandeja
 import caminos
 import clasificar
+import conexiones
 import correcciones
 import db
 import entregas
@@ -996,6 +997,62 @@ def camino_de(tema: str) -> Camino:
         )
     finally:
         conexion.close()
+
+
+# — Configuración (Panel → Ajustes): llaves y tokens, nunca por el túnel —
+
+
+def _vino_por_el_tunel(request: Request) -> bool:
+    """Cualquier cabecera Cf-* la pone Cloudflare: la petición vino por el
+    túnel, no de 127.0.0.1. Cambiar una llave desde el teléfono, lejos del
+    Mac, no es una decisión para tomar a ciegas."""
+    return any(nombre.lower().startswith("cf-") for nombre in request.headers.keys())
+
+
+def _si_es_del_tunel_lo_corta(request: Request) -> None:
+    if _vino_por_el_tunel(request):
+        raise HTTPException(status_code=403, detail="esto se cambia desde el Mac")
+
+
+class ConexionNueva(BaseModel):
+    valor: str
+
+
+@app.get("/config/conexiones", response_model=dict[str, conexiones.Conexion])
+def listar_conexiones() -> dict[str, conexiones.Conexion]:
+    return conexiones.estado()
+
+
+@app.put("/config/conexiones/{nombre}", response_model=conexiones.Conexion)
+def guardar_conexion(nombre: str, cuerpo: ConexionNueva, request: Request) -> conexiones.Conexion:
+    _si_es_del_tunel_lo_corta(request)
+    try:
+        conexiones.guardar(nombre, cuerpo.valor)
+    except conexiones.NombreInvalido:
+        raise HTTPException(status_code=400, detail="ese nombre no está en la lista blanca") from None
+    return conexiones.estado()[nombre]
+
+
+@app.post("/config/conexiones/{nombre}/probar", response_model=conexiones.Prueba)
+def probar_conexion(nombre: str, request: Request) -> conexiones.Prueba:
+    _si_es_del_tunel_lo_corta(request)
+    try:
+        return conexiones.probar(nombre)
+    except conexiones.NombreInvalido:
+        raise HTTPException(status_code=400, detail="ese nombre no está en la lista blanca") from None
+
+
+class MetaMensualNueva(BaseModel):
+    meta_mensual: float
+
+
+@app.put("/config/plata")
+def guardar_meta_mensual(cuerpo: MetaMensualNueva, request: Request) -> dict[str, object]:
+    _si_es_del_tunel_lo_corta(request)
+    try:
+        return conexiones.escribir_meta_mensual(cuerpo.meta_mensual)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
 
 
 if __name__ == "__main__":
