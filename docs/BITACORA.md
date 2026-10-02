@@ -20,6 +20,72 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · T3 · Remi pregunta lo que le falta (fase Q) · construido · 8c0a9be
+
+Escribe la terminal.
+
+- **Qué cambió:**
+  1. `dcc362b` **T3.1–T3.4** — contrato `Pregunta` (tabla `preguntas`, `db.py`).
+     `nucleo/preguntas.py`: seis detectores sin IA sobre `libros.listar()` —
+     `tipo` ausente, `cliente` ausente en un libro `tipo: cliente`, `fase.N.listo_cuando`
+     vacío, `fase.N.cobrado` (una fase `pagando` sin ningún cobro real del proyecto),
+     `ruta` vacía, y `completar.N` (cada «(Completar: …)» de proyectos/áreas/oficios). Un
+     escritor por campo: `tipo`/`cliente` editan el frontmatter escalar, `ruta` agrega un
+     item a la lista sin tocar los que había, `fase.N.listo_cuando` edita solo esa línea
+     dentro del bloque `fases:`, `fase.N.cobrado` crea la Entrega por la diferencia (sin
+     tocar archivos), `completar.N` cambia esa línea por «- respuesta» — los cuatro primeros
+     con su commit en la bóveda (`boveda_git`). Una respuesta que no se entiende no guarda
+     nada y repregunta una vez. Forma F: `GET /preguntas` (`?tema=`, máximo 3, sincroniza al
+     vuelo), `POST /preguntas/{id}/respuesta`, `POST /preguntas/{id}/despues` (24 h).
+  2. `5c97779` **T3.5** — al abrir un bloque de un proyecto (`sesion.app_contexto` =
+     `trabajo.tema_activo()`) con algo pendiente, si el presupuesto de silencio de
+     `iniciativa.py` lo permite, la deja «en el aire» (singleton, no por conversación) y
+     gasta un cupo del día sin crear un Nudge. El mensaje siguiente que no sea
+     arranque/cierre/pregunta (`clasificar.clasificar`) es la respuesta.
+     `RespuestaMensaje.tipo` suma `"pregunta_respondida"` (fuera de Forma G, solo la
+     ventanita). `db.listar_preguntas_pendientes` ganó un `rowid` de desempate: con
+     `creada_en` igual (varias del mismo `sincronizar`), el orden lo decidía el índice
+     `(tema, campo)`, no la creación.
+  3. `8458b85` **T3.6** — `noche.py` llama a `preguntas.avisar_por_telegram_si_toca` en su
+     corrida de las 4:00: la pregunta pendiente más vieja (cualquier tema) sale por
+     `telegram.avisar` y queda en el aire; `pregunta_telegram_dia` (una fila por día) es el
+     único tope. La respuesta llega por el mismo bot, sin tocar `telegram.py`:
+     `_procesar_texto` ya pasa cualquier texto por `/mensaje`.
+  4. `8c0a9be` **T3.7** — prueba sobre los seis detectores reales (no solo ejemplos
+     sueltos): de tú, ≤20 palabras, sin exclamaciones ni «usted».
+- **Decisiones que tomé sin preguntar:**
+  1. No encontré en el repo un «ritual de la mañana» como endpoint o módulo — T3.5 dice
+     que Remi pregunta también ahí; lo dejo fuera (no hay dónde engancharlo sin inventar
+     una función nueva fuera del alcance de T3) y lo anoto para quien diseñe ese ritual.
+  2. «En el aire» es un singleton (una fila fija, no por `conversacion_id`): la mayoría de
+     los mensajes de `/mensaje` no abren una conversación (solo lo hace `pensar.py`, opt-in);
+     atarlo a `conversacion_vigente` lo haría invisible casi siempre. Con una sola persona y
+     una sola ventanita, un singleton es exacto, no una simplificación con pérdida.
+  3. El contrato `Pregunta` lo diseñé yo (no tuve el texto literal de la Biblia v3.8 a mano
+     más allá de la Forma F de `PLAN-100.md`): `id/tema/campo/voz/estado/creada_en/
+     disponible_desde`. Si Claude en la app ya publicó un `Pregunta` distinto en la Biblia,
+     esto es `CAMBIO DE FORMA: Pregunta — diseñado desde la Forma F y los detectores de T3.2,
+     sin ver el contrato original`.
+  4. `fase.N.cobrado` respondida con un monto crea la Entrega por la **diferencia** contra
+     lo ya pagado (no por el monto completo) — coherente con que «Alfonso pagó 1.000, van
+     2.500 de 5.000» del ejemplo del plan describe un acumulado, no un pago nuevo cada vez;
+     si la diferencia es ≤0 no crea nada (ya estaba cubierto) y la pregunta igual se marca
+     respondida.
+  5. `iniciativa.registrar(..., "ritual", ahora)` reutiliza el tipo existente más parecido
+     («en el ritual de la mañana» lo nombra el plan) en vez de pedir un tipo nuevo — T3.5
+     dice explícitamente «sin tipo nuevo de Nudge».
+- **Dudas abiertas:** la misma de T1/T2 sobre `test_noche.py` posteando contra el núcleo de
+  producción real (`[telegram] avisé` real en la corrida de la suite completa) — sigue para
+  T5. El «ritual de la mañana» (decisión 1) queda sin dueño.
+- **Cómo probarlo a mano:** `uv run pytest -q` (567) + `uv run mypy .` (99 módulos) +
+  `cd apps/ventanita && npx tsc --noEmit && npm test` (90). Contra un núcleo aislado con un
+  libro sin `tipo:`: `GET /preguntas` trae «¿X es de un cliente o es tuyo?»; `POST
+  /preguntas/{id}/respuesta {"texto": "de un cliente"}` escribe `tipo: cliente` con commit
+  en la bóveda y no vuelve a aparecer; `POST /preguntas/{id}/despues` la saca hasta mañana;
+  nunca hay más de tres a la vista.
+
+---
+
 ## 2026-10-01 · T2 · La plata y la agenda entran solas · construido · 5dd36e7
 
 Escribe la terminal.
