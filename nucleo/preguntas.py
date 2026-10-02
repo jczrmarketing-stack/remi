@@ -332,6 +332,22 @@ def responder(conexion: sqlite3.Connection, pregunta: Pregunta, texto: str) -> b
     si el texto no se entiende — no guarda nada."""
     libro = next((l for l in libros.listar() if l.tema == pregunta.tema), None)
 
+    if pregunta.campo.startswith("regla."):
+        # T9.1: de lección a regla. Un «sí» la aplica con commit
+        # (correcciones.aplicar_regla); cualquier otra cosa se entiende
+        # como «no» — se descarta en silencio, sin insistir (ley 3).
+        import correcciones
+        import experiencia
+
+        propuesta = experiencia.leer_propuesta_regla(conexion, pregunta.campo)
+        if propuesta is None:
+            return False
+        if not correcciones.es_confirmacion(texto):
+            return True
+        oficio, regla = propuesta
+        correcciones.aplicar_regla(oficio, regla)
+        return True
+
     if pregunta.campo == "tipo":
         if libro is None:
             return False

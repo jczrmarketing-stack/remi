@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -236,6 +237,8 @@ def escribir(leccion: Leccion, ahora: datetime | None = None) -> tuple[Path, boo
         boveda_git.snapshot_antes(f"sumar una vuelta a la lección {anterior.ruta.name}")
         anterior.ruta.write_text(texto)
         boveda_git.snapshot_despues(f"experiencia: {anterior.ruta.name} veces={nuevas_veces}")
+        if nuevas_veces == 2:
+            _proponer_regla(anterior, ahora)
         return anterior.ruta, False
 
     carp = carpeta()
@@ -346,6 +349,73 @@ def revisar_resultados_pendientes(ahora: datetime | None = None) -> int:
         boveda_git.snapshot_despues(f"experiencia: {ruta.name} resultado={nuevo_resultado} (revisión 48h)")
         tocados += 1
     return tocados
+
+
+# — T9.1: de lección a regla —
+
+ESQUEMA_PROPUESTA_REGLA = """
+CREATE TABLE IF NOT EXISTS propuesta_regla (
+    campo TEXT PRIMARY KEY,
+    oficio TEXT NOT NULL,
+    regla TEXT NOT NULL
+);
+"""
+
+
+def _preparar_propuesta_regla(conexion: sqlite3.Connection) -> None:
+    conexion.executescript(ESQUEMA_PROPUESTA_REGLA)
+
+
+def guardar_propuesta_regla(conexion: sqlite3.Connection, campo: str, oficio: str, regla: str) -> None:
+    _preparar_propuesta_regla(conexion)
+    conexion.execute(
+        "INSERT INTO propuesta_regla (campo, oficio, regla) VALUES (?, ?, ?) "
+        "ON CONFLICT(campo) DO UPDATE SET oficio = excluded.oficio, regla = excluded.regla",
+        (campo, oficio, regla),
+    )
+    conexion.commit()
+
+
+def leer_propuesta_regla(conexion: sqlite3.Connection, campo: str) -> tuple[str, str] | None:
+    _preparar_propuesta_regla(conexion)
+    fila = conexion.execute(
+        "SELECT oficio, regla FROM propuesta_regla WHERE campo = ?", (campo,)
+    ).fetchone()
+    return (fila["oficio"], fila["regla"]) if fila else None
+
+
+def _proponer_regla(leccion: LeccionGuardada, ahora: datetime) -> None:
+    """Cuando una lección llega a `veces: 2`: Remi propone una regla de
+    una línea para el oficio que toca — nunca la escribe sola (T9.1). La
+    pregunta vive en el sistema de T3 (Forma F); la respuesta la aplica
+    `preguntas.responder()`."""
+    import correcciones
+    from modelos import Pregunta
+
+    clave = "Cómo verlo antes" if leccion.clase == "error" else "Cuándo usarlo"
+    regla = leccion.secciones.get(clave, "").strip() or leccion.resumen
+    oficio = correcciones.oficio_destino(regla)
+    campo = f"regla.{slug(leccion.titulo)}"
+
+    conexion = db.conectar()
+    try:
+        if db.pregunta_de_tema_campo(conexion, leccion.tema, campo) is not None:
+            return  # ya se propuso (o ya se respondió) esta misma regla
+        guardar_propuesta_regla(conexion, campo, oficio, regla)
+        db.crear_pregunta(
+            conexion,
+            Pregunta(
+                id=uuid4(),
+                tema=leccion.tema,
+                campo=campo,
+                voz=f"Esto ya pasó dos veces. ¿Lo dejo como regla en el oficio {oficio}?",
+                estado="pendiente",
+                creada_en=ahora,
+                disponible_desde=ahora,
+            ),
+        )
+    finally:
+        conexion.close()
 
 
 # — Búsqueda híbrida (T8.6): FTS5 (texto exacto) + los vectores que ya hay —
