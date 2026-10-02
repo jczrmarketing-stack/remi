@@ -446,6 +446,13 @@ a la terminal; cuando la forma real llega, se verifica contra el núcleo de verd
   «Remi pregunta» aparece en el panel real. Contrato `Pregunta`: se queda el de la terminal
   (`disponible_desde`, sin `respuesta`); Biblia v3.9 y el panel ya lo usan. Tres ajustes de
   voz y orden quedaron en T5 punto 8. No contesté ninguna pregunta: las contesta Juan Camilo.
+- 1-oct 20:00 · **T4 y T5 de la terminal verificados** (`49bec0c`…`3ec8abb`): pytest 587 y
+  mypy limpios; Playwright 63/63 en el panel. En vivo: `por_linea` (Software y Malik con sus
+  minutos), `/semana` real (cerrado «BeaM · Intake», plata del mes con brecha $2.400) y el
+  panel de Semana lo pinta; `/config/conexiones` responde 200 en local. Hallazgo: la Bandeja
+  y Semana traen tres ideas que son ruido de sesiones de Claude Code («proyecto sin ficha:
+  /Users/…», «que te falta para que estes al 100% listo»); van a T8 (la experiencia no debe
+  nacer ideas de eso). Falta T8, T9 y T6; T7 espera el visto bueno.
 
 ## Notas para la terminal (lo que el panel ya espera)
 
