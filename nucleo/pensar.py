@@ -259,7 +259,13 @@ def _indice_con_presupuesto(
     protegidas = sorted((e for e in indice if _nivel(e) <= 1), key=_clave, reverse=True)
     resto = sorted((e for e in indice if _nivel(e) > 1), key=_clave, reverse=True)
 
-    limite = presupuesto_tokens * _CARACTERES_POR_TOKEN
+    # Reserva para el encabezado y, en el peor caso, una línea de «no entró»
+    # por cada tema que aparece en `resto` — así el total que arma
+    # instrucciones_con_indice (encabezado + líneas + ese pie) no se pasa
+    # del presupuesto, aunque el pie real sea más chico que el peor caso.
+    temas_en_resto = {e.tema for e in resto}
+    reserva_pie = sum(len(f"- {t}: 99999 más\n") for t in temas_en_resto)
+    limite = presupuesto_tokens * _CARACTERES_POR_TOKEN - len(ENCABEZADO_INDICE) - reserva_pie
     incluidas = list(protegidas)
     usado = sum(len(_linea_indice(e)) + 1 for e in incluidas)
     recortadas_por_tema: dict[str, int] = {}

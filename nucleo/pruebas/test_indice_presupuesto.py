@@ -49,8 +49,9 @@ def test_lo_que_no_entra_se_cuenta_por_tema_no_se_pierde():
 def test_lo_mas_fresco_entra_antes_cuando_el_presupuesto_corta():
     viejo = _entrada("La vieja", tema="malik", hace_dias=100)
     nueva = _entrada("La nueva", tema="malik", hace_dias=0)
-    # Presupuesto justo para una sola línea.
-    presupuesto = (len(pensar._linea_indice(nueva)) + 1) * 1 // 4 + 1
+    # Presupuesto justo para el encabezado, el pie de un tema y una línea.
+    reserva = len(pensar.ENCABEZADO_INDICE) + len("- malik: 99999 más\n")
+    presupuesto = (reserva + len(pensar._linea_indice(nueva)) + 1) // 4 + 1
 
     incluidas, recortadas = pensar._indice_con_presupuesto([viejo, nueva], presupuesto_tokens=presupuesto)
 
