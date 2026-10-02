@@ -82,6 +82,12 @@ def test_actualiza_el_estado_solo_del_libro_con_episodios_de_hoy(tmp_path, monke
     _libro(tmp_path)
     hoy = date.today()
     _episodio(tmp_path, "a", "Se arregló el webhook", "El webhook fallaba por timeout", "Detalle.", hoy)
+    # T5.6: el orden de escritura real (y la resolución del mtime del
+    # filesystem) no alcanza para garantizar que el episodio quede más
+    # nuevo que el libro — se fija a mano.
+    ahora = datetime.now(timezone.utc).timestamp()
+    os.utime(tmp_path / "proyectos" / "malik.md", (ahora - 60, ahora - 60))
+    os.utime(tmp_path / "episodios" / f"{hoy.isoformat()}-a.md", (ahora, ahora))
 
     pedidos_vistos = []
 
@@ -151,6 +157,11 @@ def test_no_toca_un_episodio_mas_viejo_que_la_ultima_escritura_del_estado(tmp_pa
     hoy = date.today()
     _episodio(tmp_path, "a", "Se arregló el webhook", "El webhook fallaba por timeout", "Detalle.", hoy)
     _libro(tmp_path)  # el libro se escribe DESPUÉS del episodio: es más nuevo
+    # T5.6: fijado a mano — el orden de escritura real no garantiza por sí
+    # solo la diferencia de mtime que este caso necesita probar.
+    ahora = datetime.now(timezone.utc).timestamp()
+    os.utime(tmp_path / "episodios" / f"{hoy.isoformat()}-a.md", (ahora - 60, ahora - 60))
+    os.utime(tmp_path / "proyectos" / "malik.md", (ahora, ahora))
 
     llamado = []
     import estado_libro

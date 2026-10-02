@@ -23,6 +23,7 @@ def test_suma_memoria_y_deja_el_calendario(tmp_path: Path) -> None:
         ["python3", str(INSTALAR)],
         check=True,
         env={**os.environ, "REMI_DESKTOP_CONFIG": str(destino), "REMI_SIN_CLAUDE": "1"},
+        timeout=60,
     )
     datos = json.loads(destino.read_text())
     assert datos["preferences"]["sidebarMode"] == "chat"
@@ -34,6 +35,7 @@ def test_suma_memoria_y_deja_el_calendario(tmp_path: Path) -> None:
         ["python3", str(INSTALAR)],
         check=True,
         env={**os.environ, "REMI_DESKTOP_CONFIG": str(destino), "REMI_SIN_CLAUDE": "1"},
+        timeout=60,
     )
     otra = json.loads(destino.read_text())
     assert list(otra["mcpServers"]).count("memoria") == 1
