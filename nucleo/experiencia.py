@@ -1,0 +1,288 @@
+"""T8 (Biblia v3.9, Parte VII «La experiencia es memoria»): lecciones con
+evidencia, no transcripts. Una sola fuente — la bóveda, con commit;
+SQLite (FTS5 + los vectores que ya hay) la indexa, y se reconstruye
+entera desde la bóveda con `--reindexar`. El modelo solo redacta: nunca
+decide qué es verdad ni dónde se guarda algo.
+"""
+from __future__ import annotations
+
+import argparse
+import re
+import sqlite3
+import unicodedata
+from dataclasses import dataclass, field
+from datetime import date, datetime, timezone
+from pathlib import Path
+from typing import Literal
+
+import boveda_git
+import episodios
+import libros
+import vectores
+
+Clase = Literal["error", "acierto"]
+Fuente = Literal["claude-code", "claude-app", "remi", "bitacora", "manual"]
+
+SECCIONES_ERROR = ("Síntoma", "Lo que creímos", "Causa real", "Cura", "Cómo verlo antes")
+SECCIONES_ACIERTO = ("Qué funcionó", "Evidencia", "Cuándo usarlo")
+CLASES = ("error", "acierto")
+FUENTES = ("claude-code", "claude-app", "remi", "bitacora", "manual")
+
+
+def carpeta() -> Path:
+    """`remi-mente/experiencia/` — al lado de proyectos/, áreas/, oficios/
+    y episodios/, no adentro de ninguna."""
+    return episodios.carpeta_episodios().parent / "experiencia"
+
+
+@dataclass(frozen=True)
+class Leccion:
+    titulo: str
+    tema: str
+    resumen: str
+    clase: Clase
+    donde: str  # "<repo>/<archivo>" — de dónde salió
+    secciones: dict[str, str]
+    fuente: Fuente
+    veces: int = 1
+    ultima_vez: date | None = None
+    vueltas: bool = False
+
+
+def secciones_de(clase: Clase) -> tuple[str, ...]:
+    return SECCIONES_ERROR if clase == "error" else SECCIONES_ACIERTO
+
+
+def validar(leccion: Leccion) -> list[str]:
+    """Pura: la lista de lo que falta, [] si está completa. Nunca escribe
+    — eso es `escribir()`, solo si esto viene vacío. Lo que no cumpla no
+    entra (T8, punto 1)."""
+    errores: list[str] = []
+    if not leccion.titulo.strip():
+        errores.append("falta el título")
+    if leccion.clase not in CLASES:
+        errores.append(f"clase debe ser error o acierto, no «{leccion.clase}»")
+        return errores  # sin clase válida no hay con qué comparar secciones
+    if not leccion.tema.strip():
+        errores.append("falta el tema")
+    if not leccion.resumen.strip():
+        errores.append("falta el resumen")
+    if not leccion.donde.strip():
+        errores.append("falta dónde pasó (repo y archivo)")
+    if leccion.fuente not in FUENTES:
+        errores.append(f"fuente debe ser una de {FUENTES}, no «{leccion.fuente}»")
+    esperadas = secciones_de(leccion.clase)
+    for nombre in esperadas:
+        if nombre == "Lo que creímos":
+            continue  # puede ir vacía: no toda sesión tuvo una pista falsa
+        if not leccion.secciones.get(nombre, "").strip():
+            errores.append(f"falta la sección «{nombre}»")
+    extra = set(leccion.secciones) - set(esperadas)
+    if extra:
+        errores.append(f"esas secciones no son de un «{leccion.clase}»: {', '.join(sorted(extra))}")
+    if leccion.clase == "error" and leccion.vueltas and not leccion.secciones.get("Lo que creímos", "").strip():
+        errores.append("vueltas: true exige «Lo que creímos» (la pista falsa que se siguió)")
+    return errores
+
+
+def _normalizar(texto: str) -> str:
+    sin_tildes = unicodedata.normalize("NFD", texto.lower())
+    sin_tildes = "".join(c for c in sin_tildes if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]+", " ", sin_tildes).strip()
+
+
+def _sintoma_de(secciones: dict[str, str], clase: Clase) -> str:
+    clave = "Síntoma" if clase == "error" else "Qué funcionó"
+    return _normalizar(secciones.get(clave, ""))
+
+
+def slug(texto: str) -> str:
+    return episodios.slug(texto)
+
+
+@dataclass(frozen=True)
+class LeccionGuardada:
+    ruta: Path
+    titulo: str
+    tema: str
+    resumen: str
+    clase: str
+    donde: str
+    veces: int
+    ultima_vez: str
+    vueltas: bool
+    fuente: str
+    secciones: dict[str, str]
+
+
+def _parsear(ruta: Path) -> LeccionGuardada | None:
+    texto = ruta.read_text()
+    if not texto.startswith("---"):
+        return None
+    partes = texto.split("---", 2)
+    if len(partes) < 3:
+        return None
+    campos = libros._frontmatter(partes[1])
+    titulo, tema, resumen = campos.get("titulo"), campos.get("tema"), campos.get("resumen")
+    if not all(isinstance(c, str) and c for c in (titulo, tema, resumen)):
+        return None
+    secciones: dict[str, str] = {}
+    actual: str | None = None
+    buf: list[str] = []
+    for linea in partes[2].splitlines():
+        if linea.startswith("## "):
+            if actual is not None:
+                secciones[actual] = "\n".join(buf).strip()
+            actual = linea[3:].strip()
+            buf = []
+        elif actual is not None:
+            buf.append(linea)
+    if actual is not None:
+        secciones[actual] = "\n".join(buf).strip()
+    assert isinstance(titulo, str) and isinstance(tema, str) and isinstance(resumen, str)
+    return LeccionGuardada(
+        ruta=ruta,
+        titulo=titulo,
+        tema=tema,
+        resumen=resumen,
+        clase=str(campos.get("clase") or ""),
+        donde=str(campos.get("donde") or ""),
+        veces=int(str(campos.get("veces") or 1)),
+        ultima_vez=str(campos.get("ultima_vez") or ""),
+        vueltas=str(campos.get("vueltas") or "").strip().lower() == "true",
+        fuente=str(campos.get("fuente") or ""),
+        secciones=secciones,
+    )
+
+
+def listar(tema: str | None = None) -> list[LeccionGuardada]:
+    carp = carpeta()
+    if not carp.is_dir():
+        return []
+    resultado = []
+    for ruta in sorted(carp.glob("*.md")):
+        leida = _parsear(ruta)
+        if leida is None:
+            continue
+        if tema is not None and leida.tema != tema:
+            continue
+        resultado.append(leida)
+    return resultado
+
+
+def _existente(leccion: Leccion) -> LeccionGuardada | None:
+    """Ya hay una lección del mismo libro con el mismo síntoma/acierto
+    (texto normalizado) — nunca se crea otra (T8, punto 3)."""
+    objetivo = _sintoma_de(leccion.secciones, leccion.clase)
+    if not objetivo:
+        return None
+    for existente in listar(tema=leccion.tema):
+        if existente.clase != leccion.clase:
+            continue
+        if _sintoma_de(existente.secciones, leccion.clase) == objetivo:
+            return existente
+    return None
+
+
+def _cuerpo_de(leccion: Leccion) -> str:
+    return "".join(f"## {nombre}\n\n{leccion.secciones.get(nombre, '')}\n\n" for nombre in secciones_de(leccion.clase))
+
+
+def _frontmatter_de(leccion: Leccion, veces: int, ultima_vez: date) -> str:
+    lineas = [
+        "---",
+        f'titulo: "{episodios._una_linea(leccion.titulo)}"',
+        f"tema: {leccion.tema}",
+        f'resumen: "{episodios._una_linea(leccion.resumen)}"',
+        "tipo: leccion",
+        f"clase: {leccion.clase}",
+        f"donde: {leccion.donde}",
+        f"veces: {veces}",
+        f"ultima_vez: {ultima_vez.isoformat()}",
+        f"vueltas: {'true' if leccion.vueltas else 'false'}",
+        f"fuente: {leccion.fuente}",
+        "---",
+        "",
+    ]
+    return "\n".join(lineas)
+
+
+def escribir(leccion: Leccion, ahora: datetime | None = None) -> tuple[Path, bool]:
+    """Guarda la lección, con su commit en la bóveda. (ruta, es_nueva) —
+    si ya había una igual, le suma `veces` y una línea «volvió a pasar»,
+    nunca crea otra. Lanza ValueError con la lista de `validar()` si no
+    está completa: no entra nada a medio hacer."""
+    errores = validar(leccion)
+    if errores:
+        raise ValueError("; ".join(errores))
+    ahora = ahora or datetime.now(timezone.utc)
+    hoy = ahora.date()
+
+    anterior = _existente(leccion)
+    if anterior is not None:
+        texto = anterior.ruta.read_text()
+        nuevas_veces = anterior.veces + 1
+        texto = re.sub(r"(?m)^veces:\s*\d+\s*$", f"veces: {nuevas_veces}", texto)
+        texto = re.sub(r"(?m)^ultima_vez:.*$", f"ultima_vez: {hoy.isoformat()}", texto)
+        if not texto.endswith("\n"):
+            texto += "\n"
+        texto += f"- volvió a pasar el {hoy.isoformat()}.\n"
+        boveda_git.snapshot_antes(f"sumar una vuelta a la lección {anterior.ruta.name}")
+        anterior.ruta.write_text(texto)
+        boveda_git.snapshot_despues(f"experiencia: {anterior.ruta.name} veces={nuevas_veces}")
+        return anterior.ruta, False
+
+    carp = carpeta()
+    carp.mkdir(parents=True, exist_ok=True)
+    sintoma = _sintoma_de(leccion.secciones, leccion.clase) or slug(leccion.titulo)
+    base = f"{hoy.isoformat()}-{slug(leccion.tema)}-{slug(sintoma)}"
+    destino = episodios._ruta_libre(carp, base)
+    boveda_git.snapshot_antes(f"escribir la lección {destino.name}")
+    destino.write_text(_frontmatter_de(leccion, 1, hoy) + "\n" + _cuerpo_de(leccion))
+    boveda_git.snapshot_despues(f"experiencia: {destino.name} ({leccion.clase}, {leccion.tema})")
+    return destino, True
+
+
+# — Detección sin IA de «vueltas» (T8, punto 2) —
+
+UMBRAL_ROJOS_SEGUIDOS = 3
+UMBRAL_EDICIONES_SIN_COMMIT = 5
+UMBRAL_MINUTOS = 40
+
+
+def hay_vueltas(
+    *, rojos_seguidos: int = 0, ediciones_sin_commit: int = 0, minutos_hasta_el_verde: int = 0
+) -> bool:
+    """Cualquiera de las tres señales de la sesión real (T8.2): la misma
+    prueba en rojo 3+ veces, el mismo archivo editado 5+ veces sin commit,
+    o más de 40 min entre el primer rojo y el verde."""
+    return (
+        rojos_seguidos >= UMBRAL_ROJOS_SEGUIDOS
+        or ediciones_sin_commit >= UMBRAL_EDICIONES_SIN_COMMIT
+        or minutos_hasta_el_verde > UMBRAL_MINUTOS
+    )
+
+
+_PATRON_COMMIT_ARREGLO = re.compile(r"^(fix|arregl|corrig)", re.IGNORECASE)
+
+
+def commit_es_arreglo(mensaje: str) -> bool:
+    return bool(_PATRON_COMMIT_ARREGLO.match(mensaje.strip()))
+
+
+# — Resultado de una sesión, sin IA (T8, punto 4) —
+
+Resultado = Literal["limpio", "con-arreglo", "sin-commit"]
+
+
+def resultado_de_sesion(
+    *, hubo_commits: bool, pruebas: Literal["verde", "rojo", "sin-correr"], fix_en_48h: bool
+) -> Resultado:
+    """limpio: commits y pruebas verdes, y nada lo tocó después. con-arreglo:
+    un commit fix/revert a las 48 h tocó los mismos archivos, o las pruebas
+    quedaron en rojo. sin-commit: la sesión no dejó ningún commit."""
+    if not hubo_commits:
+        return "sin-commit"
+    if pruebas == "rojo" or fix_en_48h:
+        return "con-arreglo"
+    return "limpio"
