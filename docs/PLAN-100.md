@@ -284,9 +284,16 @@ y es reemplazable; nunca decide qué es verdad ni es el lugar donde algo se guar
    libro, la entrada nueva queda como episodio. Y la regla donde toda mano la lee — una línea
    en `CLAUDE.md` y en el skill `/remi`: «Al cerrar un trabajo, por cada problema resuelto:
    `anotar_leccion`». En la charla con Remi, «anota esta lección: …» hace lo mismo.
-6. Buscar: tabla FTS5 sobre las lecciones (el texto exacto de un error se busca literal) y
-   los vectores que ya hay. `GET /experiencia?tema=&q=`. El índice se regenera desde la
-   bóveda con un comando (`uv run python experiencia.py --reindexar`).
+6. Búsqueda híbrida, sobre TODO lo que hay en la bóveda (libros, oficios, episodios y
+   lecciones), no solo las lecciones: una tabla FTS5 (texto exacto, BM25: un código de error,
+   un nombre, un monto) junto a los vectores que ya hay (`sqlite-vec`, parecido), y las dos
+   listas se funden por posición (reciprocal rank fusion, sin pesos que afinar). `asociar`
+   pasa a usar las dos. `GET /experiencia?tema=&q=`. Todo el índice (FTS5 y vectores) se
+   regenera desde la bóveda con un comando (`uv run python experiencia.py --reindexar`); el
+   nombre del modelo de embeddings entra en el hash, así cambiar de modelo recalcula solo.
+   Nada de servicios aparte (Pinecone, Qdrant, Milvus, Elasticsearch): están hechos para
+   millones de vectores y varios servidores; Remi tiene 27 notas con vector hoy y, a diez
+   años, decenas de miles, que SQLite recorre en milisegundos en el mismo archivo.
 7. Consultar antes de actuar: `SessionStart` y el armado de encargos agregan hasta tres
    lecciones («Ojo: aquí ya pasó X; la cura fue Y»), por archivo y tema primero, por vectores
    después.
@@ -341,10 +348,24 @@ Después de T8, antes de T6. Biblia v3.9: «Adaptarse: Remi propone, tú decides
    solo conocimiento como oficio. Un skill con scripts no entra al cerebro de Remi (lee, no
    ejecuta): Remi lo nombra en el encargo y lo corre Claude Code.
 
+5. Lo que se habla con Remi también queda (ARQUITECTURA-CEREBRO §6, que hoy no está
+   construido: solo dejan episodio las sesiones de Claude Code y las charlas pegadas). Al
+   cerrar una conversación de la ventanita o de Telegram (60 min sin turnos), si tuvo
+   sustancia (no una charla trivial: mismo criterio de `cierre.guardar`), se escribe su
+   episodio con título, «con qué me quedé», claves y tema, y si hubo datos nuevos de un
+   proyecto se actualiza su Estado, con la verificación anti-invento de siempre. Corre en la
+   consolidación de la noche y al abrir la conversación siguiente; nunca en medio de un turno.
+6. Prueba de escala, para saber y no suponer: en una base temporal, 50.000 notas sintéticas
+   con su vector; la búsqueda híbrida contesta en menos de 200 ms en el Mac mini y armar la
+   mente sigue por debajo de 8 mil tokens. Queda como prueba marcada `lenta` (no corre en
+   cada pytest) y su resultado se anota en la bitácora.
+
 **Listo cuando:** una lección de la semilla llevada a `veces: 2` produce la pregunta; con «sí»
 la regla aparece en el oficio con su commit y en el encargo siguiente; la base «Experiencia»
 de Notion muestra las mismas lecciones que la carpeta; los oficios aparecen como skills en
-una sesión nueva de Claude Code.
+una sesión nueva de Claude Code; le cuento algo a Remi por la ventanita, espero a que cierre
+la conversación y al día siguiente lo encuentra buscando una palabra exacta; la prueba de
+escala pasa.
 
 ### T6 · Cierre
 Antes: T8 y T9 están aprobadas: si no están hechas, van primero, en ese orden. T7 solo si
