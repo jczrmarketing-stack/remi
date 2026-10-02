@@ -379,9 +379,32 @@ una sesión nueva de Claude Code; le cuento algo a Remi por la ventanita, espero
 la conversación y al día siguiente lo encuentra buscando una palabra exacta; la prueba de
 escala pasa.
 
+### T10 · El techo del índice — **aprobada: sí** (Juan Camilo, 1-oct)
+Después de T9 (su prueba de escala encontró el problema: con 50.000 entradas, armar la
+mente da ~892.000 tokens, no los 8.000 pedidos). `db.indice_memoria()` devuelve todas las
+filas de `memoria`, sin límite.
+1. Presupuesto fijo (~8.000 tokens, configurable) al armar la mente (`pensar.
+   instrucciones_con_indice`): nivel 0 y 1 primero, completos; dentro de cada nivel, por
+   frescura (`fecha`) y uso (`trabajo_estado_en`, el cursor de tema que ya existe); el
+   resto, hasta el presupuesto. Lo que no entra: una línea por tema con la cuenta, no una
+   entrada por una.
+2. El recorte es solo de lo que se muestra esta vez — ninguna nota se borra ni se mueve de
+   `remi.db` ni de la bóveda. Lo que quedó fuera sigue en la base, y una nueva herramienta
+   MCP (`buscar_memoria`) lo encuentra por tema o por texto.
+3. Las reglas y las lecciones activas nunca se recortan: no viven en `indice_memoria`
+   (viajan por `trabajo.lecciones_de_ojo` y `libros.reglas_de_este_proyecto`, aparte), así
+   que este presupuesto no las toca, por construcción.
+4. Prueba de escala: con 50.000 entradas sintéticas (en memoria, sin tocar `remi.db` real),
+   el índice renderizado se mantiene bajo el presupuesto y `buscar_memoria` encuentra una
+   nota que quedó fuera del índice. Mide el tiempo de armar el índice y de buscar.
+
+**Listo cuando:** la prueba de escala pasa con el índice bajo presupuesto; una nota vieja
+que no entra al índice se encuentra con `buscar_memoria`; una regla u lección de la semilla
+sigue apareciendo igual que antes (no depende de este presupuesto).
+
 ### T6 · Cierre
-Antes: T8 y T9 están aprobadas: si no están hechas, van primero, en ese orden. T7 solo si
-dice «diseño aprobado: sí».
+Antes: T8, T9 y T10 están aprobadas: si no están hechas, van primero, en ese orden. T7 solo
+si dice «diseño aprobado: sí».
 `scripts/actualizar.sh` desde `main` (la app instalada con el último commit), `doctor.sh`,
 entrada de cierre en la bitácora con lo que queda para después de los siete días (3f,
 2e.1, 2e.2, 2e.3) **sin empezarlo**.

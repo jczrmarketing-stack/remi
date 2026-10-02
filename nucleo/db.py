@@ -622,6 +622,35 @@ def indice_memoria(conexion: sqlite3.Connection) -> list[EntradaIndice]:
     ]
 
 
+def buscar_memoria(conexion: sqlite3.Connection, q: str, tema: str | None = None, k: int = 10) -> list[EntradaIndice]:
+    """T10: lo que el presupuesto del índice dejó afuera sigue en la base —
+    esto lo encuentra por tema o por una palabra en título/resumen/cuerpo."""
+    patron = f"%{q}%"
+    condiciones = ["(titulo LIKE ? OR resumen LIKE ? OR cuerpo LIKE ? OR tema LIKE ?)"]
+    parametros: list[object] = [patron, patron, patron, patron]
+    if tema:
+        condiciones.append("tema = ?")
+        parametros.append(tema)
+    parametros.append(k)
+    filas = conexion.execute(
+        f"SELECT id, titulo, resumen, tema, fecha, claves, nivel FROM memoria "
+        f"WHERE {' AND '.join(condiciones)} ORDER BY fecha DESC LIMIT ?",
+        parametros,
+    ).fetchall()
+    return [
+        EntradaIndice(
+            id=UUID(fila["id"]),
+            titulo=fila["titulo"],
+            resumen=fila["resumen"],
+            tema=fila["tema"],
+            fecha=datetime.fromisoformat(fila["fecha"]),
+            claves=fila["claves"],
+            nivel=fila["nivel"],
+        )
+        for fila in filas
+    ]
+
+
 def _fila_a_memoria(fila: sqlite3.Row) -> Memoria:
     return Memoria(
         id=UUID(fila["id"]),
