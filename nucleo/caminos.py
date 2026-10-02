@@ -275,8 +275,13 @@ def _marcar(archivo: Path, texto_hito: str) -> None:
 
 def marcar_hitos_cumplidos(conexion: sqlite3.Connection, libro: libros.Libro) -> list[Hito]:
     """Revisa cada hito abierto contra `tareas`: si hay una tarea `hecha`
-    con el mismo título, la marca [x] en el archivo. Devuelve los hitos ya
-    actualizados (para que quien llame no tenga que releer el archivo)."""
+    con el mismo título Y una sesión con `app_contexto` igual al tema de
+    este libro, la marca [x] en el archivo. Devuelve los hitos ya
+    actualizados (para que quien llame no tenga que releer el archivo).
+
+    Solo el título no alcanza: los hitos del SOP («Intake», «Contrato»…)
+    se repiten palabra por palabra entre libros, y antes de este chequeo
+    terminar «Intake» en un proyecto marcaba «Intake» en todos los demás."""
     hitos = leer_hitos(libro.archivo)
     cambiaron = False
     actualizados: list[Hito] = []
@@ -285,8 +290,9 @@ def marcar_hitos_cumplidos(conexion: sqlite3.Connection, libro: libros.Libro) ->
             actualizados.append(hito)
             continue
         fila = conexion.execute(
-            "SELECT 1 FROM tareas WHERE titulo = ? AND estado = 'hecha' LIMIT 1",
-            (hito.texto,),
+            "SELECT 1 FROM tareas t JOIN sesiones s ON s.tarea_id = t.id "
+            "WHERE t.titulo = ? AND t.estado = 'hecha' AND s.app_contexto = ? LIMIT 1",
+            (hito.texto, libro.tema),
         ).fetchone()
         if fila is not None:
             _marcar(libro.archivo, hito.texto)

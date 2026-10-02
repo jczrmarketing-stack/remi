@@ -47,11 +47,19 @@ def _arrancar(tmp_path, monkeypatch):
     return servidor
 
 
-def _tarea_hecha(db_mod, conexion, titulo: str) -> None:
+def _tarea_hecha(db_mod, conexion, titulo: str, tema: str = "malik") -> None:
+    tarea_id = str(uuid4())
     conexion.execute(
         "INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible) "
         "VALUES (?, ?, NULL, 'hecha', 'paso', NULL, 5, 0)",
-        (str(uuid4()), titulo),
+        (tarea_id, titulo),
+    )
+    # T5.5: marcar_hitos_cumplidos exige una sesión de ESE libro, no solo
+    # el título — los hitos del SOP se repiten entre libros.
+    conexion.execute(
+        "INSERT INTO sesiones (id, tarea_id, inicio, fin, real_min, app_contexto) "
+        "VALUES (?, ?, '2026-10-01T10:00:00+00:00', '2026-10-01T10:05:00+00:00', 5, ?)",
+        (str(uuid4()), tarea_id, tema),
     )
     conexion.commit()
 
