@@ -37,6 +37,7 @@ import notion
 import pensar
 import plata
 import preguntas
+import semana
 import sembrar_conocimiento
 import telegram
 import temas
@@ -88,6 +89,7 @@ app.include_router(entregas.router)
 app.include_router(entregas.router_cobros)
 app.include_router(notion.router)
 app.include_router(plata.router)
+app.include_router(semana.router)
 app.include_router(telegram.router)
 
 MAX_PALABRAS_VOZ = 20
