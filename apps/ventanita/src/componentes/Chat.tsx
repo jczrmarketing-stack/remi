@@ -12,9 +12,9 @@ import "./Chat.css";
 // segundos — la ley 1 mide sola, no hace falta un segundero.
 const MS_REFRESCO_RELOJ = 30000;
 
-// 950 ms, la Biblia (Parte II, playground de la celebración): una sola vez,
+// 900 ms, el DS (movimiento) y el playground de la celebración: una sola vez,
 // nunca se repite en el mismo mensaje.
-const DURACION_CELEBRACION_MS = 950;
+const DURACION_CELEBRACION_MS = 900;
 
 export interface Mensaje {
   id: string;

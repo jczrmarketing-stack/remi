@@ -21,7 +21,7 @@ export function Reloj({ minutosTranscurridos, ultimaVezMin }: Props) {
     <div
       className="reloj reloj--brasa"
       role="img"
-      aria-label={`Llevás ${Math.round(minutosTranscurridos)} minutos; la última vez tardaste ${ultimaVezMin}`}
+      aria-label={`Llevas ${Math.round(minutosTranscurridos)} minutos; la última vez tardaste ${ultimaVezMin}`}
     >
       <div className="reloj__relleno" style={{ width: `${porcentaje}%` }} />
     </div>

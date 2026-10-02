@@ -131,11 +131,11 @@
 }
 
 /* La celebración (Biblia, Parte II · playground): al cerrar, el último
-   mensaje se enfría hacia `luz`, con chispas de `dinero`. 950 ms, una sola
+   mensaje se enfría hacia `luz`, con chispas de `dinero`. 900 ms, una sola
    vez. Con prefers-reduced-motion, solo cambia el color (sin chispas). */
 .chat__mensaje--remi {
   position: relative;
-  transition: background-color 0.95s var(--curva), color 0.95s var(--curva);
+  transition: background-color 0.9s var(--curva), color 0.9s var(--curva);
   border-radius: var(--radius-md);
 }
 
@@ -165,7 +165,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .chat__chispa {
-    animation: chat-chispa-sube 0.95s ease-out forwards;
+    animation: chat-chispa-sube 0.9s ease-out forwards;
   }
 }
 

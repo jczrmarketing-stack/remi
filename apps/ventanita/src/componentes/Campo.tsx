@@ -43,8 +43,8 @@ export const Campo = forwardRef<CampoRef, Props>(function Campo(
     <textarea
       ref={area}
       className="body-sm campo"
-      aria-label="Escribile a Remi"
-      placeholder="Contame."
+      aria-label="Escríbele a Remi"
+      placeholder="Cuéntame."
       rows={1}
       value={valor}
       disabled={deshabilitado}
