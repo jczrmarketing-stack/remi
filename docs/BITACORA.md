@@ -20,6 +20,67 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · T6 · Cierre de la terminal (docs/PLAN-100.md) · construido · 3ec8abb
+
+Escribe la terminal. Último encargo del mega-prompt (T0–T6): cierra el lado de la
+terminal del plan al 100 %.
+
+- **Qué cambió:** `scripts/actualizar.sh` desde `main` en `3ec8abb` (T0 al día: worktree,
+  línea base, `archivada`, `limpiar_pruebas.py --dia-cero`, `libros.por_ruta` en
+  worktrees, Formas A–G completas, fase Q de principio a fin, Forma C/D/E, y las seis
+  deudas de T5) — la app instalada quedó en ese commit, verificado con `doctor.sh` antes
+  y después: 10/10 las dos veces.
+- **Hashes de cierre por fase** (todos en `main`, fast-forward, sin conflictos con la otra
+  mano):
+  - T0 `8ee73d2` · T1 `ce521ed` · T2 `38b492e` · T3 `7fd5257` · T4 `9b906ac` (+ fix
+    `74d26ea`) · T5 `3ec8abb`.
+- **Números de las pruebas (línea final):** `uv run pytest -q` → **587** passed (tres
+  veces seguidas, T5); `uv run mypy .` → limpio, **104** módulos; `cd apps/ventanita &&
+  npx tsc --noEmit && npm test` → **90** passed.
+- **BLOQUEADO / sin hacer, con lo que hace falta:**
+  1. `scripts/desinstalar.sh` + `scripts/instalar.sh` de punta a punta: no lo corrí — es
+     la app de producción en uso; conté a mano que la lista de agentes de
+     `desinstalar.sh` (10) coincide con los 10 `.plist` reales. Falta que alguien lo corra
+     de verdad una vez.
+  2. El «ritual de la mañana» que T3.5 nombra (Remi pregunta también ahí) no existe como
+     endpoint o módulo en este repo — lo dejé fuera de T3 por no inventar algo fuera de
+     alcance; falta que se diseñe esa pantalla/ritual primero.
+  3. `apps/panel/` contra las formas reales (A, C, D, E, F): las construyó Claude en la
+     app contra un núcleo falso (J3–J5, C2, C3) antes de que yo entregara las formas de
+     verdad — falta que alguien las verifique en vivo contra el núcleo real (eso es C4 en
+     la tabla de fases de Claude en la app, no mío).
+- **CAMBIO DE FORMA** (todos ya anotados en su entrada de fase, resumidos acá):
+  - El contrato `Pregunta` (T3.1) lo diseñé desde la Forma F y los detectores de T3.2 sin
+    ver el texto literal de la Biblia v3.8 más allá de lo que trae `PLAN-100.md`.
+  - `aplazado` de Forma D (T4.2) lo definí como «tarea abierta con `fecha_limite` ya
+    vencida» — el plan no fija la regla exacta, solo la forma de la respuesta.
+- **Lo que solo puede hacer Juan Camilo** (de `docs/PLAN-100.md`), con lo que sigue
+  pendiente después de este cierre:
+  1. Dejar un solo ayudante corriendo (`recargar.sh --vigilar`) — sigue pendiente, es
+     suyo.
+  2. Abrir una terminal y pegar el mega prompt — **hecho**, es justo esta sesión.
+  3. Contestarle a Remi cuando pregunte (cliente de BeaM, cuánto pagó Alfonso, los «listo
+     cuando» de las fases de UpVisuals) — **la fase Q ya existe** (T3): `GET /preguntas`
+     las tiene listas y preguntó por el cliente de BeaM y la ruta de Omniway en vivo
+     (verificado contra el núcleo real durante T3). Falta que las conteste.
+  4. Cloudflare: Access delante del túnel, y después `cloudflared tunnel login` — sigue
+     pendiente; `doctor.sh` (T5.3) ahora falla si el panel queda público sin eso, y
+     `docs/INSTALAR.md` (T5.7) ya dice el orden.
+  5. Rotar las cuatro llaves que pasaron por chats — sigue pendiente, es suya.
+  6. `pmset` y el UPS de la Mac mini — sigue pendiente, es suyo.
+  7. Usarla siete días y la revisión semanal desde el panel — no empieza hasta que lo de
+     arriba esté resuelto (es literalmente la condición de «100 %» del plan).
+- **Lo que NO se empezó, a propósito** (T6 lo pide explícito): banco de pruebas (3f,
+  comparar modelos/configuraciones por latencia y recuerdo) y 2e.1/2e.2/2e.3 (los pasos
+  después de 2e.0 «memoria», ya cerrada en una sesión anterior — sus títulos exactos no
+  están en este repo, solo el código; viven en la Biblia).
+- **Cómo probarlo a mano:** `bash scripts/doctor.sh` desde `~/proyectos/remi` → 10/10.
+  `git -C ~/proyectos/remi log --oneline -1` → `3ec8abb`. `curl -s 127.0.0.1:4400/salud`
+  → `{"ok":true,"db":true}`. La app instalada (`/Applications/Remi.app`) es la que se
+  acaba de compilar desde ese commit.
+
+---
+
 ## 2026-10-01 · T5 · Producción y deudas · construido · cca3f3e
 
 Escribe la terminal.
