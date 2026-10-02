@@ -70,6 +70,46 @@ def listar_abiertas(conexion: sqlite3.Connection, ahora: datetime) -> list[tuple
     return [(idea, esta_fria(idea, ahora)) for idea in (_fila_a_idea(f) for f in filas)]
 
 
+# — Forma E (T4): una sola idea destacada a la vez —
+
+ESQUEMA_DESTACADA = """
+CREATE TABLE IF NOT EXISTS idea_destacada (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    idea_id TEXT NOT NULL
+);
+"""
+
+
+def _preparar_destacada(conexion: sqlite3.Connection) -> None:
+    conexion.executescript(ESQUEMA_DESTACADA)
+
+
+def idea_destacada_id(conexion: sqlite3.Connection) -> UUID | None:
+    _preparar_destacada(conexion)
+    fila = conexion.execute("SELECT idea_id FROM idea_destacada WHERE id = 1").fetchone()
+    return UUID(fila["idea_id"]) if fila else None
+
+
+def destacar(conexion: sqlite3.Connection, idea_id: UUID) -> None:
+    """Marca esta idea como la destacada — una sola a la vez: destacar una
+    nueva le quita la marca a la que hubiera antes."""
+    _preparar_destacada(conexion)
+    conexion.execute(
+        "INSERT INTO idea_destacada (id, idea_id) VALUES (1, ?) "
+        "ON CONFLICT(id) DO UPDATE SET idea_id = excluded.idea_id",
+        (str(idea_id),),
+    )
+    conexion.commit()
+
+
+def quitar_destacada(conexion: sqlite3.Connection, idea_id: UUID) -> None:
+    """Solo quita la marca si `idea_id` es justo la destacada — nunca la de
+    otra idea."""
+    _preparar_destacada(conexion)
+    conexion.execute("DELETE FROM idea_destacada WHERE id = 1 AND idea_id = ?", (str(idea_id),))
+    conexion.commit()
+
+
 def revisar(
     conexion: sqlite3.Connection, idea_id: UUID, decision: Decision, ahora: datetime
 ) -> RevisionHecha:

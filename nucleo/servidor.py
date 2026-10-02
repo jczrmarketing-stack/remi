@@ -1232,6 +1232,8 @@ def historial_tarea(tarea_id: UUID) -> Historial:
 class IdeaBandeja(BaseModel):
     idea: Idea
     fria: bool
+    # Forma E (T4): una sola a la vez.
+    destacada: bool
 
 
 class RevisionIdea(BaseModel):
@@ -1306,10 +1308,34 @@ def listar_bandeja() -> list[IdeaBandeja]:
     conexion = db.conectar()
     try:
         ahora = datetime.now(timezone.utc)
+        destacada_id = bandeja.idea_destacada_id(conexion)
         return [
-            IdeaBandeja(idea=_con_tema(idea), fria=fria)
+            IdeaBandeja(idea=_con_tema(idea), fria=fria, destacada=idea.id == destacada_id)
             for idea, fria in bandeja.listar_abiertas(conexion, ahora)
         ]
+    finally:
+        conexion.close()
+
+
+class DestacadaNueva(BaseModel):
+    destacada: bool
+
+
+@app.post("/idea/{idea_id}/destacar", response_model=IdeaBandeja)
+def destacar_idea(idea_id: UUID, cuerpo: DestacadaNueva) -> IdeaBandeja:
+    """Destacar una idea le quita la marca a la anterior — una sola a la
+    vez (Forma E)."""
+    conexion = db.conectar()
+    try:
+        idea = bandeja.leer_idea(conexion, idea_id)
+        if idea is None:
+            raise HTTPException(status_code=404, detail="no tengo esa idea")
+        if cuerpo.destacada:
+            bandeja.destacar(conexion, idea_id)
+        else:
+            bandeja.quitar_destacada(conexion, idea_id)
+        ahora = datetime.now(timezone.utc)
+        return IdeaBandeja(idea=_con_tema(idea), fria=bandeja.esta_fria(idea, ahora), destacada=cuerpo.destacada)
     finally:
         conexion.close()
 
