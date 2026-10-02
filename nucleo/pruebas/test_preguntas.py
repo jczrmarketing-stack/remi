@@ -220,3 +220,27 @@ def test_pregunta_de_tema_inexistente_404(tmp_path, monkeypatch):
     assert cliente.post(
         "/preguntas/99999999-9999-9999-9999-999999999999/despues"
     ).status_code == 404
+
+
+def test_t3_7_la_voz_de_cada_detector_cumple_la_ley(tmp_path, monkeypatch):
+    """De tú, 20 palabras como mucho, sin exclamaciones de urgencia."""
+    servidor, carpeta = _arrancar(tmp_path, monkeypatch)
+    (carpeta / "beam.md").write_text(CLIENTE_SIN_CLIENTE)
+    (carpeta / "upvisuals.md").write_text(CLIENTE_CON_FASES_Y_RUTA_VACIA)
+    (carpeta / "malik.md").write_text(SIN_TIPO)
+    (carpeta / "x.md").write_text(CON_COMPLETAR)
+    import db
+    import preguntas
+
+    conexion = db.conectar()
+    try:
+        detectadas = preguntas.detectar(conexion)
+    finally:
+        conexion.close()
+
+    assert detectadas
+    for detectada in detectadas:
+        voz = detectada.voz
+        assert len(voz.split()) <= 20, voz
+        assert "!" not in voz, voz
+        assert "usted" not in voz.lower(), voz
