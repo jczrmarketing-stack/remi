@@ -20,6 +20,62 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · T8 · La experiencia entra y se consulta · construido · c8dc691 + semilla real
+
+Escribe la terminal. Aprobada por Juan Camilo el 1-oct 19:23 (Biblia v3.9, Parte VII); va
+antes de T6 — Juan Camilo lo señaló después de que yo ya había cerrado T6 una vez, así que
+esta entrada corrige esa secuencia (T6 se vuelve a correr al final, con T8 y T9 adentro).
+
+- **Qué cambió:**
+  1. `4af7f5d` **T8.0** (pedido explícito, no numerado en el plan) — las ideas de ruido no se
+     crean: «proyecto sin ficha: …» ya no crea una `Idea` (`trabajo_eventos` sigue
+     guardando el evento completo); «qué te falta para que estés al 100% listo» se
+     reconoce como pregunta de estado (`trabajo.es_que_falta`/`que_falta`), sin inventar un
+     número de avance.
+  2. `0a3eb0a` **T8.1** — `nucleo/experiencia.py`: contrato `Leccion`, `validar()` pura,
+     `escribir()` con commit en la bóveda y dedup por (tema, síntoma normalizado) — sin
+     repetidos, nunca borra, suma `veces`/`ultima_vez` y una línea «volvió a pasar».
+  3. `31b7d58` **T8.2** — `cierre.py`: `hay_evidencia_de_arreglo` (la frase de siempre O un
+     commit de la sesión que empieza con fix/arregl/corrig); `escribir_episodio_error` ahora
+     escribe en `experiencia/`, no en `episodios/`. Sin enganchar (no hay instrumentación que
+     lo mida): el disparador de «vueltas» por pruebas rojo→verde.
+  4. `f6bc3d0` **T8.4** — la nota de cada sesión (`resultado` en el frontmatter del
+     episodio); `noche.py` revisa a las 48 h si un commit de arreglo llegó después, con
+     una simplificación documentada (mira el tema, no el archivo exacto).
+  5. `ef47a72` **T8.6** — búsqueda híbrida (FTS5 + los vectores que ya hay) sobre libros,
+     oficios, episodios y lecciones; `reindexar()` nunca incremental.
+  6. `8b6704e` + `c8dc691` **T8.5** — `POST`/`GET /experiencia`; `anotar_leccion` y
+     `buscar_lecciones` en el MCP de memoria (ya global); el gancho de commit escribe un
+     episodio cuando un commit toca `docs/BITACORA.md` de un repo con libro; `CLAUDE.md` y
+     el skill `/remi` con la línea «al cerrar un trabajo: `anotar_leccion`».
+  7. `285df5c` **T8.7** — `trabajo.lecciones_de_ojo`: hasta tres «Ojo: …» de un libro, en
+     `SessionStart` y al armar un encargo (`pensar.sistema_encargo`); «anotá esta lección:
+     …» en la charla (solo clase `error` por ese camino).
+  8. **T8.8**, semilla real en `remi-mente/experiencia/` (9 lecciones, 8 de la lista del
+     plan + el acierto): commits `9931cbb`…`49d7c2c` en la bóveda, validadas con
+     `experiencia.validar()` antes de escribir, ninguna inventada — el texto de cada una
+     sale de lo que el plan ya traía.
+- **Decisiones que tomé sin preguntar:**
+  1. T8.2: sin captura de resultados de pytest por sesión, no pude enganchar el disparador
+     de «vueltas» por 3+ corridas en rojo — `hay_vueltas()` queda lista y probada, esperando
+     esa señal.
+  2. T8.4: «si un commit posterior... tocó los mismos archivos» lo simplifiqué a «mismo
+     tema» — no hay dónde persistir qué archivos tocó cada episodio sin inventar un campo
+     nuevo fuera de lo que pide T8.1.
+  3. «anotá esta lección» en la charla solo cubre la clase `error` (la mayoría de los casos
+     reales); un acierto hablado queda para el MCP o `POST /experiencia` directos — documentado,
+     no silencioso.
+  4. Las 9 lecciones de la semilla llevan `tema: remi` (todas son de construir Remi mismo,
+     no de un proyecto de cliente) y `fuente: bitacora` (vienen de la bitácora/PLAN-100.md,
+     no de una sesión de Claude Code real de hoy).
+- **Dudas abiertas:** ninguna nueva (las de T1-T3 sobre `test_noche.py` siguen).
+- **Cómo probarlo a mano:** `uv run pytest -q` (640) + `uv run mypy .` (114 módulos) +
+  ventanita (97, con lo de T7 de la otra mano). Tras el merge: `uv run python
+  experiencia.py --reindexar` contra la base real (Ollama está arriba) y `GET
+  /experiencia?tema=remi&q=EADDRINUSE` debería traer la lección del puerto.
+
+---
+
 ## 2026-10-02 · T6 · Cierre de la terminal (docs/PLAN-100.md) · construido · 3ec8abb
 
 Escribe la terminal. Último encargo del mega-prompt (T0–T6): cierra el lado de la
