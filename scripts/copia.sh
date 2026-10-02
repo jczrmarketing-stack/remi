@@ -46,8 +46,16 @@ if ! "$RESTIC" cat config >/dev/null 2>&1; then
   "$RESTIC" init
 fi
 
-# 3. La copia y la limpieza de lo viejo.
-"$RESTIC" backup --tag nocturna --host remi "$PREPARADO/remi.db" "$BOVEDA"
+# 3. La copia y la limpieza de lo viejo. nucleo/.env (las llaves) entra
+# igual que remi.db, cifrado por el mismo repositorio — si no existe
+# todavía (nadie puso ninguna llave), no hay qué copiar.
+RUTAS=("$PREPARADO/remi.db" "$BOVEDA")
+if [[ -f "$RUTA_ENV" ]]; then
+  RUTAS+=("$RUTA_ENV")
+else
+  echo "copia: nucleo/.env no existe todavía, no hay llaves que copiar"
+fi
+"$RESTIC" backup --tag nocturna --host remi "${RUTAS[@]}"
 "$RESTIC" forget --host remi --keep-within "${DIAS}d" --prune
 
 echo "copia: lista en $(( $(date +%s) - arranque )) s"

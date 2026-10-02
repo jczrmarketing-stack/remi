@@ -35,20 +35,26 @@ echo "Restaurando la copia «${COPIA}» de $DESTINO a $EN"
 
 # Qué había en la copia (para comparar la bóveda archivo por archivo) y
 # dónde quedó cada cosa: restic restaura con la ruta absoluta de origen.
+# La bóveda es la única ruta que NO es ni remi.db ni .env — nunca «la
+# primera que no sea remi.db» (desde que .env entra a la copia, T5 · 4,
+# eso agarraría cualquiera de las dos a ciegas).
 ORIGEN_DB="$PREPARADO/remi.db"
-ORIGEN_BOVEDA="$("$RESTIC" ls --json "$COPIA" --host remi | python3 -c '
+TODAS_LAS_RUTAS="$("$RESTIC" ls --json "$COPIA" --host remi | python3 -c '
 import json, sys
 for linea in sys.stdin:
     d = json.loads(linea)
     if d.get("struct_type") == "snapshot":
         for p in d.get("paths", []):
-            if not p.endswith("remi.db"):
-                print(p); break
+            print(p)
         break
 ')"
+ORIGEN_BOVEDA="$(grep -v -F -x "$ORIGEN_DB" <<<"$TODAS_LAS_RUTAS" | grep -v -F -x "$RUTA_ENV" | head -1)"
 ESPERADOS="$("$RESTIC" ls --recursive "$COPIA" --host remi "$ORIGEN_BOVEDA" | grep -v "^$ORIGEN_BOVEDA\$" | grep "^$ORIGEN_BOVEDA/" | sort)"
 DB_RESTAURADA="$EN$ORIGEN_DB"
 BOVEDA_RESTAURADA="$EN$ORIGEN_BOVEDA"
+ENV_RESTAURADO="$EN$RUTA_ENV"
+HAY_ENV_EN_LA_COPIA=0
+grep -q -F -x "$RUTA_ENV" <<<"$TODAS_LAS_RUTAS" && HAY_ENV_EN_LA_COPIA=1
 
 # — Verificar: remi.db abre y está sana; la bóveda está completa —
 python3 - "$DB_RESTAURADA" <<'PY'
@@ -94,6 +100,14 @@ if [[ $REEMPLAZAR -eq 1 ]]; then
   mkdir -p "$(dirname "$BOVEDA_FINAL")"
   cp -Rp "$BOVEDA_RESTAURADA" "$BOVEDA_FINAL"
   echo "En su lugar: $DB_FINAL y $BOVEDA_FINAL"
+  if [[ $nucleo_real -eq 1 && $HAY_ENV_EN_LA_COPIA -eq 1 ]]; then
+    if [[ -e "$RUTA_ENV" ]]; then
+      mv "$RUTA_ENV" "$RUTA_ENV.$marca"; apartado=1
+    fi
+    cp -p "$ENV_RESTAURADO" "$RUTA_ENV"
+    chmod 600 "$RUTA_ENV"
+    echo "En su lugar: $RUTA_ENV"
+  fi
   [[ $apartado -eq 1 ]] && echo "Lo que había quedó apartado con .$marca (no se borró nada)."
   if [[ $nucleo_real -eq 1 ]]; then
     launchctl bootstrap "gui/$UID" "$HOME/Library/LaunchAgents/com.remi.nucleo.plist"

@@ -5,6 +5,8 @@ RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESTIC="$(command -v restic || echo /opt/homebrew/bin/restic)"
 CONFIG="$RAIZ/config/copia.json"
 DB="$RAIZ/nucleo/remi.db"
+# Las llaves (T5 · 4): cifradas igual que remi.db, en el mismo repo restic.
+RUTA_ENV="$RAIZ/nucleo/.env"
 # La bóveda es la carpeta real, no el enlace «conocimiento».
 BOVEDA="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$RAIZ/conocimiento")"
 # La foto de remi.db que se copia: hecha con la API de backup de SQLite, nunca
