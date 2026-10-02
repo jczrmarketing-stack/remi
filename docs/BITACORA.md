@@ -20,6 +20,62 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · T5 · Producción y deudas · construido · cca3f3e
+
+Escribe la terminal.
+
+- **Qué cambió:**
+  1. `1fe51f8` **T5.1** — `desinstalar.sh` le faltaba `com.remi.tunel` en la lista de
+     `bootout`; quedaba corriendo tras desinstalar.
+  2. `7efe6ed` **T5.2** — `scripts/rotar-logs.sh` (nuevo): por archivo de
+     `~/Library/Logs/Remi`, si pasa de 10 MiB, copia a `<archivo>.1` (nunca se borra) y lo
+     vacía con `: >` — seguro con un escritor que lo tiene abierto en O_APPEND (launchd
+     `StandardOutPath`, `tee -a`): mismo inodo, no hace falta reiniciar nada.
+     `noche.sh` la corre antes de la consolidación.
+  3. `e0610e7` **T5.3** — `doctor.sh` (chequeo 2, panel): si el panel local responde,
+     también mira `https://remi.inv3rza.com`; 200 sin pasar por Access es FALLA. Y un
+     agujero real que encontré haciendo esto: `GET /config/conexiones` no tenía el
+     guardia del túnel — `Conexion.termina_en` muestra los últimos caracteres reales de
+     una llave, así que un GET por el túnel ya era una fuga parcial (el PUT/POST sí
+     estaban cubiertos desde antes).
+  4. `f5a9011` **T5.4** — la copia nocturna suma `nucleo/.env` al mismo repositorio
+     restic (mismo cifrado que `remi.db`). `restaurar.sh` ya no puede asumir «la bóveda es
+     la primera ruta que no es remi.db» — con tres rutas eso agarraba cualquiera a ciegas;
+     ahora excluye las dos rutas conocidas explícitamente, y `--reemplazar` también repone
+     `.env` (apartado con la misma marca, `chmod 600`).
+  5. `5b69d84` **T5.5** — otro agujero real: `caminos.marcar_hitos_cumplidos` comparaba
+     solo el título de la tarea hecha contra el hito; los hitos del SOP («Intake»,
+     «Contrato»…) se repiten palabra por palabra entre libros, así que cerrar «Intake» en
+     un proyecto marcaba «Intake» en todos los demás. Ahora exige además una sesión con
+     `app_contexto` = tema del libro.
+  6. `c2544e3` **T5.6** — la guarda de negación de `clasificar` («no me quedó listo» no
+     cierra) ya estaba resuelta y probada, nada que tocar. Las dos pruebas de
+     `test_noche.py` que comparan mtime de episodio contra libro dependían del orden real
+     de escritura (sin pinearlo): ahora `os.utime` fija la diferencia a mano.
+     `test_mcp_config.py` corría `instalar-mcp.py` sin `timeout`: un hang ahí colgaba la
+     suite entera; ahora corta a los 60 s.
+  7. `cca3f3e` **T5.7** — `docs/GUIA-HOY.md` al día (entregas/cobros/agenda por voz ya no
+     son «todavía a mano», «Remi pregunta», la copia con `.env`, `recargar.sh` para la
+     sesión de la app) y `docs/INSTALAR.md` suma, explícito, que Access va **antes** del
+     túnel — antes no decía nada de Access, justo el hueco que el chequeo nuevo de
+     `doctor.sh` (T5.3) ahora atrapa.
+- **Decisiones que tomé sin preguntar:**
+  1. No corrí `desinstalar.sh` + `instalar.sh` de verdad: es la app de producción que Juan
+     Camilo usa ahora mismo, y el ciclo completo la deja abajo un rato. Conté a mano los
+     agentes: la lista de `desinstalar.sh` (10 etiquetas) coincide exactamente con los 10
+     `.plist` reales en `~/Library/LaunchAgents`. Queda para que Juan Camilo lo corra
+     cuando le venga bien, o para que yo lo haga si me dice que sí explícitamente.
+  2. El chequeo nuevo de `doctor.sh` (público sin Access) no falla mientras el túnel no
+     exista todavía (DNS no resuelve, o no da 200) — así no bloquea el desarrollo local
+     antes de que Juan Camilo haga el paso de Cloudflare que es solo suyo.
+- **Dudas abiertas:** ninguna nueva.
+- **Cómo probarlo a mano:** `uv run pytest -q` tres veces seguidas (587 cada vez) +
+  `uv run mypy .` (104 módulos) + ventanita (90). `bash scripts/doctor.sh` desde
+  `~/proyectos/remi`: debería dar 10/10 si `nucleo/.env` existe (el único FALLA que vi en
+  el worktree fue justo por eso, worktree sin `.env`, esperado).
+
+---
+
 ## 2026-10-01 · T4 · Datos para Metas, Semana y Bandeja · construido · a2eaca9
 
 Escribe la terminal.
