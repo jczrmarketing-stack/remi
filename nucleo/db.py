@@ -229,6 +229,12 @@ _COLUMNAS_NUEVAS = (
     ("tareas", "fecha_limite", "TEXT"),
     ("ideas", "tema", "TEXT"),
     ("entregas", "linea", "TEXT"),
+    # T7, el historial de la ventanita: el título lo pone Remi (None = el
+    # primer mensaje de Juan), el tema sale de los libros, y «cerrada» es
+    # la conversación que Juan dejó para empezar otra.
+    ("conversaciones", "titulo", "TEXT"),
+    ("conversaciones", "tema", "TEXT"),
+    ("conversaciones", "cerrada", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 
@@ -717,7 +723,7 @@ def conversacion_vigente(conexion: sqlite3.Connection, ahora: datetime) -> Conve
 
     corte = ahora - timedelta(minutes=MINUTOS_SIN_TURNOS_PARA_CERRAR)
     fila = conexion.execute(
-        "SELECT id, resumen, resumidos FROM conversaciones WHERE ultimo >= ? ORDER BY ultimo DESC LIMIT 1",
+        "SELECT id, resumen, resumidos FROM conversaciones WHERE ultimo >= ? AND cerrada = 0 ORDER BY ultimo DESC LIMIT 1",
         (corte.isoformat(),),
     ).fetchone()
     return Conversacion(fila["id"], fila["resumen"], fila["resumidos"]) if fila else None
@@ -755,6 +761,81 @@ def turnos_de(conexion: sqlite3.Connection, conversacion_id: str) -> list[Turno]
         (conversacion_id,),
     ).fetchall()
     return [Turno(rol=f["rol"], texto=f["texto"], fecha=datetime.fromisoformat(f["fecha"])) for f in filas]
+
+
+LARGO_MAXIMO_DE_TITULO = 48
+
+
+def titulo_de(texto: str) -> str:
+    """El título de una conversación sin título: el primer mensaje de Juan,
+    cortado en una palabra."""
+    limpio = " ".join(texto.split())
+    if len(limpio) <= LARGO_MAXIMO_DE_TITULO:
+        return limpio
+    corte = limpio[:LARGO_MAXIMO_DE_TITULO].rsplit(" ", 1)[0] or limpio[:LARGO_MAXIMO_DE_TITULO]
+    return corte.rstrip(".,;:") + "…"
+
+
+@dataclass(frozen=True)
+class ResumenDeConversacion:
+    id: str
+    titulo: str
+    tema: str | None
+    inicio: datetime
+    ultimo: datetime
+    turnos: int
+
+
+def listar_conversaciones(conexion: sqlite3.Connection, limite: int = 30) -> list[ResumenDeConversacion]:
+    """Las conversaciones con turnos, la más reciente primero."""
+    filas = conexion.execute(
+        """
+        SELECT c.id, c.titulo, c.tema, c.inicio, c.ultimo,
+               (SELECT COUNT(*) FROM turnos t WHERE t.conversacion_id = c.id) AS turnos,
+               (SELECT t.texto FROM turnos t WHERE t.conversacion_id = c.id AND t.rol = 'juan'
+                ORDER BY t.fecha LIMIT 1) AS primero
+        FROM conversaciones c
+        WHERE EXISTS (SELECT 1 FROM turnos t WHERE t.conversacion_id = c.id)
+        ORDER BY c.ultimo DESC LIMIT ?
+        """,
+        (limite,),
+    ).fetchall()
+    return [
+        ResumenDeConversacion(
+            id=f["id"],
+            titulo=f["titulo"] or titulo_de(f["primero"] or "") or "Sin título",
+            tema=f["tema"],
+            inicio=datetime.fromisoformat(f["inicio"]),
+            ultimo=datetime.fromisoformat(f["ultimo"]),
+            turnos=f["turnos"],
+        )
+        for f in filas
+    ]
+
+
+def existe_conversacion(conexion: sqlite3.Connection, conversacion_id: str) -> bool:
+    return conexion.execute("SELECT 1 FROM conversaciones WHERE id = ?", (conversacion_id,)).fetchone() is not None
+
+
+def retomar_conversacion(conexion: sqlite3.Connection, conversacion_id: str, ahora: datetime) -> None:
+    """Vuelve vigente una conversación de antes: el siguiente turno cae en ella."""
+    conexion.execute(
+        "UPDATE conversaciones SET cerrada = 0, ultimo = ? WHERE id = ?", (ahora.isoformat(), conversacion_id)
+    )
+    conexion.commit()
+
+
+def cerrar_conversacion_vigente(conexion: sqlite3.Connection, ahora: datetime) -> None:
+    """Juan empieza de cero: la vigente queda cerrada y el siguiente turno abre otra."""
+    vigente = conversacion_vigente(conexion, ahora)
+    if vigente is not None:
+        conexion.execute("UPDATE conversaciones SET cerrada = 1 WHERE id = ?", (vigente.id,))
+        conexion.commit()
+
+
+def poner_tema(conexion: sqlite3.Connection, conversacion_id: str, tema: str | None) -> None:
+    conexion.execute("UPDATE conversaciones SET tema = ? WHERE id = ?", (tema, conversacion_id))
+    conexion.commit()
 
 
 def guardar_resumen(conexion: sqlite3.Connection, conversacion_id: str, resumen: str, resumidos: int) -> None:

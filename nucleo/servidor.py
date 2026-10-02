@@ -1007,6 +1007,66 @@ def conversacion_actual() -> list[TurnoVisible]:
         conexion.close()
 
 
+class ConversacionDeAntes(BaseModel):
+    id: str
+    titulo: str
+    tema: str | None
+    inicio: datetime
+    ultimo: datetime
+    turnos: int
+
+
+@app.get("/conversaciones", response_model=list[ConversacionDeAntes])
+def conversaciones_de_antes() -> list[ConversacionDeAntes]:
+    """El cajón del historial: una sola corriente, la más reciente primero."""
+    conexion = db.conectar()
+    try:
+        return [ConversacionDeAntes(**vars(c)) for c in db.listar_conversaciones(conexion)]
+    finally:
+        conexion.close()
+
+
+@app.post("/conversaciones/nueva", status_code=204)
+def conversacion_nueva() -> Response:
+    """Empezar de cero: la vigente se cierra y el próximo turno abre otra."""
+    conexion = db.conectar()
+    try:
+        db.cerrar_conversacion_vigente(conexion, datetime.now(timezone.utc))
+    finally:
+        conexion.close()
+    return Response(status_code=204)
+
+
+@app.get("/conversaciones/{conversacion_id}", response_model=list[TurnoVisible])
+def conversacion_por_id(conversacion_id: str) -> list[TurnoVisible]:
+    conexion = db.conectar()
+    try:
+        if not db.existe_conversacion(conexion, conversacion_id):
+            raise HTTPException(status_code=404, detail="Esa conversación no existe.")
+        return [
+            TurnoVisible(rol="juan" if t.rol == "juan" else "remi", texto=t.texto, fecha=t.fecha)
+            for t in db.turnos_de(conexion, conversacion_id)
+        ]
+    finally:
+        conexion.close()
+
+
+@app.post("/conversaciones/{conversacion_id}/retomar", response_model=list[TurnoVisible])
+def retomar_conversacion(conversacion_id: str) -> list[TurnoVisible]:
+    """Volver a una de antes: pasa a ser la vigente y se devuelven sus turnos."""
+    conexion = db.conectar()
+    try:
+        if not db.existe_conversacion(conexion, conversacion_id):
+            raise HTTPException(status_code=404, detail="Esa conversación no existe.")
+        db.retomar_conversacion(conexion, conversacion_id, datetime.now(timezone.utc))
+        return [
+            TurnoVisible(rol="juan" if t.rol == "juan" else "remi", texto=t.texto, fecha=t.fecha)
+            for t in db.turnos_de(conexion, conversacion_id)
+        ]
+    finally:
+        conexion.close()
+
+
 @app.get("/pensar/ollama", response_model=list[str])
 def modelos_ollama() -> list[str]:
     """Los modelos que tiene Ollama de verdad (`ollama list`)."""
