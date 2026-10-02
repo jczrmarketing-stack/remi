@@ -73,6 +73,9 @@ def _boveda(tmp_path, monkeypatch):
     _git(boveda, "config", "user.email", "remi@local")
     _git(boveda, "config", "user.name", "Remi")
     monkeypatch.setenv("REMI_CONOCIMIENTO", str(boveda / "proyectos"))
+    # T9.3: notion_sync ahora también lee experiencia/ (vía REMI_BOVEDA) —
+    # sin esto, una corrida real tocaría la bóveda real del worktree.
+    monkeypatch.setenv("REMI_BOVEDA", str(boveda))
     return boveda
 
 
@@ -293,3 +296,61 @@ def test_entrega_compartible_se_crea_y_el_estado_vuelve_desde_notion(monkeypatch
     conexion.close()
     assert actualizada is not None
     assert actualizada.estado == "pagada"
+
+
+def test_experiencia_crea_la_pagina_de_una_leccion_nueva(monkeypatch, tmp_path):
+    _configurar(monkeypatch, tmp_path)
+    boveda = _boveda(tmp_path, monkeypatch)
+    import experiencia
+    from experiencia import Leccion
+
+    leccion = Leccion(
+        titulo="El 401 de malik", tema="malik", resumen="Token vencido.",
+        clase="error", donde="x",
+        secciones={
+            "Síntoma": "El bot contestaba 401.", "Lo que creímos": "",
+            "Causa real": "El token había vencido.", "Cura": "Se renovó el token.",
+            "Cómo verlo antes": "Revisar la fecha de expiración.",
+        },
+        fuente="claude-code",
+    )
+    experiencia.escribir(leccion)
+    falso = NotionFalso()
+
+    resumen = notion_sync.sincronizar(cliente=falso)
+
+    assert resumen.lecciones_creadas == 1
+    (pagina,) = [p for p in falso.paginas.values() if p["_base"] == falso.bases["Experiencia"]]
+    assert notion.leer_titulo(pagina["properties"]["Título"]) == "El 401 de malik"
+    assert notion.leer_texto(pagina["properties"]["Causa real"]) == "El token había vencido."
+
+
+def test_experiencia_actualiza_veces_en_una_corrida_posterior(monkeypatch, tmp_path):
+    _configurar(monkeypatch, tmp_path)
+    boveda = _boveda(tmp_path, monkeypatch)
+    import experiencia
+    from experiencia import Leccion
+
+    def _leccion():
+        return Leccion(
+            titulo="El 401 de malik", tema="malik", resumen="Token vencido.",
+            clase="error", donde="x",
+            secciones={
+                "Síntoma": "El bot contestaba 401.", "Lo que creímos": "",
+                "Causa real": "El token había vencido.", "Cura": "Se renovó el token.",
+                "Cómo verlo antes": "Revisar la fecha de expiración.",
+            },
+            fuente="claude-code",
+        )
+
+    experiencia.escribir(_leccion())
+    falso = NotionFalso()
+    notion_sync.sincronizar(cliente=falso)
+
+    experiencia.escribir(_leccion())  # veces: 1 -> 2
+    resumen = notion_sync.sincronizar(cliente=falso)
+
+    assert resumen.lecciones_actualizadas == 1
+    assert resumen.lecciones_creadas == 0
+    (pagina,) = [p for p in falso.paginas.values() if p["_base"] == falso.bases["Experiencia"]]
+    assert notion.leer_numero(pagina["properties"]["Veces"]) == 2

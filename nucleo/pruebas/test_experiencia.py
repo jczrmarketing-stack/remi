@@ -230,3 +230,24 @@ def test_revisar_resultados_no_vuelve_a_tocar_lo_ya_revisado(tmp_path, monkeypat
     ahora = datetime.now(timezone.utc)
     exp.revisar_resultados_pendientes(ahora)
     assert exp.revisar_resultados_pendientes(ahora) == 0
+
+
+def test_escribir_genera_el_readme_por_proyecto(tmp_path, monkeypatch):
+    exp = _arrancar(tmp_path, monkeypatch)
+    exp.escribir(_leccion_error())
+    otra = _leccion_error(
+        titulo="Otro error de beam",
+        secciones={**_leccion_error().secciones, "Síntoma": "Otro síntoma distinto"},
+    )
+    otra = exp.Leccion(
+        titulo="Otro error de beam", tema="beam", resumen="r", clase="error", donde="x",
+        secciones={**otra.secciones}, fuente="claude-code",
+    )
+    exp.escribir(otra)
+
+    readme = (tmp_path / "boveda" / "experiencia" / "README.md").read_text()
+
+    assert "## beam" in readme
+    assert "## malik" in readme
+    assert "Otro error de beam" in readme
+    assert "no editar a mano" in readme.lower()

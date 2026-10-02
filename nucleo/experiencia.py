@@ -133,6 +133,11 @@ def _parsear(ruta: Path) -> LeccionGuardada | None:
     titulo, tema, resumen = campos.get("titulo"), campos.get("tema"), campos.get("resumen")
     if not all(isinstance(c, str) and c for c in (titulo, tema, resumen)):
         return None
+    # _frontmatter() no saca comillas (titulo/resumen se escriben entre
+    # comillas, como en episodios.py): acá sí, es lo que debe leer quien
+    # consuma la lección.
+    titulo = titulo.strip('"') if isinstance(titulo, str) else titulo
+    resumen = resumen.strip('"') if isinstance(resumen, str) else resumen
     secciones: dict[str, str] = {}
     actual: str | None = None
     buf: list[str] = []
@@ -236,6 +241,7 @@ def escribir(leccion: Leccion, ahora: datetime | None = None) -> tuple[Path, boo
         texto += f"- volvió a pasar el {hoy.isoformat()}.\n"
         boveda_git.snapshot_antes(f"sumar una vuelta a la lección {anterior.ruta.name}")
         anterior.ruta.write_text(texto)
+        _generar_readme()
         boveda_git.snapshot_despues(f"experiencia: {anterior.ruta.name} veces={nuevas_veces}")
         if nuevas_veces == 2:
             _proponer_regla(anterior, ahora)
@@ -248,8 +254,29 @@ def escribir(leccion: Leccion, ahora: datetime | None = None) -> tuple[Path, boo
     destino = episodios._ruta_libre(carp, base)
     boveda_git.snapshot_antes(f"escribir la lección {destino.name}")
     destino.write_text(_frontmatter_de(leccion, 1, hoy) + "\n" + _cuerpo_de(leccion))
+    _generar_readme()
     boveda_git.snapshot_despues(f"experiencia: {destino.name} ({leccion.clase}, {leccion.tema})")
     return destino, True
+
+
+def _generar_readme() -> None:
+    """T9.3: `experiencia/README.md`, por proyecto, lo más reciente
+    primero — índice generado, nunca a mano."""
+    lecciones = sorted(listar(), key=lambda l: l.ultima_vez, reverse=True)
+    por_tema: dict[str, list[LeccionGuardada]] = {}
+    for leccion in lecciones:
+        por_tema.setdefault(leccion.tema, []).append(leccion)
+
+    lineas = ["# Experiencia", "", "Generado por `experiencia.py` — no editar a mano.", ""]
+    for tema in sorted(por_tema):
+        lineas.append(f"## {tema}")
+        lineas.append("")
+        for leccion in por_tema[tema]:
+            etiqueta = "error" if leccion.clase == "error" else "acierto"
+            vueltas = f" (×{leccion.veces})" if leccion.veces > 1 else ""
+            lineas.append(f"- [{etiqueta}] {leccion.titulo}{vueltas} — {leccion.ultima_vez} — `{leccion.ruta.name}`")
+        lineas.append("")
+    (carpeta() / "README.md").write_text("\n".join(lineas).rstrip() + "\n")
 
 
 # — Detección sin IA de «vueltas» (T8, punto 2) —

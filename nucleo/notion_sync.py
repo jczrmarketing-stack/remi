@@ -30,6 +30,7 @@ import boveda_git
 import db
 import entregas
 import estado_libro
+import experiencia
 import libros
 import notion
 
@@ -54,6 +55,19 @@ ESQUEMA_ENTREGAS: dict[str, Any] = {
     "Estado": {"select": {"options": [{"name": e} for e in ESTADOS_ENTREGA]}},
 }
 
+# T9.3: espejo de la experiencia, solo de ida — sin vuelta, nunca hay
+# conflicto que resolver (una lección no se edita desde Notion).
+ESQUEMA_EXPERIENCIA: dict[str, Any] = {
+    "Título": {"title": {}},
+    "Id": {"rich_text": {}},
+    "Proyecto": {"rich_text": {}},
+    "Clase": {"select": {"options": [{"name": "error"}, {"name": "acierto"}]}},
+    "Causa real": {"rich_text": {}},
+    "Cura": {"rich_text": {}},
+    "Veces": {"number": {}},
+    "Última vez": {"date": {}},
+}
+
 
 def _id_de_proyecto(tema: str) -> UUID:
     """Mismo esquema determinístico que `entregas._proyecto_id_de_tema`: así
@@ -69,13 +83,14 @@ def _ruta_cache() -> Path:
 def _cache_leer() -> dict[str, Any]:
     ruta = _ruta_cache()
     if not ruta.exists():
-        return {"proyectos": {}, "entregas": {}}
+        return {"proyectos": {}, "entregas": {}, "lecciones": {}}
     try:
         datos = json.loads(ruta.read_text())
     except (json.JSONDecodeError, OSError):
-        return {"proyectos": {}, "entregas": {}}
+        return {"proyectos": {}, "entregas": {}, "lecciones": {}}
     datos.setdefault("proyectos", {})
     datos.setdefault("entregas", {})
+    datos.setdefault("lecciones", {})
     return datos
 
 
@@ -128,6 +143,8 @@ class ResumenSync:
     proyectos_actualizados: int = 0
     entregas_creadas: int = 0
     entregas_actualizadas: int = 0
+    lecciones_creadas: int = 0
+    lecciones_actualizadas: int = 0
     conflictos: int = 0
 
 
@@ -167,6 +184,49 @@ def _propiedades_entrega(entrega: Any, id_proyecto: str) -> dict[str, Any]:
         "Monto": notion.prop_numero(entrega.monto),
         "Estado": notion.prop_seleccion(entrega.estado),
     }
+
+
+def _propiedades_leccion(leccion: experiencia.LeccionGuardada) -> dict[str, Any]:
+    clave_causa = "Causa real" if leccion.clase == "error" else "Qué funcionó"
+    try:
+        ultima_vez = datetime.fromisoformat(leccion.ultima_vez).date() if leccion.ultima_vez else None
+    except ValueError:
+        ultima_vez = None
+    propiedades: dict[str, Any] = {
+        "Título": notion.prop_titulo(leccion.titulo),
+        "Id": notion.prop_texto(leccion.ruta.stem),
+        "Proyecto": notion.prop_texto(leccion.tema),
+        "Clase": notion.prop_seleccion(leccion.clase),
+        "Causa real": notion.prop_texto(leccion.secciones.get(clave_causa, "")),
+        "Cura": notion.prop_texto(leccion.secciones.get("Cura", "")),
+        "Veces": notion.prop_numero(leccion.veces),
+    }
+    if ultima_vez is not None:
+        propiedades["Última vez"] = notion.prop_fecha(ultima_vez)
+    return propiedades
+
+
+def _sincronizar_leccion(
+    cliente: notion.Notion,
+    base_id: str,
+    leccion: experiencia.LeccionGuardada,
+    cache: dict[str, Any],
+    existentes: dict[str, str],
+    resumen: ResumenSync,
+) -> None:
+    """Solo de ida: se empuja tal cual, nunca se lee la página de Notion
+    (una lección no se edita desde ahí — T9.3)."""
+    id_leccion = leccion.ruta.stem
+    propiedades = _propiedades_leccion(leccion)
+    previo = cache["lecciones"].get(id_leccion)
+    pagina_id = (previo or {}).get("pagina_id") or existentes.get(id_leccion)
+    if pagina_id is None:
+        pagina_id = cliente.crear_pagina(base_id, propiedades)
+        resumen.lecciones_creadas += 1
+    else:
+        cliente.actualizar_pagina(pagina_id, propiedades)
+        resumen.lecciones_actualizadas += 1
+    cache["lecciones"][id_leccion] = {"pagina_id": pagina_id, "veces": leccion.veces}
 
 
 def _por_id(cliente: notion.Notion, base_id: str) -> dict[str, str]:
@@ -339,9 +399,13 @@ def sincronizar(cliente: notion.Notion | None = None) -> ResumenSync:
 
     base_proyectos = cliente.buscar_base(raiz, "Proyectos") or cliente.crear_base(raiz, "Proyectos", ESQUEMA_PROYECTOS)
     base_entregas = cliente.buscar_base(raiz, "Entregas") or cliente.crear_base(raiz, "Entregas", ESQUEMA_ENTREGAS)
+    base_experiencia = cliente.buscar_base(raiz, "Experiencia") or cliente.crear_base(
+        raiz, "Experiencia", ESQUEMA_EXPERIENCIA
+    )
 
     existentes_proyectos = _por_id(cliente, base_proyectos)
     existentes_entregas = _por_id(cliente, base_entregas)
+    existentes_lecciones = _por_id(cliente, base_experiencia)
 
     conexion = db.conectar()
     try:
@@ -356,6 +420,12 @@ def sincronizar(cliente: notion.Notion | None = None) -> ResumenSync:
             _sincronizar_entrega(cliente, base_entregas, entrega, conexion, cache, existentes_entregas, resumen)
     finally:
         conexion.close()
+
+    # T9.3: toda la experiencia, solo de ida — una lección no es
+    # `compartible` en el sentido de Tarea/Idea (no tiene ese campo); no
+    # trae pacientes, finanzas ni salud, así que viaja entera.
+    for leccion in experiencia.listar():
+        _sincronizar_leccion(cliente, base_experiencia, leccion, cache, existentes_lecciones, resumen)
 
     _cache_guardar(cache)
     return resumen

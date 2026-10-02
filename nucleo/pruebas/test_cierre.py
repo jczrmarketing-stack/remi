@@ -230,7 +230,7 @@ def test_un_problema_resuelto_deja_ademas_un_episodio_de_error(tmp_path, monkeyp
     assert respuesta.status_code == 200
     episodios = list((tmp_path / "boveda" / "episodios").glob("*.md"))
     assert len(episodios) == 1  # el episodio normal; la lección va aparte
-    lecciones = sorted((tmp_path / "boveda" / "experiencia").glob("*.md"))
+    lecciones = sorted(p for p in (tmp_path / "boveda" / "experiencia").glob("*.md") if p.name != "README.md")
     assert len(lecciones) == 1
     nota = lecciones[0].read_text()
     assert "tipo: leccion" in nota
@@ -291,7 +291,7 @@ def test_un_commit_fix_sin_la_frase_tambien_dispara_la_leccion(tmp_path, monkeyp
         },
     )
 
-    lecciones = list((tmp_path / "boveda" / "experiencia").glob("*.md"))
+    lecciones = [p for p in (tmp_path / "boveda" / "experiencia").glob("*.md") if p.name != "README.md"]
     assert len(lecciones) == 1
 
 
