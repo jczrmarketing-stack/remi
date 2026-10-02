@@ -3,8 +3,8 @@
 La mente (el índice: títulos y con qué se quedó) viaja siempre en el system
 prompt y no cuesta nada mirarla. El cuerpo entero de cada cosa vive acá, y
 se baja solo cuando hace falta — sabiendo de antemano cuál bajar, que para
-eso está el índice. Nada de embeddings ni búsqueda: si no está en el
-índice, Remi no lo sabe.
+eso está el índice. T10: el índice tiene un presupuesto de tokens, así que
+no siempre trae todo — `buscar_memoria` encuentra lo que quedó afuera.
 
 Corre contra el mismo remi.db que el resto del núcleo (REMI_DB_PATH manda,
 igual que en db.py). Nada sale del Mac.
@@ -33,7 +33,9 @@ servidor = MCPServer(
         "tu contexto, pedilo con `indice`; usá `leer` con el id de la entrada que "
         "haga falta y `guardar` cuando aparezca algo que valga la pena recordar. "
         "Al cerrar un trabajo, por cada problema resuelto o acierto que valga la pena "
-        "repetir: `anotar_leccion`. Antes de proponer un arreglo nuevo: `buscar_lecciones`."
+        "repetir: `anotar_leccion`. Antes de proponer un arreglo nuevo: `buscar_lecciones`. "
+        "Si el índice no trae algo viejo que debería estar (quedó fuera del presupuesto): "
+        "`buscar_memoria`."
     ),
 )
 
@@ -168,6 +170,24 @@ def buscar_lecciones(q: str, tema: str = "") -> str:
     if not encontradas:
         return "No encontré nada parecido en la bóveda."
     return "\n".join(f"{r.tipo} · {r.titulo} — {r.ruta}" for r in encontradas)
+
+
+@servidor.tool(
+    description=(
+        "T10: el índice de arriba tiene un presupuesto de tokens — lo viejo que no entró "
+        "no se borró ni se movió, sigue en el estante. Buscá por una palabra exacta "
+        "(título, resumen, tema) para encontrarlo. `tema` filtra."
+    )
+)
+def buscar_memoria(q: str, tema: str = "") -> str:
+    conexion = db.conectar()
+    try:
+        encontradas = db.buscar_memoria(conexion, q, tema.strip() or None)
+    finally:
+        conexion.close()
+    if not encontradas:
+        return "No encontré nada en el estante con eso."
+    return "\n".join(f"{str(e.id)[:8]} · {e.tema} · {e.titulo} — {e.resumen}" for e in encontradas)
 
 
 # Quien nos abrió (pensar.py) quiere saber si Remi llegó a bajar algo del
