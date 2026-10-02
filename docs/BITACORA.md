@@ -20,6 +20,25 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · T9.5, segunda vía · cierra también al abrir la conversación siguiente · construido · af790ec
+
+Escribe la terminal. Juan Camilo pidió seguir con la simplificación que quedó documentada
+al cerrar T9.5 (solo la corrida nocturna).
+
+- **Qué cambió:** `pensar.pensar()` detecta cuándo el turno de Juan abre una conversación
+  nueva (la que estaba vigente no tenía turnos — toda conversación real tiene al menos
+  uno) y, en ese caso, dispara `cierre.cerrar_conversaciones_inactivas` en segundo plano
+  después de contestar (`_cerrar_conversaciones_inactivas_en_segundo_plano`, mismo patrón
+  que ya existía para el resumen: nunca a mitad de un turno, nunca demora la respuesta).
+- **Decisiones que tomé sin preguntar:** ninguna.
+- **Dudas abiertas:** ninguna nueva.
+- **Cómo probarlo a mano:** `uv run pytest -q` (679 + 2 lentas que se saltan) + `uv run
+  mypy .` (124 módulos, limpio). `pruebas/test_cerrar_al_abrir_conversacion.py` prueba las
+  tres partes: dispara al abrir la primera, no dispara si sigue la misma, y una
+  conversación vieja de verdad cierra sola al abrir la siguiente.
+
+---
+
 ## 2026-10-02 · T10 · El techo del índice · construido · f99508e
 
 Escribe la terminal. Aprobada por Juan Camilo el 1-oct, a partir del hallazgo de la propia
