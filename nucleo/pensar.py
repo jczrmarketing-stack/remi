@@ -899,6 +899,30 @@ def _actualizar_resumen_en_segundo_plano(conversacion_id: str | None) -> None:
     threading.Thread(target=correr, daemon=True).start()
 
 
+def _cerrar_conversaciones_inactivas_en_segundo_plano() -> None:
+    """T9.5/T10: al abrir una conversación nueva, las que quedaron atrás (60
+    min sin turnos) dejan su episodio si tuvieron sustancia. En segundo
+    plano, después de contestar — igual que el resumen, nunca a mitad de un
+    turno. La consolidación de la noche ya cubre esto en menos de 24 h; esto
+    lo adelanta a la próxima vez que Juan Camilo le habla a Remi."""
+    import threading
+
+    def correr() -> None:
+        try:
+            import cierre
+
+            cerradas = cierre.cerrar_conversaciones_inactivas(_ahora())
+            if cerradas:
+                print(f"[conversaciones] episodio(s) al abrir una nueva={cerradas}", file=sys.stderr)
+        except Exception as error:
+            print(
+                f"[conversaciones] cierre en segundo plano falló ({type(error).__name__}: {error})",
+                file=sys.stderr,
+            )
+
+    threading.Thread(target=correr, daemon=True).start()
+
+
 def pensar(
     frase: str,
     motor_pedido: str | None = None,
@@ -925,6 +949,7 @@ def pensar(
     else:
         print("[precarga] nada que precargar (sin bloque abierto ni libro tocado)", file=sys.stderr)
     turnos, resumen = _conversacion()
+    abre_conversacion_nueva = not turnos  # toda conversación vigente tiene al menos un turno
     mensaje = mensaje_con_historia(frase, turnos, resumen)
     elegido = motor(motor_pedido)
     if buscar:
@@ -959,6 +984,8 @@ def pensar(
     if pensado is not None:
         conversacion_id = _guardar_turno("remi", pensado.paso_minimo)
     _actualizar_resumen_en_segundo_plano(conversacion_id)
+    if abre_conversacion_nueva:
+        _cerrar_conversaciones_inactivas_en_segundo_plano()
     return pensado
 
 
