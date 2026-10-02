@@ -240,53 +240,63 @@ refinamiento», fila «Historial» (cerrado, abierto, una conversación de antes
 toco una de ayer, le escribo y Remi contesta sabiendo de qué se hablaba; «Conversación
 nueva» empieza una limpia; pytest, mypy y vitest en verde; app instalada con `actualizar.sh`.
 
-### T8 · Experiencia: lo que se resolvió queda, sea de quien sea — **aprobada: no** (todavía)
-Va ANTES de T6, y solo cuando la línea de arriba diga «aprobada: sí».
+### T8 · La experiencia entra y se consulta — **aprobada: sí** (Juan Camilo, 1-oct 19:23)
+Va ANTES de T6. Biblia v3.9, Parte VII: «La experiencia es memoria».
 
 Diagnóstico (medido el 1-oct a las 19:20): el libro de errores del oficio «stack» tiene **cero
 entradas**: `cierre.py` solo lo dispara con tres frases («la causa era», «se arregló», «fallaba
 porque»). Los episodios cuentan qué se hizo, no qué se aprendió. Una sesión que falló seis
 veces por lo mismo (el 401 de malik) dejó seis episodios casi iguales, dos con pasos
 inventados («contactar a soporte»). Lo que resuelven otras manos (Claude en la app, la
-terminal en un worktree, la bitácora, una auditoría pegada) no entra. Y nada dice si una
-sesión salió bien o hubo que arreglarla después.
+terminal, la bitácora, una auditoría pegada) no entra. Y nada dice si una sesión salió bien
+o hubo que arreglarla después. Juan Camilo: «hemos dado vueltas en círculos por horas y la
+causa era otra; eso no puede volver a pasar».
 
-Principio: se guardan **lecciones con evidencia**, no transcripts. Más memoria sin filtro la
-hace más tonta, no más experta.
-1. Formato único de un error resuelto: episodio con `fuente: error`, `claves: [error, <tema>]`
-   y cuatro secciones — síntoma, causa, cura, dónde (repo y archivo). Una función pura lo
-   valida; lo que no tenga las cuatro no entra.
-2. Detector con evidencia en vez de frases: al cerrar una sesión hay «problema resuelto» si
-   hubo un commit cuyo mensaje empieza con fix/arregl/corrig, o si en el transcript una
-   corrida de pruebas en rojo va seguida de una en verde, o las frases de hoy. La trastienda
-   redacta; la verificación anti-invento de `estado_libro.py` compara contra el transcript.
-3. Sin repetidos: antes de escribir un episodio (normal o de error), si ya hay uno del mismo
-   libro con el mismo síntoma o el mismo resumen en los últimos 7 días, se le suma una línea
-   «volvió a pasar el <fecha>» en vez de crear otro. Los seis del 401 de malik se fusionan
-   (nunca se borran: los sobrantes quedan con `fusionado_en:`).
+Principios: se guardan **lecciones con evidencia**, no transcripts (más memoria sin filtro la
+hace más tonta). Una sola fuente: la bóveda, con commit; SQLite la indexa y se puede
+reconstruir entera desde la bóveda; Notion la refleja. **Nada nuevo en el stack**: Markdown +
+git + SQLite (FTS5 y el `sqlite-vec` que ya está) + reglas en Python. El modelo solo redacta
+y es reemplazable; nunca decide qué es verdad ni es el lugar donde algo se guarda.
+1. La lección: `remi-mente/experiencia/AAAA-MM-DD-<tema>-<slug>.md` con frontmatter `titulo`,
+   `tema`, `resumen`, `tipo: leccion`, `clase: error | acierto`, `donde` (repo y archivo),
+   `veces`, `ultima_vez`, `vueltas`, `fuente` (claude-code, claude-app, remi, bitacora, manual).
+   Un error lleva cinco secciones: Síntoma · Lo que creímos (la pista falsa; vacía si no hubo)
+   · Causa real · Cura · Cómo verlo antes. Un acierto, tres: Qué funcionó · Evidencia · Cuándo
+   usarlo. Una función pura valida; lo que no cumpla no entra. `cierre.escribir_episodio_error`
+   pasa a escribir acá.
+2. Detector con evidencia al cerrar una sesión de Claude Code: un commit cuyo mensaje empieza
+   con fix/arregl/corrig, o una corrida de pruebas en rojo seguida de una en verde, o las
+   frases de hoy. **Vueltas**: la misma prueba en rojo tres corridas o más, o el mismo archivo
+   editado cinco veces o más sin commit, o más de 40 min entre el primer rojo y el verde →
+   `vueltas: true` y «Lo que creímos» es obligatoria. Redacta la trastienda; la verificación
+   anti-invento de `estado_libro.py` compara contra el transcript.
+3. Sin repetidos: si ya hay una lección del mismo libro con el mismo síntoma (texto
+   normalizado, o vecina por vectores), se le suma `veces` y `ultima_vez` y una línea «volvió
+   a pasar el <fecha>»; no se crea otra. Lo mismo para episodios con el mismo resumen en 7
+   días. Los seis del 401 de malik se fusionan (nunca se borran: quedan con `fusionado_en:`).
 4. La nota de cada sesión, sin IA: commits que dejó, cómo terminaron las pruebas (verde, rojo,
    sin correr), duración y, a las 48 h, si un commit posterior con fix o revert tocó los
    mismos archivos. Va en el frontmatter del episodio (`resultado: limpio | con-arreglo |
-   sin-commit`). No se muestra como contador en ninguna pantalla (ley 3): sirve para que Remi
-   sepa qué forma de encargo funciona.
-5. Consultar antes de actuar: al abrir sesión (`SessionStart`) y al armar un encargo, Remi
-   agrega hasta tres errores del mismo libro o de los mismos archivos: «Ojo: aquí ya pasó X;
-   la cura fue Y». Por tema y archivo primero, por vectores después.
-6. La puerta para otras manos: `POST /experiencia {tema, sintoma, causa, cura, donde, fuente}`
-   y la herramienta `anotar_error` en el MCP de memoria (que ya es global), con el mismo
-   validador del punto 1. Y el gancho de commit: si el commit toca `docs/BITACORA.md` de un
-   repo con libro, la entrada nueva se guarda como episodio (decisiones y dudas incluidas).
-7. Oficios y skills, una sola fuente: `scripts/oficios_a_skills.py` exporta cada oficio de la
-   bóveda como skill de usuario de Claude Code (verificar en la documentación dónde los lee),
-   para que toda sesión los tenga; `scripts/skill_a_oficio.py <carpeta>` trae un `SKILL.md` de
-   solo conocimiento como oficio. Un skill con scripts no entra al cerebro de Remi (lee, no
-   ejecuta): Remi lo nombra en el encargo y lo corre Claude Code.
-8. Semilla, con el formato del punto 1 (son reales, del 1-oct; redactarlos sin inventar):
+   sin-commit`). Nunca se muestra como contador (ley 3).
+5. La puerta para cualquier mano: `POST /experiencia` (los campos del punto 1) y dos
+   herramientas en el MCP de memoria, que ya es global: `anotar_leccion` y `buscar_lecciones`,
+   con el mismo validador. El gancho de commit: si toca `docs/BITACORA.md` de un repo con
+   libro, la entrada nueva queda como episodio. Y la regla donde toda mano la lee — una línea
+   en `CLAUDE.md` y en el skill `/remi`: «Al cerrar un trabajo, por cada problema resuelto:
+   `anotar_leccion`». En la charla con Remi, «anota esta lección: …» hace lo mismo.
+6. Buscar: tabla FTS5 sobre las lecciones (el texto exacto de un error se busca literal) y
+   los vectores que ya hay. `GET /experiencia?tema=&q=`. El índice se regenera desde la
+   bóveda con un comando (`uv run python experiencia.py --reindexar`).
+7. Consultar antes de actuar: `SessionStart` y el armado de encargos agregan hasta tres
+   lecciones («Ojo: aquí ya pasó X; la cura fue Y»), por archivo y tema primero, por vectores
+   después.
+8. Semilla, con el formato del punto 1 (son reales, del 1-oct; redactarlas sin inventar):
    - Pruebas que recargan módulos: «Input should be a valid dictionary or instance of Idea» ·
      al sacar `modelos` de `sys.modules` sin `bandeja` y `servidor` quedan dos clases `Idea` ·
      sacarlos juntos · `nucleo/pruebas`.
-   - Playwright `EADDRINUSE :4498` · dos ayudantes `recargar.sh --vigilar` atendían el mismo
-     pedido · candado por pid y `mkdir tomado-<n>` · `scripts/recargar.sh`.
+   - Playwright `EADDRINUSE :4498` · se creyó que era un servidor de prueba que quedó vivo;
+     eran dos ayudantes `recargar.sh --vigilar` atendiendo el mismo pedido · candado por pid y
+     `mkdir tomado-<n>` · `scripts/recargar.sh`. (`vueltas: true`)
    - `next build` con `ENOENT … .next/export/500.html` · dos builds a la vez sobre el mismo
      `.next` · un build a la vez; las pruebas con `NEXT_DIST_DIR` aparte · `apps/panel`.
    - «Empezar con eso» guardaba una idea en vez de abrir el bloque · el botón mandaba texto a
@@ -301,16 +311,44 @@ hace más tonta, no más experta.
      resolvía el worktree al repo principal · T1.3 (`f780f70`) · `nucleo/libros.py`.
    - 1.008 ideas de prueba en la base real · el gancho global de git corría dentro de pytest ·
      ver la entrada de la bitácora del 1-oct (encargo F).
+   - Acierto: dos manos en paralelo sin pisarse · un worktree por mano, un archivo de formas
+     JSON como contrato y un núcleo falso para el panel · `docs/PLAN-100.md`.
 
 **Listo cuando:** cierro una sesión de Claude Code donde arreglé algo con un commit «fix: …»
-y aparece un error con síntoma, causa, cura y dónde; abro otra sesión en ese repo y Claude
-recibe «Ojo: …»; le pido a Remi un encargo que toca ese archivo y lo menciona; el índice ya
-no tiene los seis del 401; los oficios aparecen como skills en Claude Code; pytest y mypy en
-verde.
+y aparece una lección con sus secciones en `remi-mente/experiencia/`; abro otra sesión en ese
+repo y Claude recibe «Ojo: …»; le pido a Remi un encargo que toca ese archivo y lo menciona;
+`anotar_leccion` desde otro Claude deja una lección igual; el índice ya no tiene los seis
+del 401; borro la tabla y `--reindexar` la deja igual; pytest y mypy en verde.
+
+### T9 · Adaptación y espejos — **aprobada: sí** (Juan Camilo, 1-oct 19:23)
+Después de T8, antes de T6. Biblia v3.9: «Adaptarse: Remi propone, tú decides».
+1. De lección a regla: cuando una lección llega a `veces: 2`, o un acierto se repite con
+   `resultado: limpio`, Remi **propone** una regla de una línea para el oficio que toca
+   (stack, vibe-coding, prompting, claude-code) o para «## Reglas de este proyecto» del libro.
+   La propuesta es una `Pregunta` de T3 («Esto ya pasó dos veces. ¿Lo dejo como regla en el
+   oficio stack?»). Con el sí, `correcciones.aplicar_regla` la escribe con commit. Sin sí, se
+   descarta en silencio y no insiste. Remi nunca cambia un oficio sola.
+2. Las reglas viajan: «## Reglas de este proyecto» va en `SessionStart` y en cada encargo de
+   ese libro; el oficio `stack` y `vibe-coding` se cargan al armar un encargo, junto a
+   `prompting` y `claude-code`.
+3. Espejos, solo de ida: `remi-mente/experiencia/README.md` (índice generado: por proyecto,
+   lo más reciente arriba) y en Notion una base «Experiencia» (título, proyecto, clase, causa
+   real, cura, veces, última vez), creada y mantenida por `notion_sync` bajo la misma página
+   que ya usa. Si Notion no está, no se pierde nada.
+4. Oficios y skills, una sola fuente: `scripts/oficios_a_skills.py` exporta cada oficio de la
+   bóveda como skill de usuario de Claude Code (verificar en la documentación dónde los lee),
+   para que toda sesión los tenga; `scripts/skill_a_oficio.py <carpeta>` trae un `SKILL.md` de
+   solo conocimiento como oficio. Un skill con scripts no entra al cerebro de Remi (lee, no
+   ejecuta): Remi lo nombra en el encargo y lo corre Claude Code.
+
+**Listo cuando:** una lección de la semilla llevada a `veces: 2` produce la pregunta; con «sí»
+la regla aparece en el oficio con su commit y en el encargo siguiente; la base «Experiencia»
+de Notion muestra las mismas lecciones que la carpeta; los oficios aparecen como skills en
+una sesión nueva de Claude Code.
 
 ### T6 · Cierre
-Antes: si T7 dice «diseño aprobado: sí» o T8 dice «aprobada: sí» y no están hechas, hacerlas
-primero.
+Antes: T8 y T9 están aprobadas: si no están hechas, van primero, en ese orden. T7 solo si
+dice «diseño aprobado: sí».
 `scripts/actualizar.sh` desde `main` (la app instalada con el último commit), `doctor.sh`,
 entrada de cierre en la bitácora con lo que queda para después de los siete días (3f,
 2e.1, 2e.2, 2e.3) **sin empezarlo**.
