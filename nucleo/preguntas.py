@@ -12,15 +12,77 @@ from __future__ import annotations
 import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import boveda_git
+import clasificar
 import db
 import entregas
+import iniciativa
 import libros
 from modelos import Pregunta
+
+# «En el aire» (T3.5, el patrón de correcciones.py): un singleton, no por
+# conversación — la ventanita es de una sola persona y la mayoría de los
+# mensajes ni siquiera abren una conversación (solo lo hace pensar.py).
+ESQUEMA_EN_EL_AIRE = """
+CREATE TABLE IF NOT EXISTS pregunta_en_el_aire (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    pregunta_id TEXT NOT NULL
+);
+"""
+
+
+def _preparar_en_el_aire(conexion: sqlite3.Connection) -> None:
+    conexion.executescript(ESQUEMA_EN_EL_AIRE)
+
+
+def marcar_en_el_aire(conexion: sqlite3.Connection, pregunta_id: UUID) -> None:
+    _preparar_en_el_aire(conexion)
+    conexion.execute(
+        "INSERT INTO pregunta_en_el_aire (id, pregunta_id) VALUES (1, ?) "
+        "ON CONFLICT(id) DO UPDATE SET pregunta_id = excluded.pregunta_id",
+        (str(pregunta_id),),
+    )
+    conexion.commit()
+
+
+def en_el_aire(conexion: sqlite3.Connection) -> Pregunta | None:
+    _preparar_en_el_aire(conexion)
+    fila = conexion.execute("SELECT pregunta_id FROM pregunta_en_el_aire WHERE id = 1").fetchone()
+    return db.leer_pregunta(conexion, UUID(fila["pregunta_id"])) if fila else None
+
+
+def borrar_en_el_aire(conexion: sqlite3.Connection) -> None:
+    _preparar_en_el_aire(conexion)
+    conexion.execute("DELETE FROM pregunta_en_el_aire WHERE id = 1")
+    conexion.commit()
+
+
+def es_arranque_cierre_o_pregunta(texto: str) -> bool:
+    if "?" in texto or "¿" in texto:
+        return True
+    return clasificar.clasificar(texto) in ("hoy", "hecha", "pregunta")
+
+
+def preguntar_en_voz(conexion: sqlite3.Connection, tema: str | None, ahora: datetime) -> Pregunta | None:
+    """Al abrir un bloque de ese proyecto: si hay algo pendiente y el
+    presupuesto de silencio de `iniciativa.py` lo permite, la deja «en el
+    aire» (una sola) y gasta un cupo del día — sin crear un Nudge nuevo,
+    `iniciativa_nudges` solo registra el gasto."""
+    if tema is None:
+        return None
+    sincronizar(conexion, ahora)
+    pendientes = db.listar_preguntas_pendientes(conexion, ahora, tema, limite=1)
+    iniciativa._preparar(conexion)
+    if not pendientes or not iniciativa._presupuesto_ok(conexion, ahora):
+        return None
+    pregunta = pendientes[0]
+    iniciativa.registrar(conexion, uuid4(), "ritual", ahora)
+    marcar_en_el_aire(conexion, pregunta.id)
+    return pregunta
 
 MAXIMO_VISIBLES = 3
 HORAS_DESPUES = 24

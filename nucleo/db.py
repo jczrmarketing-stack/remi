@@ -855,7 +855,7 @@ def listar_preguntas_pendientes(
         condiciones.append("tema = ?")
         parametros.append(tema)
     filas = conexion.execute(
-        f"SELECT * FROM preguntas WHERE {' AND '.join(condiciones)} ORDER BY creada_en LIMIT ?",
+        f"SELECT * FROM preguntas WHERE {' AND '.join(condiciones)} ORDER BY creada_en, rowid LIMIT ?",
         (*parametros, limite),
     ).fetchall()
     return [_fila_a_pregunta(fila) for fila in filas]

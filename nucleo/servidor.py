@@ -209,7 +209,12 @@ class RespuestaMensaje(BaseModel):
     # «cobro» (un pago que llegó hablado) y «entrega» (una entrega futura
     # que llegó hablada) — ninguno de los tres abre bloque ni lleva
     # `sesion`; la ventanita solo muestra la voz.
-    tipo: clasificar.TipoMensaje | Literal["encargo", "cliente", "correccion", "agenda", "cobro", "entrega"]
+    # «pregunta_respondida» (T3, fase Q): la respuesta a una pregunta de
+    # Remi que estaba «en el aire» — fuera de Forma G, solo lo lee la
+    # ventanita (el panel no llama a /mensaje).
+    tipo: clasificar.TipoMensaje | Literal[
+        "encargo", "cliente", "correccion", "agenda", "cobro", "entrega", "pregunta_respondida"
+    ]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
     # Lo que se ve en la pantalla, completo.
@@ -387,6 +392,11 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         ms = (time.perf_counter() - arranque) * 1000
         print(f"[mensaje] tipo=cliente ms={ms:.0f} pensó={'sí' if respuesta.tokens else 'no'}", file=sys.stderr, flush=True)
         return respuesta
+    respuesta_pregunta = _responder_pregunta_en_el_aire(mensaje)
+    if respuesta_pregunta is not None:
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=pregunta_respondida ms={ms:.0f}", file=sys.stderr, flush=True)
+        return respuesta_pregunta
     # T2: plata y agenda por voz. Van antes del clasificador de
     # tareas/ideas porque son formas más específicas; ninguna abre bloque.
     respuesta_entrega = _crear_entrega_hablada(mensaje)
@@ -433,6 +443,27 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         flush=True,
     )
     return respuesta
+
+
+def _responder_pregunta_en_el_aire(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
+    """T3.5: si hay una pregunta de Remi «en el aire», el mensaje siguiente
+    que no sea arranque, cierre ni pregunta es la respuesta (el patrón de
+    correcciones.py). None si no hay ninguna en el aire, o si este mensaje
+    sí es arranque/cierre/pregunta — ahí se deja pendiente y sigue su
+    camino normal."""
+    conexion = db.conectar()
+    try:
+        pregunta = preguntas.en_el_aire(conexion)
+        if pregunta is None or preguntas.es_arranque_cierre_o_pregunta(mensaje.texto):
+            return None
+        entendida = preguntas.responder(conexion, pregunta, mensaje.texto)
+        if not entendida:
+            return RespuestaMensaje(tipo="pregunta_respondida", texto=f"No te entendí. {pregunta.voz}", voz=f"No te entendí. {pregunta.voz}")
+        db.actualizar_estado_pregunta(conexion, pregunta.id, "respondida")
+        preguntas.borrar_en_el_aire(conexion)
+        return RespuestaMensaje(tipo="pregunta_respondida", texto="Anotado, gracias.", voz="Anotado, gracias.")
+    finally:
+        conexion.close()
 
 
 def _crear_entrega_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
@@ -695,8 +726,16 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
         if abierta is not None:
             db.cerrar_sesion(conexion, abierta)
         db.crear_sesion(conexion, sesion)
+        # T3.5: al abrir un bloque de un proyecto con algo pendiente, Remi
+        # pregunta — una sola, gastando del presupuesto de silencio de
+        # iniciativa.py (nunca un Nudge nuevo).
+        pregunta = preguntas.preguntar_en_voz(conexion, sesion.app_contexto, datetime.now(timezone.utc))
     finally:
         conexion.close()
+
+    if pregunta is not None:
+        texto = f"{texto} {pregunta.voz}".strip()
+        voz = f"{voz} {pregunta.voz}".strip()
 
     return RespuestaMensaje(
         tipo="hoy",
