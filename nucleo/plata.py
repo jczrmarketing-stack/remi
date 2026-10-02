@@ -86,12 +86,22 @@ class Linea(BaseModel):
     temas: list[str]
 
 
+class PorLinea(BaseModel):
+    id: str
+    nombre: str
+    cobrado_mes: float
+    minutos_mes: int
+
+
 class Plata(BaseModel):
     semana: Semana
     mes: Mes
     proximo: EntregaProxima | None
     metas: list[Meta]
     revision_fria: RevisionFria | None
+    # Forma C (T4): una entrada por línea de la config, en ese orden,
+    # aunque esté en cero.
+    por_linea: list[PorLinea]
 
 
 def _lunes(momento: datetime) -> datetime:
@@ -220,6 +230,50 @@ def linea_de_tema(tema: str | None) -> str | None:
     return None
 
 
+def _cobrado_mes_de_linea(conexion: sqlite3.Connection, linea_id: str, desde: datetime, hasta: datetime) -> float:
+    fila = conexion.execute(
+        "SELECT COALESCE(SUM(monto), 0) AS total FROM entregas WHERE estado = 'pagada' "
+        "AND linea = ? AND fecha >= ? AND fecha <= ?",
+        (linea_id, desde.isoformat(), hasta.isoformat()),
+    ).fetchone()
+    return float(fila["total"])
+
+
+def _minutos_mes_de_linea(conexion: sqlite3.Connection, temas: list[str], desde: datetime, hasta: datetime) -> int:
+    """Sesiones cerradas del mes cuyo `app_contexto` es un tema de la
+    línea, más las de `trabajo_claude` (Claude Code) de esos mismos temas."""
+    if not temas:
+        return 0
+    marcadores = ",".join("?" * len(temas))
+    fila_sesiones = conexion.execute(
+        f"SELECT COALESCE(SUM(real_min), 0) AS total FROM sesiones "
+        f"WHERE fin IS NOT NULL AND app_contexto IN ({marcadores}) AND inicio >= ? AND inicio <= ?",
+        (*temas, desde.isoformat(), hasta.isoformat()),
+    ).fetchone()
+    filas_claude = conexion.execute(
+        f"SELECT inicio, fin FROM trabajo_claude "
+        f"WHERE fin IS NOT NULL AND tema IN ({marcadores}) AND inicio >= ? AND inicio <= ?",
+        (*temas, desde.isoformat(), hasta.isoformat()),
+    ).fetchall()
+    minutos_claude = sum(
+        round((datetime.fromisoformat(fila["fin"]) - datetime.fromisoformat(fila["inicio"])).total_seconds() / 60)
+        for fila in filas_claude
+    )
+    return int(fila_sesiones["total"]) + minutos_claude
+
+
+def _por_linea(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[PorLinea]:
+    return [
+        PorLinea(
+            id=linea.id,
+            nombre=linea.nombre,
+            cobrado_mes=_cobrado_mes_de_linea(conexion, linea.id, desde, hasta),
+            minutos_mes=_minutos_mes_de_linea(conexion, linea.temas, desde, hasta),
+        )
+        for linea in lineas()
+    ]
+
+
 def calcular(conexion: sqlite3.Connection, ahora: datetime) -> Plata:
     """Sin entregas cobradas: 0, nunca error — el chequeo es aritmética
     sobre listas, no una consulta que pueda fallar por falta de filas."""
@@ -242,6 +296,7 @@ def calcular(conexion: sqlite3.Connection, ahora: datetime) -> Plata:
         proximo=_proxima_con_dinero(conexion, ahora),
         metas=metas_de(config, meta_mensual, cobrado_mes),
         revision_fria=revision_fria_de(config),
+        por_linea=_por_linea(conexion, primero_del_mes, ahora),
     )
 
 

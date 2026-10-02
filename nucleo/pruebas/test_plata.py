@@ -149,10 +149,14 @@ def test_nunca_hay_texto_que_regane(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
     cliente = TestClient(servidor.app)
 
+    import re
+
     cuerpo = cliente.get("/plata").json()
     for valor in _valores_string(cuerpo):
         for palabra in ("atrasa", "deber", "fall", "urgen", "mal"):
-            assert palabra not in valor.lower()
+            # \b...\b para no disparar con «malik» (id de línea): «mal» ahí
+            # no es la palabra completa.
+            assert not re.search(rf"\b{palabra}\b", valor.lower())
 
 
 def _valores_string(obj):
@@ -275,3 +279,75 @@ def test_la_config_real_del_repo_trae_metas_lineas_y_revision(tmp_path, monkeypa
     assert cuerpo["metas"][0]["monto_mes"] == cuerpo["mes"]["meta"]
     assert all(set(m) == {"nombre", "horizonte_meses", "monto_mes", "activa", "activa_desde_pct"} for m in cuerpo["metas"])
     assert cuerpo["revision_fria"] is None or set(cuerpo["revision_fria"]) == {"dia", "hora", "minutos"}
+
+
+# — Forma C (T4): por_linea en GET /plata —
+
+
+def test_por_linea_trae_una_entrada_por_linea_aunque_este_en_cero(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    _config(tmp_path, monkeypatch, CONFIG_CON_METAS)
+    import db
+
+    resultado = plata.calcular(db.conectar(), datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc))
+
+    assert [(l.id, l.nombre, l.cobrado_mes, l.minutos_mes) for l in resultado.por_linea] == [
+        ("software", "Software (clientes)", 0.0, 0),
+        ("malik", "Malik (contenido)", 0.0, 0),
+    ]
+
+
+def test_por_linea_suma_el_cobrado_del_mes_de_esa_linea(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    _config(tmp_path, monkeypatch, CONFIG_CON_METAS)
+    import db
+
+    conexion = db.conectar()
+    ahora = datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc)
+    primero = plata._primero_del_mes(ahora)
+    conexion.execute(
+        "INSERT INTO entregas (id, cliente, proyecto_id, fecha, monto, estado, compartible, linea) "
+        "VALUES (?, 'Alfonso', ?, ?, 1500, 'pagada', 1, 'software')",
+        (str(uuid4()), str(uuid4()), primero.isoformat()),
+    )
+    conexion.execute(
+        "INSERT INTO entregas (id, cliente, proyecto_id, fecha, monto, estado, compartible, linea) "
+        "VALUES (?, 'X', ?, ?, 999, 'pagada', 1, 'malik')",
+        (str(uuid4()), str(uuid4()), (primero - timedelta(days=5)).isoformat()),
+    )
+    conexion.commit()
+
+    resultado = plata.calcular(conexion, ahora)
+    por_id = {l.id: l for l in resultado.por_linea}
+    assert por_id["software"].cobrado_mes == 1500.0
+    assert por_id["malik"].cobrado_mes == 0.0  # es del mes pasado
+
+
+def test_por_linea_suma_minutos_de_sesiones_y_de_claude_code(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    _config(tmp_path, monkeypatch, CONFIG_CON_METAS)
+    import db
+
+    conexion = db.conectar()
+    ahora = datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc)
+    primero = plata._primero_del_mes(ahora)
+    conexion.execute(
+        "INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible) "
+        "VALUES (?, 'x', NULL, 'hecha', 'p', NULL, 30, 0)",
+        (str(uuid4()),),
+    )
+    tarea_id = conexion.execute("SELECT id FROM tareas LIMIT 1").fetchone()["id"]
+    conexion.execute(
+        "INSERT INTO sesiones (id, tarea_id, inicio, fin, real_min, app_contexto) VALUES (?, ?, ?, ?, 45, 'upvisuals')",
+        (str(uuid4()), tarea_id, primero.isoformat(), (primero + timedelta(minutes=45)).isoformat()),
+    )
+    conexion.execute(
+        "INSERT INTO trabajo_claude (session_id, tema, ruta, inicio, fin) VALUES (?, 'upvisuals', '/tmp/x', ?, ?)",
+        (str(uuid4()), primero.isoformat(), (primero + timedelta(minutes=20)).isoformat()),
+    )
+    conexion.commit()
+
+    resultado = plata.calcular(conexion, ahora)
+    por_id = {l.id: l for l in resultado.por_linea}
+    assert por_id["software"].minutos_mes == 65
+    assert por_id["malik"].minutos_mes == 0
