@@ -70,6 +70,23 @@ def test_cerrado_lista_las_sesiones_de_esta_semana(tmp_path, monkeypatch):
     assert [(c.titulo, c.tema, c.real_min) for c in resultado.cerrado] == [("Contrato de Alfonso", "upvisuals", 40)]
 
 
+def test_cerrado_no_ve_sesiones_de_una_tarea_archivada(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    import db
+
+    conexion = db.conectar()
+    ahora = datetime(2026, 10, 1, 15, 0, tzinfo=timezone.utc)
+    lunes = plata._lunes(ahora)
+    tarea_id = _tarea(conexion, titulo="charla de prueba", estado="archivada")
+    _sesion_cerrada(conexion, tarea_id, lunes, lunes + timedelta(minutes=5), 5, "x")
+    conexion.close()
+
+    import semana
+
+    resultado = semana.calcular(db.conectar(), ahora)
+    assert resultado.cerrado == []
+
+
 def test_aplazado_son_tareas_abiertas_con_fecha_ya_vencida_maximo_5(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
     import db

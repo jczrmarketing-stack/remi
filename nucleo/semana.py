@@ -49,7 +49,7 @@ def _cerrado_de_la_semana(conexion: sqlite3.Connection, desde: datetime) -> list
     filas = conexion.execute(
         "SELECT t.titulo AS titulo, s.app_contexto AS tema, s.real_min AS real_min "
         "FROM sesiones s JOIN tareas t ON t.id = s.tarea_id "
-        "WHERE s.fin IS NOT NULL AND s.inicio >= ? ORDER BY s.fin DESC",
+        "WHERE s.fin IS NOT NULL AND s.inicio >= ? AND t.estado != 'archivada' ORDER BY s.fin DESC",
         (desde.isoformat(),),
     ).fetchall()
     return [Cerrado(titulo=f["titulo"], tema=f["tema"], real_min=f["real_min"]) for f in filas]
