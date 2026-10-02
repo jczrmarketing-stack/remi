@@ -84,6 +84,42 @@ def preguntar_en_voz(conexion: sqlite3.Connection, tema: str | None, ahora: date
     marcar_en_el_aire(conexion, pregunta.id)
     return pregunta
 
+
+# — T3.6: por Telegram, una vez al día como mucho —
+
+ESQUEMA_TELEGRAM_DIA = """
+CREATE TABLE IF NOT EXISTS pregunta_telegram_dia (
+    dia TEXT PRIMARY KEY
+);
+"""
+
+
+def avisar_por_telegram_si_toca(conexion: sqlite3.Connection, ahora: datetime) -> Pregunta | None:
+    """La misma pregunta puede salir por el bot — una vez al día como
+    mucho (`noche.py` la llama en su corrida de las 4:00). La respuesta
+    llega por el mismo chat: `telegram._procesar_texto` ya pasa cualquier
+    texto por `/mensaje`, que reconoce la pregunta «en el aire»."""
+    import telegram
+
+    sincronizar(conexion, ahora)
+    conexion.executescript(ESQUEMA_TELEGRAM_DIA)
+    dia = ahora.date().isoformat()
+    ya_hoy = conexion.execute(
+        "SELECT 1 FROM pregunta_telegram_dia WHERE dia = ?", (dia,)
+    ).fetchone()
+    if ya_hoy is not None:
+        return None
+    pendientes = db.listar_preguntas_pendientes(conexion, ahora, None, limite=1)
+    if not pendientes:
+        return None
+    pregunta = pendientes[0]
+    telegram.avisar(telegram.AvisoSaliente(texto=pregunta.voz, urgente=False))
+    marcar_en_el_aire(conexion, pregunta.id)
+    conexion.execute("INSERT INTO pregunta_telegram_dia (dia) VALUES (?)", (dia,))
+    conexion.commit()
+    return pregunta
+
+
 MAXIMO_VISIBLES = 3
 HORAS_DESPUES = 24
 

@@ -41,6 +41,7 @@ import boveda_git
 import db
 import estado_libro
 import libros
+import preguntas
 import sembrar_conocimiento
 import telegram
 import vectores
@@ -315,6 +316,15 @@ def correr(hoy: date | None = None) -> None:
     cambios = diff_de_la_noche(referencia)
     enviar_reporte_de_la_noche(cambios)
     print(f"[noche] reporte libros_cambiados={len(cambios)}")
+
+    # T3.6: la pregunta pendiente más vieja, por Telegram — una vez al día
+    # como mucho (preguntas.py ya cuida eso).
+    conexion = db.conectar()
+    try:
+        preguntada = preguntas.avisar_por_telegram_si_toca(conexion, arranque)
+    finally:
+        conexion.close()
+    print(f"[noche] pregunta por telegram={'sí' if preguntada else 'no'}")
 
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")
