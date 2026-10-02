@@ -770,9 +770,12 @@ def guardar_turno(conexion: sqlite3.Connection, rol: str, texto: str, fecha: dat
     vigente = conversacion_vigente(conexion, fecha)
     if vigente is None:
         conversacion_id = str(uuid4())
+        # T7.1: el título nace con la conversación — su primer turno,
+        # cortado en una palabra, sin IA. Si cierra con episodio, T9.5 lo
+        # reemplaza por el título del episodio.
         conexion.execute(
-            "INSERT INTO conversaciones (id, inicio, ultimo) VALUES (?, ?, ?)",
-            (conversacion_id, fecha.isoformat(), fecha.isoformat()),
+            "INSERT INTO conversaciones (id, inicio, ultimo, titulo) VALUES (?, ?, ?, ?)",
+            (conversacion_id, fecha.isoformat(), fecha.isoformat(), titulo_de(texto)),
         )
     else:
         conversacion_id = vigente.id

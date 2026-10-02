@@ -61,3 +61,18 @@ def test_una_conversacion_que_no_existe_da_404():
     cliente = TestClient(servidor.app)
     assert cliente.get("/conversaciones/nada").status_code == 404
     assert cliente.post("/conversaciones/nada/retomar").status_code == 404
+
+
+def test_el_titulo_queda_en_la_base_desde_el_primer_turno(tmp_path):
+    # T11.3 (cierre de T7): no depende de leer «titulo» de la fila — así se
+    # ve que de verdad se escribió en el INSERT, no solo en el fallback de
+    # /conversaciones.
+    conversacion_id = _turnos(("juan", "necesito armar el formulario de contacto para UpVisuals"))
+    conexion = db.conectar()
+    try:
+        fila = conexion.execute(
+            "SELECT titulo FROM conversaciones WHERE id = ?", (conversacion_id,)
+        ).fetchone()
+    finally:
+        conexion.close()
+    assert fila["titulo"] == db.titulo_de("necesito armar el formulario de contacto para UpVisuals")
