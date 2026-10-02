@@ -26,11 +26,13 @@ describe("mostrarTextoIsla", () => {
 });
 
 describe("tamanoIsla", () => {
-  it("120×44 sin texto", () => {
+  it("72×72 sin texto: el cuadradito", () => {
     expect(tamanoIsla(false)).toEqual(TAMANO_ISLA_MINIMA);
+    expect(TAMANO_ISLA_MINIMA).toEqual({ width: 72, height: 72 });
   });
 
-  it("210×64 con texto", () => {
+  it("200×72 con texto: crece a lo ancho, no a lo alto", () => {
     expect(tamanoIsla(true)).toEqual(TAMANO_ISLA_CON_TEXTO);
+    expect(TAMANO_ISLA_CON_TEXTO).toEqual({ width: 200, height: 72 });
   });
 });

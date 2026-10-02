@@ -1,14 +1,14 @@
-/* StatusDot: único portador de glow-* y del único pulso permitido (ley 4/6).
-   Reposo usa `baja`, no `dormido`: dormido es el mismo valor que `line`
-   (#3a302d) — sobre `surface` da 1.5:1 y el punto no se ve. `baja`
-   (#6f6660) da 2.6:1: callado pero presente. Hallazgo para el Design
-   System real (ver docs/README.md), no solo un cambio de acá. */
+/* StatusDot: único portador de glow-* y de los movimientos de la ventanita.
+   El punto está siempre vivo (Juan Camilo, 1-oct): en reposo, en la píldora
+   y con el chat abierto es `luz` con su halo respirando. Cambia de color
+   solo cuando pasa algo: pensar (pensar) y hablar (brasa). Antes el reposo
+   era `baja` y quieto. */
 .status-dot {
   position: relative;
   width: 10px;
   height: 10px;
   border-radius: var(--radius-pill);
-  background: var(--baja);
+  background: var(--luz);
   /* Sólido siempre: el pulso lo hace el halo (::after), nunca el núcleo. */
   opacity: 1;
   transition:
@@ -65,6 +65,7 @@
    así que parecía que el punto desaparecía. ease-in-out porque la
    curva del sistema es de desaceleración y en un ciclo alternate se
    siente brusca; respirar pide una curva simétrica. */
+.status-dot[data-estado="reposo"]::after,
 .status-dot[data-estado="escuchando"]::after {
   content: "";
   position: absolute;
@@ -86,6 +87,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .status-dot[data-estado="reposo"]::after,
   .status-dot[data-estado="escuchando"]::after {
     animation: none;
     opacity: 1;

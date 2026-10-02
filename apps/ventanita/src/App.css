@@ -43,12 +43,12 @@
   cursor: default;
 }
 
-/* Reposo se encoge a su contenido: píldora, no caja vacía. radius-pill
-   (999px) se clampea a la mitad del lado corto — en 120×44 da lo mismo
-   que un radio de 22px a mano, sin inventar un número fuera de escala. */
+/* Reposo se encoge a su contenido: el cuadradito (Juan Camilo, 1-oct), 72×72
+   con las esquinas de la ventanita (radius-md) y el punto en el medio. Con
+   algo que decir crece a lo ancho, 200×72. */
 .ventanita--reposo {
-  border-radius: var(--radius-pill);
-  /* En 120×64 el punto y el «hace N min» van pegados: space-1. */
+  border-radius: var(--radius-md);
+  justify-content: center;
   gap: var(--space-1);
 }
 

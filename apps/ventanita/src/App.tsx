@@ -3,7 +3,6 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { LogicalPosition, LogicalSize, currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { StatusDot } from "./componentes/StatusDot";
 import { Semaforo } from "./componentes/Semaforo";
-import { BotonCancelar } from "./componentes/BotonCancelar";
 import { Chat, type Mensaje } from "./componentes/Chat";
 import { Nudge } from "./componentes/Nudge";
 import { Campo, type CampoRef } from "./componentes/Campo";
@@ -99,7 +98,7 @@ import "./estilos.css";
 import "./App.css";
 
 // — Tamaños —
-// Reposo es una píldora. Sin nada que decir, 120×44: solo el punto (3f · 1).
+// Reposo es un cuadradito. Sin nada que decir, 72×72: solo el punto (3f · 1).
 const TAMANO_REPOSO_MINIMO = TAMANO_ISLA_MINIMA;
 // Abierta es el chat (3c): una sola pantalla, del tamaño que la dejaste
 // (ventana.ts). Guardar tamaño y lugar espera a que dejes de mover.
@@ -154,7 +153,7 @@ function clasificarObjetivo(objetivo: EventTarget | null) {
 }
 
 // Ley 3: sin cadena de culpa. Si el núcleo no responde, Remi lo dice con calma.
-const FRASE_DE_FALLO = "No pude contestarte ahora. Probá de nuevo en un rato.";
+const FRASE_DE_FALLO = "No pude contestarte ahora. Prueba de nuevo en un rato.";
 
 let contadorMensajes = 0;
 function nuevoId(): string {
@@ -1223,7 +1222,6 @@ export default function App() {
         onVerde={() => void alternarAgrandar()}
         maximizada={maximizada}
       />
-      <BotonCancelar onCancelar={() => cancelar("x")} />
       <div
         className="bolita"
         role="button"
@@ -1280,7 +1278,7 @@ export default function App() {
       <div
         className="asa"
         aria-hidden="true"
-        title="Arrastrá para cambiar el tamaño"
+        title="Arrastra para cambiar el tamaño"
         onMouseDown={(evento) => {
           if (evento.button !== 0) return;
           evento.preventDefault();

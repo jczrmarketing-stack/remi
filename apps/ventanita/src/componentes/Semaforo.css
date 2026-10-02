@@ -1,7 +1,7 @@
 /* La esquina de arriba a la izquierda. Los puntos aparecen al entrar el
    mouse ahí, en 150 ms, y se van al salir. Medidas de macOS en el chat
-   (12 px, separados 8); en la píldora, 8 px separados 5, para no tapar la
-   bolita. Rojo `alerta`, amarillo `dinero`, verde: el DS no tiene verde, así
+   (12 px, separados 8); en el cuadradito, 8 px separados 4 y en la fila de
+   arriba, para no tapar la bolita. Rojo `alerta`, amarillo `dinero`, verde: el DS no tiene verde, así
    que es `luz` (lo que se abre) — maqueta de Juan Camilo, 30/09. */
 .semaforo {
   position: absolute;
@@ -16,8 +16,8 @@
 }
 
 .semaforo--pildora {
-  height: 100%;
-  gap: 5px;
+  height: 20px;
+  gap: 4px;
   padding: 0 6px;
 }
 

@@ -1,9 +1,9 @@
-// Isla de reposo (3f · 1): sin nada que decir, es solo el punto, 120×44. Al
+// Isla de reposo (3f · 1): sin nada que decir, es solo el punto, un cuadradito de 72×72. Al
 // volver a reposo con algo para mostrar («la última vez» o «hace N min»),
-// se agranda a 210×64 por 4 s y se encoge de nuevo en 200 ms. Con el mouse
+// se agranda a 200×72 por 4 s y se encoge de nuevo en 200 ms. Con el mouse
 // encima vuelve a mostrarse, sin importar el reloj.
-export const TAMANO_ISLA_MINIMA = { width: 120, height: 44 };
-export const TAMANO_ISLA_CON_TEXTO = { width: 210, height: 64 };
+export const TAMANO_ISLA_MINIMA = { width: 72, height: 72 };
+export const TAMANO_ISLA_CON_TEXTO = { width: 200, height: 72 };
 export const MS_ISLA_VISIBLE = 4000;
 export const MS_ISLA_ENCOGER = 200;
 
