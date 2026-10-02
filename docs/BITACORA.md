@@ -20,6 +20,29 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · T6 (repetido, con T8 y T9 adentro) · construido · 6882e8e
+
+Escribe la terminal. Segunda vez que cierro T6: la primera fue antes de que Juan Camilo
+señalara que T8 y T9 iban antes (aprobadas 1-oct 19:23, Biblia v3.9 Parte VII). Esta entrada
+es la que de verdad corresponde al 100 % del lado de la terminal — con T8 y T9 adentro.
+
+- **Qué cambió:** `scripts/actualizar.sh` desde `main` en `6882e8e` (T8+T9 completos:
+  experiencia con evidencia, lección→regla, reglas que viajan, espejos solo de ida, oficios
+  y skills, conversaciones que dejan episodio, prueba de escala). Ventanita recompilada e
+  instalada en `/Applications/Remi.app`; núcleo y panel recargados (`scripts/recargar.sh`).
+  `doctor.sh`: 10/10 (una corrida dejó `.notion-estado.json` sin commit en la bóveda real —
+  commit `e7e7318` en `remi-mente`, bookkeeping de sync, no contenido).
+- **Decisiones que tomé sin preguntar:** ninguna nueva en este cierre — las de T8 y T9
+  quedan en sus propias entradas arriba.
+- **Dudas abiertas:** el hallazgo de T9.6 (el índice de `Memoria` no tiene techo) sigue sin
+  decisión de Juan Camilo.
+- **Cómo probarlo a mano:** `cd nucleo && uv run pytest -q` (664 + 2 lentas que se saltan) +
+  `uv run mypy .` (120 módulos, limpio); `./scripts/doctor.sh` (10/10); `curl -s
+  localhost:4400/salud` y `curl -s "localhost:4400/experiencia?tema=remi&q=EADDRINUSE"`
+  contra el núcleo real, reiniciado con el commit de arriba.
+
+---
+
 ## 2026-10-02 · T8 · La experiencia entra y se consulta · construido · c8dc691 + semilla real
 
 Escribe la terminal. Aprobada por Juan Camilo el 1-oct 19:23 (Biblia v3.9, Parte VII); va
