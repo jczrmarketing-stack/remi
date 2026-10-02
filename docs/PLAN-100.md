@@ -218,9 +218,11 @@ saca hasta mañana; nunca hay más de tres a la vista; nada de esto llama a un m
 **Listo cuando:** `doctor.sh` 10/10, pytest en verde tres veces seguidas, y desinstalar e
 instalar deja los diez agentes.
 
-### T7 · El historial de la ventanita — **diseño aprobado: no** (todavía)
+### T7 · El historial de la ventanita — **diseño aprobado: sí** (Juan Camilo, 1-oct 19:59)
 Va ANTES de T6, y solo cuando la línea de arriba diga «diseño aprobado: sí» (la cambia
 Claude en la app cuando Juan Camilo lo apruebe). Mientras diga «no», no se toca.
+
+**Hecho en la app (1-oct):** núcleo (`/conversaciones`, retomar, empezar de cero; columnas `titulo`, `tema`, `cerrada`) y ventanita (triángulo, cajón, Escape cierra el cajón primero). Falta: el título que pone Remi al cerrar (aún no hay vínculo conversación→episodio) y la prueba en vivo.
 
 Diagnóstico: las conversaciones ya existen en la base (`conversaciones`, `turnos`), pero la
 ventanita solo muestra la vigente. Pasada una hora, lo hablado no se puede volver a ver.

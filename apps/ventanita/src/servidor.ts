@@ -121,6 +121,36 @@ export async function obtenerConversacion(): Promise<TurnoDelChat[]> {
   return (await respuesta.json()) as TurnoDelChat[];
 }
 
+// — El historial (T7): una sola corriente de conversaciones —
+
+export interface ConversacionDeAntes {
+  id: string;
+  titulo: string;
+  tema: string | null;
+  inicio: string;
+  ultimo: string;
+  turnos: number;
+}
+
+export async function obtenerConversaciones(): Promise<ConversacionDeAntes[]> {
+  const respuesta = await fetch(`${URL_NUCLEO}/conversaciones`);
+  if (!respuesta.ok) throw new Error(`El núcleo respondió ${respuesta.status}`);
+  return (await respuesta.json()) as ConversacionDeAntes[];
+}
+
+// La conversación pasa a ser la vigente; devuelve sus turnos.
+export async function retomarConversacion(id: string): Promise<TurnoDelChat[]> {
+  const respuesta = await fetch(`${URL_NUCLEO}/conversaciones/${encodeURIComponent(id)}/retomar`, { method: "POST" });
+  if (!respuesta.ok) throw new Error(`El núcleo respondió ${respuesta.status}`);
+  return (await respuesta.json()) as TurnoDelChat[];
+}
+
+// Empezar de cero: la vigente se cierra y el próximo mensaje abre otra.
+export async function empezarDeCero(): Promise<void> {
+  const respuesta = await fetch(`${URL_NUCLEO}/conversaciones/nueva`, { method: "POST" });
+  if (!respuesta.ok) throw new Error(`El núcleo respondió ${respuesta.status}`);
+}
+
 // Lo que da `ollama list`. Vacío si Ollama no está.
 export async function obtenerModelosOllama(): Promise<string[]> {
   const respuesta = await fetch(`${URL_NUCLEO}/pensar/ollama`);

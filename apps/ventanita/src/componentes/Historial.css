@@ -1,0 +1,148 @@
+/* El cajón del historial: sale por la izquierda, sin sombra (el DS no las
+   tiene): se marca con `line` y `surface-2`. */
+.historial__triangulo,
+.historial__cerrar {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 48px;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  transition: color var(--dur-estado) var(--curva);
+}
+
+.historial__triangulo:hover,
+.historial__triangulo:focus-visible,
+.historial__cerrar:hover,
+.historial__cerrar:focus-visible {
+  color: var(--ink-muted);
+}
+
+.historial {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(260px, 80%);
+  box-sizing: border-box;
+  background: var(--surface-2);
+  border-right: 1px solid var(--line);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  padding: 40px var(--space-4) var(--space-4);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition:
+    transform var(--dur-aparecer) var(--curva),
+    visibility 0s linear var(--dur-aparecer);
+  z-index: 4;
+}
+
+.historial--abierto {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--dur-aparecer) var(--curva);
+}
+
+.historial__cabeza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  color: var(--ink-muted);
+}
+
+.historial__nueva {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  cursor: pointer;
+}
+
+.historial__nueva:hover {
+  color: var(--ink);
+}
+
+.historial__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.historial__fila {
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 0;
+  padding: var(--space-2) var(--space-2);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  color: var(--ink);
+  font: inherit;
+}
+
+.historial__fila:hover,
+.historial__fila:focus-visible {
+  border-left-color: var(--brasa);
+}
+
+.historial__titulo {
+  font-size: 14px;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historial__fecha {
+  color: var(--ink-muted);
+}
+
+.historial__vacio {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink-muted);
+  padding: var(--space-2);
+}
+
+.historial__cerrar {
+  left: auto;
+  right: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .historial,
+  .historial--abierto {
+    transition: none;
+  }
+}

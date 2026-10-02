@@ -9,13 +9,18 @@ import { Campo, type CampoRef } from "./componentes/Campo";
 import { ChipCerebro } from "./componentes/ChipCerebro";
 import { ChipVoz } from "./componentes/ChipVoz";
 import { ChipLectura } from "./componentes/ChipLectura";
+import { Historial } from "./componentes/Historial";
 import { useLectura } from "./lectura";
 import {
   cerrarTarea,
   dondeQuede,
   enviarMensaje,
   guardarEpisodio,
+  empezarDeCero,
   obtenerConversacion,
+  obtenerConversaciones,
+  retomarConversacion,
+  type ConversacionDeAntes,
   obtenerEntregaDeProyecto,
   obtenerModelosOllama,
   obtenerMotores,
@@ -139,10 +144,10 @@ function tamanoReposo(mostrarTexto: boolean) {
 }
 
 // Qué es un control (nunca un gesto de la píldora) y qué es el campo.
-const SELECTOR_CONTROLES = ".chat, .pie, .semaforo__punto, .boton-cancelar, .bolita, .asa, button, select, a";
+const SELECTOR_CONTROLES = ".chat, .pie, .semaforo__punto, .bolita, .asa, .historial, button, select, a";
 const SELECTOR_CUADRO = ".campo";
 // Desde dónde NO se arrastra la ventana: donde hay texto o controles.
-const SELECTOR_SIN_ARRASTRE = ".chat__mensaje, .campo, .pie, .semaforo__punto, .boton-cancelar, .bolita, .asa";
+const SELECTOR_SIN_ARRASTRE = ".chat__mensaje, .campo, .pie, .semaforo__punto, .bolita, .asa, .historial";
 
 function clasificarObjetivo(objetivo: EventTarget | null) {
   const elemento = objetivo instanceof HTMLElement ? objetivo : null;
@@ -196,6 +201,8 @@ export default function App() {
   const ultimoRecordatorioRef = useRef(Date.now());
   const [ultimaInteraccionMs, setUltimaInteraccionMs] = useState<number | null>(() => ultimaInteraccion());
   const [ahoraMs, setAhoraMs] = useState(() => Date.now());
+  const [historialAbierto, setHistorialAbierto] = useState(false);
+  const [conversaciones, setConversaciones] = useState<ConversacionDeAntes[]>([]);
   const [ultimaVezDeHoy, setUltimaVezDeHoy] = useState<number | null>(null);
 
   // Tema Noche/Claro y lectura biónica (3d · 11).
@@ -486,7 +493,37 @@ export default function App() {
     grabacionDesdeRef.current = null;
     // El chat se vuelve a pedir al abrir: la historia vive en el núcleo.
     setMensajes([]);
+    setHistorialAbierto(false);
     callarse();
+  }, []);
+
+  // — El historial (T7) —
+  const abrirHistorial = useCallback(() => {
+    setAhoraMs(Date.now());
+    setHistorialAbierto(true);
+    obtenerConversaciones()
+      .then(setConversaciones)
+      .catch(() => setConversaciones([]));
+  }, []);
+
+  const elegirConversacion = useCallback((id: string) => {
+    retomarConversacion(id)
+      .then((turnos) => {
+        generacionRef.current += 1;
+        setMensajes(turnos.map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto, historial: true })));
+        setHistorialAbierto(false);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const conversacionNueva = useCallback(() => {
+    empezarDeCero()
+      .then(() => {
+        generacionRef.current += 1;
+        setMensajes([]);
+        setHistorialAbierto(false);
+      })
+      .catch(() => undefined);
   }, []);
 
   // — Mandar —
@@ -799,6 +836,11 @@ export default function App() {
     function alTeclado(evento: KeyboardEvent) {
       if (evento.key === "Escape") {
         evento.preventDefault();
+        // El cajón del historial se cierra primero; el siguiente Escape ya es el de siempre.
+        if (historialAbierto) {
+          setHistorialAbierto(false);
+          return;
+        }
         cancelar("escape");
         return;
       }
@@ -820,7 +862,7 @@ export default function App() {
     }
     window.addEventListener("keydown", alTeclado);
     return () => window.removeEventListener("keydown", alTeclado);
-  }, [cancelar, mensajes]);
+  }, [cancelar, mensajes, historialAbierto]);
 
   // — Preferencias —
 
@@ -1233,6 +1275,16 @@ export default function App() {
         {grabando && modo === "dialogo" && <p className="num modo-escucha">conversación</p>}
         {transcribiendo && <p className="num trabajando">transcribiendo</p>}
       </div>
+
+      <Historial
+        abierto={historialAbierto}
+        conversaciones={conversaciones}
+        ahoraMs={ahoraMs}
+        onAbrir={abrirHistorial}
+        onCerrar={() => setHistorialAbierto(false)}
+        onElegir={elegirConversacion}
+        onNueva={conversacionNueva}
+      />
 
       <Chat
         mensajes={mensajes}
