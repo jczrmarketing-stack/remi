@@ -18,5 +18,7 @@ else
   exec > >(while IFS= read -r l; do printf '%s %s\n' "$(date '+%F %T')" "$l"; done) 2>&1
 fi
 
+"$RAIZ/scripts/rotar-logs.sh"
+
 cd "$RAIZ/nucleo"
 uv run python noche.py
