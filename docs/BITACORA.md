@@ -20,6 +20,43 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · T10 · El techo del índice · construido · f99508e
+
+Escribe la terminal. Aprobada por Juan Camilo el 1-oct, a partir del hallazgo de la propia
+prueba de escala de T9.6: con 50.000 entradas, armar la mente daba ~892.000 tokens, no los
+8.000 pedidos.
+
+- **Qué cambió:**
+  1. `6791f9d` **T10.1a** — `db.buscar_memoria(q, tema=None, k=10)`: LIKE sobre título,
+     resumen, cuerpo y tema. Nada se borra ni se mueve: esto solo encuentra lo que el
+     presupuesto (T10.2) deje afuera del índice que se muestra.
+  2. `15847ac` **T10.1b** — `buscar_memoria` como sexta herramienta del MCP de memoria.
+  3. `aa6fb24` **T10.2** — `pensar._indice_con_presupuesto`: nivel 0 y 1 van primero y
+     completos, nunca se recortan; el resto entra por frescura (`fecha`) y uso
+     (`trabajo_estado_en`, el cursor que ya existía) hasta `REMI_PRESUPUESTO_INDICE`
+     (8.000 tokens por defecto); lo que no entra se cuenta por tema, una línea, con el
+     nombre de `buscar_memoria` al lado. `instrucciones_con_indice` lo usa.
+  4. `f99508e` **T10.3** — la prueba de escala de T9.6, reescrita para verificar el
+     arreglo: 50.001 entradas nivel 2 arman el índice en ~220 ms, el texto renderizado da
+     ~8.000 tokens (antes ~892.000), y la nota más vieja —la que queda afuera— se
+     encuentra con `buscar_memoria` en ~30 ms. De paso, el presupuesto tuvo que reservar
+     espacio para el encabezado y el pie de «no entró»: sin esa reserva, con muchos temas
+     distintos el texto final se pasaba un poco (8.340 tokens en la primera corrida).
+- **Decisiones que tomé sin preguntar:**
+  1. «Uso» se toma de `trabajo_estado_en` (el cursor de tema que ya existía para otra
+     cosa) en vez de agregar un contador nuevo por entrada — no hay hoy una señal de
+     cuántas veces se leyó cada nota de memoria específica.
+  2. «Las reglas y lecciones activas nunca se recortan» se cumple por construcción, no con
+     un flag nuevo: no viven en `indice_memoria` (viajan por
+     `trabajo.lecciones_de_ojo`/`libros.reglas_de_este_proyecto`, aparte de este
+     presupuesto), así que el recorte no las toca.
+- **Dudas abiertas:** ninguna nueva.
+- **Cómo probarlo a mano:** `uv run pytest -q` (676 + 2 lentas que se saltan) + `uv run
+  mypy .` (123 módulos, limpio). La prueba de escala:
+  `REMI_PRUEBA_ESCALA=1 uv run pytest -q pruebas/test_escala_experiencia.py -s`.
+
+---
+
 ## 2026-10-02 · T6 (repetido, con T8 y T9 adentro) · construido · 6882e8e
 
 Escribe la terminal. Segunda vez que cierro T6: la primera fue antes de que Juan Camilo
