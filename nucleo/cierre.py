@@ -352,6 +352,87 @@ def _memoria(titulo: str, resumen: str, tema: str, ahora: datetime, cuerpo: str,
         conexion.close()
 
 
+# — T9.5: lo que se habla con Remi también queda —
+
+
+def _conversacion_sustancial(turnos: list[db.Turno]) -> bool:
+    """Mismo criterio que ofrecer guardar una charla larga (ARQUITECTURA
+    §6, episodios.LARGO_MINIMO): trivial no deja episodio."""
+    return sum(len(t.texto) for t in turnos) >= episodios.LARGO_MINIMO
+
+
+def _escribir_episodio_de_conversacion(conversacion_id: str, turnos: list[db.Turno], ahora: datetime) -> Path:
+    import temas
+
+    charla = "\n".join(f"{'Juan' if t.rol == 'juan' else 'Remi'}: {t.texto}" for t in turnos)
+    texto_de_juan = "\n".join(t.texto for t in turnos if t.rol == "juan")
+    tema = temas.tema_de_texto(texto_de_juan)
+    libro = next((l for l in libros.listar() if l.tema == tema), None) if tema else None
+    titulo_libro = libro.titulo if libro else "una charla"
+
+    secciones = redactar(f"Conversación con Remi, sobre {titulo_libro}.\n\n{charla}")
+    por = "modelo" if secciones else "plano"
+    if secciones is None:
+        secciones = plano(charla, titulo_libro)
+    cuerpo = _render(secciones)
+    local = ahora.astimezone(BOGOTA)
+    titulo = episodios._recortar(_primera_frase(secciones["Qué se hizo"]), 80) or "Conversación con Remi"
+    resumen = episodios._recortar(
+        _primera_frase(secciones["Primer paso de mañana"]), 240
+    ) or "Retomar el hilo, cinco minutos."
+
+    carpeta = episodios.carpeta_episodios()
+    carpeta.mkdir(parents=True, exist_ok=True)
+    destino = episodios._ruta_libre(carpeta, f"{local:%Y-%m-%d}-charla-{episodios.slug(titulo)}")
+    boveda_git.snapshot_antes(f"escribir el episodio de la conversación {destino.name}")
+    destino.write_text(
+        f'---\ntitulo: "{episodios._una_linea(titulo)}"\ntema: {tema or "charla"}\n'
+        f'resumen: "{episodios._una_linea(resumen)}"\nfuente: conversacion\n---\n\n{cuerpo}'
+    )
+    if libro is not None:
+        estado_libro.escribir_estado(libro.archivo, _a_estado(secciones))
+    boveda_git.snapshot_despues(
+        f"bóveda: episodio {destino.name} al cerrar una conversación"
+        + (f"; Estado de {libro.archivo.name} actualizado" if libro is not None else "")
+    )
+    _memoria(titulo, resumen, tema or "charla", ahora, cuerpo, por)
+
+    conexion = db.conectar()
+    try:
+        db.poner_titulo(conexion, conversacion_id, titulo)
+        if tema:
+            db.poner_tema(conexion, conversacion_id, tema)
+    finally:
+        conexion.close()
+    return destino
+
+
+def cerrar_conversaciones_inactivas(ahora: datetime) -> int:
+    """T9.5: una conversación de la ventanita o Telegram, 60 min sin
+    turnos, con sustancia, deja su episodio (y el Estado de su proyecto,
+    si lo nombró) — igual que una sesión de Claude Code, nunca a mitad de
+    un turno. Corre en la consolidación de la noche. Devuelve cuántos
+    episodios dejó."""
+    conexion = db.conectar()
+    try:
+        ids = db.conversaciones_para_cerrar(conexion, ahora)
+        turnos_por_id = {id_: db.turnos_de(conexion, id_) for id_ in ids}
+    finally:
+        conexion.close()
+
+    cerradas = 0
+    for conversacion_id, turnos in turnos_por_id.items():
+        if _conversacion_sustancial(turnos):
+            _escribir_episodio_de_conversacion(conversacion_id, turnos, ahora)
+            cerradas += 1
+        conexion = db.conectar()
+        try:
+            db.marcar_episodio_hecho(conexion, conversacion_id)
+        finally:
+            conexion.close()
+    return cerradas
+
+
 def _cursor(tema: str, ahora: datetime) -> None:
     """El cierre cuenta como la actualización de la ventana de 10 min."""
     conexion = db.conectar()

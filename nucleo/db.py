@@ -235,6 +235,10 @@ _COLUMNAS_NUEVAS = (
     ("conversaciones", "titulo", "TEXT"),
     ("conversaciones", "tema", "TEXT"),
     ("conversaciones", "cerrada", "INTEGER NOT NULL DEFAULT 0"),
+    # T9.5: si ya se revisó esta conversación para dejar episodio (una vez
+    # inactiva 60 min) — nunca se vuelve a mirar, sea cual fuere el
+    # resultado.
+    ("conversaciones", "episodio_hecho", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 
@@ -835,6 +839,34 @@ def cerrar_conversacion_vigente(conexion: sqlite3.Connection, ahora: datetime) -
 
 def poner_tema(conexion: sqlite3.Connection, conversacion_id: str, tema: str | None) -> None:
     conexion.execute("UPDATE conversaciones SET tema = ? WHERE id = ?", (tema, conversacion_id))
+    conexion.commit()
+
+
+def poner_titulo(conexion: sqlite3.Connection, conversacion_id: str, titulo: str) -> None:
+    conexion.execute("UPDATE conversaciones SET titulo = ? WHERE id = ?", (titulo, conversacion_id))
+    conexion.commit()
+
+
+def conversaciones_para_cerrar(conexion: sqlite3.Connection, ahora: datetime) -> list[str]:
+    """T9.5: ids de conversaciones con al menos un turno, 60 min sin
+    actividad (sea por tiempo o porque Juan empezó de cero) y que todavía
+    no se revisaron para dejar episodio."""
+    from datetime import timedelta
+
+    corte = ahora - timedelta(minutes=MINUTOS_SIN_TURNOS_PARA_CERRAR)
+    filas = conexion.execute(
+        """
+        SELECT c.id FROM conversaciones c
+        WHERE c.episodio_hecho = 0 AND c.ultimo < ?
+        AND EXISTS (SELECT 1 FROM turnos t WHERE t.conversacion_id = c.id)
+        """,
+        (corte.isoformat(),),
+    ).fetchall()
+    return [f["id"] for f in filas]
+
+
+def marcar_episodio_hecho(conexion: sqlite3.Connection, conversacion_id: str) -> None:
+    conexion.execute("UPDATE conversaciones SET episodio_hecho = 1 WHERE id = ?", (conversacion_id,))
     conexion.commit()
 
 

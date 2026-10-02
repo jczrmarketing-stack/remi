@@ -332,6 +332,13 @@ def correr(hoy: date | None = None) -> None:
     revisados = experiencia.revisar_resultados_pendientes(arranque)
     print(f"[noche] resultados revisados (48h)={revisados}")
 
+    # T9.5: las conversaciones de la ventanita/Telegram, 60 min sin
+    # turnos, también dejan episodio si tuvieron sustancia.
+    import cierre
+
+    conversaciones_cerradas = cierre.cerrar_conversaciones_inactivas(arranque)
+    print(f"[noche] conversaciones con episodio={conversaciones_cerradas}")
+
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")
 
