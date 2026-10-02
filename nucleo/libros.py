@@ -233,3 +233,23 @@ def por_ruta(ruta: str) -> Libro | None:
                 mejor = libro
                 mejor_largo = len(candidata)
     return mejor
+
+
+_TITULO_REGLAS = "## Reglas de este proyecto"
+
+
+def reglas_de_este_proyecto(archivo: Path) -> list[str]:
+    """Las líneas de «## Reglas de este proyecto» (T9.2) — [] si el libro
+    no tiene ninguna todavía."""
+    texto = archivo.read_text()
+    if texto.startswith("---"):
+        partes = texto.split("---", 2)
+        cuerpo = partes[2] if len(partes) >= 3 else texto
+    else:
+        cuerpo = texto
+    lineas = cuerpo.splitlines()
+    inicio = next((i for i, l in enumerate(lineas) if l.strip() == _TITULO_REGLAS), None)
+    if inicio is None:
+        return []
+    fin = next((j for j in range(inicio + 1, len(lineas)) if lineas[j].startswith("## ")), len(lineas))
+    return [l.strip(" -") for l in lineas[inicio + 1 : fin] if l.strip()]

@@ -381,6 +381,10 @@ def _contexto_de(ruta: str) -> str | None:
             "Próximo paso: elegir un paso de cinco minutos.",
         ]
     lineas += lecciones_de_ojo(libro.tema)
+    # T9.2: las reglas de este proyecto viajan a SessionStart, si hay.
+    reglas = libros.reglas_de_este_proyecto(libro.archivo)
+    if reglas:
+        lineas.append("Reglas de este proyecto: " + "; ".join(reglas))
     limpias = [linea.strip() for linea in lineas if linea.strip()]
     return "\n".join(limpias[:18])
 

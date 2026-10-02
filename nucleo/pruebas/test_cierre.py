@@ -456,3 +456,22 @@ def test_instalar_suma_los_ganchos_sin_pisar_el_que_hay(tmp_path: Path) -> None:
     )
     otra = json.loads(destino.read_text())
     assert len(otra["hooks"]["SessionStart"]) == 1
+
+
+def test_al_abrir_suma_las_reglas_de_este_proyecto(tmp_path, monkeypatch) -> None:
+    repo = tmp_path / "malik"
+    repo.mkdir()
+    _libro(tmp_path, repo)
+    libro = tmp_path / "libros" / "malik.md"
+    libro.write_text(
+        libro.read_text() + "\n## Reglas de este proyecto\n\n- Nunca mandar el pago primero.\n"
+    )
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+
+    respuesta = cliente.post(
+        "/evento",
+        json={"tipo": "sesion_inicio", "ruta": str(repo), "datos": {"session_id": "abc"}},
+    )
+
+    assert "Nunca mandar el pago primero." in respuesta.json()["contexto"]

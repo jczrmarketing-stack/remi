@@ -25,6 +25,7 @@ from typing import Any, Callable
 import httpx
 
 import db
+import libros
 import precarga
 import trabajo
 import vectores
@@ -312,6 +313,13 @@ def sistema_encargo() -> str:
     if claude_code:
         piezas.append("## Oficio: Claude Code — qué pieza y qué modelo recomendar\n" + claude_code)
 
+    # T9.2: stack y vibe-coding viajan junto a prompting y claude-code —
+    # las lecciones y las reglas que importan al escribir código.
+    for oficio in ("stack", "vibe-coding"):
+        cuerpo = _cuerpo_oficio(oficio)
+        if cuerpo:
+            piezas.append(f"## Oficio: {oficio}\n" + cuerpo)
+
     try:
         activo = precarga.proyecto_activo()
         if activo is not None:
@@ -324,6 +332,12 @@ def sistema_encargo() -> str:
             ojos = trabajo.lecciones_de_ojo(tema)
             if ojos:
                 piezas.append("## Lecciones de este proyecto\n" + "\n".join(ojos))
+            # T9.2: las reglas de este proyecto, si ya tiene alguna.
+            libro = next((l for l in libros.listar() if l.tema == tema), None)
+            if libro is not None:
+                reglas = libros.reglas_de_este_proyecto(libro.archivo)
+                if reglas:
+                    piezas.append("## Reglas de este proyecto\n" + "\n".join(f"- {r}" for r in reglas))
     except Exception as error:  # noqa: BLE001 — sin proyecto activo, el encargo sigue
         print(f"[pensar] no pude precargar el proyecto activo del encargo ({type(error).__name__})", file=sys.stderr)
 
