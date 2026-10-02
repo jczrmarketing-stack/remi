@@ -218,6 +218,61 @@ def _linea_indice(entrada: db.EntradaIndice) -> str:
     return f"{linea} (claves: {entrada.claves})" if entrada.claves else linea
 
 
+# T10: el índice no tiene techo hoy (db.indice_memoria devuelve TODO) — con
+# 50.000 entradas da ~892.000 tokens en vez de 8.000 (hallazgo de T9.6, prueba
+# de escala). Esto le pone un presupuesto fijo al armarlo, nunca a la base:
+# lo que no entra sigue en remi.db y se encuentra con `buscar_memoria`.
+PRESUPUESTO_INDICE_TOKENS = int(os.environ.get("REMI_PRESUPUESTO_INDICE") or 8000)
+_CARACTERES_POR_TOKEN = 4  # misma heurística de siempre (T9.6)
+
+
+def _uso_por_tema() -> dict[str, float]:
+    """trabajo_estado_en: el cursor de cuándo se tocó cada tema por última
+    vez — la señal de «uso» que ya existe, sin inventar una tabla nueva."""
+    try:
+        conexion = db.conectar()
+    except Exception:
+        return {}
+    try:
+        filas = conexion.execute("SELECT tema, fecha FROM trabajo_estado_en").fetchall()
+    finally:
+        conexion.close()
+    return {fila["tema"]: datetime.fromisoformat(fila["fecha"]).timestamp() for fila in filas}
+
+
+def _indice_con_presupuesto(
+    indice: list[db.EntradaIndice], presupuesto_tokens: int = PRESUPUESTO_INDICE_TOKENS
+) -> tuple[list[db.EntradaIndice], dict[str, int]]:
+    """Nivel 0 y 1 van primero y completos — nunca se recortan, aunque por sí
+    solos pasen el presupuesto (son pocos hoy; si algún día no lo son, el
+    presupuesto lo dice la bitácora, no un recorte silencioso). El resto
+    entra por frescura y uso hasta el presupuesto; lo que no entra se cuenta
+    por tema, una línea — no se borra ni se mueve ninguna nota."""
+    uso = _uso_por_tema()
+
+    def _clave(entrada: db.EntradaIndice) -> tuple[float, float]:
+        return (entrada.fecha.timestamp(), uso.get(entrada.tema, 0.0))
+
+    def _nivel(e: db.EntradaIndice) -> int:
+        return e.nivel if e.nivel is not None else 99
+
+    protegidas = sorted((e for e in indice if _nivel(e) <= 1), key=_clave, reverse=True)
+    resto = sorted((e for e in indice if _nivel(e) > 1), key=_clave, reverse=True)
+
+    limite = presupuesto_tokens * _CARACTERES_POR_TOKEN
+    incluidas = list(protegidas)
+    usado = sum(len(_linea_indice(e)) + 1 for e in incluidas)
+    recortadas_por_tema: dict[str, int] = {}
+    for entrada in resto:
+        costo = len(_linea_indice(entrada)) + 1
+        if usado + costo <= limite:
+            incluidas.append(entrada)
+            usado += costo
+        else:
+            recortadas_por_tema[entrada.tema] = recortadas_por_tema.get(entrada.tema, 0) + 1
+    return incluidas, recortadas_por_tema
+
+
 # El modo «Prompt» (3b): arma un encargo de una tarea para Claude Code.
 # Su system prompt vive en el repo (no tiene datos personales) y se lee en
 # cada llamada, como el carácter.
@@ -344,17 +399,29 @@ def sistema_encargo() -> str:
     return "\n\n".join(piezas)
 
 
-def instrucciones_con_indice(indice: list[db.EntradaIndice], base: str | None = None) -> str:
+def instrucciones_con_indice(
+    indice: list[db.EntradaIndice], base: str | None = None, presupuesto_tokens: int = PRESUPUESTO_INDICE_TOKENS
+) -> str:
     """El carácter (o el system prompt que se pida, como el del encargo) más
     lo que Remi tiene presente. Sin entradas no se anexa nada: un encabezado
-    solo, sin líneas, invitaría a inventar."""
+    solo, sin líneas, invitaría a inventar. T10: el índice entra con un
+    presupuesto de tokens — lo que no entra se cuenta por tema, no se oculta
+    que existe."""
     if base is None:
         tecnico = rol_tecnico()
         base = f"{caracter()}\n\n{tecnico}" if tecnico else caracter()
     if not indice:
         return base
-    lineas = "\n".join(_linea_indice(entrada) for entrada in indice)
-    return base + ENCABEZADO_INDICE + lineas
+    incluidas, recortadas_por_tema = _indice_con_presupuesto(indice, presupuesto_tokens)
+    lineas = [_linea_indice(entrada) for entrada in incluidas]
+    if recortadas_por_tema:
+        lineas.append("")
+        lineas.append(
+            "Y más que no entró acá por espacio (nada se perdió — buscalo con "
+            "`buscar_memoria` si hace falta):"
+        )
+        lineas.extend(f"- {tema}: {cantidad} más" for tema, cantidad in sorted(recortadas_por_tema.items()))
+    return base + ENCABEZADO_INDICE + "\n".join(lineas)
 
 
 def _indice() -> list[db.EntradaIndice]:
