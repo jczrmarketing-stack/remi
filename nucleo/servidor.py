@@ -1699,7 +1699,11 @@ class ConexionNueva(BaseModel):
 
 
 @app.get("/config/conexiones", response_model=dict[str, conexiones.Conexion])
-def listar_conexiones() -> dict[str, conexiones.Conexion]:
+def listar_conexiones(request: Request) -> dict[str, conexiones.Conexion]:
+    # Conexion.termina_en muestra los últimos caracteres de una llave real
+    # (conexiones.py): un GET por el túnel ya es una fuga parcial, no solo
+    # el PUT/POST (T5.3).
+    _si_es_del_tunel_lo_corta(request)
     return conexiones.estado()
 
 

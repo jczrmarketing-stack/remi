@@ -53,9 +53,15 @@ else
   falla "núcleo (/salud :$PUERTO_NUCLEO)" "no responde, o la base no abre"
 fi
 
-# — 2. panel responde —
+# — 2. panel responde, y si el túnel ya existe, no está público sin Access —
+HOSTNAME_PANEL_PUBLICO="${REMI_HOSTNAME_PANEL:-remi.inv3rza.com}"
 if curl -s -f --max-time 5 -o /dev/null "http://127.0.0.1:$PUERTO_PANEL"; then
-  ok "panel (:$PUERTO_PANEL)"
+  codigo_publico="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "https://$HOSTNAME_PANEL_PUBLICO" 2>/dev/null || echo 0)"
+  if [[ "$codigo_publico" == "200" ]]; then
+    falla "panel (:$PUERTO_PANEL)" "el panel está público: https://$HOSTNAME_PANEL_PUBLICO respondió 200 sin pasar por Access"
+  else
+    ok "panel (:$PUERTO_PANEL)"
+  fi
 else
   falla "panel (:$PUERTO_PANEL)" "no responde"
 fi

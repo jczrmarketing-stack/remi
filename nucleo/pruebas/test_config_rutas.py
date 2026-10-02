@@ -71,6 +71,18 @@ def test_get_sin_cabeceras_cf_funciona_como_desde_el_mac(tmp_path, monkeypatch):
     assert respuesta.status_code == 200
 
 
+def test_get_con_cabecera_cf_es_403(tmp_path, monkeypatch):
+    """T5.3: termina_en es un pedazo real de la llave — un GET por el
+    túnel ya es una fuga, no solo un PUT/POST."""
+    cliente = _cliente(tmp_path, monkeypatch)
+    cliente.put("/config/conexiones/GROQ_API_KEY", json={"valor": "gsk-secreta-123456"})
+
+    respuesta = cliente.get("/config/conexiones", headers={"Cf-Connecting-Ip": "1.2.3.4"})
+
+    assert respuesta.status_code == 403
+    assert "3456" not in respuesta.text
+
+
 def test_probar_llama_al_proveedor_real_con_monkeypatch(tmp_path, monkeypatch):
     import httpx
 
