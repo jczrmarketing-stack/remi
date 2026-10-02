@@ -67,3 +67,6 @@ Regla de privacidad por arquitectura: solo objetos con `compartible: true` puede
 
 ## Al escribir código o diseño para Remi
 Antes de entregar, verificar: ¿viola alguna ley? ¿usa un color prohibido o un hex a mano? ¿inventa un campo fuera de contrato? ¿mete una segunda locura en la pantalla? Si sí a cualquiera: corregir antes de mostrar.
+
+## La experiencia (T8, Biblia v3.9 Parte VII)
+**Al cerrar un trabajo, por cada problema resuelto: `anotar_leccion`.** Antes de proponer un arreglo nuevo: `buscar_lecciones`. Lecciones con evidencia, nunca transcripts — viven en `remi-mente/experiencia/`, nunca a mano fuera de ese formato.

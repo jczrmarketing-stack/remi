@@ -51,6 +51,7 @@ Viven en `contratos/contratos.json`. Son sagrados: los tipos de TypeScript y los
 - **TypeScript estricto** en apps; `mypy` en el núcleo. Pruebas solo donde duele: contratos, reglas del líder, guardado.
 - `remi.db`, credenciales y cualquier dato personal: **jamás** al repo (ver `.gitignore`).
 - Antes de entregar, verifica: ¿viola alguna ley? ¿hex a mano? ¿campo fuera de contrato? ¿segunda locura en la pantalla? Si sí: corrige antes de mostrar.
+- **Al cerrar un trabajo, por cada problema resuelto: `anotar_leccion`** (T8, Biblia v3.9 Parte VII). Antes de proponer un arreglo nuevo: `buscar_lecciones`.
 
 ## Estructura
 
