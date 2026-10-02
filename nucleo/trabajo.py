@@ -23,9 +23,11 @@ import clasificar
 import db
 import estado_libro
 import libros
-from modelos import Idea
 
 _DONDE = re.compile(r"\bdonde qued(?:e|amos|aste)\b")
+# T8: «qué te falta para que estés al 100% listo» quedaba de idea en la
+# Bandeja (ruido real, 1-oct) — es una pregunta de estado, no algo suelto.
+_QUE_FALTA = re.compile(r"\bque (?:te |me |nos )?falta\b")
 BOGOTA = ZoneInfo("America/Bogota")
 
 HORAS_DE_ENFRIAMIENTO = 48
@@ -86,35 +88,6 @@ def es_carpeta_de_proyecto(ruta: str) -> bool:
         if (actual / ".git").exists():
             return True
     return False
-
-
-def _anotar_sin_ficha(ruta: str, ahora: datetime) -> bool:
-    """True si esta vez sí se anotó. La misma carpeta no llena la Bandeja."""
-    texto = f"proyecto sin ficha: {ruta}"
-    conexion = db.conectar()
-    try:
-        ya = conexion.execute(
-            "SELECT 1 FROM ideas WHERE texto = ? AND estado = 'enfriando' LIMIT 1",
-            (texto,),
-        ).fetchone()
-        if ya:
-            return False
-        db.crear_idea(
-            conexion,
-            Idea(
-                id=uuid4(),
-                texto=texto,
-                origen="texto",
-                creada_en=ahora,
-                enfria_hasta=ahora + timedelta(hours=HORAS_DE_ENFRIAMIENTO),
-                estado="enfriando",
-                problema_vision=None,
-                tema=None,
-            ),
-        )
-    finally:
-        conexion.close()
-    return True
 
 
 def es_cuanto(texto: str) -> bool:
@@ -239,6 +212,26 @@ def donde_quede(texto: str) -> str | None:
     return "\n\n".join(_tres_lineas(libro))
 
 
+def es_que_falta(texto: str) -> bool:
+    return bool(_QUE_FALTA.search(clasificar.normalizar(texto)))
+
+
+def que_falta(texto: str) -> str | None:
+    """Sin modelo: cuántas preguntas tiene pendientes Remi — nunca inventa
+    un número de avance que no mide (ley 3). None si no era esa pregunta."""
+    if not es_que_falta(texto):
+        return None
+    conexion = db.conectar()
+    try:
+        pendientes = db.listar_preguntas_pendientes(conexion, datetime.now(timezone.utc))
+    finally:
+        conexion.close()
+    if not pendientes:
+        return "No tengo ninguna pregunta pendiente ahora."
+    plural = "s" if len(pendientes) != 1 else ""
+    return f"Tengo {len(pendientes)} pregunta{plural} pendiente{plural}. Mirá Proyectos."
+
+
 def lineas_donde_quede() -> list[str]:
     """Al abrir la ventanita. Vacío si no hay proyecto: no se dice nada."""
     libro = _libro_reciente()
@@ -315,9 +308,11 @@ def recibir(tipo: str, ruta: str, datos: dict[str, object] | None = None, ahora:
     momento = ahora or datetime.now(timezone.utc)
     libro = libros.por_ruta(ruta)
     tema = libro.tema if libro else None
-    anotado = False
-    if libro is None and ruta.strip() and es_carpeta_de_proyecto(ruta.strip()):
-        anotado = _anotar_sin_ficha(ruta.strip(), momento)
+    # T8: un proyecto sin libro ya NO llena la Bandeja («proyecto sin ficha:
+    # …» era ruido — trabajo_eventos ya guarda el evento abajo, con la ruta
+    # completa; `anotado` queda como la señal de que se detectó, sin crear
+    # ninguna Idea.
+    anotado = libro is None and bool(ruta.strip()) and es_carpeta_de_proyecto(ruta.strip())
 
     carga = datos or {}
     conexion = db.conectar()

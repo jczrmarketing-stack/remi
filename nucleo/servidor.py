@@ -422,6 +422,7 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         clasificar.pide_busqueda(mensaje.texto)
         or trabajo.es_donde_quede(mensaje.texto)
         or trabajo.es_cuanto(mensaje.texto)
+        or trabajo.es_que_falta(mensaje.texto)
     ):
         tipo = "pregunta"
 
@@ -623,6 +624,9 @@ def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
     cuanto = trabajo.cuanto_le_meti(mensaje.texto)
     if cuanto is not None:
         return RespuestaMensaje(tipo="pregunta", texto=cuanto, voz=_voz_de(cuanto, mensaje))
+    falta = trabajo.que_falta(mensaje.texto)
+    if falta is not None:
+        return RespuestaMensaje(tipo="pregunta", texto=falta, voz=_voz_de(falta, mensaje))
     buscar = clasificar.pide_busqueda(mensaje.texto)
     pensado = (
         pensar.pensar(

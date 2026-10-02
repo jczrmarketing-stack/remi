@@ -48,12 +48,10 @@ def test_un_commit_en_la_carpeta_cae_en_su_libro(tmp_path, monkeypatch):
     assert respuesta.json()["anotado"] is False
 
 
-def test_sin_ficha_entra_a_la_bandeja_una_sola_vez(tmp_path, monkeypatch):
+def test_sin_ficha_se_detecta_pero_no_crea_ninguna_idea(tmp_path, monkeypatch):
+    """T8: «proyecto sin ficha: …» era ruido en la Bandeja — ya no se crea
+    ninguna Idea; trabajo_eventos sigue guardando el evento con su ruta."""
     servidor = _arrancar(tmp_path, monkeypatch)
-    # `repo` vive bajo tmp_path, que a su vez vive bajo la carpeta temporal
-    # de pytest — lo que este test quiere probar es la idempotencia de
-    # «sin ficha», no el filtro de carpetas de prueba (ver test aparte más
-    # abajo), así que se neutraliza solo para este caso.
     monkeypatch.setattr(servidor.trabajo, "_es_carpeta_de_pruebas", lambda carpeta: False)
     cliente = TestClient(servidor.app)
     # Un proyecto sin libro es un repo de git de verdad.
@@ -66,15 +64,16 @@ def test_sin_ficha_entra_a_la_bandeja_una_sola_vez(tmp_path, monkeypatch):
 
     assert primera.json()["proyecto"] is None
     assert primera.json()["anotado"] is True
-    assert segunda.json()["anotado"] is False
+    assert segunda.json()["anotado"] is True
     import db
 
     conexion = db.conectar()
     try:
-        textos = [fila["texto"] for fila in conexion.execute("SELECT texto FROM ideas")]
+        assert conexion.execute("SELECT COUNT(*) FROM ideas").fetchone()[0] == 0
+        rutas = [fila["ruta"] for fila in conexion.execute("SELECT ruta FROM trabajo_eventos")]
     finally:
         conexion.close()
-    assert textos == [f"proyecto sin ficha: {repo}"]
+    assert rutas == [str(repo), str(repo)]
 
 
 def test_la_carpeta_personal_y_una_sin_git_no_son_proyectos(tmp_path, monkeypatch):
