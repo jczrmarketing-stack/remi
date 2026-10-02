@@ -8,8 +8,9 @@ guardados en `remi.db` con `sqlite-vec`. Se recalculan solo si el hash del
 contenido cambió: no hay por qué volver a pedirle un vector a Ollama a cada
 respuesta.
 
-Cubre tres carpetas de la bóveda: `proyectos/` y `areas/` (los libros),
-`oficios/` (`tipo: oficio` en el frontmatter) y `episodios/`.
+Cubre la bóveda entera: `proyectos/` y `areas/` (los libros), `oficios/`
+(`tipo: oficio` en el frontmatter), `episodios/` y `experiencia/` (las
+lecciones de T8).
 """
 from __future__ import annotations
 
@@ -94,7 +95,8 @@ def _texto_de(ruta: Path) -> tuple[str, str] | None:
 
 
 def notas() -> list[Nota]:
-    """Libros de proyecto y área, oficios y episodios — todo lo que se asocia."""
+    """Libros de proyecto y área, oficios, episodios y lecciones (T8) — todo
+    lo que se asocia."""
     raiz = libros.carpeta().parent
     resultado: list[Nota] = []
     for carpeta, tipo in (
@@ -102,6 +104,7 @@ def notas() -> list[Nota]:
         (raiz / "areas", "libro"),
         (raiz / "oficios", "oficio"),
         (raiz / "episodios", "episodio"),
+        (raiz / "experiencia", "leccion"),
     ):
         if not carpeta.is_dir():
             continue

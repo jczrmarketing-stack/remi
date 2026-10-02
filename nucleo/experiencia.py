@@ -10,7 +10,7 @@ import argparse
 import re
 import sqlite3
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
@@ -341,3 +341,123 @@ def revisar_resultados_pendientes(ahora: datetime | None = None) -> int:
         boveda_git.snapshot_despues(f"experiencia: {ruta.name} resultado={nuevo_resultado} (revisión 48h)")
         tocados += 1
     return tocados
+
+
+# — Búsqueda híbrida (T8.6): FTS5 (texto exacto) + los vectores que ya hay —
+
+ESQUEMA_FTS = """
+CREATE VIRTUAL TABLE IF NOT EXISTS experiencia_fts USING fts5(
+    ruta UNINDEXED, tipo UNINDEXED, tema UNINDEXED, titulo, resumen, cuerpo
+);
+"""
+
+
+def _preparar_fts(conexion: sqlite3.Connection) -> None:
+    conexion.executescript(ESQUEMA_FTS)
+
+
+def _tema_de(ruta: Path) -> str | None:
+    try:
+        texto = ruta.read_text()
+    except OSError:
+        return None
+    if not texto.startswith("---"):
+        return None
+    partes = texto.split("---", 2)
+    if len(partes) < 3:
+        return None
+    tema = libros._frontmatter(partes[1]).get("tema")
+    return tema if isinstance(tema, str) and tema else None
+
+
+def reindexar(conexion: sqlite3.Connection | None = None) -> int:
+    """Reconstruye TODO el índice (FTS5 y vectores) desde la bóveda — nunca
+    incremental a propósito: `--reindexar` siempre puede dejarlo igual que
+    si se hiciera de cero. El nombre del modelo de embeddings ya entra en
+    el hash de `vectores.py`: cambiar de modelo recalcula solo eso."""
+    propia = conexion is None
+    conexion = conexion or db.conectar()
+    try:
+        _preparar_fts(conexion)
+        conexion.execute("DELETE FROM experiencia_fts")
+        for nota in vectores.notas():
+            cuerpo = nota.ruta.read_text() if nota.ruta.exists() else ""
+            conexion.execute(
+                "INSERT INTO experiencia_fts (ruta, tipo, tema, titulo, resumen, cuerpo) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (str(nota.ruta), nota.tipo, _tema_de(nota.ruta), nota.titulo, nota.texto, cuerpo),
+            )
+        conexion.commit()
+        return vectores.actualizar_todos(conexion)
+    finally:
+        if propia:
+            conexion.close()
+
+
+@dataclass(frozen=True)
+class ResultadoBusqueda:
+    ruta: str
+    tipo: str
+    titulo: str
+
+
+def _fts_buscar(conexion: sqlite3.Connection, q: str, tema: str | None, k: int) -> list[str]:
+    _preparar_fts(conexion)
+    condiciones = ["experiencia_fts MATCH ?"]
+    parametros: list[str] = [q]
+    if tema is not None:
+        condiciones.append("tema = ?")
+        parametros.append(tema)
+    try:
+        filas = conexion.execute(
+            f"SELECT ruta FROM experiencia_fts WHERE {' AND '.join(condiciones)} "
+            f"ORDER BY bm25(experiencia_fts) LIMIT ?",
+            (*parametros, k),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []  # una consulta FTS5 mal formada (comillas sueltas, etc.) no rompe la búsqueda
+    return [fila["ruta"] for fila in filas]
+
+
+def _vectores_buscar(conexion: sqlite3.Connection, q: str, tema: str | None, k: int) -> list[str]:
+    titulos = vectores.asociar(conexion, q, k=k)
+    rutas = []
+    for nota in vectores.notas():
+        if nota.titulo in titulos and (tema is None or _tema_de(nota.ruta) == tema):
+            rutas.append(str(nota.ruta))
+    return rutas
+
+
+def buscar(conexion: sqlite3.Connection, q: str, tema: str | None = None, k: int = 10) -> list[ResultadoBusqueda]:
+    """Reciprocal rank fusion de las dos listas, sin pesos que afinar: la
+    posición en cada lista pesa 1/(60+rango), y se suman."""
+    por_fts = _fts_buscar(conexion, q, tema, k)
+    por_vector = _vectores_buscar(conexion, q, tema, k)
+    puntaje: dict[str, float] = {}
+    for lista in (por_fts, por_vector):
+        for rango, ruta in enumerate(lista, start=1):
+            puntaje[ruta] = puntaje.get(ruta, 0.0) + 1.0 / (60 + rango)
+    por_ruta = {str(nota.ruta): nota for nota in vectores.notas()}
+    ordenadas = sorted(puntaje, key=lambda r: puntaje[r], reverse=True)[:k]
+    resultado: list[ResultadoBusqueda] = []
+    for ruta in ordenadas:
+        nota = por_ruta.get(ruta)
+        if nota is not None:
+            resultado.append(ResultadoBusqueda(ruta=ruta, tipo=nota.tipo, titulo=nota.titulo))
+    return resultado
+
+
+def main() -> int:
+    analizador = argparse.ArgumentParser(description=__doc__)
+    analizador.add_argument("--reindexar", action="store_true", help="reconstruye FTS5 y vectores desde la bóveda")
+    argumentos = analizador.parse_args()
+    if argumentos.reindexar:
+        recalculadas = reindexar()
+        print(f"experiencia: reindexado, {recalculadas} vector(es) recalculado(s)")
+        return 0
+    analizador.print_help()
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
