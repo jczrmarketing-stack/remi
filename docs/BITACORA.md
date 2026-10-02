@@ -20,6 +20,39 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · T4 · Datos para Metas, Semana y Bandeja · construido · a2eaca9
+
+Escribe la terminal.
+
+- **Qué cambió:**
+  1. `7c328aa` **Forma C** — `GET /plata` suma `por_linea`: una entrada por línea de
+     `config/plata.json` (en ese orden, aunque esté en cero), con `cobrado_mes` (entregas
+     pagadas de esa línea este mes) y `minutos_mes` (sesiones cerradas con `app_contexto` de
+     un tema de la línea, más `trabajo_claude` de esos mismos temas).
+  2. `5cef00a` **Forma E** — `IdeaBandeja.destacada`, `POST /idea/{id}/destacar`. Hecho antes
+     de Forma D porque `GET /semana` la necesita: singleton `idea_destacada` (mismo patrón
+     que `pregunta_en_el_aire` de T3.5), destacar una nueva le quita la marca a la anterior.
+  3. `a2eaca9` **Forma D** — `nucleo/semana.py` nuevo, `GET /semana`: `desde` (el lunes,
+     Bogotá), `cerrado` (sesiones cerradas desde el lunes, con tema y `real_min`), `aplazado`
+     (tareas abiertas con fecha ya vencida, máximo 5 — nunca un contador), `ideas_frias`
+     (número) y `destacada`.
+- **Decisiones que tomé sin preguntar:**
+  1. `aplazado` lo definí como «tarea abierta (no hecha, no archivada) con `fecha_limite`
+     antes de hoy» — el plan no dice la regla exacta, solo la forma de la respuesta. Es la
+     lectura más literal de «aplazado»: tenía fecha y el día ya pasó sin cerrarse.
+  2. `Aplazado.tema` sale siempre `None`: el contrato `Tarea` no tiene `tema` (solo
+     `proyecto_id`, que hoy nunca se llena — la misma limitación que ya documentó la
+     bitácora del Encargo H). Cuando exista un puente real tarea→libro, se llena solo.
+  3. El viejo `test_nunca_hay_texto_que_regane` (`test_plata.py`) comparaba substrings; el id
+     de línea real `malik` contiene «mal» y lo disparaba — pasé esa prueba a `\b...\b`.
+- **Dudas abiertas:** ninguna nueva (las de `test_noche.py` siguen para T5).
+- **Cómo probarlo a mano:** `uv run pytest -q` (580) + `uv run mypy .` (102 módulos) +
+  `cd apps/ventanita && npx tsc --noEmit && npm test` (90). Contra un núcleo aislado:
+  `GET /plata` trae `por_linea: [{"id": "software", ...}, {"id": "malik", ...}]`; `POST
+  /idea/{id}/destacar {"destacada": true}` y `GET /semana` la devuelve en `destacada`.
+
+---
+
 ## 2026-10-01 · T3 · Remi pregunta lo que le falta (fase Q) · construido · 8c0a9be
 
 Escribe la terminal.
