@@ -240,8 +240,77 @@ refinamiento», fila «Historial» (cerrado, abierto, una conversación de antes
 toco una de ayer, le escribo y Remi contesta sabiendo de qué se hablaba; «Conversación
 nueva» empieza una limpia; pytest, mypy y vitest en verde; app instalada con `actualizar.sh`.
 
+### T8 · Experiencia: lo que se resolvió queda, sea de quien sea — **aprobada: no** (todavía)
+Va ANTES de T6, y solo cuando la línea de arriba diga «aprobada: sí».
+
+Diagnóstico (medido el 1-oct a las 19:20): el libro de errores del oficio «stack» tiene **cero
+entradas**: `cierre.py` solo lo dispara con tres frases («la causa era», «se arregló», «fallaba
+porque»). Los episodios cuentan qué se hizo, no qué se aprendió. Una sesión que falló seis
+veces por lo mismo (el 401 de malik) dejó seis episodios casi iguales, dos con pasos
+inventados («contactar a soporte»). Lo que resuelven otras manos (Claude en la app, la
+terminal en un worktree, la bitácora, una auditoría pegada) no entra. Y nada dice si una
+sesión salió bien o hubo que arreglarla después.
+
+Principio: se guardan **lecciones con evidencia**, no transcripts. Más memoria sin filtro la
+hace más tonta, no más experta.
+1. Formato único de un error resuelto: episodio con `fuente: error`, `claves: [error, <tema>]`
+   y cuatro secciones — síntoma, causa, cura, dónde (repo y archivo). Una función pura lo
+   valida; lo que no tenga las cuatro no entra.
+2. Detector con evidencia en vez de frases: al cerrar una sesión hay «problema resuelto» si
+   hubo un commit cuyo mensaje empieza con fix/arregl/corrig, o si en el transcript una
+   corrida de pruebas en rojo va seguida de una en verde, o las frases de hoy. La trastienda
+   redacta; la verificación anti-invento de `estado_libro.py` compara contra el transcript.
+3. Sin repetidos: antes de escribir un episodio (normal o de error), si ya hay uno del mismo
+   libro con el mismo síntoma o el mismo resumen en los últimos 7 días, se le suma una línea
+   «volvió a pasar el <fecha>» en vez de crear otro. Los seis del 401 de malik se fusionan
+   (nunca se borran: los sobrantes quedan con `fusionado_en:`).
+4. La nota de cada sesión, sin IA: commits que dejó, cómo terminaron las pruebas (verde, rojo,
+   sin correr), duración y, a las 48 h, si un commit posterior con fix o revert tocó los
+   mismos archivos. Va en el frontmatter del episodio (`resultado: limpio | con-arreglo |
+   sin-commit`). No se muestra como contador en ninguna pantalla (ley 3): sirve para que Remi
+   sepa qué forma de encargo funciona.
+5. Consultar antes de actuar: al abrir sesión (`SessionStart`) y al armar un encargo, Remi
+   agrega hasta tres errores del mismo libro o de los mismos archivos: «Ojo: aquí ya pasó X;
+   la cura fue Y». Por tema y archivo primero, por vectores después.
+6. La puerta para otras manos: `POST /experiencia {tema, sintoma, causa, cura, donde, fuente}`
+   y la herramienta `anotar_error` en el MCP de memoria (que ya es global), con el mismo
+   validador del punto 1. Y el gancho de commit: si el commit toca `docs/BITACORA.md` de un
+   repo con libro, la entrada nueva se guarda como episodio (decisiones y dudas incluidas).
+7. Oficios y skills, una sola fuente: `scripts/oficios_a_skills.py` exporta cada oficio de la
+   bóveda como skill de usuario de Claude Code (verificar en la documentación dónde los lee),
+   para que toda sesión los tenga; `scripts/skill_a_oficio.py <carpeta>` trae un `SKILL.md` de
+   solo conocimiento como oficio. Un skill con scripts no entra al cerebro de Remi (lee, no
+   ejecuta): Remi lo nombra en el encargo y lo corre Claude Code.
+8. Semilla, con el formato del punto 1 (son reales, del 1-oct; redactarlos sin inventar):
+   - Pruebas que recargan módulos: «Input should be a valid dictionary or instance of Idea» ·
+     al sacar `modelos` de `sys.modules` sin `bandeja` y `servidor` quedan dos clases `Idea` ·
+     sacarlos juntos · `nucleo/pruebas`.
+   - Playwright `EADDRINUSE :4498` · dos ayudantes `recargar.sh --vigilar` atendían el mismo
+     pedido · candado por pid y `mkdir tomado-<n>` · `scripts/recargar.sh`.
+   - `next build` con `ENOENT … .next/export/500.html` · dos builds a la vez sobre el mismo
+     `.next` · un build a la vez; las pruebas con `NEXT_DIST_DIR` aparte · `apps/panel`.
+   - «Empezar con eso» guardaba una idea en vez de abrir el bloque · el botón mandaba texto a
+     `/mensaje` y el clasificador lo trataba como idea (ley 6) · `POST /bloque`: un botón nunca
+     pasa por el clasificador · `apps/panel/src/app/page.tsx`.
+   - Pruebas de Playwright que se pisan · el núcleo falso guardaba estado entre pruebas ·
+     `POST /__escenario` antes y después de cada una · `apps/panel/tests`.
+   - Playwright en modo estricto falla con el mismo texto dos veces · había una copia para
+     escritorio y otra para teléfono, una oculta · un solo elemento que cambia por CSS ·
+     `apps/panel/src/app/bandeja/page.tsx`.
+   - Una sesión en un worktree de Remi no caía en el libro `remi` · `libros.por_ruta` no
+     resolvía el worktree al repo principal · T1.3 (`f780f70`) · `nucleo/libros.py`.
+   - 1.008 ideas de prueba en la base real · el gancho global de git corría dentro de pytest ·
+     ver la entrada de la bitácora del 1-oct (encargo F).
+
+**Listo cuando:** cierro una sesión de Claude Code donde arreglé algo con un commit «fix: …»
+y aparece un error con síntoma, causa, cura y dónde; abro otra sesión en ese repo y Claude
+recibe «Ojo: …»; le pido a Remi un encargo que toca ese archivo y lo menciona; el índice ya
+no tiene los seis del 401; los oficios aparecen como skills en Claude Code; pytest y mypy en
+verde.
+
 ### T6 · Cierre
-Antes: si T7 dice «diseño aprobado: sí» y no está hecha, hacerla primero.
+Antes: si T7 dice «diseño aprobado: sí» o T8 dice «aprobada: sí» y no están hechas, hacerlas
+primero.
 `scripts/actualizar.sh` desde `main` (la app instalada con el último commit), `doctor.sh`,
 entrada de cierre en la bitácora con lo que queda para después de los siete días (3f,
 2e.1, 2e.2, 2e.3) **sin empezarlo**.
