@@ -26,6 +26,7 @@ import httpx
 
 import db
 import precarga
+import trabajo
 import vectores
 
 BINARIO = "claude"
@@ -318,6 +319,11 @@ def sistema_encargo() -> str:
             resumen = precarga.resumen_nivel2(tema)
             if resumen:
                 piezas.append("## Proyecto activo\n" + resumen)
+            # T8.7: consultar antes de actuar — hasta tres lecciones de
+            # este libro, antes de proponer un arreglo que ya se intentó.
+            ojos = trabajo.lecciones_de_ojo(tema)
+            if ojos:
+                piezas.append("## Lecciones de este proyecto\n" + "\n".join(ojos))
     except Exception as error:  # noqa: BLE001 — sin proyecto activo, el encargo sigue
         print(f"[pensar] no pude precargar el proyecto activo del encargo ({type(error).__name__})", file=sys.stderr)
 

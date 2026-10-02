@@ -350,8 +350,23 @@ def recibir(tipo: str, ruta: str, datos: dict[str, object] | None = None, ahora:
     return {"proyecto": tema, "anotado": anotado, "contexto": contexto}
 
 
+def lecciones_de_ojo(tema: str, maximo: int = 3) -> list[str]:
+    """T8.7: hasta tres «Ojo: …» de este libro, las más repetidas primero
+    — consultar antes de actuar, no después."""
+    import experiencia
+
+    lecciones = sorted(experiencia.listar(tema), key=lambda l: (l.veces, l.ultima_vez), reverse=True)
+    resultado = []
+    for leccion in lecciones[:maximo]:
+        clave = "Causa real" if leccion.clase == "error" else "Qué funcionó"
+        pista = leccion.secciones.get(clave, "").strip()
+        resultado.append(f"Ojo: aquí ya pasó {leccion.titulo}" + (f"; la causa fue {pista}" if pista else "") + ".")
+    return resultado
+
+
 def _contexto_de(ruta: str) -> str | None:
-    """Dónde quedó, decisiones y próximo paso. Sin modelo: lo lee del libro."""
+    """Dónde quedó, decisiones y próximo paso, más hasta tres lecciones de
+    este proyecto (T8.7). Sin modelo: todo sale de la bóveda."""
     libro = libros.por_ruta(ruta)
     if libro is None:
         return None
@@ -365,8 +380,9 @@ def _contexto_de(ruta: str) -> str | None:
             "Decisiones: ninguna anotada.",
             "Próximo paso: elegir un paso de cinco minutos.",
         ]
+    lineas += lecciones_de_ojo(libro.tema)
     limpias = [linea.strip() for linea in lineas if linea.strip()]
-    return "\n".join(limpias[:15])
+    return "\n".join(limpias[:18])
 
 
 def _programar_cierre(ruta: str, datos: dict[str, object], ahora: datetime) -> None:

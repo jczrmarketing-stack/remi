@@ -114,6 +114,17 @@ def es_texto_de_cliente(texto: str) -> bool:
     return bool(_PATRON_CLIENTE.search(normalizar(texto)))
 
 
+# T8.7: «anotá esta lección: …» en la charla hace lo mismo que el MCP
+# `anotar_leccion` — sobre el texto crudo, nunca el normalizado (la
+# lección en sí no pierde sus tildes ni su puntuación).
+_PATRON_ANOTAR_LECCION = re.compile(r"^anot[aá]\s+esta\s+lecci[oó]n:?\s*(.+)$", re.IGNORECASE | re.DOTALL)
+
+
+def contenido_anotar_leccion(texto: str) -> str | None:
+    coincidencia = _PATRON_ANOTAR_LECCION.match(texto.strip())
+    return coincidencia.group(1).strip() or None if coincidencia else None
+
+
 def clasificar(texto: str) -> TipoMensaje:
     limpio = normalizar(texto)
     if not limpio:

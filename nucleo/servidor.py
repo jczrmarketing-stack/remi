@@ -23,6 +23,7 @@ import agenda
 import bandeja
 import boveda_git
 import caminos
+import cierre
 import clasificar
 import cobros
 import conexiones
@@ -217,7 +218,8 @@ class RespuestaMensaje(BaseModel):
     # Remi que estaba «en el aire» — fuera de Forma G, solo lo lee la
     # ventanita (el panel no llama a /mensaje).
     tipo: clasificar.TipoMensaje | Literal[
-        "encargo", "cliente", "correccion", "agenda", "cobro", "entrega", "pregunta_respondida"
+        "encargo", "cliente", "correccion", "agenda", "cobro", "entrega", "pregunta_respondida",
+        "leccion",
     ]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
@@ -396,6 +398,11 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         ms = (time.perf_counter() - arranque) * 1000
         print(f"[mensaje] tipo=cliente ms={ms:.0f} pensó={'sí' if respuesta.tokens else 'no'}", file=sys.stderr, flush=True)
         return respuesta
+    respuesta_leccion = _anotar_leccion_hablada(mensaje)
+    if respuesta_leccion is not None:
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=leccion ms={ms:.0f}", file=sys.stderr, flush=True)
+        return respuesta_leccion
     respuesta_pregunta = _responder_pregunta_en_el_aire(mensaje)
     if respuesta_pregunta is not None:
         ms = (time.perf_counter() - arranque) * 1000
@@ -448,6 +455,38 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         flush=True,
     )
     return respuesta
+
+
+def _anotar_leccion_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
+    """T8.7: «anotá esta lección: …» en la charla hace lo mismo que
+    `anotar_leccion` del MCP. Solo la clase «error» por este camino —
+    un acierto se anota con el MCP o `POST /experiencia` directamente."""
+    contenido = clasificar.contenido_anotar_leccion(mensaje.texto)
+    if contenido is None:
+        return None
+    tema = temas.tema_de_texto(contenido)
+    libro = next((l for l in libros.listar() if l.tema == tema), None) if tema else None
+    titulo_libro = libro.titulo if libro else (tema or "general")
+    secciones = cierre.redactar_error(contenido, titulo_libro)
+    if secciones is None:
+        texto = "No saqué nada claro de ahí. Contame el síntoma, la causa y la cura."
+        return RespuestaMensaje(tipo="leccion", texto=texto, voz=texto)
+    leccion = experiencia.Leccion(
+        titulo=episodios._recortar(f"{titulo_libro}: {episodios._una_linea(secciones['Síntoma'])}", 80),
+        tema=tema or "general",
+        resumen=episodios._recortar(episodios._una_linea(secciones["Causa real"]), 240),
+        clase="error",
+        donde=tema or "general",
+        secciones=secciones,
+        fuente="remi",
+    )
+    try:
+        _destino, es_nueva = experiencia.escribir(leccion)
+    except ValueError:
+        texto = "No pude anotarla: faltó algo clave en lo que contaste."
+        return RespuestaMensaje(tipo="leccion", texto=texto, voz=texto)
+    texto = "Anotada." if es_nueva else "Ya tenía una lección igual — le sumé una vuelta más."
+    return RespuestaMensaje(tipo="leccion", texto=texto, voz=texto)
 
 
 def _responder_pregunta_en_el_aire(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
