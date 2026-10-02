@@ -297,6 +297,11 @@ a la terminal; cuando la forma real llega, se verifica contra el núcleo de verd
   de escritorio y de 375 px; con el núcleo de hoy (`/preguntas` 404) no aparece.
 - 1-oct 18:50 · **T0 de la terminal verificado** (`3753cbc`, `9e395a7`, `8ee73d2`): solo docs y
   el skill, sin llaves en el diff; worktree `remi-nucleo` en `f-nucleo`; línea base 525 / 86.
+- 1-oct 19:10 · **T1 de la terminal verificado en vivo** (`d08bdad`…`ce521ed`): Hoy sin tareas
+  de prueba, la Bandeja con las 10 ideas de hoy, los siete libros con `tipo`, y UpVisuals con
+  tres fases, fase 1 y el hito 5 encendido. La pantalla Proyecto ya se ve como el lienzo.
+- 1-oct 19:10 · T7 (historial de la ventanita) diseñada en el lienzo de la ventanita y
+  escrita en este plan; espera el visto bueno.
 
 ## Notas para la terminal (lo que el panel ya espera)
 
