@@ -19,10 +19,12 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
+import agenda
 import bandeja
 import boveda_git
 import caminos
 import clasificar
+import cobros
 import conexiones
 import correcciones
 import db
@@ -39,7 +41,7 @@ import telegram
 import temas
 import trabajo
 import tts
-from modelos import Idea, Memoria, Nudge, Sesion, Tarea
+from modelos import Entrega, Idea, Memoria, Nudge, Sesion, Tarea
 
 RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
 CONFIG = json.loads(RUTA_CONFIG.read_text())
@@ -202,7 +204,11 @@ class RespuestaMensaje(BaseModel):
     # Lo decide el clasificador, nunca el modelo: pensar solo reformula la
     # voz. Una idea no crea tarea ni sesión, y un cierre no crea nada.
     # «encargo» es el modo Prompt, que no pasa por el clasificador.
-    tipo: clasificar.TipoMensaje | Literal["encargo", "cliente", "correccion"]
+    # Forma G (T2): «agenda» (una fecha/hora reconocida sin abrir bloque),
+    # «cobro» (un pago que llegó hablado) y «entrega» (una entrega futura
+    # que llegó hablada) — ninguno de los tres abre bloque ni lleva
+    # `sesion`; la ventanita solo muestra la voz.
+    tipo: clasificar.TipoMensaje | Literal["encargo", "cliente", "correccion", "agenda", "cobro", "entrega"]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
     # Lo que se ve en la pantalla, completo.
@@ -380,6 +386,23 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         ms = (time.perf_counter() - arranque) * 1000
         print(f"[mensaje] tipo=cliente ms={ms:.0f} pensó={'sí' if respuesta.tokens else 'no'}", file=sys.stderr, flush=True)
         return respuesta
+    # T2: plata y agenda por voz. Van antes del clasificador de
+    # tareas/ideas porque son formas más específicas; ninguna abre bloque.
+    respuesta_entrega = _crear_entrega_hablada(mensaje)
+    if respuesta_entrega is not None:
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=entrega ms={ms:.0f}", file=sys.stderr, flush=True)
+        return respuesta_entrega
+    respuesta_cobro = _registrar_cobro(mensaje)
+    if respuesta_cobro is not None:
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=cobro ms={ms:.0f}", file=sys.stderr, flush=True)
+        return respuesta_cobro
+    respuesta_agenda = _crear_agenda_hablada(mensaje)
+    if respuesta_agenda is not None:
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=agenda ms={ms:.0f}", file=sys.stderr, flush=True)
+        return respuesta_agenda
     tipo = clasificar.clasificar(mensaje.texto)
     # «buscá…» se contesta (con la web), no se guarda en la Bandeja.
     if (
@@ -409,6 +432,67 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
         flush=True,
     )
     return respuesta
+
+
+def _crear_entrega_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
+    """T2.3: «entrega para Alfonso el 18 de octubre por 5.000» — reglas
+    (entregas.parsear_entrega), nunca IA. None si el texto no tiene esa
+    forma: sigue el camino normal (Bandeja, bloque, etc)."""
+    if entregas.parsear_entrega(mensaje.texto) is None:
+        return None
+    tema = temas.tema_de_texto(mensaje.texto)
+    entrega = entregas.crear_desde_texto(entregas.CrearEntregaDesdeTexto(texto=mensaje.texto, tema=tema))
+    voz = f"Anotada: entrega de {entrega.cliente} por {entrega.monto:.0f} el {entrega.fecha.strftime('%d/%m')}."
+    return RespuestaMensaje(tipo="entrega", texto=voz, voz=voz)
+
+
+def _registrar_cobro(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
+    """T2.4: «Alfonso pagó 1.000», «me pagaron 1.500 de UpVisuals». Si no
+    se reconoce de quién, no crea nada — queda para que lo pregunte Remi
+    (T3), y el mensaje sigue su camino normal (cae como idea)."""
+    parseada = cobros.parsear(mensaje.texto)
+    if parseada is None or parseada.tema is None:
+        return None
+    libro = next((l for l in libros.listar() if l.tema == parseada.tema), None)
+    if libro is None:
+        return None
+    proyecto_id = entregas._proyecto_id_de_tema(parseada.tema)
+    entrega = Entrega(
+        id=uuid4(),
+        cliente=libro.cliente or libro.titulo,
+        proyecto_id=proyecto_id,
+        fecha=datetime.now(timezone.utc),
+        monto=parseada.monto,
+        estado="pagada",
+        linea=plata.linea_de_tema(parseada.tema),
+        compartible=True,
+    )
+    conexion = db.conectar()
+    try:
+        entregas.crear_entrega(conexion, entrega)
+        total = entregas.total_pagado_proyecto(conexion, proyecto_id)
+    finally:
+        conexion.close()
+    n_objetivo = _fase_actual_n(libro.fases)
+    fase_objetivo = libro.fases[n_objetivo - 1] if n_objetivo else None
+    if fase_objetivo is not None and fase_objetivo.monto:
+        voz = f"Anotado: {parseada.monto:.0f} de {entrega.cliente}. Van {total:.0f} de {fase_objetivo.monto:.0f}."
+    else:
+        voz = f"Anotado: {parseada.monto:.0f} de {entrega.cliente}."
+    return RespuestaMensaje(tipo="cobro", texto=voz, voz=voz)
+
+
+def _crear_agenda_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
+    """T2.5: «mañana llamo al banco», «a las 3 reunión», «vence el 15 de
+    octubre…». Crea la tarea como POST /tarea: nunca abre bloque."""
+    parseada = agenda.parsear(mensaje.texto, hoy_en_bogota())
+    if parseada is None:
+        return None
+    tarea = planear_tarea(
+        TareaPlaneada(titulo=parseada.titulo, hora=parseada.hora, fecha_limite=parseada.fecha_limite)
+    )
+    voz = f"Anotado: «{tarea.titulo}»" + (f" el {tarea.fecha_limite.strftime('%d/%m')}." if tarea.fecha_limite else ".")
+    return RespuestaMensaje(tipo="agenda", tarea=tarea, texto=voz, voz=voz)
 
 
 def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:

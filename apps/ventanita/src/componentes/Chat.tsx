@@ -4,6 +4,7 @@ import { partirRespuesta, type Parte } from "../markdown";
 import { Encargo } from "./Encargo";
 import { AccionesRespuesta } from "./AccionesRespuesta";
 import { formatearReloj } from "../tiempo";
+import { debeMostrarReloj } from "../bloqueAbierto";
 import type { Sesion, Tarea } from "../contratos";
 import "./Chat.css";
 
@@ -195,9 +196,9 @@ function MensajeDeRemi({ mensaje, ultimo, ...acciones }: Omit<Props, "mensajes">
           onReintentar={ultimo ? acciones.onReintentar : undefined}
         />
       ) : null}
-      {hayBloqueAbierto && mensaje.sesion && (
+      {hayBloqueAbierto && debeMostrarReloj(mensaje.tarea, mensaje.sesion) && (
         <RelojLinea
-          inicio={mensaje.sesion.inicio}
+          inicio={mensaje.sesion!.inicio}
           ultimaVezMin={acciones.ultimaVezMin ?? null}
           dinero={Boolean(acciones.dinero)}
         />

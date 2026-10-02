@@ -12,7 +12,12 @@ export interface TokensClaude {
 // Lo que decís no siempre es una tarea: el núcleo clasifica sin IA.
 // "idea" enfría en la Bandeja y no crea nada; "hoy" abre un bloque;
 // "hecha" cierra el que estaba. Por eso tarea y sesion pueden faltar.
-export type TipoMensaje = "idea" | "hoy" | "hecha" | "pregunta" | "encargo";
+// "agenda" (T2): una fecha/hora reconocida, crea tarea sin abrir bloque.
+// "cobro" y "entrega" (T2): plata que entró o que viene, habladas — ninguna
+// de las tres lleva sesion, así que nunca abren el Reloj.
+export type TipoMensaje =
+  | "idea" | "hoy" | "hecha" | "pregunta" | "encargo"
+  | "agenda" | "cobro" | "entrega";
 
 export interface RespuestaMensaje {
   tipo: TipoMensaje;
