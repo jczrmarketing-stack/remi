@@ -40,6 +40,7 @@ import httpx
 import boveda_git
 import db
 import estado_libro
+import experiencia
 import libros
 import preguntas
 import sembrar_conocimiento
@@ -325,6 +326,11 @@ def correr(hoy: date | None = None) -> None:
     finally:
         conexion.close()
     print(f"[noche] pregunta por telegram={'sí' if preguntada else 'no'}")
+
+    # T8.4: la nota de las sesiones de hace 48 h, revisada contra lo que
+    # pasó después.
+    revisados = experiencia.revisar_resultados_pendientes(arranque)
+    print(f"[noche] resultados revisados (48h)={revisados}")
 
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")

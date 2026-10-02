@@ -149,13 +149,19 @@ def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None
     resumen = episodios._recortar(
         _primera_frase(secciones["Primer paso de mañana"]), 240
     ) or "Retomar el hilo, cinco minutos."
+    mensajes_commits = _mensajes_de_commits_de_la_sesion(tema, datos, ahora)
+    # T8.4: la nota sin IA — a las 48 h, noche.py revisa si hubo que
+    # arreglarla (ver `experiencia.revisar_resultados_pendientes`).
+    resultado = experiencia.resultado_de_sesion(
+        hubo_commits=bool(mensajes_commits), pruebas="sin-correr", fix_en_48h=False
+    )
     carpeta = episodios.carpeta_episodios()
     carpeta.mkdir(parents=True, exist_ok=True)
     destino = episodios._ruta_libre(carpeta, f"{local:%Y-%m-%d}-{episodios.slug(titulo)}")
     boveda_git.snapshot_antes(f"escribir el episodio {destino.name}")
     destino.write_text(
         f'---\ntitulo: "{episodios._una_linea(titulo)}"\ntema: {tema}\n'
-        f'resumen: "{episodios._una_linea(resumen)}"\n---\n\n{cuerpo}'
+        f'resumen: "{episodios._una_linea(resumen)}"\nresultado: {resultado}\n---\n\n{cuerpo}'
     )
     if libro is not None:
         estado_libro.escribir_estado(libro.archivo, _a_estado(secciones))
@@ -167,7 +173,7 @@ def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None
     if libro is not None:
         _cursor(libro.tema, ahora)
     print(f"[cierre] {destino.name} · tema={tema} · {por}", file=sys.stderr)
-    if hay_evidencia_de_arreglo(charla, _mensajes_de_commits_de_la_sesion(tema, datos, ahora)):
+    if hay_evidencia_de_arreglo(charla, mensajes_commits):
         secciones_error = redactar_error(charla, titulo_libro)
         if secciones_error is not None:
             error_destino = escribir_episodio_error(tema, titulo_libro, secciones_error, local, donde=ruta)

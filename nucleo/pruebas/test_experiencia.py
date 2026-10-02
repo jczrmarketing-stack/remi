@@ -165,3 +165,68 @@ def test_resultado_de_sesion_con_arreglo_por_fix_despues():
 
 def test_resultado_de_sesion_con_arreglo_por_rojo():
     assert experiencia.resultado_de_sesion(hubo_commits=True, pruebas="rojo", fix_en_48h=False) == "con-arreglo"
+
+
+def _episodio_con_resultado(carp, dia_iso, tema, resultado):
+    carp.mkdir(parents=True, exist_ok=True)
+    ruta = carp / f"{dia_iso}-{tema}-sesion.md"
+    ruta.write_text(
+        f'---\ntitulo: "Sesión {tema}"\ntema: {tema}\n'
+        f'resumen: "Resumen."\nresultado: {resultado}\n---\n\nCuerpo.\n'
+    )
+    return ruta
+
+
+def test_revisar_resultados_no_toca_lo_que_todavia_no_cumplio_48h(tmp_path, monkeypatch):
+    exp = _arrancar(tmp_path, monkeypatch)
+    import db
+
+    hoy = datetime.now(timezone.utc)
+    ruta = _episodio_con_resultado(
+        tmp_path / "boveda" / "episodios", hoy.strftime("%Y-%m-%d"), "malik", "sin-commit"
+    )
+
+    tocados = exp.revisar_resultados_pendientes(hoy)
+
+    assert tocados == 0
+    assert "resultado: sin-commit" in ruta.read_text()
+
+
+def test_revisar_resultados_pasa_a_con_arreglo_si_hubo_un_fix_despues(tmp_path, monkeypatch):
+    exp = _arrancar(tmp_path, monkeypatch)
+    import db
+    from datetime import timedelta
+    from uuid import uuid4
+
+    hace_3_dias = datetime.now(timezone.utc) - timedelta(days=3)
+    ruta = _episodio_con_resultado(
+        tmp_path / "boveda" / "episodios", hace_3_dias.strftime("%Y-%m-%d"), "malik", "limpio"
+    )
+    conexion = db.conectar()
+    conexion.execute(
+        "INSERT INTO trabajo_commits (id, tema, mensaje, rama, archivos, fecha, incluido) "
+        "VALUES (?, 'malik', 'fix: el 401', 'main', '[]', ?, 0)",
+        (str(uuid4()), (hace_3_dias + timedelta(hours=10)).isoformat()),
+    )
+    conexion.commit()
+    conexion.close()
+
+    tocados = exp.revisar_resultados_pendientes(datetime.now(timezone.utc))
+
+    assert tocados == 1
+    texto = ruta.read_text()
+    assert "resultado: con-arreglo" in texto
+    assert "revisado_48h: true" in texto
+
+
+def test_revisar_resultados_no_vuelve_a_tocar_lo_ya_revisado(tmp_path, monkeypatch):
+    exp = _arrancar(tmp_path, monkeypatch)
+    from datetime import timedelta
+
+    hace_3_dias = datetime.now(timezone.utc) - timedelta(days=3)
+    ruta = _episodio_con_resultado(
+        tmp_path / "boveda" / "episodios", hace_3_dias.strftime("%Y-%m-%d"), "malik", "limpio"
+    )
+    ahora = datetime.now(timezone.utc)
+    exp.revisar_resultados_pendientes(ahora)
+    assert exp.revisar_resultados_pendientes(ahora) == 0

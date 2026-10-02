@@ -11,11 +11,12 @@ import re
 import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
 import boveda_git
+import db
 import episodios
 import libros
 import vectores
@@ -286,3 +287,57 @@ def resultado_de_sesion(
     if pruebas == "rojo" or fix_en_48h:
         return "con-arreglo"
     return "limpio"
+
+
+def revisar_resultados_pendientes(ahora: datetime | None = None) -> int:
+    """T8.4, a las 48 h: un episodio con `resultado: sin-commit` o
+    `limpio` pasa a `con-arreglo` si, para el mismo tema, llegó un commit
+    fix/arregl/corrig o revert dentro de esas 48 h. Simplificación
+    documentada: mira el tema, no si tocó los mismos archivos — un commit
+    de arreglo de otra parte del mismo libro también cuenta como señal de
+    que algo no quedó limpio. Marca cada episodio con `revisado_48h: true`
+    para no volver a mirarlo cada noche. Devuelve cuántos tocó."""
+    ahora = ahora or datetime.now(timezone.utc)
+    carpeta_ep = episodios.carpeta_episodios()
+    if not carpeta_ep.is_dir():
+        return 0
+    tocados = 0
+    for ruta in sorted(carpeta_ep.glob("*.md")):
+        texto = ruta.read_text()
+        if not texto.startswith("---") or "revisado_48h: true" in texto:
+            continue
+        partes = texto.split("---", 2)
+        if len(partes) < 3:
+            continue
+        campos = libros._frontmatter(partes[1])
+        tema = campos.get("tema")
+        resultado = str(campos.get("resultado") or "")
+        if not isinstance(tema, str) or not tema or resultado not in ("sin-commit", "limpio"):
+            continue
+        try:
+            fecha_ep = datetime.strptime(ruta.name[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if ahora - fecha_ep < timedelta(hours=48):
+            continue  # todavía no pasaron las 48 h
+
+        conexion = db.conectar()
+        try:
+            filas = conexion.execute(
+                "SELECT mensaje FROM trabajo_commits WHERE tema = ? AND fecha > ? AND fecha <= ?",
+                (tema, fecha_ep.isoformat(), (fecha_ep + timedelta(hours=48)).isoformat()),
+            ).fetchall()
+        finally:
+            conexion.close()
+        hubo_arreglo = any(
+            commit_es_arreglo(fila["mensaje"]) or "revert" in fila["mensaje"].lower() for fila in filas
+        )
+        nuevo_resultado = "con-arreglo" if hubo_arreglo else resultado
+        nuevo_frontmatter = re.sub(
+            r"(?m)^resultado:.*$", f"resultado: {nuevo_resultado}\nrevisado_48h: true", partes[1], count=1
+        )
+        boveda_git.snapshot_antes(f"revisar a las 48h el episodio {ruta.name}")
+        ruta.write_text("---".join([partes[0], nuevo_frontmatter, partes[2]]))
+        boveda_git.snapshot_despues(f"experiencia: {ruta.name} resultado={nuevo_resultado} (revisión 48h)")
+        tocados += 1
+    return tocados
