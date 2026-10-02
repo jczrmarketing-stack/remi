@@ -20,6 +20,54 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-01 · T2 · La plata y la agenda entran solas · construido · 5dd36e7
+
+Escribe la terminal.
+
+- **Qué cambió:**
+  1. `ee59d99` **Forma A** — `libros.Libro.cliente` (frontmatter `cliente:`); `caminos.py`
+     suma `detalle` (la línea del SOP que explica cada paso) a las plantillas `PASOS_PROPIO`/
+     `PASOS_CLIENTE` y `detalle_de()`; `entregas.total_pagado_proyecto()` y
+     `cobrado_en_cascada()` (llena la fase 1 hasta su monto, lo que sobra pasa a la 2; sin
+     monto, 0). `servidor.py`: `FaseVisible.cobrado`, `HitoConDetalle` nuevo para
+     `hitos`/`hito_actual`/`siguientes` de `GET /libros` — sin tocar `HitoVisible` del
+     `/camino/{tema}` viejo ni de `POST /libros/{tema}/camino/{n}`.
+  2. `110b2a0` **Forma B** — `POST /cobros {tema, monto, fecha?}`: `entregas.router_cobros`
+     nuevo (prefijo vacío, aparte de `/entregas`). 201 con `estado: pagada`, `cliente` del
+     libro (su título si es `propio`), `linea` de `config/plata.json`; 404 sin libro.
+  3. `5dd36e7` — `/mensaje` reconoce, antes del clasificador de tareas/ideas: una entrega
+     hablada (`entregas.parsear_entrega` + `temas.tema_de_texto`, ya existían los dos — solo
+     los conecté); un cobro hablado (`nucleo/cobros.py`, nuevo, verbo + monto + `tema_de_texto`
+     — sin reconocer de quién, no crea nada); una agenda hablada (`nucleo/agenda.py`, nuevo,
+     solo si la frase EMPIEZA con una marca de tiempo o dice «vence el D de MES» — crea la
+     tarea vía `planear_tarea`, nunca abre bloque). Forma G: `RespuestaMensaje.tipo` suma
+     `agenda`/`cobro`/`entrega`. Ventanita: `TipoMensaje` de `servidor.ts` al día,
+     `bloqueAbierto.ts` (nuevo, puro) decide si el Reloj se muestra — los tres tipos nuevos
+     nunca llevan `sesion`, así que nunca lo prenden (probado con vitest).
+- **Decisiones que tomé sin preguntar:**
+  1. El `detalle` de los pasos 1–7 de §B y 1–3/6–7 de §A es la línea del SOP casi literal
+     (recorté «Remi lo lee con teoría de juegos…» igual que está); para «Pago antes de
+     arrancar» usé el texto exacto que ya trae `docs/PLAN-100.md` («En cuotas, con tolerancia
+     de días. El trabajo empieza cuando el pago está completo.») en vez de parafrasear la
+     línea del SOP otra vez.
+  2. `POST /cobros` de un libro `propio` (sin `cliente:`) usa `libro.titulo` como `cliente` de
+     la Entrega — el contrato no admite `null` ahí y no hay otro dato mejor.
+  3. Until T3 exista, un cobro hablado sin cliente/proyecto reconocible simplemente no crea
+     nada y el mensaje sigue el camino normal del clasificador (cae como idea la mayoría de
+     las veces) — «lo pregunta Remi» todavía no tiene dónde preguntar.
+  4. Extraje `debeMostrarReloj` de la condición en línea de `Chat.tsx` a su propio módulo
+     puro para poder probarla con vitest sin montar el componente (no hay infraestructura de
+     testing de React en este repo, solo `.prueba.ts` de lógica pura).
+- **Dudas abiertas:** la misma de T1 sobre `test_noche.py` posteando contra el núcleo de
+  producción real (sigue sin tocar, para T5).
+- **Cómo probarlo a mano:** `uv run pytest -q` (550) + `uv run mypy .` (95 módulos) +
+  `cd apps/ventanita && npx tsc --noEmit && npm test` (90). Contra un núcleo aislado:
+  `POST /mensaje {"texto": "Alfonso pagó 1500"}` → `tipo: cobro`, `GET /libros` trae
+  `fases[0].cobrado == 1500`; `POST /mensaje {"texto": "mañana llamo al banco"}` → `tipo:
+  agenda`, `GET /hoy/agenda` trae `manana: [{"titulo": "llamo al banco", ...}]`.
+
+---
+
 ## 2026-10-01 · T1 · Día cero · construido · b7a24e3 (código) + copia/limpieza en la base real
 
 Escribe la terminal.
