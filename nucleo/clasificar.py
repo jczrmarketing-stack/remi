@@ -125,6 +125,37 @@ def contenido_anotar_leccion(texto: str) -> str | None:
     return coincidencia.group(1).strip() or None if coincidencia else None
 
 
+# T11.1: «Gracias.» no es una idea. Las de cortesía, exactas (sin
+# contenido que valga enfriar 48 h); el largo, cualquier frase de menos de
+# tres palabras — no hace falta nombrarlas todas.
+CORTESIAS = frozenset(
+    {
+        "gracias", "de nada", "ok", "oka", "okay", "dale", "genial", "perfecto",
+        "buenisimo", "excelente", "bien", "bueno", "chau", "adios", "hola",
+        "buenos dias", "buenas tardes", "buenas noches", "nada mas",
+    }
+)
+
+
+def es_cortesia_o_muy_corta(texto: str) -> bool:
+    limpio = normalizar(texto)
+    if not limpio:
+        return True
+    if limpio in CORTESIAS:
+        return True
+    return len(limpio.split()) < 3
+
+
+# Mientras se charla con Remi, nada se guarda en la Bandeja por defecto
+# (ARQUITECTURA-CEREBRO): la única puerta explícita es «anotá esto: …».
+_PATRON_ANOTA_ESTO = re.compile(r"^anot[aá]\s+esto:?\s*(.+)$", re.IGNORECASE | re.DOTALL)
+
+
+def contenido_anota_esto(texto: str) -> str | None:
+    coincidencia = _PATRON_ANOTA_ESTO.match(texto.strip())
+    return coincidencia.group(1).strip() or None if coincidencia else None
+
+
 def clasificar(texto: str) -> TipoMensaje:
     limpio = normalizar(texto)
     if not limpio:

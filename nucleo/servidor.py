@@ -435,8 +435,17 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     ):
         tipo = "pregunta"
 
+    # T11.1: «Gracias.» no abre idea, ni nada de cortesía o de menos de
+    # tres palabras. Mientras se charla con Remi (conversación vigente),
+    # tampoco — lo suelto de una charla no es lo mismo que una idea suelta
+    # de la Bandeja; la única puerta ahí es «anotá esto: …».
+    contenido_explicito = clasificar.contenido_anota_esto(mensaje.texto)
+    if tipo == "idea" and contenido_explicito is None:
+        if clasificar.es_cortesia_o_muy_corta(mensaje.texto) or _hay_conversacion_vigente():
+            tipo = "pregunta"
+
     if tipo == "idea":
-        respuesta = _guardar_idea(mensaje)
+        respuesta = _guardar_idea(mensaje, texto_idea=contenido_explicito)
     elif tipo == "pregunta":
         respuesta = _contestar(mensaje)
     elif tipo == "hecha":
@@ -571,20 +580,35 @@ def _crear_agenda_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
     return RespuestaMensaje(tipo="agenda", tarea=tarea, texto=voz, voz=voz)
 
 
-def _guardar_idea(mensaje: MensajeEntrante) -> RespuestaMensaje:
+def _hay_conversacion_vigente() -> bool:
+    """T11.1: si ya se está charlando con Remi, lo suelto no es una idea —
+    solo «anotá esto: …» lo es."""
+    conexion = db.conectar()
+    try:
+        return db.conversacion_vigente(conexion, datetime.now(timezone.utc)) is not None
+    finally:
+        conexion.close()
+
+
+def _guardar_idea(mensaje: MensajeEntrante, texto_idea: str | None = None) -> RespuestaMensaje:
     """Ley 6: enfría 48 h en la Bandeja. No crea tarea ni sesión — si cada
-    cosa suelta abriera un bloque, la ley 1 mediría cualquier cosa."""
+    cosa suelta abriera un bloque, la ley 1 mediría cualquier cosa.
+
+    `texto_idea` es lo que va a la Bandeja cuando no es la frase entera
+    (T11.1: «anotá esto: comprar fideos» guarda «comprar fideos», no el
+    pedido completo)."""
+    texto = texto_idea or mensaje.texto
     ahora = datetime.now(timezone.utc)
     idea = Idea(
         id=uuid4(),
-        texto=mensaje.texto,
+        texto=texto,
         origen=mensaje.origen,
         creada_en=ahora,
         enfria_hasta=ahora + timedelta(hours=HORAS_DE_ENFRIAMIENTO),
         estado="enfriando",
         problema_vision=None,
         # Sin IA: el libro que la frase nombra, o None (una idea suelta).
-        tema=temas.tema_de_texto(mensaje.texto),
+        tema=temas.tema_de_texto(texto),
     )
     conexion = db.conectar()
     try:
