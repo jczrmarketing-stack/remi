@@ -211,9 +211,10 @@ def test_un_problema_resuelto_deja_ademas_un_episodio_de_error(tmp_path, monkeyp
         "redactar_error",
         lambda _charla, _titulo: {
             "Síntoma": "El webhook no reintentaba tras un 500.",
-            "Causa": "Faltaba el reintento tras un 500.",
+            "Lo que creímos": "",
+            "Causa real": "Faltaba el reintento tras un 500.",
             "Cura": "Se agregó el reintento con backoff.",
-            "Archivo": "webhook.py",
+            "Cómo verlo antes": "Revisar los reintentos del webhook antes de depurar otra cosa.",
         },
     )
     cliente = TestClient(servidor.app)
@@ -227,16 +228,71 @@ def test_un_problema_resuelto_deja_ademas_un_episodio_de_error(tmp_path, monkeyp
     )
 
     assert respuesta.status_code == 200
-    episodios = sorted((tmp_path / "boveda" / "episodios").glob("*.md"))
-    assert len(episodios) == 2
-    de_error = [e for e in episodios if "error" in e.name][0]
-    nota = de_error.read_text()
-    assert "fuente: error" in nota
-    assert "claves: [error, malik]" in nota
+    episodios = list((tmp_path / "boveda" / "episodios").glob("*.md"))
+    assert len(episodios) == 1  # el episodio normal; la lección va aparte
+    lecciones = sorted((tmp_path / "boveda" / "experiencia").glob("*.md"))
+    assert len(lecciones) == 1
+    nota = lecciones[0].read_text()
+    assert "tipo: leccion" in nota
+    assert "clase: error" in nota
+    assert "fuente: claude-code" in nota
     assert "## Síntoma" in nota
     assert "El webhook no reintentaba tras un 500." in nota
     assert "## Cura" in nota
     assert "Se agregó el reintento con backoff." in nota
+
+
+def test_un_commit_fix_sin_la_frase_tambien_dispara_la_leccion(tmp_path, monkeypatch) -> None:
+    """T8.2: la evidencia no es solo la frase en la charla — un commit de
+    la sesión que empieza con fix/arregl/corrig alcanza."""
+    repo = tmp_path / "malik"
+    repo.mkdir()
+    _libro(tmp_path, repo)
+    transcript = tmp_path / "sesion.jsonl"
+    transcript.write_text(
+        json.dumps({"type": "user", "message": {"role": "user", "content": "Ya quedó andando."}}) + "\n"
+    )
+    servidor = _arrancar(tmp_path, monkeypatch)
+    import cierre
+
+    monkeypatch.setattr(
+        cierre,
+        "redactar",
+        lambda _pedido: {
+            "Qué se hizo": "Se arregló el webhook.",
+            "Decisiones": "ninguna nueva",
+            "Pendientes": "ninguno",
+            "Primer paso de mañana": "seguir mañana",
+        },
+    )
+    monkeypatch.setattr(
+        cierre,
+        "redactar_error",
+        lambda _charla, _titulo: {
+            "Síntoma": "El webhook fallaba.",
+            "Lo que creímos": "",
+            "Causa real": "Faltaba el reintento.",
+            "Cura": "Se agregó el reintento.",
+            "Cómo verlo antes": "Revisar los reintentos antes de depurar otra cosa.",
+        },
+    )
+    cliente = TestClient(servidor.app)
+    cliente.post("/evento", json={"tipo": "sesion_inicio", "ruta": str(repo), "datos": {"session_id": "xyz"}})
+    cliente.post(
+        "/evento",
+        json={"tipo": "commit", "ruta": str(repo), "datos": {"mensaje": "fix: el reintento del webhook"}},
+    )
+    cliente.post(
+        "/evento",
+        json={
+            "tipo": "sesion_fin",
+            "ruta": str(repo),
+            "datos": {"session_id": "xyz", "transcript_path": str(transcript)},
+        },
+    )
+
+    lecciones = list((tmp_path / "boveda" / "experiencia").glob("*.md"))
+    assert len(lecciones) == 1
 
 
 def test_sin_patron_de_error_no_deja_episodio_de_error(tmp_path, monkeypatch) -> None:
