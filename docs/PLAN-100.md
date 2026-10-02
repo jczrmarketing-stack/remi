@@ -69,6 +69,12 @@ igual, `pregunta.estado` sigue `pendiente` y `voz` es la repregunta con el forma
 
 **G · Mensaje**: `RespuestaMensaje.tipo` suma `"agenda" | "cobro" | "entrega"`.
 
+**I · Conversaciones** (solo para T7): `GET /conversaciones?limite=30&antes=<iso>` →
+`[{id, titulo, tema, inicio, ultimo, vigente}]`, la más reciente primero, solo las que tienen
+al menos un turno de Juan Camilo. `GET /conversaciones/{id}` → `TurnoVisible[]`.
+`POST /conversaciones/{id}/retomar` → `{id}` (pasa a ser la vigente). `POST /conversaciones`
+→ 201 `{id}` (una nueva, vacía, que pasa a ser la vigente).
+
 **H · Estados**: `archivada` en Tarea e Idea (Biblia v3.8). No aparece en ninguna lista y
 sus sesiones no cuentan para «la última vez».
 
@@ -202,7 +208,40 @@ saca hasta mañana; nunca hay más de tres a la vista; nada de esto llama a un m
 **Listo cuando:** `doctor.sh` 10/10, pytest en verde tres veces seguidas, y desinstalar e
 instalar deja los diez agentes.
 
+### T7 · El historial de la ventanita — **diseño aprobado: no** (todavía)
+Va ANTES de T6, y solo cuando la línea de arriba diga «diseño aprobado: sí» (la cambia
+Claude en la app cuando Juan Camilo lo apruebe). Mientras diga «no», no se toca.
+
+Diagnóstico: las conversaciones ya existen en la base (`conversaciones`, `turnos`), pero la
+ventanita solo muestra la vigente. Pasada una hora, lo hablado no se puede volver a ver.
+Decisión (1-oct): **una sola corriente**. No hay carpetas ni se elige proyecto antes de
+hablar: Remi le pone el tema a cada conversación sola, con las mismas reglas de
+`temas.py`, y el historial la muestra con esa etiqueta. Diseño: lienzo «Ventanita de Remi —
+refinamiento», fila «Historial» (cerrado, abierto, una conversación de antes).
+1. `conversaciones` gana `titulo` y `tema` (columnas nuevas, aditivas). Al guardar cada turno
+   de Juan Camilo: `titulo` = su primer turno cortado a 60 caracteres en un borde de
+   palabra (sin IA); `tema` = el tema que más veces dio `temas.tema_de_texto` en sus turnos,
+   o `null`. Si la conversación cierra con episodio, el título pasa a ser el del episodio.
+2. Forma I: las cuatro rutas. `retomar` pone `ultimo = ahora`; con eso `pensar` ya le da a
+   Claude el resumen vivo y los últimos turnos de esa conversación, sin tocar `pensar.py`.
+3. Ventanita: un botón triángulo sin texto (28×28, `ink-faint`, `ink-muted` al pasar el
+   mouse) debajo del semáforo, a la izquierda. Abre un cajón de 272 px que sale por la
+   izquierda SOBRE el chat (no lo empuja; el resto se oscurece). Escape, el mismo triángulo
+   o un click afuera lo cierran. Lista por día: Hoy, Ayer, Esta semana, Antes. Cada fila:
+   título en una línea y debajo, en mono, «hora · tema» («suelta» sin tema). La vigente
+   lleva un punto `brasa`. Arriba, «Conversación nueva». Sin contadores ni no-leídos.
+4. Tocar una fila muestra esa conversación en `ink-muted`, con una franja «ayer 21:30 ·
+   beam» y «Volver a la de ahora». Escribir ahí la continúa (`retomar` antes de mandar).
+5. De paso, la voz de tú que pide la Biblia: el campo dice «Cuéntame.», no «Contame.».
+6. Pruebas: pytest de las cuatro rutas, del título y del tema; vitest del agrupado por día
+   (función pura) y de que el cajón no aparece en la píldora.
+
+**Listo cuando:** abro el triángulo, veo las conversaciones de hoy y de ayer con su tema,
+toco una de ayer, le escribo y Remi contesta sabiendo de qué se hablaba; «Conversación
+nueva» empieza una limpia; pytest, mypy y vitest en verde; app instalada con `actualizar.sh`.
+
 ### T6 · Cierre
+Antes: si T7 dice «diseño aprobado: sí» y no está hecha, hacerla primero.
 `scripts/actualizar.sh` desde `main` (la app instalada con el último commit), `doctor.sh`,
 entrada de cierre en la bitácora con lo que queda para después de los siete días (3f,
 2e.1, 2e.2, 2e.3) **sin empezarlo**.
