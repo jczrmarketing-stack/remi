@@ -204,6 +204,16 @@ saca hasta mañana; nunca hay más de tres a la vista; nada de esto llama a un m
    la del MCP con timeout de 60 s.
 7. `docs/GUIA-HOY.md` y `docs/INSTALAR.md` al día: panel, Telegram, `recargar.sh`, Access
    antes del túnel.
+8. Lo que se vio al verificar T3 con el núcleo real (1-oct 19:40), en `preguntas.py`:
+   a) la voz usa el nombre corto del libro, lo que va antes de « — » («¿Cuándo está lista la
+   Fase 1 de UpVisuals?», no «…de UpVisuals — cliente Alfonso?»; «¿Cómo se llama el cliente
+   de BeaM?»); b) no se pregunta el «listo cuando» de una fase `sin alcance`; c) el orden
+   dentro de un libro: primero `fase.N.cobrado` (la plata), después `tipo` y `cliente`,
+   después el «listo cuando» de la fase actual, y al final el resto. Con pruebas.
+9. Las pruebas no le escriben al mundo real: `test_noche.py` hoy manda un aviso de verdad
+   por Telegram cuando corre la suite (duda abierta de T1–T3). Ninguna prueba puede llamar
+   al núcleo de producción ni a Telegram: doble de prueba y una guarda que falle si alguna
+   lo intenta.
 
 **Listo cuando:** `doctor.sh` 10/10, pytest en verde tres veces seguidas, y desinstalar e
 instalar deja los diez agentes.
@@ -430,6 +440,12 @@ a la terminal; cuando la forma real llega, se verifica contra el núcleo de verd
   tres fases, fase 1 y el hito 5 encendido. La pantalla Proyecto ya se ve como el lienzo.
 - 1-oct 19:10 · T7 (historial de la ventanita) diseñada en el lienzo de la ventanita y
   escrita en este plan; espera el visto bueno.
+- 1-oct 19:40 · **T2 y T3 de la terminal verificados en vivo** (`78b0076`…`7fd5257`): la forma A
+  real trae `cliente: Alfonso`, `cobrado` por fase y `detalle` por hito, y la pantalla
+  Proyecto los muestra; `GET /preguntas?tema=upvisuals` trae tres preguntas y la tarjeta
+  «Remi pregunta» aparece en el panel real. Contrato `Pregunta`: se queda el de la terminal
+  (`disponible_desde`, sin `respuesta`); Biblia v3.9 y el panel ya lo usan. Tres ajustes de
+  voz y orden quedaron en T5 punto 8. No contesté ninguna pregunta: las contesta Juan Camilo.
 
 ## Notas para la terminal (lo que el panel ya espera)
 

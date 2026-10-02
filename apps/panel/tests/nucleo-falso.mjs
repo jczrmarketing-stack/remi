@@ -14,6 +14,12 @@ const NUDGE_ID = "55555555-5555-5555-5555-555555555555";
 
 const AHORA = Date.now();
 const iso = (msDelta) => new Date(AHORA + msDelta).toISOString();
+// Fechas de día completo: 00:00 UTC del día LOCAL (+n días). Así «hoy» es hoy
+// aunque ya sea de noche en América y UTC haya pasado a mañana.
+const dia = (n) => {
+  const d = new Date(AHORA);
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() + n)).toISOString();
+};
 
 let nudgeRespuesta = null;
 let ideaFriaEstado = "enfriando";
@@ -39,12 +45,12 @@ const DEMAS_HOY = [
 
 const AGENDA = {
   manana: [
-    { id: "88888888-8888-8888-8888-888888888888", titulo: "Llamada con el banco", proyecto_id: null, estado: "camino", paso_minimo: "Cinco minutos.", estimado_min: null, real_min: null, hora: null, fecha_limite: iso(86400000), compartible: false },
+    { id: "88888888-8888-8888-8888-888888888888", titulo: "Llamada con el banco", proyecto_id: null, estado: "camino", paso_minimo: "Cinco minutos.", estimado_min: null, real_min: null, hora: null, fecha_limite: dia(1), compartible: false },
   ],
   vence: [
-    { titulo: "Factura Omniway", fecha: iso(0), monto: null, origen: "tarea", vence_hoy: true },
-    { titulo: "Entrega Alfonso", fecha: iso(3 * 86400000), monto: 1000, origen: "entrega", vence_hoy: false },
-    { titulo: "Formulario IRS", fecha: iso(20 * 86400000), monto: null, origen: "tarea", vence_hoy: false },
+    { titulo: "Factura Omniway", fecha: dia(0), monto: null, origen: "tarea", vence_hoy: true },
+    { titulo: "Entrega Alfonso", fecha: dia(3), monto: 1000, origen: "entrega", vence_hoy: false },
+    { titulo: "Formulario IRS", fecha: dia(20), monto: null, origen: "tarea", vence_hoy: false },
   ],
 };
 
@@ -98,9 +104,9 @@ let destacadaId = DESTACADA_DE_ENTRADA;
 // Fase 2 y la carpeta del código; a Malik, saber si es de un cliente o propio.
 // Contestar escribe el dato (acá, en memoria; en el núcleo real, en el libro).
 const preguntasDeEntrada = () => [
-  { id: "aaaaaaaa-0000-0000-0000-000000000001", tema: "upvisuals", campo: "fase.2.listo_cuando", voz: "¿Cuándo está lista la Fase 2 de Upvisuals?", estado: "pendiente", respuesta: null, creada_en: iso(-3600000) },
-  { id: "aaaaaaaa-0000-0000-0000-000000000002", tema: "upvisuals", campo: "libro.ruta", voz: "¿En qué carpeta está el código de Upvisuals?", estado: "pendiente", respuesta: null, creada_en: iso(-3600000) },
-  { id: "aaaaaaaa-0000-0000-0000-000000000003", tema: "malik", campo: "libro.tipo", voz: "¿Malik es de un cliente o es tuyo?", estado: "pendiente", respuesta: null, creada_en: iso(-3600000) },
+  { id: "aaaaaaaa-0000-0000-0000-000000000001", tema: "upvisuals", campo: "fase.2.listo_cuando", voz: "¿Cuándo está lista la Fase 2 de Upvisuals?", estado: "pendiente", creada_en: iso(-3600000), disponible_desde: iso(-3600000) },
+  { id: "aaaaaaaa-0000-0000-0000-000000000002", tema: "upvisuals", campo: "ruta", voz: "¿En qué carpeta está el código de Upvisuals?", estado: "pendiente", creada_en: iso(-3600000), disponible_desde: iso(-3600000) },
+  { id: "aaaaaaaa-0000-0000-0000-000000000003", tema: "malik", campo: "tipo", voz: "¿Malik es de un cliente o es tuyo?", estado: "pendiente", creada_en: iso(-3600000), disponible_desde: iso(-3600000) },
 ];
 let preguntas = preguntasDeEntrada();
 let listoCuandoFase2 = "";
@@ -130,7 +136,7 @@ const PLATA = {
       { cliente: "Canal de Malik", fecha: iso(-2 * 86400000), monto: 100 },
     ],
   },
-  proximo: { cliente: "Alfonso", fecha: iso(3 * 86400000), monto: 1000 },
+  proximo: { cliente: "Alfonso", fecha: dia(3), monto: 1000 },
   // 500 de 2.400 = 21 %: la segunda meta todavía duerme (despierta al 50 %).
   metas: [
     { nombre: "Vivir solo", horizonte_meses: 12, monto_mes: 2400, activa: true, activa_desde_pct: null },
@@ -166,7 +172,7 @@ const libros = () => [
       compartible: true,
       quedaste: "armando el contrato.",
       proximo_paso: "mandar la propuesta.",
-      entrega_cercana: { cliente: "Alfonso", fecha: iso(3 * 86400000), monto: 1000 },
+      entrega_cercana: { cliente: "Alfonso", fecha: dia(3), monto: 1000 },
       ultimo_estado_en: iso(-1 * 3600000),
       tipo: "cliente",
       cliente: "Alfonso",
@@ -352,10 +358,9 @@ const servidor = createServer(async (req, res) => {
       return enviarJSON(res, 200, { pregunta, voz: "No te entendí. Dímelo en una frase corta." });
     }
     pregunta.estado = "respondida";
-    pregunta.respuesta = texto;
     if (pregunta.campo === "fase.2.listo_cuando") listoCuandoFase2 = texto;
-    if (pregunta.campo === "libro.tipo") tipoDeMalik = /cliente/i.test(texto) ? "cliente" : "propio";
-    const voz = pregunta.campo === "libro.tipo" ? `Anotado: Malik es ${tipoDeMalik}.` : "Anotado. Quedó en el libro de Upvisuals.";
+    if (pregunta.campo === "tipo") tipoDeMalik = /cliente/i.test(texto) ? "cliente" : "propio";
+    const voz = pregunta.campo === "tipo" ? `Anotado: Malik es ${tipoDeMalik}.` : "Anotado. Quedó en el libro de Upvisuals.";
     return enviarJSON(res, 200, { pregunta, voz });
   }
   if (req.method === "GET" && ruta === "/semana") {

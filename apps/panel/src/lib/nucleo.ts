@@ -4,7 +4,7 @@
 // /nucleo/:path* al núcleo real (127.0.0.1:puerto, de config/nucleo.json),
 // cabeceras incluidas — así el panel sirve desde el teléfono sin CORS ni la
 // IP del Mac a mano. NEXT_PUBLIC_URL_NUCLEO solo manda en Playwright.
-import type { Entrega, Idea, Nudge, Sesion, Tarea } from "@/contratos";
+import type { Entrega, Idea, Nudge, Pregunta, Sesion, Tarea } from "@/contratos";
 
 const BASE = process.env.NEXT_PUBLIC_URL_NUCLEO || "/nucleo";
 
@@ -103,18 +103,10 @@ export type Semana = {
   ideas_frias: number;
   destacada: { id: string; texto: string; tema: string | null } | null;
 };
-// Lo que Remi pregunta cuando le falta un dato (contrato `Pregunta` de la
-// Biblia v3.8, forma F del plan). `campo` dice qué dato es: «libro.tipo»,
-// «fase.2.listo_cuando», «fase.1.cobrado»…
-export type Pregunta = {
-  id: string;
-  tema: string | null;
-  campo: string;
-  voz: string;
-  estado: "pendiente" | "respondida" | "despues";
-  respuesta: string | null;
-  creada_en: string;
-};
+// Lo que Remi pregunta cuando le falta un dato: el contrato `Pregunta`
+// (Biblia v3.9, forma F del plan). `campo` dice qué dato es: «tipo»,
+// «cliente», «fase.2.listo_cuando», «fase.1.cobrado»…
+export type { Pregunta } from "@/contratos";
 export type RespuestaMensaje = { tipo: string; texto: string; voz: string; tarea: Tarea | null; sesion: Sesion | null };
 
 // nucleo/conexiones.py: no es un contrato (contratos/contratos.json no

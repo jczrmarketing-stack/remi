@@ -11,11 +11,13 @@ import { nucleo, type Pregunta } from "@/lib/nucleo";
 // Una pista del formato, según el dato que falta. Solo pista: la etiqueta
 // del campo es la pregunta misma.
 function pistaDe(campo: string): string {
-  if (campo.endsWith(".cobrado")) return "Ej.: 1.500";
-  if (campo.endsWith(".listo_cuando")) return "Ej.: la demo corre con datos reales";
-  if (campo === "libro.cliente") return "Ej.: Alfonso";
-  if (campo === "libro.tipo") return "De un cliente o tuyo";
-  if (campo === "libro.ruta") return "Ej.: ~/proyectos/upvisuals";
+  // El núcleo nombra los campos del libro sin prefijo («tipo», «cliente», «ruta»).
+  const dato = campo.replace(/^libro\./, "");
+  if (dato.endsWith(".cobrado")) return "Ej.: 1.500";
+  if (dato.endsWith(".listo_cuando")) return "Ej.: la demo corre con datos reales";
+  if (dato === "cliente") return "Ej.: Alfonso";
+  if (dato === "tipo") return "De un cliente o tuyo";
+  if (dato === "ruta") return "Ej.: ~/proyectos/upvisuals";
   return "";
 }
 
