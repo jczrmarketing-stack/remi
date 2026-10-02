@@ -14,4 +14,14 @@ describe("respuestaDeTecla", () => {
     expect(respuestaDeTecla("a")).toBeNull();
     expect(respuestaDeTecla("Tab")).toBeNull();
   });
+
+  it("con algo escrito en el campo, Enter y Escape no son del nudge", () => {
+    expect(respuestaDeTecla("Enter", true)).toBeNull();
+    expect(respuestaDeTecla("Escape", true)).toBeNull();
+  });
+
+  it("con el campo vacío siguen respondiendo", () => {
+    expect(respuestaDeTecla("Enter", false)).toBe("listo");
+    expect(respuestaDeTecla("Escape", false)).toBe("ahora_no");
+  });
 });

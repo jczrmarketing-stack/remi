@@ -16,10 +16,16 @@ interface Props {
  * fallo — «Ahora no» no queda registrado en ningún lado como un incumplido.
  * Sin sonido: el nudge se ve, no suena.
  */
+function campoConTexto(objetivo: EventTarget | null): boolean {
+  return (
+    (objetivo instanceof HTMLTextAreaElement || objetivo instanceof HTMLInputElement) && objetivo.value.trim() !== ""
+  );
+}
+
 export function Nudge({ voz, onResponder, bionica }: Props) {
   useEffect(() => {
     function alTeclado(evento: KeyboardEvent) {
-      const respuesta = respuestaDeTecla(evento.key);
+      const respuesta = respuestaDeTecla(evento.key, campoConTexto(evento.target));
       if (!respuesta) return;
       evento.preventDefault();
       onResponder(respuesta);
