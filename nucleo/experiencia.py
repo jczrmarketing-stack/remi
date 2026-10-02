@@ -15,11 +15,16 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
 import boveda_git
 import db
 import episodios
 import libros
 import vectores
+
+router = APIRouter(prefix="/experiencia", tags=["experiencia"])
 
 Clase = Literal["error", "acierto"]
 Fuente = Literal["claude-code", "claude-app", "remi", "bitacora", "manual"]
@@ -445,6 +450,69 @@ def buscar(conexion: sqlite3.Connection, q: str, tema: str | None = None, k: int
         if nota is not None:
             resultado.append(ResultadoBusqueda(ruta=ruta, tipo=nota.tipo, titulo=nota.titulo))
     return resultado
+
+
+# — T8.5: la puerta para cualquier mano —
+
+
+class LeccionNueva(BaseModel):
+    titulo: str
+    tema: str
+    resumen: str
+    clase: Clase
+    donde: str
+    secciones: dict[str, str]
+    fuente: Fuente = "manual"
+    vueltas: bool = False
+
+
+class LeccionEscrita(BaseModel):
+    archivo: str
+    es_nueva: bool
+
+
+class ResultadoVisible(BaseModel):
+    ruta: str
+    tipo: str
+    titulo: str
+
+
+@router.post("", response_model=LeccionEscrita, status_code=201)
+def crear_leccion(cuerpo: LeccionNueva) -> LeccionEscrita:
+    """POST /experiencia (T8.5): la puerta para cualquier mano — Claude
+    Code, Claude en la app, Remi o a mano. 422 si no está completa."""
+    leccion = Leccion(
+        titulo=cuerpo.titulo,
+        tema=cuerpo.tema,
+        resumen=cuerpo.resumen,
+        clase=cuerpo.clase,
+        donde=cuerpo.donde,
+        secciones=cuerpo.secciones,
+        fuente=cuerpo.fuente,
+        vueltas=cuerpo.vueltas,
+    )
+    try:
+        destino, es_nueva = escribir(leccion)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    return LeccionEscrita(archivo=destino.name, es_nueva=es_nueva)
+
+
+@router.get("", response_model=list[ResultadoVisible])
+def buscar_experiencia(tema: str | None = None, q: str | None = None) -> list[ResultadoVisible]:
+    """GET /experiencia?tema=&q= (T8.6). Sin `q`, lista las lecciones del
+    tema (o todas); con `q`, búsqueda híbrida."""
+    conexion = db.conectar()
+    try:
+        if q:
+            encontrados = buscar(conexion, q, tema)
+            return [ResultadoVisible(ruta=r.ruta, tipo=r.tipo, titulo=r.titulo) for r in encontrados]
+        return [
+            ResultadoVisible(ruta=str(leccion.ruta), tipo="leccion", titulo=leccion.titulo)
+            for leccion in listar(tema)
+        ]
+    finally:
+        conexion.close()
 
 
 def main() -> int:

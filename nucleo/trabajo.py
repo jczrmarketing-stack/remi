@@ -12,6 +12,7 @@ from pathlib import Path
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 import threading
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,7 @@ from zoneinfo import ZoneInfo
 import boveda_git
 import clasificar
 import db
+import episodios
 import estado_libro
 import libros
 
@@ -326,6 +328,9 @@ def recibir(tipo: str, ruta: str, datos: dict[str, object] | None = None, ahora:
         )
         if tema and tipo == "commit":
             _guardar_commit(conexion, tema, carga, momento)
+            archivos = carga.get("archivos")
+            if isinstance(archivos, list) and "docs/BITACORA.md" in archivos:
+                _episodio_desde_bitacora(ruta, tema, momento)
         if tipo == "sesion_inicio":
             _abrir_claude(conexion, carga, tema, ruta, momento)
         elif tipo == "sesion_fin":
@@ -400,6 +405,44 @@ def _guardar_commit(
         """,
         (str(uuid4()), tema, mensaje, rama, json.dumps(archivos, ensure_ascii=False), ahora.isoformat()),
     )
+
+
+def _lineas_agregadas_a_bitacora(repo: str) -> str | None:
+    """Lo que el último commit sumó a docs/BITACORA.md — append-only, así
+    que esto es la entrada nueva entera. None sin diff legible (sin git,
+    primer commit del repo, etc.)."""
+    try:
+        diff = subprocess.run(
+            ["git", "-C", repo, "diff", "HEAD~1", "HEAD", "--", "docs/BITACORA.md"],
+            capture_output=True, text=True, check=True, timeout=5,
+        ).stdout
+    except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired):
+        return None
+    agregadas = [linea[1:] for linea in diff.splitlines() if linea.startswith("+") and not linea.startswith("+++")]
+    texto = "\n".join(agregadas).strip()
+    return texto or None
+
+
+def _episodio_desde_bitacora(ruta: str, tema: str, ahora: datetime) -> None:
+    """T8.5: un commit que toca docs/BITACORA.md de un repo con libro deja
+    su entrada nueva como episodio — sin IA, el texto ya está escrito."""
+    texto = _lineas_agregadas_a_bitacora(ruta)
+    if texto is None:
+        return
+    primera_linea = next((l.strip(" #-") for l in texto.splitlines() if l.strip()), "")
+    if not primera_linea:
+        return
+    titulo = episodios._recortar(primera_linea, 80)
+    resumen = episodios._recortar(primera_linea, 240)
+    carpeta = episodios.carpeta_episodios()
+    carpeta.mkdir(parents=True, exist_ok=True)
+    destino = episodios._ruta_libre(carpeta, f"{ahora:%Y-%m-%d}-bitacora-{episodios.slug(titulo)}")
+    boveda_git.snapshot_antes(f"escribir el episodio de bitácora {destino.name}")
+    destino.write_text(
+        f'---\ntitulo: "{episodios._una_linea(titulo)}"\ntema: {tema}\n'
+        f'resumen: "{episodios._una_linea(resumen)}"\nfuente: bitacora\n---\n\n{texto}\n'
+    )
+    boveda_git.snapshot_despues(f"experiencia: episodio de bitácora {destino.name} ({tema})")
 
 
 def _programar_estado(tema: str, ahora: datetime) -> None:

@@ -21,6 +21,7 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import ValidationError
 
 import db
+import experiencia
 from modelos import Memoria
 
 # El nombre del servidor arma el de las herramientas que ve la CLI:
@@ -30,7 +31,9 @@ servidor = MCPServer(
     instructions=(
         "El estante de Remi: lo que Juan Camilo le contó. Si el índice no está en "
         "tu contexto, pedilo con `indice`; usá `leer` con el id de la entrada que "
-        "haga falta y `guardar` cuando aparezca algo que valga la pena recordar."
+        "haga falta y `guardar` cuando aparezca algo que valga la pena recordar. "
+        "Al cerrar un trabajo, por cada problema resuelto o acierto que valga la pena "
+        "repetir: `anotar_leccion`. Antes de proponer un arreglo nuevo: `buscar_lecciones`."
     ),
 )
 
@@ -118,6 +121,53 @@ def guardar(titulo: str, resumen: str, cuerpo: str, tema: str) -> str:
     finally:
         conexion.close()
     return f"Guardado. [{str(memoria.id)[:8]}] {memoria.titulo}"
+
+
+@servidor.tool(
+    description=(
+        "T8: al cerrar un trabajo, por cada problema resuelto o acierto que valga la pena "
+        "repetir — anotá una lección, con evidencia, no un resumen de la charla. "
+        "`clase` es «error» o «acierto»; `secciones` lleva las que pide cada clase: error — "
+        "Síntoma, Lo que creímos (vacía si no hubo pista falsa), Causa real, Cura, Cómo "
+        "verlo antes; acierto — Qué funcionó, Evidencia, Cuándo usarlo. `donde` es el repo y "
+        "el archivo. Si ya hay una lección del mismo tema con el mismo síntoma, esto no crea "
+        "otra: le suma una vuelta más."
+    )
+)
+def anotar_leccion(
+    titulo: str, tema: str, resumen: str, clase: str, donde: str, secciones: dict[str, str]
+) -> str:
+    if clase not in experiencia.CLASES:
+        return f"clase tiene que ser error o acierto, no «{clase}»."
+    leccion = experiencia.Leccion(
+        titulo=titulo, tema=tema, resumen=resumen, clase=clase,  # type: ignore[arg-type]
+        donde=donde, secciones=secciones, fuente="claude-code",
+    )
+    try:
+        destino, es_nueva = experiencia.escribir(leccion)
+    except ValueError as error:
+        return f"Así no me entra: {error}"
+    if es_nueva:
+        return f"Anotada. {destino.name}"
+    return f"Ya había una lección igual de {tema} — le sumé una vuelta más ({destino.name})."
+
+
+@servidor.tool(
+    description=(
+        "T8: antes de proponer un arreglo nuevo, buscá si esto ya pasó. Texto exacto (un "
+        "código de error, un nombre, un monto) y parecido, sobre toda la bóveda — libros, "
+        "oficios, episodios y lecciones. `tema` filtra, por ejemplo «malik»."
+    )
+)
+def buscar_lecciones(q: str, tema: str = "") -> str:
+    conexion = db.conectar()
+    try:
+        encontradas = experiencia.buscar(conexion, q, tema.strip() or None)
+    finally:
+        conexion.close()
+    if not encontradas:
+        return "No encontré nada parecido en la bóveda."
+    return "\n".join(f"{r.tipo} · {r.titulo} — {r.ruta}" for r in encontradas)
 
 
 # Quien nos abrió (pensar.py) quiere saber si Remi llegó a bajar algo del

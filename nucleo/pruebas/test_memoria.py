@@ -259,10 +259,11 @@ def test_guardar_no_deja_marca_de_lectura(tmp_path, monkeypatch):
 # — El servidor MCP habla MCP de verdad —
 
 
-def test_el_servidor_mcp_anuncia_exactamente_tres_herramientas(tmp_path, monkeypatch):
+def test_el_servidor_mcp_anuncia_exactamente_cinco_herramientas(tmp_path, monkeypatch):
     # leer y guardar son las dos puertas de Remi (su CLI solo permite esas,
     # ver test_el_comando_abre_el_estante_y_solo_el_estante). `indice` es para
     # las demás sesiones de Claude, que no traen el índice en el prompt (3d · 6).
+    # anotar_leccion y buscar_lecciones son T8.
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     import pensar
 
@@ -312,7 +313,7 @@ def test_el_servidor_mcp_anuncia_exactamente_tres_herramientas(tmp_path, monkeyp
     finally:
         proceso.kill()
         proceso.wait()
-    assert nombres == ["guardar", "indice", "leer"]
+    assert nombres == ["anotar_leccion", "buscar_lecciones", "guardar", "indice", "leer"]
 
 
 # — La semilla —
