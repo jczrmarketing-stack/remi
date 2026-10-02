@@ -57,6 +57,16 @@ export interface Memoria {
   nivel: number | null;
 }
 
+export interface Pregunta {
+  id: UUID;
+  tema: string;
+  campo: string;
+  voz: string;
+  estado: "pendiente" | "respondida" | "despues";
+  creada_en: ISODateString;
+  disponible_desde: ISODateString;
+}
+
 export interface Entrega {
   id: UUID;
   cliente: string;

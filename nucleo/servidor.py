@@ -36,12 +36,13 @@ import libros
 import notion
 import pensar
 import plata
+import preguntas
 import sembrar_conocimiento
 import telegram
 import temas
 import trabajo
 import tts
-from modelos import Entrega, Idea, Memoria, Nudge, Sesion, Tarea
+from modelos import Entrega, Idea, Memoria, Nudge, Pregunta, Sesion, Tarea
 
 RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
 CONFIG = json.loads(RUTA_CONFIG.read_text())
@@ -1201,6 +1202,64 @@ class RevisionIdea(BaseModel):
 class RevisionHecha(BaseModel):
     idea: Idea
     tarea: Tarea | None = None
+
+
+# — Forma F (T3, fase Q): Remi pregunta lo que le falta —
+
+
+class RespuestaPregunta(BaseModel):
+    texto: str
+
+
+class RespuestaAplicada(BaseModel):
+    pregunta: Pregunta
+    voz: str
+
+
+@app.get("/preguntas", response_model=list[Pregunta])
+def listar_preguntas(tema: str | None = None) -> list[Pregunta]:
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    try:
+        preguntas.sincronizar(conexion, ahora)
+        return db.listar_preguntas_pendientes(conexion, ahora, tema, preguntas.MAXIMO_VISIBLES)
+    finally:
+        conexion.close()
+
+
+@app.post("/preguntas/{pregunta_id}/respuesta", response_model=RespuestaAplicada)
+def responder_pregunta(pregunta_id: UUID, cuerpo: RespuestaPregunta) -> RespuestaAplicada:
+    conexion = db.conectar()
+    try:
+        pregunta = db.leer_pregunta(conexion, pregunta_id)
+        if pregunta is None:
+            raise HTTPException(status_code=404, detail="no tengo esa pregunta")
+        entendida = preguntas.responder(conexion, pregunta, cuerpo.texto)
+        if not entendida:
+            return RespuestaAplicada(
+                pregunta=pregunta,
+                voz=f"No te entendí. {pregunta.voz}",
+            )
+        actualizada = db.actualizar_estado_pregunta(conexion, pregunta_id, "respondida")
+        assert actualizada is not None
+        return RespuestaAplicada(pregunta=actualizada, voz="Anotado, gracias.")
+    finally:
+        conexion.close()
+
+
+@app.post("/preguntas/{pregunta_id}/despues", response_model=Pregunta)
+def posponer_pregunta(pregunta_id: UUID) -> Pregunta:
+    conexion = db.conectar()
+    try:
+        ahora = datetime.now(timezone.utc)
+        actualizada = db.actualizar_estado_pregunta(
+            conexion, pregunta_id, "despues", ahora + timedelta(hours=preguntas.HORAS_DESPUES)
+        )
+        if actualizada is None:
+            raise HTTPException(status_code=404, detail="no tengo esa pregunta")
+        return actualizada
+    finally:
+        conexion.close()
 
 
 @app.get("/bandeja", response_model=list[IdeaBandeja])

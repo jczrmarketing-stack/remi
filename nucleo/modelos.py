@@ -75,6 +75,18 @@ class Memoria(BaseModel):
     nivel: int | None = Field(ge=0, le=3, default=None)
 
 
+class Pregunta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    tema: str
+    campo: str
+    voz: str
+    estado: Literal["pendiente", "respondida", "despues"]
+    creada_en: datetime
+    disponible_desde: datetime
+
+
 class Entrega(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

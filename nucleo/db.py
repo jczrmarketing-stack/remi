@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
-from modelos import Idea, Memoria, Sesion, Tarea
+from modelos import Idea, Memoria, Pregunta, Sesion, Tarea
 
 RUTA_DB_POR_DEFECTO = Path(__file__).resolve().parent / "remi.db"
 
@@ -178,6 +178,21 @@ CREATE TABLE IF NOT EXISTS propuestas_correccion (
     regla TEXT NOT NULL,
     fecha TEXT NOT NULL
 );
+
+-- «Remi pregunta lo que le falta» (fase Q, Biblia v3.8): un hueco
+-- detectado en un libro, nunca inventado. Una por (tema, campo); ley 3:
+-- «después» no deja ningún contador, solo corre `disponible_desde`.
+CREATE TABLE IF NOT EXISTS preguntas (
+    id TEXT PRIMARY KEY,
+    tema TEXT NOT NULL,
+    campo TEXT NOT NULL,
+    voz TEXT NOT NULL,
+    estado TEXT NOT NULL,
+    creada_en TEXT NOT NULL,
+    disponible_desde TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_preguntas_tema_campo ON preguntas(tema, campo);
 """
 
 
@@ -782,3 +797,76 @@ def propuesta_pendiente(conexion: sqlite3.Connection, conversacion_id: str) -> P
 def borrar_propuesta(conexion: sqlite3.Connection, conversacion_id: str) -> None:
     conexion.execute("DELETE FROM propuestas_correccion WHERE conversacion_id = ?", (conversacion_id,))
     conexion.commit()
+
+
+# — «Remi pregunta lo que le falta» (fase Q, Biblia v3.8) —
+
+
+def _fila_a_pregunta(fila: sqlite3.Row) -> Pregunta:
+    return Pregunta(
+        id=UUID(fila["id"]),
+        tema=fila["tema"],
+        campo=fila["campo"],
+        voz=fila["voz"],
+        estado=fila["estado"],
+        creada_en=fila["creada_en"],
+        disponible_desde=fila["disponible_desde"],
+    )
+
+
+def crear_pregunta(conexion: sqlite3.Connection, pregunta: Pregunta) -> None:
+    conexion.execute(
+        """
+        INSERT INTO preguntas (id, tema, campo, voz, estado, creada_en, disponible_desde)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            str(pregunta.id), pregunta.tema, pregunta.campo, pregunta.voz, pregunta.estado,
+            pregunta.creada_en.isoformat(), pregunta.disponible_desde.isoformat(),
+        ),
+    )
+    conexion.commit()
+
+
+def leer_pregunta(conexion: sqlite3.Connection, pregunta_id: UUID) -> Pregunta | None:
+    fila = conexion.execute("SELECT * FROM preguntas WHERE id = ?", (str(pregunta_id),)).fetchone()
+    return _fila_a_pregunta(fila) if fila else None
+
+
+def pregunta_de_tema_campo(conexion: sqlite3.Connection, tema: str, campo: str) -> Pregunta | None:
+    """Ya existe una pregunta (en cualquier estado) para este hueco — nunca
+    se duplica, y una `respondida` no vuelve a aparecer."""
+    fila = conexion.execute(
+        "SELECT * FROM preguntas WHERE tema = ? AND campo = ? ORDER BY creada_en DESC LIMIT 1",
+        (tema, campo),
+    ).fetchone()
+    return _fila_a_pregunta(fila) if fila else None
+
+
+def listar_preguntas_pendientes(
+    conexion: sqlite3.Connection, ahora: datetime, tema: str | None = None, limite: int = 3
+) -> list[Pregunta]:
+    """`pendiente`, o `despues` cuyo `disponible_desde` ya llegó — en el
+    orden en que se crearon, máximo `limite`. Nunca más de tres a la vista
+    (el límite lo pone quien llama, Forma F lo fija en 3)."""
+    condiciones = ["(estado = 'pendiente' OR (estado = 'despues' AND disponible_desde <= ?))"]
+    parametros: list[str] = [ahora.isoformat()]
+    if tema is not None:
+        condiciones.append("tema = ?")
+        parametros.append(tema)
+    filas = conexion.execute(
+        f"SELECT * FROM preguntas WHERE {' AND '.join(condiciones)} ORDER BY creada_en LIMIT ?",
+        (*parametros, limite),
+    ).fetchall()
+    return [_fila_a_pregunta(fila) for fila in filas]
+
+
+def actualizar_estado_pregunta(
+    conexion: sqlite3.Connection, pregunta_id: UUID, estado: str, disponible_desde: datetime | None = None
+) -> Pregunta | None:
+    conexion.execute(
+        "UPDATE preguntas SET estado = ?, disponible_desde = COALESCE(?, disponible_desde) WHERE id = ?",
+        (estado, disponible_desde.isoformat() if disponible_desde else None, str(pregunta_id)),
+    )
+    conexion.commit()
+    return leer_pregunta(conexion, pregunta_id)

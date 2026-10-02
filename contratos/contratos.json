@@ -49,6 +49,15 @@
     "claves": "string|null",
     "nivel": "0-3|null"
   },
+  "Pregunta": {
+    "id": "uuid",
+    "tema": "string",
+    "campo": "string",
+    "voz": "string",
+    "estado": "pendiente|respondida|despues",
+    "creada_en": "iso",
+    "disponible_desde": "iso"
+  },
   "Entrega": {
     "id": "uuid",
     "cliente": "string",
