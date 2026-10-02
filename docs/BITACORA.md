@@ -76,6 +76,64 @@ esta entrada corrige esa secuencia (T6 se vuelve a correr al final, con T8 y T9 
 
 ---
 
+## 2026-10-02 · T9 · Adaptarse: Remi propone, tú decides · construido · ba5026b
+
+Escribe la terminal. Aprobada junto con T8 (1-oct 19:23, Biblia v3.9 Parte VII), va antes
+de T6 — misma corrección de orden que la entrada de T8. T6 se vuelve a correr después de
+esta entrada, con T8 y T9 adentro.
+
+- **Qué cambió:**
+  1. `4a2be5e` **T9.1**, de lección a regla — a la segunda vez que la misma lección se
+     repite (`escribir()` ya la contaba), `_proponer_regla` calcula el oficio destino
+     (`correcciones.oficio_destino`) y abre una `Pregunta` (reusa fase-Q de T3, con una
+     tabla puente `propuesta_regla` porque el contrato de `Pregunta` no tiene campo para
+     cargar el texto de la regla calculada). Confirmar la aplica con
+     `correcciones.aplicar_regla`; descartar la deja en silencio — Ley 3, nunca se insiste.
+  2. `a4f1163` **T9.2**, las reglas de este proyecto viajan — `libros.reglas_de_este_proyecto`
+     lee la sección «## Reglas de este proyecto» de un libro y la mete tanto en el contexto
+     de `SessionStart` como en `pensar.sistema_encargo` (de solo lectura; T9.1 sigue
+     escribiendo en oficios, no en esta sección — alcance distinto, documentado).
+  3. `4f3b442` **T9.3**, espejos de la experiencia, solo de ida — `experiencia._generar_readme()`
+     escribe `experiencia/README.md` (nunca a mano) en el mismo commit de cada lección;
+     `notion_sync.py` suma la base «Experiencia», sin vuelta ni conflicto que resolver.
+     De paso: `_parsear()` no sacaba las comillas de `titulo`/`resumen` (mismo bug que
+     `_ultimo_episodio_de` ya tenía resuelto) — visible al mandar el título real a Notion.
+  4. `b12ce7d` **T9.4**, oficios y skills, una sola fuente — `scripts/oficios_a_skills.py`
+     exporta cada oficio de la bóveda como skill de usuario de Claude Code
+     (`~/.claude/skills/remi-oficio-<n>/SKILL.md`, dry-run por defecto);
+     `scripts/skill_a_oficio.py <carpeta>` trae un `SKILL.md` de solo conocimiento como
+     oficio nuevo — se niega si la carpeta trae algo más que el `SKILL.md` (un skill con
+     scripts no entra al cerebro de Remi) o si ya hay un oficio con ese nombre.
+  5. `863bb39` **T9.5**, lo que se habla con Remi también queda — `conversaciones` gana
+     `episodio_hecho` (aditiva); `cierre.cerrar_conversaciones_inactivas` revisa, en la
+     consolidación de la noche, las conversaciones de la ventanita/Telegram con 60 min sin
+     turnos; si tuvo sustancia (mismo umbral que ofrecer guardar una charla larga,
+     `episodios.LARGO_MINIMO`) deja su episodio y el Estado del proyecto si lo nombró;
+     pone el título que T7 había dejado pendiente en `conversaciones.titulo`.
+  6. `ba5026b` **T9.6**, prueba de escala — 50.000 notas sintéticas en memoria (sin tocar
+     archivos ni la bóveda real): la búsqueda híbrida contesta en ~16 ms, muy por debajo de
+     los 200 ms del Mac mini.
+- **Decisiones que tomé sin preguntar:**
+  1. T9.2: dejar `reglas_de_este_proyecto` de solo lectura — no asumí que T9.1 debía
+     escribir ahí también; `aplicar_regla` apunta a oficios, que es un blanco distinto y ya
+     existía.
+  2. T9.5: engancharlo solo en la corrida nocturna, no también «al abrir la conversación
+     siguiente» — cubre el caso dentro de 24 h sin tocar el camino en caliente de cada
+     mensaje; si hace falta la segunda vía, queda para otra tarea.
+- **Dudas abiertas / hallazgo real:**
+  1. T9.6 — con la misma prueba, medí qué pasa si «armar la mente» (el índice de `Memoria`
+     que entra en todo prompt, `pensar.instrucciones_con_indice`) tuviera 50.000 entradas en
+     vez de las 27 de hoy: da ~892.000 tokens, no los 8.000 que pide el plan.
+     `db.indice_memoria()` devuelve TODAS las filas de `memoria`, sin límite ni corte por
+     nivel — no hay techo. No lo corregí: es un cambio de forma (hace falta decidir el
+     criterio de corte — ¿nivel?, ¿fecha?, ¿cuántas?) que no estaba en el encargo de T9.6,
+     solo medirlo. Juan Camilo decide si entra como tarea nueva.
+- **Cómo probarlo a mano:** `uv run pytest -q` (664 + 2 lentas que se saltan) + `uv run
+  mypy .` (120 módulos, limpio). La prueba de escala: `REMI_PRUEBA_ESCALA=1 uv run pytest
+  -q pruebas/test_escala_experiencia.py -s` (muestra los dos números arriba).
+
+---
+
 ## 2026-10-02 · T6 · Cierre de la terminal (docs/PLAN-100.md) · construido · 3ec8abb
 
 Escribe la terminal. Último encargo del mega-prompt (T0–T6): cierra el lado de la
