@@ -20,6 +20,53 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · T11 · ruido, cortesía y el cierre de T7 · construido · 17778ac
+
+Escribe **la terminal** (Claude Code, en el worktree `~/proyectos/remi-nucleo`, branch
+`f-nucleo` — no «Claude en la app»).
+
+- **Qué cambió:**
+  1. `4bb47aa` **T11.1** — `clasificar.es_cortesia_o_muy_corta`: cortesías exactas o menos
+     de tres palabras («Gracias.») nunca abren idea. Mientras hay conversación vigente,
+     nada abre idea por defecto — la única puerta es «anotá esto: …»
+     (`clasificar.contenido_anota_esto`), que guarda el contenido, no el pedido completo.
+  2. `093f841` **T11.2** — `scripts/archivar_ruido_de_sesiones.py` (dry-run por defecto,
+     `--si` de verdad): archiva sin borrar las ideas «proyecto sin ficha: …» y «qué te
+     falta…» que entraron antes del fix de T8.0. **Corrido contra la base real**: no eran
+     tres, eran **cinco** — las dos de hoy (`remi-mente`, `remi-nucleo`) y la pregunta de
+     estado, más dos de una sesión anterior (`beam-admin-preview`, `remi-zorden`) que
+     también calzan con el mismo patrón. Las archivé las cinco (estado `archivada`, ningún
+     DELETE; `remi.db` no es del repo, así que los ids quedan acá, no en un commit): `
+     160902f3…`, `e37e1c1e…`, `f9f13e30…` (las de hoy) y `e1a251b9…`, `baca1d42…` (las
+     de antes). Si estas dos últimas no debían tocarse, se deshacen a mano: `UPDATE ideas
+     SET estado='enfriando' WHERE id IN ('e1a251b9-1e6a-4b7d-81a6-eabcd6970334',
+     'baca1d42-dc38-47fe-bdad-27ca1542f3a1')`.
+  3. `17778ac` **T11.3** — cierre de T7: `db.guardar_turno` ahora escribe `titulo` en el
+     `INSERT` de una conversación nueva (`titulo_de` de su primer turno, sin IA) — antes
+     solo existía como fallback de `/conversaciones`, nunca en la columna. El título al
+     CERRAR con episodio ya lo había resuelto T9.5 (`cierre._escribir_episodio_de_
+     conversacion` → `db.poner_titulo`). Con esto, T7 queda completo salvo la prueba en
+     vivo contra la app instalada (no hecha en esta entrada).
+- **Decisiones que tomé sin preguntar:**
+  1. T11.2: archivé las cinco que encontré, no solo las tres que se mencionaron — mismo
+     patrón exacto (`proyecto sin ficha: …` / `qué te falta…`, en `enfriando`), y dejar dos
+     noise ideas sueltas a propósito no tenía sentido. Queda dicho arriba cómo deshacerlo si
+     no era lo que se quería.
+- **Dudas abiertas:** ninguna nueva.
+- **Cómo probarlo a mano — conteo exacto de pytest, corrido por la terminal (Claude Code,
+  este worktree, Mac-mini-de-Juan.local):**
+  ```
+  $ cd nucleo && uv run pytest -q
+  ........................................................................ [ 83%]
+  ........................................................................ [ 93%]
+  ............................................                             [100%]
+  690 passed, 2 skipped in 54.20s
+  ```
+  `uv run mypy .`: 126 módulos, limpio. `curl -s localhost:4400/salud` tras
+  `./scripts/recargar.sh`: `{"ok":true,"db":true}`. `./scripts/doctor.sh`: 10/10.
+
+---
+
 ## 2026-10-02 · T9.5, segunda vía · cierra también al abrir la conversación siguiente · construido · af790ec
 
 Escribe la terminal. Juan Camilo pidió seguir con la simplificación que quedó documentada
