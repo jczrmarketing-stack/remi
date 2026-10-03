@@ -698,7 +698,7 @@ def _hay_conversacion_vigente() -> bool:
     solo «anota esto: …» lo es."""
     conexion = db.conectar()
     try:
-        return db.conversacion_vigente(conexion, datetime.now(timezone.utc)) is not None
+        return db.hay_charla_reciente(conexion, datetime.now(timezone.utc))
     finally:
         conexion.close()
 

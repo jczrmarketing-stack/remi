@@ -19,6 +19,16 @@ def _turnos(*pares, desde=None):
         conexion.close()
 
 
+def _empezar_de_cero():
+    """Desde el 3-oct una conversación termina cuando Juan Camilo la cambia,
+    no por tiempo."""
+    conexion = db.conectar()
+    try:
+        db.cerrar_conversacion_vigente(conexion, datetime.now(timezone.utc))
+    finally:
+        conexion.close()
+
+
 def test_el_titulo_es_el_primer_mensaje_cortado_en_una_palabra():
     largo = "necesito armar el formulario de contacto para la página de UpVisuals hoy mismo"
     titulo = db.titulo_de(largo)
@@ -29,6 +39,7 @@ def test_el_titulo_es_el_primer_mensaje_cortado_en_una_palabra():
 def test_la_lista_trae_la_mas_reciente_primero_con_su_titulo():
     viejo = datetime.now(timezone.utc) - timedelta(hours=5)
     _turnos(("juan", "primero de ayer"), ("remi", "dale"), desde=viejo)
+    _empezar_de_cero()
     _turnos(("juan", "lo de ahora"), ("remi", "listo"))
     lista = TestClient(servidor.app).get("/conversaciones").json()
     assert [c["titulo"] for c in lista] == ["lo de ahora", "primero de ayer"]
@@ -38,6 +49,7 @@ def test_la_lista_trae_la_mas_reciente_primero_con_su_titulo():
 def test_retomar_una_de_antes_la_vuelve_vigente():
     viejo = datetime.now(timezone.utc) - timedelta(hours=5)
     antigua = _turnos(("juan", "la de antes"), ("remi", "ok"), desde=viejo)
+    _empezar_de_cero()
     cliente = TestClient(servidor.app)
     assert cliente.get("/conversacion").json() == []
     turnos = cliente.post(f"/conversaciones/{antigua}/retomar").json()

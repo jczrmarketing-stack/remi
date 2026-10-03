@@ -43,7 +43,7 @@ def test_seguir_la_misma_conversacion_no_dispara_nada(tmp_path, monkeypatch):
     assert llamadas == []
 
 
-def test_una_conversacion_vieja_de_verdad_cierra_sola_al_abrir_la_siguiente(tmp_path, monkeypatch):
+def test_al_empezar_de_cero_la_anterior_deja_su_episodio_al_abrir_la_siguiente(tmp_path, monkeypatch):
     import db
 
     pensar = _arrancar(tmp_path, monkeypatch)
@@ -52,6 +52,9 @@ def test_una_conversacion_vieja_de_verdad_cierra_sola_al_abrir_la_siguiente(tmp_
     texto_sustancial = "Hablamos del precio de la Fase 1 de UpVisuals. " * 40
     conversacion_id = db.guardar_turno(conexion, "juan", texto_sustancial, hace_90_min)
     db.guardar_turno(conexion, "remi", "Entendido.", hace_90_min + timedelta(seconds=5))
+    # Desde el 3-oct no se corta por tiempo: termina cuando Juan Camilo
+    # empieza de cero.
+    db.cerrar_conversacion_vigente(conexion, datetime.now(timezone.utc))
     conexion.close()
 
     # Sin hilo real: que corra ahora mismo, en este test.

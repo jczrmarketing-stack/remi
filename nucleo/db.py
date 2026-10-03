@@ -738,8 +738,10 @@ class Turno:
     fecha: datetime
 
 
-# Pasado esto sin turnos, la conversación terminó y la siguiente es nueva.
-MINUTOS_SIN_TURNOS_PARA_CERRAR = 60
+
+# Cuánto dura «estar charlando» para la Bandeja (T11.1). Ya no cierra
+# conversaciones: eso lo decide Juan Camilo (3-oct).
+MINUTOS_DE_CHARLA_ACTIVA = 60
 
 
 @dataclass(frozen=True)
@@ -751,20 +753,33 @@ class Conversacion:
 
 
 def conversacion_vigente(conexion: sqlite3.Connection, ahora: datetime) -> Conversacion | None:
-    """La que tuvo un turno en los últimos 60 min. None si no hay."""
-    from datetime import timedelta
+    """La conversación abierta (la más reciente sin cerrar). None si no hay.
 
-    corte = ahora - timedelta(minutes=MINUTOS_SIN_TURNOS_PARA_CERRAR)
+    3-oct-2026, decisión de Juan Camilo: la conversación sigue hasta que él
+    la cambie («empezar de cero» o retomar otra). Ya no se corta sola tras
+    60 min sin turnos — «si uno se va a la cocina y vuelve, no empezamos otra
+    conversación». `ahora` queda en la firma: lo usan los que llaman."""
+    del ahora
     fila = conexion.execute(
-        "SELECT id, resumen, resumidos FROM conversaciones WHERE ultimo >= ? AND cerrada = 0 ORDER BY ultimo DESC LIMIT 1",
-        (corte.isoformat(),),
+        "SELECT id, resumen, resumidos FROM conversaciones WHERE cerrada = 0 ORDER BY ultimo DESC LIMIT 1",
     ).fetchone()
     return Conversacion(fila["id"], fila["resumen"], fila["resumidos"]) if fila else None
 
 
+def hay_charla_reciente(conexion: sqlite3.Connection, ahora: datetime) -> bool:
+    """Si hubo un turno en los últimos MINUTOS_DE_CHARLA_ACTIVA. Es lo que
+    decide si algo suelto es charla o una idea para la Bandeja (T11.1): con la
+    conversación sin corte por tiempo, «hay conversación» ya no sirve para eso."""
+    from datetime import timedelta
+
+    corte = ahora - timedelta(minutes=MINUTOS_DE_CHARLA_ACTIVA)
+    fila = conexion.execute("SELECT 1 FROM turnos WHERE fecha >= ? LIMIT 1", (corte.isoformat(),)).fetchone()
+    return fila is not None
+
+
 def guardar_turno(conexion: sqlite3.Connection, rol: str, texto: str, fecha: datetime) -> str:
-    """Guarda el turno en la conversación vigente, o abre una nueva si pasó
-    una hora sin turnos. Devuelve el id de la conversación."""
+    """Guarda el turno en la conversación vigente, o abre una nueva si no hay
+    ninguna abierta. Devuelve el id de la conversación."""
     from uuid import uuid4
 
     vigente = conversacion_vigente(conexion, fecha)
@@ -854,7 +869,10 @@ def existe_conversacion(conexion: sqlite3.Connection, conversacion_id: str) -> b
 
 
 def retomar_conversacion(conexion: sqlite3.Connection, conversacion_id: str, ahora: datetime) -> None:
-    """Vuelve vigente una conversación de antes: el siguiente turno cae en ella."""
+    """Vuelve vigente una conversación de antes: el siguiente turno cae en ella.
+    La que estaba abierta se cierra (antes quedaban dos abiertas y la de antes
+    nunca dejaba su episodio)."""
+    conexion.execute("UPDATE conversaciones SET cerrada = 1 WHERE cerrada = 0 AND id != ?", (conversacion_id,))
     conexion.execute(
         "UPDATE conversaciones SET cerrada = 0, ultimo = ? WHERE id = ?", (ahora.isoformat(), conversacion_id)
     )
@@ -880,19 +898,18 @@ def poner_titulo(conexion: sqlite3.Connection, conversacion_id: str, titulo: str
 
 
 def conversaciones_para_cerrar(conexion: sqlite3.Connection, ahora: datetime) -> list[str]:
-    """T9.5: ids de conversaciones con al menos un turno, 60 min sin
-    actividad (sea por tiempo o porque Juan empezó de cero) y que todavía
-    no se revisaron para dejar episodio."""
-    from datetime import timedelta
-
-    corte = ahora - timedelta(minutes=MINUTOS_SIN_TURNOS_PARA_CERRAR)
+    """T9.5: ids de conversaciones con al menos un turno que ya terminaron y
+    todavía no dejaron episodio. Desde el 3-oct una conversación termina
+    cuando Juan Camilo la cambia (cerrada = 1), no por tiempo; y cualquier
+    abierta que no sea la vigente (de antes de este cambio) también cuenta."""
+    vigente = conversacion_vigente(conexion, ahora)
     filas = conexion.execute(
         """
         SELECT c.id FROM conversaciones c
-        WHERE c.episodio_hecho = 0 AND c.ultimo < ?
+        WHERE c.episodio_hecho = 0 AND (c.cerrada = 1 OR c.id != ?)
         AND EXISTS (SELECT 1 FROM turnos t WHERE t.conversacion_id = c.id)
         """,
-        (corte.isoformat(),),
+        (vigente.id if vigente is not None else "",),
     ).fetchall()
     return [f["id"] for f in filas]
 

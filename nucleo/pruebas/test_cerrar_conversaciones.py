@@ -30,6 +30,10 @@ def _conversacion_con_turnos(db_mod, texto_juan: str, hace: timedelta) -> str:
         ahora = datetime.now(timezone.utc) - hace
         conversacion_id = db_mod.guardar_turno(conexion, "juan", texto_juan, ahora)
         db_mod.guardar_turno(conexion, "remi", "Entendido.", ahora + timedelta(seconds=5))
+        # Desde el 3-oct una conversación termina cuando Juan Camilo la cambia,
+        # no por tiempo: las «viejas» de estas pruebas son las que él cerró.
+        if hace >= timedelta(minutes=60):
+            db_mod.cerrar_conversacion_vigente(conexion, datetime.now(timezone.utc))
     finally:
         conexion.close()
     return conversacion_id

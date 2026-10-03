@@ -171,8 +171,8 @@ RUTA_CARACTER = Path(__file__).resolve().parent.parent / "conocimiento" / "carac
 
 # La conversación (ARQUITECTURA-CEREBRO §5): los últimos 10 turnos
 # literales más un resumen vivo de todo lo anterior de la misma
-# conversación. Se resume, nunca se corta. Conversación nueva tras 60 min
-# sin turnos (db.MINUTOS_SIN_TURNOS_PARA_CERRAR).
+# conversación. Se resume, nunca se corta. Y sigue hasta que Juan Camilo la
+# cambie (3-oct): ya no hay conversación nueva por tiempo.
 MAX_TURNOS = 10
 INSTRUCCIONES_RESUMEN = (
     "Resumes una conversación entre Juan Camilo y Remi, su asistente. Te dan el "

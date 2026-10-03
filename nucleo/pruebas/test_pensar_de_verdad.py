@@ -114,15 +114,15 @@ def test_con_13_turnos_viajan_los_ultimos_10(monkeypatch):
     assert mensaje.rstrip().endswith("¿y cuándo arranco?")
 
 
-def test_pasada_la_hora_la_conversacion_es_nueva(monkeypatch):
+def test_pasada_la_hora_la_conversacion_sigue(monkeypatch):
+    """3-oct, Juan Camilo: la conversación sigue hasta que él la cambie."""
     pensar = _pensar()
     import db
 
     conexion = db.conectar()
     db.guardar_turno(conexion, "juan", "de hace dos horas", datetime.now(timezone.utc) - timedelta(hours=2))
     conexion.close()
-    assert pensar._turnos() == []
-    assert pensar.mensaje_con_historia("hola", []) == "hola"
+    assert [t.texto for t in pensar._turnos()] == ["de hace dos horas"]
 
 
 def test_pensar_guarda_los_dos_turnos_y_el_segundo_lleva_el_primero(monkeypatch, tmp_path):
@@ -231,7 +231,7 @@ def test_el_resumen_va_por_la_trastienda(monkeypatch):
     assert "lo de antes" in visto["pedido"]
 
 
-def test_tras_60_minutos_sin_turnos_la_conversacion_es_nueva(monkeypatch):
+def test_tras_90_minutos_sin_turnos_sigue_la_misma_conversacion(monkeypatch):
     _pensar()
     import db
 
@@ -240,7 +240,7 @@ def test_tras_60_minutos_sin_turnos_la_conversacion_es_nueva(monkeypatch):
     vieja = db.guardar_turno(conexion, "juan", "hace hora y media", antes)
     nueva = db.guardar_turno(conexion, "juan", "ahora", datetime.now(timezone.utc))
     conexion.close()
-    assert vieja != nueva
+    assert vieja == nueva
 
 
 
