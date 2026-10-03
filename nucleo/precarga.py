@@ -20,8 +20,10 @@ se evita el ciclo pensar → precarga → estado_libro → pensar.
 from __future__ import annotations
 
 import re
+import subprocess
 import unicodedata
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import db
 import libros
@@ -253,3 +255,56 @@ def linea_de_duda(candidatos: tuple[str, str], encargo: bool = False) -> str:
 
     plantilla = LINEA_DE_DUDA_ENCARGO if encargo else LINEA_DE_DUDA
     return plantilla.format(x=titulo(candidatos[0]), y=titulo(candidatos[1]))
+
+
+# — Remi sabe en qué estado está (revisión del 3-oct, R1 #22) —
+#
+# El 2-oct Remi dijo que «el núcleo no arranca» y que «los tests de Notion no
+# pasan»: las dos falsas. No sabía su estado, lo suponía. Regla sin IA: si la
+# frase le pregunta por él mismo, entra su estado medido ahora (doctor.sh, las
+# 10 piezas, ~1,5 s) y la instrucción de hablar de sí solo con eso.
+
+_SOBRE_REMI = re.compile(
+    r"\b(estas funcionando|como estas funcionando|funcionas|funciona bien remi"
+    r"|estas completo|estas complet[ao]|que tan completo|cumples|estas listo|como estas de salud"
+    r"|tu estado|estas bien hecho|ya estas terminad[ao])\b"
+)
+ENCABEZADO_ESTADO_PROPIO = (
+    "\n\nTu estado medido ahora (doctor.sh, hace un segundo). Habla de cómo estás SOLO con esto; "
+    "lo que no está aquí no lo sabes y no lo supones:\n"
+)
+RUTA_DOCTOR = Path(__file__).resolve().parent.parent / "scripts" / "doctor.sh"
+
+
+def pregunta_por_remi(frase: str) -> bool:
+    return bool(_SOBRE_REMI.search(_normal(frase)))
+
+
+def _correr_doctor() -> str | None:
+    try:
+        salida = subprocess.run(["bash", str(RUTA_DOCTOR)], capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    texto = (salida.stdout or "").strip()
+    return texto or None
+
+
+def _preguntas_pendientes() -> int | None:
+    try:
+        conexion = db.conectar()
+        try:
+            return len(db.listar_preguntas_pendientes(conexion, datetime.now().astimezone(), None, 1000))
+        finally:
+            conexion.close()
+    except Exception:  # noqa: BLE001 — sin base, sin el número
+        return None
+
+
+def estado_propio() -> str:
+    medido = _correr_doctor()
+    cuerpo = medido if medido is not None else "(no pude medir mi estado ahora: dilo así, sin suponer nada)"
+    pendientes = _preguntas_pendientes()
+    # Lo que le falta a Remi que no es técnico (T8): los datos que solo sabe
+    # Juan Camilo, que pregunta de a uno.
+    extra = f"\nPreguntas tuyas pendientes para Juan Camilo: {pendientes}." if pendientes is not None else ""
+    return ENCABEZADO_ESTADO_PROPIO + cuerpo + extra + "\n"

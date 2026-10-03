@@ -491,6 +491,13 @@ def _tema_dudoso(frase: str) -> tuple[str, str] | None:
         return None
 
 
+def _pregunta_por_remi(frase: str) -> bool:
+    try:
+        return precarga.pregunta_por_remi(frase)
+    except Exception:  # noqa: BLE001 — nunca rompe la respuesta
+        return False
+
+
 def _referencia(frase: str) -> str | None:
     """La sección de la Biblia que la frase pregunta (precarga.de_referencia).
     Nunca rompe la respuesta."""
@@ -1035,6 +1042,9 @@ def pensar_en_frases(
     # Con el tema dudoso tampoco entra la referencia: decidiría por él cuál de
     # los dos proyectos es (probado el 3-oct: con la Biblia de Remi delante no
     # preguntaba).
+    if _pregunta_por_remi(frase):
+        contexto += precarga.estado_propio()
+        print("[precarga] estado propio: la frase pregunta por Remi, entra doctor.sh", file=sys.stderr)
     referencia = _referencia(frase) if dudoso is None else None
     if referencia is not None:
         contexto += referencia
