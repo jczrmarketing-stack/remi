@@ -20,6 +20,41 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · F0 · arranque del plan de cierre · construido · f8b56de
+
+Escribe la terminal (Claude Code, `~/proyectos/remi`, `main`, única mano en el código).
+
+- **Qué cambió:**
+  1. Leídos CLAUDE.md, `docs/PLAN-CIERRE.md`, `docs/ENCARGO-VELOCIDAD.md`, las tres entradas
+     de arriba de esta bitácora y `git log --oneline -15`.
+  2. `git worktree prune -v`: **no limpió nada**. Los once worktrees (`remi-aviso`,
+     `remi-config`, `remi-fase3`, `remi-motores`, `remi-notion`, `remi-nucleo`, `remi-panel`,
+     `remi-telegram`, `remi-tunel`, `remi-ventanita`, `remi-zorden`) tienen su carpeta en
+     disco, así que git no los considera «prunable» y el registro sigue igual. No borré
+     carpetas (el plan lo prohíbe). Diez ramas ya están fusionadas en `main`; la única sin
+     fusionar es `f-chips` (worktree `remi-config`, 529ba7c). Para Juan Camilo, cuando quiera:
+     `git worktree remove ~/proyectos/remi-<x>` por cada una (eso sí borra la carpeta).
+  3. `git status`: limpio salvo `docs/PLAN-CIERRE.md`. **Lo que el plan llama «V3 en curso»
+     ya no estaba sin commitear**: esta misma terminal lo cerró antes de leer el plan —
+     `0155c6a` (V3) y `2e2a86b` (V1), con sus números en los mensajes de commit. F1 solo
+     tiene que cerrar V2 y la instalación.
+  4. Plan commiteado: `f8b56de`.
+- **Decisiones que tomé sin preguntar:** ninguna.
+- **Dudas abiertas:** si `f-chips` (`remi-config`) trae algo que haga falta: no lo miré.
+- **Cómo probarlo a mano — línea base, corrida por la terminal (esta Mac):**
+  ```
+  $ cd nucleo && uv run pytest -q
+  707 passed, 2 skipped in 46.35s
+  $ uv run mypy .
+  Success: no issues found in 127 source files
+  $ cd apps/ventanita && npx tsc --noEmit && npm test
+  Test Files  15 passed (15) · Tests  108 passed (108)
+  $ cd src-tauri && cargo test --quiet
+  19 passed; 1 ignored (medir_dictado_largo, pide un wav y el Whisper residente)
+  ```
+
+---
+
 ## 2026-10-02 · T11 · ruido, cortesía y el cierre de T7 · construido · 17778ac
 
 Escribe **la terminal** (Claude Code, en el worktree `~/proyectos/remi-nucleo`, branch
