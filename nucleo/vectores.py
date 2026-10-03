@@ -109,6 +109,8 @@ def notas() -> list[Nota]:
         if not carpeta.is_dir():
             continue
         for ruta in sorted(carpeta.glob("*.md")):
+            if libros.fuera_del_estante(ruta):
+                continue
             leido = _texto_de(ruta)
             if leido is None:
                 continue
@@ -179,14 +181,23 @@ def asociar(conexion: sqlite3.Connection, mensaje: str, k: int = 5) -> list[str]
     if total == 0:
         return []
     vector = _empaquetar(embed(mensaje))
+    # Se piden de más: una nota archivada o fusionada conserva su vector (la
+    # tabla nunca se poda) y se salta acá, igual que un título repetido.
     filas = conexion.execute(
         """
-        SELECT n.titulo AS titulo
+        SELECT n.titulo AS titulo, n.ruta AS ruta
         FROM notas_vector_embed e
         JOIN notas_vector n ON n.id = e.rowid
         WHERE e.embedding MATCH ? AND k = ?
         ORDER BY e.distance
         """,
-        (vector, min(k, total)),
+        (vector, min(k * 3, total)),
     ).fetchall()
-    return [fila["titulo"] for fila in filas]
+    titulos: list[str] = []
+    for fila in filas:
+        if fila["titulo"] in titulos or libros.fuera_del_estante(Path(fila["ruta"])):
+            continue
+        titulos.append(fila["titulo"])
+        if len(titulos) == k:
+            break
+    return titulos

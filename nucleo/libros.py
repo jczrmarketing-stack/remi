@@ -62,6 +62,25 @@ def _rutas_de(valor: str | list[str] | None) -> tuple[str, ...]:
     return tuple(limpias)
 
 
+def fuera_del_estante(ruta: Path) -> bool:
+    """Una nota de la bóveda archivada (`estado: archivada`) o fusionada en
+    otra (`fusionado_en: …`). Sigue en disco —nunca se borra— pero ningún
+    lector la cuenta: ni la asociación por vectores, ni las claves, ni la
+    noche, ni «el último episodio» (plan de cierre, F3.2 y la limpieza del
+    2/10/2026)."""
+    try:
+        texto = ruta.read_text()
+    except OSError:
+        return True
+    if not texto.startswith("---"):
+        return False
+    partes = texto.split("---", 2)
+    if len(partes) < 3:
+        return False
+    campos = _frontmatter(partes[1])
+    return campos.get("estado") == "archivada" or bool(campos.get("fusionado_en"))
+
+
 def _frontmatter(bloque: str) -> dict[str, str | list[str]]:
     """`clave: valor`, o `clave:` seguida de líneas `- item`."""
     campos: dict[str, str | list[str]] = {}

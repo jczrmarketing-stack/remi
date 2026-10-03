@@ -158,7 +158,7 @@ def generar_faltantes() -> dict[str, list[str] | None]:
         if not carpeta.is_dir():
             continue
         for ruta in sorted(carpeta.glob("*.md")):
-            if tiene_claves(ruta):
+            if tiene_claves(ruta) or libros.fuera_del_estante(ruta):
                 continue
             resultado[str(ruta.relative_to(raiz))] = agregar(ruta, tipo)
     return resultado

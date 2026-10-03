@@ -1728,6 +1728,8 @@ def _ultimo_episodio_de(tema: str) -> UltimoEpisodio | None:
         return None
     candidatos: list[tuple[str, dict[str, str | list[str]]]] = []
     for ruta in carpeta.glob("*.md"):
+        if libros.fuera_del_estante(ruta):
+            continue
         texto = ruta.read_text()
         if not texto.startswith("---"):
             continue

@@ -54,7 +54,7 @@ def _episodios_de_hoy(carpeta: Path, hoy: date) -> list[Path]:
     if not carpeta.is_dir():
         return []
     prefijo = hoy.isoformat()
-    return sorted(p for p in carpeta.glob(f"{prefijo}-*.md") if p.is_file())
+    return sorted(p for p in carpeta.glob(f"{prefijo}-*.md") if p.is_file() and not libros.fuera_del_estante(p))
 
 
 def _campos(ruta: Path) -> dict[str, str | list[str]]:
