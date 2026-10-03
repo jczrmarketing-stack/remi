@@ -30,13 +30,21 @@ def test_que_te_falta_no_crea_una_idea(tmp_path, monkeypatch):
     assert cliente.get("/bandeja").json() == []
 
 
-def test_sin_preguntas_pendientes_lo_dice(tmp_path, monkeypatch):
+def test_que_te_falta_ya_no_contesta_con_las_preguntas_pendientes(tmp_path, monkeypatch):
+    """3-oct, Juan Camilo: «eso de que tengo preguntas pendientes no nos
+    interesa»: va al modelo como cualquier mensaje del chat."""
     servidor = _arrancar(tmp_path, monkeypatch)
+    llamadas = []
+    monkeypatch.setattr(
+        servidor.pensar, "pensar",
+        lambda frase, *a, **k: llamadas.append(frase) or servidor.pensar.Pensado("Bien, sigo.", 1, 1, "haiku"),
+    )
     cliente = TestClient(servidor.app)
 
-    respuesta = cliente.post("/mensaje", json={"texto": "qué te falta?"})
+    respuesta = cliente.post("/mensaje", json={"texto": "qué te falta?", "think": True})
 
-    assert respuesta.json()["texto"] == "No tengo ninguna pregunta pendiente ahora."
+    assert llamadas == ["qué te falta?"]
+    assert "pregunta" not in respuesta.json()["texto"].lower() or respuesta.json()["texto"] == "Bien, sigo."
 
 
 def test_una_frase_sin_que_falta_sigue_normal(tmp_path, monkeypatch):

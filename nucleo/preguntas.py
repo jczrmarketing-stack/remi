@@ -39,6 +39,14 @@ def _preparar_en_el_aire(conexion: sqlite3.Connection) -> None:
     conexion.executescript(ESQUEMA_EN_EL_AIRE)
 
 
+# 3-oct, decisión de Juan Camilo: «tiene que funcionar como cualquier modelo
+# que tiene chats: los chats son de lo que estamos hablando; no puede tener
+# preguntas sin responder». Remi ya no hace sus preguntas en el chat (ni al
+# abrir un bloque en la ventanita ni por Telegram): esperan calladas en el
+# panel, en el proyecto al que le falta el dato. Cambia la Biblia (Parte VII,
+# «Remi pregunta lo que le falta»). El mecanismo queda entero detrás de esto.
+EN_EL_CHAT = False
+
 # 3-oct: la pregunta del cliente de BeaM salió por Telegram a las 4:00, quedó
 # «en el aire», y una frase de la ventanita cinco horas después («quiero saber
 # qué te falta… el panel web como ventanita») terminó escrita como el cliente.
@@ -74,6 +82,8 @@ def en_el_aire(
 ) -> Pregunta | None:
     """La pregunta en el aire de este canal, si sigue fresca. Una sin hora
     (de antes del 3-oct) o de otro canal no cuenta."""
+    if not EN_EL_CHAT:
+        return None
     _preparar_en_el_aire(conexion)
     _columnas_en_el_aire(conexion)
     fila = conexion.execute("SELECT pregunta_id, canal, desde FROM pregunta_en_el_aire WHERE id = 1").fetchone()
@@ -114,7 +124,7 @@ def preguntar_en_voz(conexion: sqlite3.Connection, tema: str | None, ahora: date
     presupuesto de silencio de `iniciativa.py` lo permite, la deja «en el
     aire» (una sola) y gasta un cupo del día — sin crear un Nudge nuevo,
     `iniciativa_nudges` solo registra el gasto."""
-    if tema is None:
+    if tema is None or not EN_EL_CHAT:
         return None
     sincronizar(conexion, ahora)
     pendientes = db.listar_preguntas_pendientes(conexion, ahora, tema, limite=1)
@@ -143,6 +153,8 @@ def avisar_por_telegram_si_toca(conexion: sqlite3.Connection, ahora: datetime) -
     texto por `/mensaje`, que reconoce la pregunta «en el aire»."""
     import telegram
 
+    if not EN_EL_CHAT:
+        return None
     sincronizar(conexion, ahora)
     conexion.executescript(ESQUEMA_TELEGRAM_DIA)
     dia = ahora.date().isoformat()

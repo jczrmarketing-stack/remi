@@ -24,6 +24,8 @@ def _arrancar(tmp_path, monkeypatch):
     import preguntas
     import telegram
 
+    # El mecanismo se prueba prendido; por defecto está apagado (3-oct).
+    monkeypatch.setattr(preguntas, "EN_EL_CHAT", True)
     return db, preguntas, telegram
 
 
@@ -48,7 +50,9 @@ def test_no_avisa_dos_veces_el_mismo_dia(tmp_path, monkeypatch):
     enviados = []
     monkeypatch.setattr(telegram, "avisar", lambda cuerpo: enviados.append(cuerpo.texto))
     conexion = db_mod.conectar()
-    ahora = datetime.now(timezone.utc)
+    # Hora fija: con la real, entre las 22:00 y las 24:00 UTC «dos horas
+    # después» ya era otro día y la prueba fallaba (3-oct, 23:16 UTC).
+    ahora = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
 
     preguntas.avisar_por_telegram_si_toca(conexion, ahora)
     preguntas.avisar_por_telegram_si_toca(conexion, ahora + timedelta(hours=2))
@@ -72,3 +76,13 @@ def test_al_dia_siguiente_vuelve_a_avisar(tmp_path, monkeypatch):
     preguntas.avisar_por_telegram_si_toca(conexion, ahora + timedelta(days=1))
 
     assert len(enviados) == 2
+
+
+def test_por_defecto_no_pregunta_por_telegram(tmp_path, monkeypatch):
+    db_mod, preguntas, telegram = _arrancar(tmp_path, monkeypatch)
+    monkeypatch.setattr(preguntas, "EN_EL_CHAT", False)
+    enviados = []
+    monkeypatch.setattr(telegram, "avisar", lambda cuerpo: enviados.append(cuerpo.texto))
+    conexion = db_mod.conectar()
+    assert preguntas.avisar_por_telegram_si_toca(conexion, datetime.now(timezone.utc)) is None
+    assert enviados == []

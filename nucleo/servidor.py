@@ -824,12 +824,9 @@ def _contestar(mensaje: MensajeEntrante, emisor: Emisor | None = None) -> Respue
     cuanto = trabajo.cuanto_le_meti(mensaje.texto)
     if cuanto is not None:
         return RespuestaMensaje(tipo="pregunta", texto=cuanto, voz=_voz_de(cuanto, mensaje))
-    # «¿estás funcionando bien? ¿qué te falta?» (revisión del 3-oct): si
-    # pregunta cómo está Remi, contesta el modelo con su estado medido (que
-    # ya trae las preguntas pendientes), no la regla de T8 sola.
-    falta = None if (mensaje.think and precarga.pregunta_por_remi(mensaje.texto)) else trabajo.que_falta(mensaje.texto)
-    if falta is not None:
-        return RespuestaMensaje(tipo="pregunta", texto=falta, voz=_voz_de(falta, mensaje))
+    # «¿qué te falta?» ya no se contesta con «Tengo N preguntas pendientes»
+    # (3-oct, Juan Camilo: eso no le interesa en el chat): va al modelo como
+    # cualquier mensaje. Sigue sin crear una idea (clasificación de arriba).
     buscar = clasificar.pide_busqueda(mensaje.texto)
     pensado = _pensado(mensaje, emisor, buscar=buscar) if mensaje.think else None
     if pensado is None:

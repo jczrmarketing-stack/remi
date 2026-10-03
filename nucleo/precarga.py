@@ -356,10 +356,8 @@ def _pendientes_de_la_revision() -> list[str]:
 def estado_propio() -> str:
     medido = _correr_doctor()
     cuerpo = medido if medido is not None else "(no pude medir mi estado ahora: dilo así, sin suponer nada)"
-    pendientes = _preguntas_pendientes()
-    # Lo que le falta a Remi que no es técnico (T8): los datos que solo sabe
-    # Juan Camilo, que pregunta de a uno.
-    extra = f"\nPreguntas tuyas pendientes para Juan Camilo: {pendientes}." if pendientes is not None else ""
+    # Sin las preguntas pendientes (3-oct): no son tema del chat.
+    extra = ""
     revision = _pendientes_de_la_revision()
     if revision:
         extra += (

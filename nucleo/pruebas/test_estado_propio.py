@@ -47,7 +47,8 @@ def test_el_estado_propio_trae_el_doctor_medido(monkeypatch):
     texto = precarga.estado_propio()
     assert "OK     núcleo" in texto and "FALLA  disco" in texto
     assert "medido ahora" in texto
-    assert "Preguntas tuyas pendientes" in texto
+    # Las preguntas pendientes ya no son tema del chat (3-oct).
+    assert "Preguntas tuyas pendientes" not in texto
 
 
 def test_sin_doctor_lo_dice_y_no_inventa(monkeypatch):

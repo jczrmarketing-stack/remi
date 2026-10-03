@@ -17,7 +17,7 @@ Cuerpo.
 """
 
 
-def _arrancar(tmp_path, monkeypatch):
+def _arrancar(tmp_path, monkeypatch, en_el_chat=True):
     carpeta = tmp_path / "libros"
     carpeta.mkdir(parents=True, exist_ok=True)
     (carpeta / "malik.md").write_text(SIN_TIPO)
@@ -33,6 +33,8 @@ def _arrancar(tmp_path, monkeypatch):
 
     importlib.reload(db)
     importlib.reload(servidor)
+    # El mecanismo se prueba prendido; por defecto está apagado (3-oct).
+    monkeypatch.setattr(servidor.preguntas, "EN_EL_CHAT", en_el_chat)
     return servidor, db
 
 
@@ -141,3 +143,18 @@ def test_la_confirmacion_dice_que_guardo_y_donde(tmp_path, monkeypatch):
     voz = cliente.post("/mensaje", json={"texto": "es propio"}).json()["voz"]
 
     assert voz.startswith("Anotado en Malik") and "es propio" in voz
+
+
+def test_por_defecto_remi_no_pregunta_en_el_chat(tmp_path, monkeypatch):
+    """3-oct, Juan Camilo: los chats son de lo que se está hablando."""
+    import preguntas as modulo
+
+    assert modulo.EN_EL_CHAT is False
+    servidor, db_mod = _arrancar(tmp_path, monkeypatch, en_el_chat=False)
+    _marcar_malik_activo(db_mod)
+    cliente = TestClient(servidor.app)
+
+    voz = cliente.post("/mensaje", json={"texto": "voy a revisar la estrategia"}).json()["voz"]
+    assert "cliente o es tuyo" not in voz
+    assert cliente.post("/mensaje", json={"texto": "es propio"}).json()["tipo"] != "pregunta_respondida"
+    assert "tipo:" not in (tmp_path / "libros" / "malik.md").read_text()
