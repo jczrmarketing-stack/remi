@@ -41,18 +41,22 @@ export function animarTamano(
 ): Promise<void> {
   const inicio = performance.now();
   return new Promise((resolve) => {
-    function paso(ahora: number) {
-      const t = Math.min(1, (ahora - inicio) / duracionMs);
+    // Con un temporizador y no con requestAnimationFrame: el webview deja de
+    // dibujar cuadros cuando la ventana no está activa, y la animación se
+    // quedaba a medias — el chat abierto dentro de una ventana de 72×72.
+    // Una ventana flotante tiene que terminar de abrirse siempre.
+    function paso() {
+      const t = Math.min(1, (performance.now() - inicio) / duracionMs);
       const progreso = curvaVentanita(t);
       const ancho = desde.width + (hasta.width - desde.width) * progreso;
       const alto = desde.height + (hasta.height - desde.height) * progreso;
       void ventana.setSize(new LogicalSize(ancho, alto));
       if (t < 1) {
-        requestAnimationFrame(paso);
+        window.setTimeout(paso, 16);
       } else {
         resolve();
       }
     }
-    requestAnimationFrame(paso);
+    paso();
   });
 }
