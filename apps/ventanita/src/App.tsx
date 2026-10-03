@@ -6,6 +6,7 @@ import { StatusDot } from "./componentes/StatusDot";
 import { Semaforo } from "./componentes/Semaforo";
 import { Chat, type Mensaje } from "./componentes/Chat";
 import { chatAlVolver } from "./historial";
+import { quedoUnaGrabacionColgada } from "./grabacion";
 import { Nudge } from "./componentes/Nudge";
 import { Campo, type CampoRef } from "./componentes/Campo";
 import { ChipCerebro } from "./componentes/ChipCerebro";
@@ -550,6 +551,12 @@ export default function App() {
   const volverAReposo = useCallback(() => {
     generacionRef.current += 1;
     locucionRef.current += 1;
+    // Minimizar, la X o cualquier vuelta a reposo apagan el micrófono si
+    // estaba grabando (3-oct: minimizar lo dejaba prendido por detrás).
+    if (accionesRef.current.grabando) {
+      registrar("cancelar", { origen: "reposo", grabando: true });
+      void cancelarEscucha("x").catch(() => undefined);
+    }
     setEstado("reposo");
     setModo("texto");
     setGrabando(false);
@@ -891,7 +898,16 @@ export default function App() {
     grabacionDesdeRef.current = performance.now();
     registrar("iniciarEscucha", { modo: modoNuevo, cortarSolo });
     try {
-      await iniciarEscucha(cortarSolo);
+      try {
+        await iniciarEscucha(cortarSolo);
+      } catch (error) {
+        // Red de seguridad (3-oct): si quedó una grabación vieja colgada, se
+        // descarta y se intenta una vez más, en vez de fallar cada click.
+        if (!quedoUnaGrabacionColgada(error)) throw error;
+        registrar("iniciarEscucha:colgada", { modo: modoNuevo });
+        await cancelarEscucha("x").catch(() => undefined);
+        await iniciarEscucha(cortarSolo);
+      }
     } catch (error) {
       console.error("no se pudo prender el micrófono:", error);
       registrar("iniciarEscucha:falló", { modo: modoNuevo });
