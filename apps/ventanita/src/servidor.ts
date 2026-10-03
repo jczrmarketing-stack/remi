@@ -17,7 +17,7 @@ export interface TokensClaude {
 // de las tres lleva sesion, así que nunca abren el Reloj.
 export type TipoMensaje =
   | "idea" | "hoy" | "hecha" | "pregunta" | "encargo"
-  | "agenda" | "cobro" | "entrega";
+  | "agenda" | "cobro" | "entrega" | "pregunta_respondida";
 
 export interface RespuestaMensaje {
   tipo: TipoMensaje;
