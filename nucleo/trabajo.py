@@ -231,7 +231,7 @@ def que_falta(texto: str) -> str | None:
     if not pendientes:
         return "No tengo ninguna pregunta pendiente ahora."
     plural = "s" if len(pendientes) != 1 else ""
-    return f"Tengo {len(pendientes)} pregunta{plural} pendiente{plural}. Mirá Proyectos."
+    return f"Tengo {len(pendientes)} pregunta{plural} pendiente{plural}. Mira Proyectos."
 
 
 def lineas_donde_quede() -> list[str]:

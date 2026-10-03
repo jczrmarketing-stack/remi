@@ -30,7 +30,7 @@ servidor = MCPServer(
     "memoria",
     instructions=(
         "El estante de Remi: lo que Juan Camilo le contó. Si el índice no está en "
-        "tu contexto, pedilo con `indice`; usá `leer` con el id de la entrada que "
+        "tu contexto, pídelo con `indice`; usa `leer` con el id de la entrada que "
         "haga falta y `guardar` cuando aparezca algo que valga la pena recordar. "
         "Al cerrar un trabajo, por cada problema resuelto o acierto que valga la pena "
         "repetir: `anotar_leccion`. Antes de proponer un arreglo nuevo: `buscar_lecciones`. "
@@ -43,7 +43,7 @@ servidor = MCPServer(
 @servidor.tool(
     description=(
         "Qué hay en el estante: una línea por cosa, con su id, tema, título y "
-        "resumen. Usala si no tenés el índice en tu contexto (fuera de Remi, en "
+        "resumen. Úsala si no tienes el índice en tu contexto (fuera de Remi, en "
         "cualquier sesión de Claude). Con `tema` filtra, por ejemplo «upvisuals»."
     )
 )
@@ -65,8 +65,8 @@ def indice(tema: str = "") -> str:
 
 @servidor.tool(
     description=(
-        "Baja del estante una cosa que ya sabés, entera. El id sale del índice que "
-        "tenés arriba; alcanza con los primeros ocho caracteres."
+        "Baja del estante una cosa que ya sabes, entera. El id sale del índice que "
+        "tienes arriba; alcanza con los primeros ocho caracteres."
     )
 )
 def leer(id: str) -> str:
@@ -77,7 +77,7 @@ def leer(id: str) -> str:
         if memoria is None:
             # Ley 3: no hay reto ni «deberías». Se dice qué pasó y qué hacer.
             return (
-                f"No tengo nada con el id {id}. Mirá el índice de arriba y probá "
+                f"No tengo nada con el id {id}. Mira el índice de arriba y prueba "
                 "con uno de esos."
             )
         fecha = memoria.fecha.date().isoformat()
@@ -114,7 +114,7 @@ def guardar(titulo: str, resumen: str, cuerpo: str, tema: str) -> str:
     except ValidationError:
         return (
             "Así no me entra: el título va hasta 80 caracteres y el resumen hasta "
-            "240, y ninguno puede ir vacío. Probá más corto."
+            "240, y ninguno puede ir vacío. Prueba más corto."
         )
 
     conexion = db.conectar()
@@ -128,7 +128,7 @@ def guardar(titulo: str, resumen: str, cuerpo: str, tema: str) -> str:
 @servidor.tool(
     description=(
         "T8: al cerrar un trabajo, por cada problema resuelto o acierto que valga la pena "
-        "repetir — anotá una lección, con evidencia, no un resumen de la charla. "
+        "repetir — anota una lección, con evidencia, no un resumen de la charla. "
         "`clase` es «error» o «acierto»; `secciones` lleva las que pide cada clase: error — "
         "Síntoma, Lo que creímos (vacía si no hubo pista falsa), Causa real, Cura, Cómo "
         "verlo antes; acierto — Qué funcionó, Evidencia, Cuándo usarlo. `donde` es el repo y "
@@ -156,7 +156,7 @@ def anotar_leccion(
 
 @servidor.tool(
     description=(
-        "T8: antes de proponer un arreglo nuevo, buscá si esto ya pasó. Texto exacto (un "
+        "T8: antes de proponer un arreglo nuevo, busca si esto ya pasó. Texto exacto (un "
         "código de error, un nombre, un monto) y parecido, sobre toda la bóveda — libros, "
         "oficios, episodios y lecciones. `tema` filtra, por ejemplo «malik»."
     )
@@ -175,7 +175,7 @@ def buscar_lecciones(q: str, tema: str = "") -> str:
 @servidor.tool(
     description=(
         "T10: el índice de arriba tiene un presupuesto de tokens — lo viejo que no entró "
-        "no se borró ni se movió, sigue en el estante. Buscá por una palabra exacta "
+        "no se borró ni se movió, sigue en el estante. Busca por una palabra exacta "
         "(título, resumen, tema) para encontrarlo. `tema` filtra."
     )
 )

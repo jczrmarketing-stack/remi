@@ -576,7 +576,7 @@ def _atender(mensaje: MensajeEntrante, emisor: Emisor | None) -> RespuestaMensaj
 
 
 def _anotar_leccion_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
-    """T8.7: «anotá esta lección: …» en la charla hace lo mismo que
+    """T8.7: «anota esta lección: …» en la charla hace lo mismo que
     `anotar_leccion` del MCP. Solo la clase «error» por este camino —
     un acierto se anota con el MCP o `POST /experiencia` directamente."""
     contenido = clasificar.contenido_anotar_leccion(mensaje.texto)
@@ -587,7 +587,7 @@ def _anotar_leccion_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None
     titulo_libro = libro.titulo if libro else (tema or "general")
     secciones = cierre.redactar_error(contenido, titulo_libro)
     if secciones is None:
-        texto = "No saqué nada claro de ahí. Contame el síntoma, la causa y la cura."
+        texto = "No saqué nada claro de ahí. Cuéntame el síntoma, la causa y la cura."
         return RespuestaMensaje(tipo="leccion", texto=texto, voz=texto)
     leccion = experiencia.Leccion(
         titulo=episodios._recortar(f"{titulo_libro}: {episodios._una_linea(secciones['Síntoma'])}", 80),
@@ -691,7 +691,7 @@ def _crear_agenda_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
 
 def _hay_conversacion_vigente() -> bool:
     """T11.1: si ya se está charlando con Remi, lo suelto no es una idea —
-    solo «anotá esto: …» lo es."""
+    solo «anota esto: …» lo es."""
     conexion = db.conectar()
     try:
         return db.conversacion_vigente(conexion, datetime.now(timezone.utc)) is not None
@@ -754,13 +754,13 @@ def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
     pensado = pensar.pensar(mensaje.texto, mensaje.motor, "equilibrio", pensar.sistema_encargo())
     if pensado is None:
         return RespuestaMensaje(
-            tipo="encargo", texto="No pude armar el encargo. Probá de nuevo.", voz="No pude armar el encargo."
+            tipo="encargo", texto="No pude armar el encargo. Prueba de nuevo.", voz="No pude armar el encargo."
         )
     return RespuestaMensaje(
         tipo="encargo",
         texto=pensado.paso_minimo,
         # Un encargo no se lee en voz alta: se copia.
-        voz="Listo, lo tenés para copiar.",
+        voz="Listo, lo tienes para copiar.",
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
         motor_usado=pensado.motor_usado,
     )
@@ -778,13 +778,13 @@ def _leer_cliente(mensaje: MensajeEntrante) -> RespuestaMensaje:
     pensado = pensar.pensar(mensaje.texto, mensaje.motor, "equilibrio", pensar.sistema_cliente())
     if pensado is None:
         return RespuestaMensaje(
-            tipo="cliente", texto="No pude leer el mensaje. Probá de nuevo.", voz="No pude leerlo."
+            tipo="cliente", texto="No pude leer el mensaje. Prueba de nuevo.", voz="No pude leerlo."
         )
     return RespuestaMensaje(
         tipo="cliente",
         texto=pensado.paso_minimo,
         # Igual que un encargo: esto se lee y se copia, no se dice en voz.
-        voz="Tenés la lectura lista. La mandás vos.",
+        voz="Tienes la lectura lista. La mandas tú.",
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
         motor_usado=pensado.motor_usado,
     )

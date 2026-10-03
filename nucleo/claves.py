@@ -22,11 +22,11 @@ MAXIMO = 6
 
 INSTRUCCIONES = (
     "Te paso el título, el resumen y el cuerpo de una nota. "
-    f"Devolvé entre {MINIMO} y {MAXIMO} palabras o frases cortas clave, en minúscula, "
+    f"Devuelve entre {MINIMO} y {MAXIMO} palabras o frases cortas clave, en minúscula, "
     "separadas por comas, en una sola línea, sin nada antes ni después. "
     "No inventes ninguna palabra que no esté, literal, en el texto que te paso: "
     "cada clave tiene que poder señalarse con el dedo en el título, el resumen o el cuerpo. "
-    "Si no hay suficiente texto para sacar tres claves reales, devolvé las que encuentres, "
+    "Si no hay suficiente texto para sacar tres claves reales, devuelve las que encuentres, "
     "aunque sean menos de tres."
 )
 

@@ -169,7 +169,7 @@ def _probar_de_verdad(nombre: str, valor: str) -> Prueba:
             )
         return Prueba(ok=True, mensaje_humano="Guardado. No hay una prueba automática para esto.")
     except httpx.TimeoutException:
-        return Prueba(ok=False, mensaje_humano="No contestó en 8 segundos. Probá de nuevo.")
+        return Prueba(ok=False, mensaje_humano="No contestó en 8 segundos. Prueba de nuevo.")
     except httpx.HTTPError as error:
         return Prueba(ok=False, mensaje_humano=f"No pude conectarme ({type(error).__name__}).")
     except Exception as error:  # nunca lanza: una prueba rota es un resultado, no un 500

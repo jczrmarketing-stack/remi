@@ -26,7 +26,7 @@ from modelos import Memoria
 BOGOTA = ZoneInfo("America/Bogota")
 ORDEN = ("Qué se hizo", "Decisiones", "Pendientes", "Primer paso de mañana")
 INSTRUCCIONES = (
-    "Te paso el final de una sesión de trabajo. Devolvé SOLO estas secciones, "
+    "Te paso el final de una sesión de trabajo. Devuelve SOLO estas secciones, "
     "en español, sin exclamaciones y sin reproche:\n"
     "## Qué se hizo\n"
     "(dos o tres frases)\n"
@@ -44,9 +44,9 @@ INSTRUCCIONES = (
 # lección (`experiencia.Leccion`, clase «error») con sus cinco secciones.
 PATRON_ERROR = re.compile(r"la causa era|se arregl[oó]|fallaba porque", re.IGNORECASE)
 INSTRUCCIONES_ERROR = (
-    "Te paso el final de una sesión donde se resolvió un problema técnico. Sacá SOLO estas "
+    "Te paso el final de una sesión donde se resolvió un problema técnico. Saca SOLO estas "
     "cinco secciones, con datos que estén literalmente en la charla — si alguna no aparece "
-    "con claridad, escribí «sin dato» en esa sección en vez de inventar. La excepción es "
+    "con claridad, escribe «sin dato» en esa sección en vez de inventar. La excepción es "
     "«Lo que creímos»: si NO hubo una pista falsa, dejala completamente vacía (ni «sin dato» "
     "ni nada) — no toda sesión se fue por el lado equivocado:\n"
     "## Síntoma\n(qué fallaba, tal como se ve)\n"

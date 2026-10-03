@@ -28,10 +28,10 @@ TIMEOUT_SEGUNDOS = 15.0
 
 INSTRUCCIONES = (
     "Te paso el texto del changelog oficial de Claude Code y lo que ya está anotado. "
-    "Devolvé SOLO las novedades reales que NO estén ya anotadas, una por línea, cada una "
+    "Devuelve SOLO las novedades reales que NO estén ya anotadas, una por línea, cada una "
     "empezando con la fecha tal como aparece en el changelog entre corchetes, por ejemplo "
     "[2026-09-15] texto breve. No inventes fechas ni texto que no esté literal en el "
-    "changelog que te pasé. Sin markdown, sin numeración. Si no hay nada nuevo, devolvé "
+    "changelog que te pasé. Sin markdown, sin numeración. Si no hay nada nuevo, devuelve "
     "exactamente la palabra: NADA."
 )
 

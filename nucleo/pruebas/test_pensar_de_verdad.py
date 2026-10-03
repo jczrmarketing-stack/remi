@@ -266,7 +266,7 @@ def test_modo_prompt_arma_un_encargo_sin_guardar_nada(monkeypatch):
     ).json()
     assert cuerpo["tipo"] == "encargo"
     assert cuerpo["texto"].startswith("QUÉ")
-    assert cuerpo["voz"] == "Listo, lo tenés para copiar."
+    assert cuerpo["voz"] == "Listo, lo tienes para copiar."
     assert cuerpo["tarea"] is None
     # Aunque dice «voy a…», no abrió un bloque: el modo Prompt no clasifica.
     assert visto["modo"] == "equilibrio"

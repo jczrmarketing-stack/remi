@@ -142,7 +142,7 @@ def _manejar_start(chat_id: int | str) -> None:
     if chat_id_configurado() is not None:
         return
     print(
-        f"[telegram] /start de chat_id={chat_id}: poné TELEGRAM_CHAT_ID={chat_id} en nucleo/.env",
+        f"[telegram] /start de chat_id={chat_id}: pon TELEGRAM_CHAT_ID={chat_id} en nucleo/.env",
         file=sys.stderr,
         flush=True,
     )

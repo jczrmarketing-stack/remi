@@ -143,7 +143,7 @@ def _regla_rumbo(conexion: sqlite3.Connection, ahora: datetime) -> str | None:
     for fila in filas:
         tema_entrega = str(fila["proyecto_id"] or "")
         if tema_entrega and tema_entrega != tema_actual:
-            return f"Mañana entregás {fila['cliente']}. ¿Seguimos en {tema_actual} o cambiamos?"
+            return f"Mañana entregas {fila['cliente']}. ¿Seguimos en {tema_actual} o cambiamos?"
     return None
 
 
@@ -158,7 +158,7 @@ def _regla_cuerpo(conexion: sqlite3.Connection, ahora: datetime) -> str | None:
     if minutos <= MINUTOS_BLOQUE_LARGO:
         return None
     tema = fila["app_contexto"] or "esto"
-    return f"Llevás {_formato_duracion(round(minutos))} en {tema}. ¿Sigue?"
+    return f"Llevas {_formato_duracion(round(minutos))} en {tema}. ¿Sigue?"
 
 
 def _regla_ritual(conexion: sqlite3.Connection, ahora: datetime) -> str | None:

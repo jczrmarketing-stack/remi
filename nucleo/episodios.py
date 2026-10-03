@@ -30,7 +30,7 @@ CARPETA_BOVEDA = Path(__file__).resolve().parent.parent / "conocimiento"
 LARGO_MINIMO = 1500
 
 INSTRUCCIONES = (
-    "Te pasan una conversación entera. Devolvé SOLO un JSON, sin nada antes ni después, con "
+    "Te pasan una conversación entera. Devuelve SOLO un JSON, sin nada antes ni después, con "
     'tres campos: "titulo" (máximo 60 caracteres, de qué trató), "tema" (una palabra en '
     'minúsculas: el proyecto o el área, por ejemplo upvisuals, malik, remi, salud, finanzas) y '
     '"resumen" (máximo 220 caracteres: con qué hay que quedarse — decisiones, números, '
@@ -91,7 +91,7 @@ def _instrucciones() -> str:
     if not temas:
         return INSTRUCCIONES
     lista = "; ".join(f"{tema} ({titulo})" for tema, titulo in sorted(temas.items()))
-    return f"{INSTRUCCIONES} Para \"tema\" elegí uno de estos si corresponde: {lista}. Si ninguno, «charla»."
+    return f"{INSTRUCCIONES} Para \"tema\" elige uno de estos si corresponde: {lista}. Si ninguno, «charla»."
 
 
 def _recortar(texto: str, largo: int) -> str:
