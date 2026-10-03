@@ -937,6 +937,17 @@ export default function App() {
   }, []);
   empezarAEscucharRef.current = empezarAEscuchar;
 
+  // El silencio es solo de la conversación por voz: al salir de ella, el
+  // micrófono vuelve a estar activo (si no, el dictado quedaría bloqueado sin
+  // que se vea por qué).
+  useEffect(() => {
+    if (modo === "dialogo" || !micSilenciadoRef.current) return;
+    micSilenciadoRef.current = false;
+    dictadoEnPausaRef.current = false;
+    setMicSilenciado(false);
+    registrar("microfono", { silenciado: false, motivo: "salió de la conversación" });
+  }, [modo]);
+
   const alternarMicrofono = useCallback(() => {
     const silenciar = !micSilenciadoRef.current;
     micSilenciadoRef.current = silenciar;
@@ -1734,30 +1745,31 @@ export default function App() {
         </svg>
       </div>
 
-      <div className="pie">
-        <div className="pie__izquierda">
-          <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
-          {
-            // 3-oct, Juan Camilo: silenciar el micrófono, no parar la
-            // conversación. Un interruptor, como el mute de una llamada, y
-            // siempre a la vista.
-            <button
-              type="button"
-              className="chip chip-mic"
-              onClick={alternarMicrofono}
-              aria-pressed={micSilenciado}
-              title={micSilenciado ? "Activar el micrófono" : "Silenciar el micrófono"}
-              aria-label={micSilenciado ? "Activar el micrófono" : "Silenciar el micrófono"}
-            >
-              {micSilenciado ? (
-                <MicOff size={16} strokeWidth={1.75} aria-hidden="true" />
-              ) : (
-                <Mic size={16} strokeWidth={1.75} aria-hidden="true" />
-              )}
-              <span className="chip__texto">{micSilenciado ? "Silenciado" : "Silenciar"}</span>
-            </button>
-          }
+      {modo === "dialogo" && (
+        // 3-oct, Juan Camilo: solo en la conversación por voz, abajo y al
+        // centro, para hablar sin que el ruido de afuera interrumpa. Un
+        // interruptor, como el mute de una llamada.
+        <div className="mic-dialogo">
+          <button
+            type="button"
+            className="chip chip-mic"
+            onClick={alternarMicrofono}
+            aria-pressed={micSilenciado}
+            title={micSilenciado ? "Activar el micrófono" : "Silenciar el micrófono"}
+            aria-label={micSilenciado ? "Activar el micrófono" : "Silenciar el micrófono"}
+          >
+            {micSilenciado ? (
+              <MicOff size={16} strokeWidth={1.75} aria-hidden="true" />
+            ) : (
+              <Mic size={16} strokeWidth={1.75} aria-hidden="true" />
+            )}
+            <span className="chip__texto">{micSilenciado ? "Silenciado" : "Silenciar"}</span>
+          </button>
         </div>
+      )}
+
+      <div className="pie">
+        <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
         <div className="pie__derecha">
           <ChipLectura lectura={lectura} onCambiar={cambiarLectura} />
           <ChipVoz

@@ -230,15 +230,18 @@
   gap: var(--space-2);
 }
 
-.pie__izquierda {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+/* «Silenciar» (3-oct): solo en la conversación por voz, abajo y al centro de
+   la ventanita, encima del pie (que en esa pantalla se aparta). Es un chip
+   como los demás: el <button> trae fondo y letra del navegador, que los otros
+   chips (un <label>) no tienen. */
+.mic-dialogo {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-3);
+  transform: translateX(-50%);
+  z-index: 3;
 }
 
-/* «Silenciar» (3-oct) es un chip como los demás: el <button> trae fondo y
-   letra del navegador, que los otros chips (un <label>) no tienen. Solo sigue
-   visible en la conversación por voz, cuando el resto del pie se aparta. */
 .chip-mic {
   appearance: none;
   background: transparent;
@@ -276,8 +279,7 @@
 
 .ventanita--baja .chat,
 .ventanita--baja .campo,
-.ventanita--baja .pie__izquierda > :not(.chip-mic),
-.ventanita--baja .pie__derecha,
+.ventanita--baja .pie,
 .ventanita--baja .nudge,
 .ventanita--baja .asa,
 .ventanita--baja .historial__triangulo {
