@@ -464,7 +464,7 @@ def _asociados(frase: str) -> list[str]:
         print(f"[asociar] no pude leer la memoria ({type(error).__name__}): sigo sin asociados", file=sys.stderr)
         return []
     try:
-        return vectores.asociar(conexion, frase)
+        return vectores.asociar(conexion, frase, con_fecha=True)
     except Exception as error:  # noqa: BLE001 — sin Ollama no hay asociados, no hay crash
         print(f"[asociar] no pude asociar ({type(error).__name__}): sigo sin asociados", file=sys.stderr)
         return []

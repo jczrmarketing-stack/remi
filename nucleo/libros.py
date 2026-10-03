@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 import yaml
@@ -60,6 +61,23 @@ def _rutas_de(valor: str | list[str] | None) -> tuple[str, ...]:
         if texto:
             limpias.append(str(Path(texto).expanduser()))
     return tuple(limpias)
+
+
+_MESES = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+
+
+def fecha_corta(dia: date) -> str:
+    """«30-sep»: la fecha que acompaña a todo lo viejo que entra al contexto
+    (encargo del 2-oct, tarea 3: un 401 del 30-sep salió como si pasara hoy)."""
+    return f"{dia.day}-{_MESES[dia.month - 1]}"
+
+
+def fecha_del_nombre(ruta: Path) -> date | None:
+    """La fecha del nombre de un episodio o una lección (AAAA-MM-DD-…)."""
+    try:
+        return date.fromisoformat(ruta.name[:10])
+    except ValueError:
+        return None
 
 
 def fuera_del_estante(ruta: Path) -> bool:

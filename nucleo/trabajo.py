@@ -15,7 +15,7 @@ import sqlite3
 import subprocess
 import sys
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -360,7 +360,12 @@ def lecciones_de_ojo(tema: str, maximo: int = 3) -> list[str]:
     for leccion in lecciones[:maximo]:
         clave = "Causa real" if leccion.clase == "error" else "Qué funcionó"
         pista = leccion.secciones.get(clave, "").strip()
-        resultado.append(f"Ojo: aquí ya pasó {leccion.titulo}" + (f"; la causa fue {pista}" if pista else "") + ".")
+        # Con su fecha (tarea 3 del 2-oct): lo viejo dice que es viejo.
+        try:
+            cuando = f"el {libros.fecha_corta(date.fromisoformat(leccion.ultima_vez[:10]))} "
+        except ValueError:
+            cuando = ""
+        resultado.append(f"Ojo: {cuando}ya pasó {leccion.titulo}" + (f"; la causa fue {pista}" if pista else "") + ".")
     return resultado
 
 

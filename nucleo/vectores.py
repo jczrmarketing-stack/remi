@@ -173,7 +173,7 @@ def actualizar_todos(conexion: sqlite3.Connection) -> int:
     return recalculadas
 
 
-def asociar(conexion: sqlite3.Connection, mensaje: str, k: int = 5) -> list[str]:
+def asociar(conexion: sqlite3.Connection, mensaje: str, k: int = 5, con_fecha: bool = False) -> list[str]:
     """Los k títulos más parecidos a `mensaje`. Solo títulos — nunca el cuerpo
     (Ley de la asociación, ARQUITECTURA §3): esto va a la mente como «esto
     quizá tenga que ver», no como una respuesta hecha."""
@@ -186,7 +186,7 @@ def asociar(conexion: sqlite3.Connection, mensaje: str, k: int = 5) -> list[str]
     # tabla nunca se poda) y se salta acá, igual que un título repetido.
     filas = conexion.execute(
         """
-        SELECT n.titulo AS titulo, n.ruta AS ruta
+        SELECT n.titulo AS titulo, n.ruta AS ruta, n.tipo AS tipo
         FROM notas_vector_embed e
         JOIN notas_vector n ON n.id = e.rowid
         WHERE e.embedding MATCH ? AND k = ?
@@ -196,9 +196,14 @@ def asociar(conexion: sqlite3.Connection, mensaje: str, k: int = 5) -> list[str]
     ).fetchall()
     titulos: list[str] = []
     for fila in filas:
-        if fila["titulo"] in titulos or libros.fuera_del_estante(Path(fila["ruta"])):
+        if any(t == fila["titulo"] or t.endswith(f": {fila['titulo']}") for t in titulos) or libros.fuera_del_estante(Path(fila["ruta"])):
             continue
         titulos.append(fila["titulo"])
+        if con_fecha and fila["tipo"] in ("episodio", "leccion"):
+            # Lo que pasó lleva su fecha (tarea 3 del 2-oct); un libro no.
+            dia = libros.fecha_del_nombre(Path(fila["ruta"]))
+            if dia is not None:
+                titulos[-1] = f"{libros.fecha_corta(dia)}: {fila['titulo']}"
         if len(titulos) == k:
             break
     return titulos

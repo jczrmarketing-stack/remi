@@ -83,7 +83,9 @@ def resumen_nivel2(tema: str) -> str | None:
         return None
     estado = estado_libro.leer_estado(libro.archivo)
     if estado.strip():
-        return f"{libro.titulo}:\n{estado.strip()}"
+        # De cuándo es (tarea 3 del 2-oct): el Estado puede ser de hace días.
+        dia = datetime.fromtimestamp(libro.archivo.stat().st_mtime).date()
+        return f"{libro.titulo} (Estado del {libros.fecha_corta(dia)}):\n{estado.strip()}"
     return f"{libro.titulo}: {libro.resumen}"
 
 
