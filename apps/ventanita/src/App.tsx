@@ -4,6 +4,7 @@ import { LogicalPosition, LogicalSize, currentMonitor, getCurrentWindow } from "
 import { StatusDot } from "./componentes/StatusDot";
 import { Semaforo } from "./componentes/Semaforo";
 import { Chat, type Mensaje } from "./componentes/Chat";
+import { chatAlVolver } from "./historial";
 import { Nudge } from "./componentes/Nudge";
 import { Campo, type CampoRef } from "./componentes/Campo";
 import { ChipCerebro } from "./componentes/ChipCerebro";
@@ -116,7 +117,6 @@ const REFRESCO_HACE_MS = 30000;
 const DURACION_APARECER = 250;
 // Retomar (3f · 7): al abrir en texto, solo los últimos 3 mensajes de la
 // conversación vigente, sin nada nuevo dicho todavía.
-const MENSAJES_DE_RETOMAR = 3;
 // Techo de una locución, por si el sintetizador nunca avisa que terminó.
 const TECHO_LOCUCION_MS = 60000;
 // Mientras dictás, cada cuánto se pide lo que vas diciendo.
@@ -420,7 +420,7 @@ export default function App() {
       .catch(() => setUltimaVezDeHoy(null));
   }, [expandido, ultimaInteraccionMs]);
 
-  // Al abrir: el chat de la conversación vigente (la de la última hora).
+  // Al abrir: el chat de la conversación vigente, entero.
   useEffect(() => {
     if (!expandido) return;
     const miGeneracion = generacionRef.current;
@@ -431,11 +431,7 @@ export default function App() {
           setMensajes((actuales) =>
             // Si ya hay mensajes de esta apertura (llegaron antes que la
             // historia), la historia va antes y no se duplica nada.
-            actuales.length > 0
-              ? actuales
-              : turnos
-                  .slice(-MENSAJES_DE_RETOMAR)
-                  .map((t) => ({ id: nuevoId(), rol: t.rol, texto: t.texto, historial: true })),
+            actuales.length > 0 ? actuales : chatAlVolver(turnos).map((m) => ({ ...m, id: nuevoId() })),
           );
           return;
         }

@@ -20,3 +20,17 @@ describe("etiquetaDeFecha", () => {
     expect(etiquetaDeFecha("nada", ahora)).toBe("");
   });
 });
+
+describe("chatAlVolver", () => {
+  it("devuelve la conversación entera, en orden y sin apagar nada", async () => {
+    const { chatAlVolver } = await import("./historial");
+    const turnos = Array.from({ length: 8 }, (_, i) => ({
+      rol: (i % 2 === 0 ? "juan" : "remi") as "juan" | "remi",
+      texto: `turno ${i}`,
+      fecha: new Date(2026, 9, 3, 1, i).toISOString(),
+    }));
+    const chat = chatAlVolver(turnos);
+    expect(chat.map((m) => m.texto)).toEqual(turnos.map((t) => t.texto));
+    expect(chat.every((m) => !m.historial)).toBe(true);
+  });
+});

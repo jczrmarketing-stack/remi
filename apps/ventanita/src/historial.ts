@@ -22,3 +22,17 @@ export function etiquetaDeFecha(ultimoIso: string, ahoraMs: number): string {
   if (dias < 7) return `${DIAS[fecha.getDay()]} · ${hora}`;
   return `${fecha.getDate()} ${MESES[fecha.getMonth()]}`;
 }
+
+// Al volver a abrir la ventanita (después de minimizarla, cerrarla con la X o
+// reiniciar la app): la conversación vigente entera, igual que se dejó. Antes
+// volvían solo los últimos tres mensajes y en gris, y parecía que Remi se había
+// olvidado de todo (Juan Camilo, 3-oct: «tiene que tener memoria como una
+// persona»).
+export interface TurnoParaVolver {
+  rol: "juan" | "remi";
+  texto: string;
+}
+
+export function chatAlVolver(turnos: TurnoParaVolver[]): { rol: "juan" | "remi"; texto: string; historial?: boolean }[] {
+  return turnos.map((t) => ({ rol: t.rol, texto: t.texto }));
+}
