@@ -103,7 +103,7 @@ export default function PaginaAjustes() {
 
 function Fila({ titulo, texto, children }: { titulo: string; texto: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: 24, padding: "20px 0", borderTop: "1px solid var(--line)" }}>
+    <div className="fila-ajuste">
       <div>
         <div className="display-md">{titulo}</div>
         <p className="body-muted" style={{ marginTop: 6 }}>{texto}</p>

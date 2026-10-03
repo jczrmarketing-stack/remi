@@ -129,6 +129,11 @@ button { font: inherit; cursor: pointer; color: inherit; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-6); }
 .card-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); }
 @media (max-width: 720px) { .card-grid-2 { grid-template-columns: 1fr; } }
+/* Ajustes y Conexiones: título y explicación a la izquierda, el control a la
+   derecha; debajo de 640 px van una debajo de la otra (a 375 px la fila de
+   220 px + control desbordaba la pantalla 150 px). */
+.fila-ajuste { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-6); padding: 20px 0; border-top: 1px solid var(--line); }
+@media (max-width: 640px) { .fila-ajuste { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); } }
 
 .fila { display: flex; align-items: center; gap: var(--space-3); padding: 10px 0; border-top: 1px solid var(--line); font-size: 16px; line-height: 24px; color: var(--ink); }
 .fila-hecha { color: var(--ink-faint); text-decoration: line-through; }
