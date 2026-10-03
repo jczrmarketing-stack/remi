@@ -20,6 +20,31 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-03 · cuatro arreglos de la charla real · construido · 2f6364c
+
+De la charla del 3-oct. Una prueba antes de cada arreglo, un commit por arreglo.
+
+- **Qué cambió:**
+  1. `bb7edea` — `nucleo/voseo.py`. `voseo_a_tu()` corre en cada frase del stream y en el texto que se guarda, antes de mostrar y de hablar. Mapa (querés→quieres, tenés→tienes, mirá→mira, decime→dime, y el resto irregular) más -ás/-és/-ís de segunda persona. No toca además, después, país, estás ni el futuro (hablarás, verás). 20 frases del log de hoy y 20 normales, cero falsos positivos. Idempotente.
+  2. `3c6f417` (bóveda, solo `caracter.md`) — en «Cómo hablas»: «Si te piden algo concreto (un prompt, un dato, un encargo), lo das primero. Una pregunta solo si sin ella la respuesta sale mal, y nunca dos turnos seguidos preguntando.» La frase sola no alcanzó: Haiku y Sonnet, con núcleo y bóveda de prueba, abrieron con «¿qué es X?». `311a192` — `nucleo/concreto.py`: si piden un prompt y antes del primer `?` no hay 12 palabras, se antepone «Prompt para copiar: …» con el hueco y la pregunta queda después. En vivo no se dice la pregunta suelta. Haiku (`claude-haiku-4-5`, 4276 ms, 51 tokens de salida) devolvió el prompt primero (32 palabras antes del `?`) y después «¿Qué quieres preguntarle a Grok?».
+  3. `358a61c` — `voz.rs`. Si la transcripción es solo «gracias» (con o sin ¡ ! o punto), no se manda. Si termina en «gracias» y el wav calla al final (`pico_reciente` bajo `UMBRAL_VOZ`), se quita esa palabra. «gracias por el dato» se queda. «hola gracias» sin silencio se queda.
+  4. `2f6364c` — `guardarCharla.ts`. El log de la ventanita, 01:18:36 (`pegar` 14875) y 01:18:45 (`pegar` 1935), los dos por encima de 1500 y sin Sí/No en el medio: cada pegado llamaba a `preguntarSiGuardo` y agregaba otra burbuja «¿Lo guardo como conversación?». Si esa pregunta ya está, el segundo pegado no agrega otra (`pegar:ya-preguntado`). Sí o No la quitan, y un pegado posterior puede volver a preguntar. El llamado quedó en `App.tsx` dentro de `4831184`, que commiteó ese archivo con el cambio ya en el árbol.
+- **Decisiones que tomé sin preguntar:**
+  1. El voseo y el prompt pedido se arreglan con regla, no con otra frase en el carácter. Un empujón en el mismo turno tampoco le sacó el prompt a Haiku (11 palabras antes del `?`).
+  2. La regla de «darlo primero» solo cubre un pedido de prompt. No invento un encargo ni un dato.
+  3. «Gracias» suelto no se manda aunque el audio no haya callado: no hay otra frase.
+  4. El futuro de tú se reconoce si al quitar la -ás el resto termina en ar/er/ir y mide 5 o más (`pararás`). `parás` sigue siendo presente y pasa a `paras`. `estás` no se toca.
+- **Dudas abiertas:**
+  1. «Nunca dos turnos seguidos preguntando» está en el carácter y no tiene regla aparte.
+  2. Un «gracias» dicho de verdad al final de una frase también se quita, porque el corte por silencio deja el wav callado. Es el caso que se pidió.
+  3. Si hay dos pegados y se contesta Sí, se guarda el primero. El segundo no vuelve a preguntar.
+- **Cómo probarlo a mano:**
+  1. Pedir «dame un prompt para preguntarle X a Grok» en rápido: el primer turno trae el prompt antes de cualquier pregunta.
+  2. Dictar silencio y una frase que termine en «gracias»: no entra «gracias» pelado, y «gracias por el dato» sí.
+  3. Pegar dos textos de más de 1500 caracteres sin contestar: una sola pregunta.
+
+---
+
 ## 2026-10-03 · la Biblia en la bóveda, preguntar si es ambiguo, lo viejo con fecha · construido · 41443ad
 
 Escribe la terminal, por encargo de Claude en la app, tras la respuesta de Remi del 2-oct
