@@ -12,7 +12,7 @@ falta probarlo contigo) · *pendiente*.
 | # | Promesa | Código / banco (3-oct) | En la app | Estado |
 |---|---|---|---|---|
 | 1 | Flota siempre encima, arrastrable | Se arrastra (`startDragging`). **Siempre encima no**: `e802988` (1-oct) lo quitó a propósito, «que se apile como cualquier ventana» | — | **difiere** |
-| 2 | 1 click escribe · 2 dicta · 3 dialoga | `gestos.ts`, con pruebas; el log registra cada gesto | probar | por ver en la app |
+| 2 | 1 click escribe · 2 dicta · 3 dialoga | `gestos.ts`, con pruebas; el log registra cada gesto | 3-oct: se rompió con el chat lleno y se arregló (`ef770ec`); Juan Camilo: «ahora funciona bien» | **pasa** |
 | 3 | ⌃⌥R dicta desde cualquier app | `Control+Alt+R` registrado en `lib.rs` | Juan Camilo, 3-oct: funciona (había probado con ⌘) | **pasa** |
 | 4 | Colores por estado; solo «escuchando» pulsa | `status-dot[data-estado]` en `App.css` | mirar | por ver en la app |
 | 5 | Una X cancela siempre | `cancelar_escucha` borra el audio sin transcribir | probar | por ver en la app |
@@ -43,9 +43,15 @@ Lo que salió de la prueba en la app del 3-oct (Juan Camilo):
 |---|---|---|---|
 | 26 | Al minimizar, cerrar con la X o reabrir, parecía que Remi se olvidaba de la charla (volvían 3 mensajes en gris) | `fb43d87`: vuelve la conversación entera | arreglado, por ver en la app |
 | 27 | La conversación se cortaba sola a los 60 min | `990f579`: sigue hasta que él la cambie (decisión suya; cambia la Biblia) | arreglado, por ver en la app |
-| 28 | En la conversación por voz no había cómo apagar el micrófono (más de 20 clicks ignorados) | `e04fef4` lo hizo mal (paraba la conversación, otro color). `57ac91d`: interruptor «Silenciar», la conversación sigue; mismo aspecto que los otros chips | arreglado, por ver en la app |
+| 28 | En la conversación por voz no había cómo apagar el micrófono (más de 20 clicks ignorados) | Interruptor «Silenciar» solo en la conversación, abajo al centro (`79cbf38`); no pierde lo dicho (`4831184`) | Juan Camilo, 3-oct: «ahora funciona bien» | **pasa** |
 | 30 | Minimizar mientras escuchaba dejaba el micrófono grabando por detrás; cada click en la bolita fallaba («ya había una grabación activa») | `057e8ca`: volver a reposo apaga la grabación; si queda una colgada, se descarta y reintenta | arreglado, por ver en la app |
-| 31 | El doble y el triple click dejaron de funcionar (lo rompió `fb43d87`: el chat lleno quedaba bajo el mouse) | `ef770ec`: un click sobre el chat cuenta si sigue una racha | arreglado, por ver en la app |
+| 31 | El doble y el triple click dejaron de funcionar (lo rompió `fb43d87`: el chat lleno quedaba bajo el mouse) | `ef770ec`: un click sobre el chat cuenta si sigue una racha | Juan Camilo, 3-oct: funciona | **pasa** |
+| 32 | Escribir o pegar en el chat durante la conversación y que Remi conteste por voz, sin salirse | `d0f49f4`: Enter siempre manda (en espera si Remi habla); escribir no cierra la conversación | Juan Camilo, 3-oct: «funciona» | **pasa** |
+| 33 | Whisper metía «gracias, gracias…» y palabras al final que nadie dijo | `13172c4`: solo voz sostenida, sin bordes callados | Juan Camilo, 3-oct: «funciona bien» (más lento: era el chip en «Haiku · máx») | **pasa** |
+| 34 | «¿cómo te sientes… o qué te falta?» → «Tengo 3 preguntas pendientes» | `f730b83` | probar | arreglado, por ver en la app |
+| 35 | «Esta es una nueva conversación» → Remi decía «Borro todo» sin hacerlo | `7621ff2`: la empieza de verdad | probar | arreglado, por ver en la app |
+| 36 | Una frase de la ventanita quedó escrita como el cliente de BeaM (pregunta de Telegram de las 4:00 «en el aire») | Reparado en la bóveda (`15be8c4`); `f76261d`: canal, vencimiento, respuestas cortas, confirmación que dice qué guardó | probar | arreglado, por ver en la app |
+| 37 | «¿qué falta en el panel y la ventanita?» → la regla de las 3 preguntas, o «¿de qué proyecto?» | Pregunta por Remi: contesta con doctor + esta tabla | probar | arreglado, por ver en la app |
 | 29 | «no pude reproducir el audio del núcleo» en el log | No es falla: el audio sonó entero; el aviso sale de más al pasar a la frase siguiente | pendiente menor (solo el log) |
 
 Otras cosas que salieron del guion:
