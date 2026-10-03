@@ -54,6 +54,42 @@ CONFIG = json.loads(RUTA_CONFIG.read_text())
 HOST = CONFIG["host"]
 PUERTO = CONFIG["puerto"]
 
+# F4.2b (plan de cierre): el 2/10/2026 un núcleo de prueba con la base en una
+# copia (REMI_DB_PATH) escribió episodios y Estados en la bóveda REAL — la
+# base estaba aislada, la bóveda no. Un núcleo con la base fuera de la de
+# siempre es un núcleo de prueba, y entonces la bóveda tiene que estar
+# aislada también: si no, no arranca.
+BOVEDA_REAL = (Path(__file__).resolve().parent.parent / "conocimiento").resolve()
+MENSAJE_PRUEBA_CONTRA_BOVEDA_REAL = "núcleo de prueba apuntando a la bóveda real"
+
+
+def _dentro_de_la_boveda_real(valor: str | None, boveda_real: Path) -> bool:
+    if not valor:
+        return True  # sin la variable, se usa la bóveda real
+    ruta = Path(valor).expanduser().resolve()
+    return ruta == boveda_real or boveda_real in ruta.parents
+
+
+def problema_de_aislamiento(entorno: dict[str, str], boveda_real: Path = BOVEDA_REAL) -> str | None:
+    """None si está bien; si no, el mensaje de por qué el núcleo no arranca."""
+    base = entorno.get("REMI_DB_PATH")
+    if not base or Path(base).expanduser().resolve() == db.RUTA_DB_POR_DEFECTO.resolve():
+        return None  # el núcleo de verdad, con su base de siempre
+    malas = [
+        nombre
+        for nombre in ("REMI_CONOCIMIENTO", "REMI_BOVEDA")
+        if _dentro_de_la_boveda_real(entorno.get(nombre), boveda_real)
+    ]
+    if not malas:
+        return None
+    return (
+        f"{MENSAJE_PRUEBA_CONTRA_BOVEDA_REAL}: REMI_DB_PATH={base} es una base de prueba, "
+        f"pero {' y '.join(malas)} {'no está puesta o apunta' if len(malas) == 1 else 'no están puestas o apuntan'} "
+        f"a {boveda_real}. Pon una copia temporal de la bóveda en REMI_CONOCIMIENTO "
+        "(…/proyectos) y REMI_BOVEDA (su carpeta de arriba)."
+    )
+
+
 @asynccontextmanager
 async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     """Cargar el modelo de voz tarda ~18 s la primera vez: si esperáramos a
@@ -62,6 +98,10 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     launchd levanta `uvicorn servidor:app` y ahí `__main__` nunca corre.
     Importar el módulo sigue sin cargar nada: esto es del ciclo de vida de
     la app, no del import (REMI_TTS_PRECALENTAR=0 lo apaga)."""
+    problema = problema_de_aislamiento(dict(os.environ))
+    if problema is not None:
+        print(f"[núcleo] NO ARRANCO: {problema}", file=sys.stderr, flush=True)
+        raise RuntimeError(problema)
     if os.environ.get("REMI_TTS_PRECALENTAR", "1") != "0":
         threading.Thread(target=tts.precalentar, daemon=True).start()
     # Las fichas de proyecto al estante, al arrancar: así el índice tiene

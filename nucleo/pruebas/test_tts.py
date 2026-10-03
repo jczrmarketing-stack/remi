@@ -156,6 +156,8 @@ def test_el_precalentado_corre_con_el_servidor_no_solo_con_python_servidor(tmp_p
     voz fría y la primera frase la diría el sistema."""
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     monkeypatch.setenv("REMI_TTS_PRECALENTAR", "1")
+    # F4.2b: con la base en una copia, el ciclo de vida exige la bóveda aislada.
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path / "boveda" / "proyectos"))
     servidor = _arrancar_servidor()
     llamadas = []
     monkeypatch.setattr(servidor.tts, "precalentar", lambda: llamadas.append(True))
@@ -169,6 +171,8 @@ def test_el_precalentado_corre_con_el_servidor_no_solo_con_python_servidor(tmp_p
 def test_se_puede_apagar_el_precalentado(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     monkeypatch.setenv("REMI_TTS_PRECALENTAR", "0")
+    # F4.2b: con la base en una copia, el ciclo de vida exige la bóveda aislada.
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path / "boveda" / "proyectos"))
     servidor = _arrancar_servidor()
     llamadas = []
     monkeypatch.setattr(servidor.tts, "precalentar", lambda: llamadas.append(True))
