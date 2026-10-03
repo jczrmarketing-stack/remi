@@ -17,6 +17,10 @@ import trabajo
         "¿estás completo?",
         "¿funcionas bien, Remi?",
         "¿cumples todo lo de la Biblia?",
+        # 3-oct, la frase real: una pregunta personal con «qué te falta» al final.
+        "que haces bebe como te sientes te creee te siente vivo te siente bien o que te falta ?",
+        "¿cómo te sientes?",
+        "¿te sientes vivo?",
     ],
 )
 def test_reconoce_cuando_le_preguntan_por_si_mismo(frase):
@@ -50,3 +54,29 @@ def test_sin_doctor_lo_dice_y_no_inventa(monkeypatch):
     monkeypatch.setattr(precarga, "_correr_doctor", lambda: None)
     texto = precarga.estado_propio()
     assert "no pude medir" in texto
+
+
+def test_la_frase_personal_va_al_modelo_y_no_a_la_regla_de_preguntas(tmp_path, monkeypatch):
+    import importlib
+    import sys
+
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    for nombre in ("servidor", "db", "modelos", "pensar"):
+        sys.modules.pop(nombre, None)
+    import db
+    import servidor
+
+    importlib.reload(db)
+    importlib.reload(servidor)
+    llamadas = []
+    monkeypatch.setattr(
+        servidor.pensar, "pensar",
+        lambda frase, *a, **k: llamadas.append(frase) or servidor.pensar.Pensado("Bien, con todo en verde.", 1, 1, "haiku"),
+    )
+    frase = "que haces bebe como te sientes te creee te siente vivo te siente bien o que te falta ?"
+    respuesta = TestClient(servidor.app).post("/mensaje", json={"texto": frase, "think": True}).json()
+
+    assert llamadas == [frase]
+    assert respuesta["texto"] == "Bien, con todo en verde."

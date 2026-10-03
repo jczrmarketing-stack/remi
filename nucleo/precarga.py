@@ -266,6 +266,9 @@ def linea_de_duda(candidatos: tuple[str, str], encargo: bool = False) -> str:
 
 _SOBRE_REMI = re.compile(
     r"\b(estas funcionando|como estas funcionando|funcionas|funciona bien remi"
+    # Cómo se siente (3-oct: «¿cómo te sientes, te sientes vivo, o qué te
+    # falta?» lo contestaba la regla de T8 con «Tengo 3 preguntas pendientes»).
+    r"|te sientes|te siente|como te sientes|estas vivo|sientes vivo"
     r"|estas completo|estas complet[ao]|que tan completo|cumples|estas listo|como estas de salud"
     r"|tu estado|estas bien hecho|ya estas terminad[ao])\b"
 )
