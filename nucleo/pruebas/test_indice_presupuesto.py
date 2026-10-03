@@ -64,7 +64,7 @@ def test_instrucciones_con_indice_avisa_lo_que_quedo_afuera():
 
     texto = pensar.instrucciones_con_indice(indice, base="CARÁCTER", presupuesto_tokens=1)
 
-    assert "no entró acá por espacio" in texto
+    assert "no entró aquí por espacio" in texto
     assert "buscar_memoria" in texto
     assert "upvisuals:" in texto
 
@@ -74,4 +74,4 @@ def test_instrucciones_con_indice_sin_recorte_no_menciona_el_presupuesto():
 
     texto = pensar.instrucciones_con_indice(indice, base="CARÁCTER", presupuesto_tokens=8000)
 
-    assert "no entró acá por espacio" not in texto
+    assert "no entró aquí por espacio" not in texto

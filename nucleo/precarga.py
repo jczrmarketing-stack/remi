@@ -2,7 +2,7 @@
 
 Antes de cada respuesta, el nivel 2 (el Estado) del proyecto activo entra al
 contexto sin que el modelo tenga que llamar a `leer`: por eso cuando
-preguntás por lo que estás haciendo, ya está — no hay que ir a buscarlo.
+preguntas por lo que estás haciendo, ya está — no hay que ir a buscarlo.
 
 Proyecto activo, en este orden:
 1. **Bloque abierto**: la sesión de trabajo abierta más reciente ya guarda,

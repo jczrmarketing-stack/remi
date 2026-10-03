@@ -175,17 +175,17 @@ RUTA_CARACTER = Path(__file__).resolve().parent.parent / "conocimiento" / "carac
 # sin turnos (db.MINUTOS_SIN_TURNOS_PARA_CERRAR).
 MAX_TURNOS = 10
 INSTRUCCIONES_RESUMEN = (
-    "Resumís una conversación entre Juan Camilo y Remi, su asistente. Te dan el "
+    "Resumes una conversación entre Juan Camilo y Remi, su asistente. Te dan el "
     "resumen que había y los turnos que acaban de salir de la memoria literal. "
-    "Devolvé el resumen actualizado: decisiones, datos (montos, fechas, nombres), "
+    "Devuelve el resumen actualizado: decisiones, datos (montos, fechas, nombres), "
     "pendientes y tono. En español, en prosa, máximo 150 palabras. Solo el resumen."
 )
 
 # Solo si el archivo no está: un Remi mínimo, para no quedarse mudo.
 CARACTER_DE_RESPALDO = (
-    "Sos Remi, el socio de Juan Camilo. Le hablás de tú, en español de Colombia, "
-    "corto y directo: primero la respuesta. Nunca urgís, nunca contás fallos, nunca "
-    "inventás datos de sus proyectos: si no está en tu memoria, lo decís."
+    "Eres Remi, el socio de Juan Camilo. Le hablas de tú, en español de Colombia, "
+    "corto y directo: primero la respuesta. Nunca urges, nunca cuentas fallos, nunca "
+    "inventas datos de sus proyectos: si no está en tu memoria, lo dices."
 )
 
 
@@ -203,12 +203,12 @@ def caracter() -> str:
 # no una herramienta — mirarlo no cuesta un turno ni una llamada. El cuerpo
 # de cada entrada NO está acá: eso vive en el estante.
 ENCABEZADO_INDICE = (
-    "\n\nEsto es lo que ya sabés. Cada línea es algo que te contaron antes: "
+    "\n\nEsto es lo que ya sabes. Cada línea es algo que te contaron antes: "
     "[id] fecha · tema · título — con qué te quedaste.\n"
     "El resumen te dice CUÁL es cada cosa, no alcanza para contestar sobre ella. "
-    "Si te preguntan por algo de esta lista, bajalo con la herramienta `leer` "
-    "usando su id, y recién entonces contestá. Y si te cuentan algo que valga la "
-    "pena recordar, guardalo con `guardar` — solo eso, no cada tarea suelta.\n"
+    "Si te preguntan por algo de esta lista, bájalo con la herramienta `leer` "
+    "usando su id, y recién entonces contesta. Y si te cuentan algo que valga la "
+    "pena recordar, guárdalo con `guardar` — solo eso, no cada tarea suelta.\n"
 )
 
 
@@ -329,7 +329,7 @@ def sistema_cliente() -> str:
     except OSError:
         print(f"[pensar] no encuentro {RUTA_CLIENTE}: uso uno mínimo", file=sys.stderr)
         base = (
-            "Te pegaron algo de un cliente. Devolvé LECTURA, RIESGOS, RESPUESTA "
+            "Te pegaron algo de un cliente. Devuelve LECTURA, RIESGOS, RESPUESTA "
             "RECOMENDADA y LÍMITES. Nunca envíes nada: es una propuesta."
         )
     piezas = [base]
@@ -366,7 +366,7 @@ def sistema_encargo() -> str:
     except OSError:
         print(f"[pensar] no encuentro {RUTA_ENCARGO}: uso uno mínimo", file=sys.stderr)
         base = (
-            "Devolvé lo que te dicen como UN encargo de UNA tarea para Claude Code, "
+            "Devuelve lo que te dicen como UN encargo de UNA tarea para Claude Code, "
             "en español y sin markdown, con las secciones QUÉ, DÓNDE, LISTO CUANDO y NO TOCAR."
         )
     piezas = [caracter(), base]
@@ -428,7 +428,7 @@ def instrucciones_con_indice(
     if recortadas_por_tema:
         lineas.append("")
         lineas.append(
-            "Y más que no entró acá por espacio (nada se perdió — buscalo con "
+            "Y más que no entró aquí por espacio (nada se perdió — búscalo con "
             "`buscar_memoria` si hace falta):"
         )
         lineas.extend(f"- {tema}: {cantidad} más" for tema, cantidad in sorted(recortadas_por_tema.items()))
@@ -451,7 +451,7 @@ def _indice() -> list[db.EntradaIndice]:
 ENCABEZADO_ASOCIADOS = (
     "\n\nEsto quizá tenga que ver (son solo títulos — asociación por vector, "
     "ARQUITECTURA-CEREBRO §3; no supongas de qué tratan, si hace falta "
-    "preguntá o bajalos con `leer`): "
+    "pregunta o bájalos con `leer`): "
 )
 
 
@@ -722,8 +722,8 @@ def _carpetas_de_codigo() -> list[str]:
 
 
 INSTRUCCIONES_BUSQUEDA = (
-    "Esta vez te pidió buscar en la web: usá WebSearch. Contestá en una o dos frases y después "
-    "poné como máximo 3 links, uno por renglón, así: [título corto](https://…) — una línea de "
+    "Esta vez te pidió buscar en la web: usa WebSearch. Contesta en una o dos frases y después "
+    "pon como máximo 3 links, uno por renglón, así: [título corto](https://…) — una línea de "
     "por qué sirve. Nada más."
 )
 
