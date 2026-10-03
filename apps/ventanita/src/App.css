@@ -230,6 +230,18 @@
   gap: var(--space-2);
 }
 
+.pie__izquierda {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* «Parar» (3-oct): visible incluso en la conversación por voz, cuando el resto
+   del pie se aparta. Mismo chip, sin color nuevo. */
+.parar-mic {
+  color: var(--ink);
+}
+
 /* Hablando por voz (ronda 2): la bolita baja al centro mientras Remi piensa
    y habla ahí; el chat se aparta y solo queda la frase. La bajada vive en
    el tiempo que Remi ya tarda en pensar, y el audio nunca la espera. */
@@ -261,7 +273,8 @@
 
 .ventanita--baja .chat,
 .ventanita--baja .campo,
-.ventanita--baja .pie,
+.ventanita--baja .pie__izquierda > :not(.parar-mic),
+.ventanita--baja .pie__derecha,
 .ventanita--baja .nudge,
 .ventanita--baja .asa,
 .ventanita--baja .historial__triangulo {

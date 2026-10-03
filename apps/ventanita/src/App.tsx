@@ -1,3 +1,4 @@
+import { MicOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { LogicalPosition, LogicalSize, currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
@@ -1044,7 +1045,7 @@ export default function App() {
   }, [grabando]);
 
   const cancelar = useCallback(
-    (origen: "escape" | "x") => {
+    (origen: "escape" | "x" | "parar") => {
       const { grabando: grabandoActual, estado: estadoActual } = accionesRef.current;
       registrar("cancelar", { origen, estado: estadoActual, grabando: grabandoActual });
       enviarAlTranscribirRef.current = false;
@@ -1053,9 +1054,11 @@ export default function App() {
         void cancelarEscucha(origen).catch(() => undefined);
       }
       // Escape con algo en curso corta eso y deja el chat abierto; sin nada
-      // en curso (o con la X), vuelve a la píldora.
+      // en curso (o con la X), vuelve a la píldora. El botón «Parar» (3-oct)
+      // hace siempre lo de Escape: corta el micrófono y la conversación por
+      // voz, y deja el chat abierto en texto.
       const enCurso = grabandoActual || estadoActual === "pensando" || estadoActual === "hablando";
-      if (origen === "escape" && enCurso) {
+      if ((origen === "escape" && enCurso) || origen === "parar") {
         generacionRef.current += 1;
         enviandoRef.current = false;
         locucionRef.current += 1;
@@ -1662,7 +1665,17 @@ export default function App() {
       </div>
 
       <div className="pie">
-        <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
+        <div className="pie__izquierda">
+          <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
+          {(grabando || modo === "dialogo") && (
+            // 3-oct, Juan Camilo: en la conversación por voz no había cómo
+            // apagar el micrófono (los clicks se ignoran mientras escucha).
+            <button type="button" className="chip parar-mic" onClick={() => cancelar("parar")} title="Parar el micrófono (Esc)" aria-label="Parar el micrófono">
+              <MicOff size={16} strokeWidth={1.75} aria-hidden="true" />
+              <span>Parar</span>
+            </button>
+          )}
+        </div>
         <div className="pie__derecha">
           <ChipLectura lectura={lectura} onCambiar={cambiarLectura} />
           <ChipVoz

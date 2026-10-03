@@ -18,7 +18,9 @@ export type OrigenParada =
   | "timeout"
   | "atajo"
   | "enter"
-  | "x";
+  | "x"
+  // El botón «Parar» de la ventanita (3-oct).
+  | "parar";
 
 // La X y Escape: corta y borra el audio sin transcribir.
 export function cancelarEscucha(origen: OrigenParada): Promise<void> {
