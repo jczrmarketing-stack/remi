@@ -20,6 +20,66 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · F4 · producción de verdad · construido · 868f9b0
+
+Escribe la terminal. Commits: `bfb9f62` (F4.2b), `3d81fec` (F4.2), `1016c9b` (F4.6),
+`868f9b0` (voz de tú en el núcleo).
+
+- **Qué cambió:**
+  1. **F4.1 · instalar y desinstalar de punta a punta** (nunca corrido antes). `copia.sh`
+     («copia: lista en 5 s», 22:46) → `desinstalar.sh` en **2 s** → `launchctl list`: ningún
+     `com.remi.*` → `instalar.sh` en **8 s** (más copiar la app desde `target/`, porque
+     `instalar.sh` no la repone) → los diez agentes de vuelta → `doctor.sh` 9/10 (la bóveda
+     tenía `.notion-estado.json` sin commitear, ver dudas) → commiteado → **10/10**. La app abrió
+     sola y volvió a consultar al núcleo (`GET /ultima-vez`, `/nudges/pendiente`). `remi.db`
+     intacta.
+  2. **F4.2 · las pruebas no tocan el mundo real.** T5.9 no estaba hecho: una corrida de hoy
+     hizo un `getUpdates` real a Telegram. `conftest` pone `REMI_TELEGRAM=0` y un doble del
+     transporte de httpx corta y anota todo pedido a `api.telegram.org`, `api.notion.com` y
+     `:4400`; la prueba que lo intente falla, aunque el código se trague el error.
+     `test_noche.py` pasa con la guarda: no manda avisos. **F4.2b** — la guarda del núcleo de
+     prueba contra la bóveda real (ver F2).
+  3. **F4.3** — `test_noche.py` ya usa `os.utime` fijo; nada que cambiar.
+  4. **F4.4** — tsc limpio; vitest **108 en verde tres veces**. pytest **728 en verde tres
+     veces** con el HEAD de la bóveda igual antes y después.
+  5. **F4.5** — `oficios_a_skills.py --escribir` (el flag es `--escribir`, no `--si`): nueve
+     `~/.claude/skills/remi-oficio-*/SKILL.md`, y Claude Code los carga. Para repetirlo cuando
+     cambie un oficio: `cd nucleo && uv run python ../scripts/oficios_a_skills.py --escribir`.
+     No lo sumé a la noche.
+  6. **F4.6** — git: `core.hooksPath` = `~/.config/git/hooks`, cada gancho enlazado a
+     `scripts/hooks/git-gancho` (así lo instala `instalar-git.sh`). Claude Code:
+     `SessionStart` y `SessionEnd` hacia `claude-sesion.py`. **No hay `Stop`**: ni T3d ni el
+     código lo definen, no lo invento. `doctor.sh` revisa los ganchos dentro de la pieza 6
+     (sigue 10 piezas).
+  7. **F4.7 · formas A–F contra el núcleo real: todas coinciden, ningún CAMBIO DE FORMA.**
+     A: `cliente` "Alfonso", `cobrado` en las tres fases (0, 0, 0: no hay cobros registrados),
+     `detalle` en los 14 hitos. C: `por_linea` con software y malik. D: `{desde, cerrado,
+     aplazado, ideas_frias, destacada}`. E: `IdeaBandeja` con `destacada`, ninguna marcada.
+     F: tres pendientes con `id, tema, campo, voz, estado`.
+- **Lo que se ve distinto en el panel** (siete pantallas a 1280 y 375 px, Playwright, sin
+  errores de consola; capturas en el scratchpad de la sesión):
+  1. **Ajustes a 375 px** se desborda 150 px y aprieta las columnas: la muestra de «Lectura
+     biónica», el texto de «Intensidad» y la lista de «Presupuesto de silencio» quedan de una
+     palabra por línea. Las otras seis pantallas no se desbordan.
+  2. **Voseo en el panel:** «Llevás 42 minutos…» y «Para vos se siente como alivio…»
+     (`ajustes/page.tsx`), «Nunca de vos» (`page.tsx`, Hoy). Eso lo arregla Claude en la app.
+  3. En Hoy a 375 px, la barra de abajo aparece sobre una tarjeta en la captura de página
+     completa; puede ser solo cómo se captura una barra fija. Mirarlo en el teléfono.
+- **Decisiones que tomé sin preguntar:**
+  1. El voseo de la voz de Remi en el núcleo (`868f9b0`, 38 palabras) lo pasé a tú: regla 7.
+  2. No renombré los skills de oficios aunque sus nombres pasan de 64 caracteres: Claude Code
+     los carga igual.
+- **Dudas abiertas:**
+  1. `notion_sync` escribe `.notion-estado.json` en la bóveda sin commitear, y `doctor.sh`
+     falla la pieza 7 hasta que alguien lo commitee. Va a volver cada vez que Notion suba algo.
+  2. `instalar.sh` no repone `/Applications/Remi.app` después de `desinstalar.sh`: hay que
+     correr `actualizar.sh` o copiarla de `target/`.
+- **Cómo probarlo a mano:** `bash scripts/doctor.sh` → 10/10;
+  `cd nucleo && uv run pytest -q` (728) con `git -C ~/proyectos/remi-mente rev-parse HEAD`
+  antes y después.
+
+---
+
 ## 2026-10-02 · F3 · los libros y F3.5 · construido · 972f5a2
 
 Escribe la terminal. Repo: `fc9d8af` (F3.3), `d1a9b0b` (F3.5), `972f5a2` (F3.2 en la noche).
