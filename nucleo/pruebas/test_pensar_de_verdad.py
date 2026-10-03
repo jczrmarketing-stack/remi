@@ -140,7 +140,7 @@ def test_pensar_guarda_los_dos_turnos_y_el_segundo_lleva_el_primero(monkeypatch,
 
     assert vistos[0] == "¿qué tengo pendiente con Alfonso?"
     assert "Juan Camilo: ¿qué tengo pendiente con Alfonso?" in vistos[1]
-    assert "Remi: Tenés pendiente la Fase 1." in vistos[1]
+    assert "Remi: Tienes pendiente la Fase 1." in vistos[1]
 
 
 # — «sin pensar» no llama al modelo —

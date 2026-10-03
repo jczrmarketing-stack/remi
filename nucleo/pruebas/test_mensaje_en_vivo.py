@@ -58,7 +58,7 @@ def test_en_frases_corta_en_puntuacion_y_devuelve_el_resultado():
     frases, resultado = _recoger(
         pensar._en_frases(_deltas(["Parás ahora mismo,", " ya. Tomá agua y", " dormí temprano. Mañana", " seguimos con eso."]))
     )
-    assert frases == ["Parás ahora mismo, ya.", "Tomá agua y dormí temprano.", "Mañana seguimos con eso."]
+    assert frases == ["Paras ahora mismo, ya.", "Tomá agua y dormí temprano.", "Mañana seguimos con eso."]
     assert resultado == "fin"
 
 
@@ -216,7 +216,7 @@ def test_en_vivo_si_el_modo_fallo_despues_de_una_frase_no_cae_a_nada(monkeypatch
     monkeypatch.setattr(pensar, "_deltas_claude", deltas_falsos)
     frases, pensado = _recoger(pensar._charla_claude("x", "y", [], pensar.MODOS["equilibrio"], en_vivo=True))
     assert llamados == ["equilibrio"]
-    assert frases == ["Parás ahora mismo, ya.", "Y después de eso"] and pensado is None
+    assert frases == ["Paras ahora mismo, ya.", "Y después de eso"] and pensado is None
     assert "falló después de 2 frase(s)" in capsys.readouterr().err
 
 
@@ -229,10 +229,11 @@ def test_pensar_en_frases_guarda_los_turnos_igual_que_pensar(monkeypatch):
         lambda m, *a, **k: _deltas(["Tenés pendiente la Fase 1. Arrancá", " por ahí."], pensar.Pensado("Tenés pendiente la Fase 1. Arrancá por ahí.", 1, 1, "haiku")),
     )
     frases, pensado = _recoger(pensar.pensar_en_frases("¿qué tengo pendiente?", "claude", "rapido"))
-    assert frases == ["Tenés pendiente la Fase 1.", "Arrancá por ahí."]
+    assert frases == ["Tienes pendiente la Fase 1.", "Arrancá por ahí."]
     assert pensado is not None
+    assert pensado.paso_minimo == "Tienes pendiente la Fase 1. Arrancá por ahí."
     turnos = pensar._turnos()
-    assert [t.texto for t in turnos][-2:] == ["¿qué tengo pendiente?", "Tenés pendiente la Fase 1. Arrancá por ahí."]
+    assert [t.texto for t in turnos][-2:] == ["¿qué tengo pendiente?", "Tienes pendiente la Fase 1. Arrancá por ahí."]
 
 
 # — El cliente OpenAI-compatible en stream —

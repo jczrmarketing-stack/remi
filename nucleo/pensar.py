@@ -28,6 +28,7 @@ import httpx
 import db
 import libros
 import precarga
+import voseo
 import trabajo
 import vectores
 
@@ -1080,9 +1081,12 @@ def pensar_en_frases(
             yield from _en_frases(_un_solo_delta(pensado.paso_minimo))
 
     # El turno de Juan Camilo se guarda siempre que se pensó; el de Remi,
-    # solo si contestó.
+    # solo si contestó. El voseo se quita acá, en la salida: lo que se
+    # guarda, se muestra y (en el camino sin stream) se dice ya es de tú.
+    # Cada frase del stream se convierte en `_en_frases`, antes de salir.
     conversacion_id = _guardar_turno("juan", frase)
     if pensado is not None:
+        pensado = replace(pensado, paso_minimo=voseo.voseo_a_tu(pensado.paso_minimo))
         conversacion_id = _guardar_turno("remi", pensado.paso_minimo)
     _actualizar_resumen_en_segundo_plano(conversacion_id)
     if abre_conversacion_nueva:
@@ -1176,11 +1180,11 @@ def _en_frases(deltas: Generator[str, None, Any]) -> Frases:
                 continue
             corta = f"{corta} {completa}".strip()
             if len(corta.split()) >= PALABRAS_MINIMAS_POR_FRASE:
-                yield corta
+                yield voseo.voseo_a_tu(corta)
                 corta = ""
     resto = f"{corta} {pendiente.strip()}".strip()
     if resto:
-        yield resto
+        yield voseo.voseo_a_tu(resto)
     return resultado
 
 
