@@ -725,7 +725,7 @@ export default function App() {
         setBajada(true);
         setEstado("pensando");
         window.setTimeout(() => { setFraseDicha("Hoy solo esto: la tarjeta. Cinco minutos."); setEstado("hablando"); }, 1400);
-        window.setTimeout(() => setEstado("escuchando"), 7500);
+        window.setTimeout(() => { setBajada(false); setEstado("escuchando"); }, 7500);
       },
       Digit5: () => { charla(); setBajada(false); setEstado("escuchando"); },
       Digit6: () => {
