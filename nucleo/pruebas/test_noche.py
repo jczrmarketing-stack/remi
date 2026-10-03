@@ -200,7 +200,15 @@ def test_fusiona_episodios_repetidos_del_mismo_dia_y_libro(tmp_path, monkeypatch
     mantenido, fusionado = fusiones[0]
     assert mantenido == f"{hoy.isoformat()}-a.md"
     assert fusionado == f"{hoy.isoformat()}-b.md"
-    assert not (tmp_path / "episodios" / fusionado).exists()
+    # Nunca se borra (regla del plan de cierre): queda con fusionado_en.
+    repetido = tmp_path / "episodios" / fusionado
+    assert repetido.exists()
+    assert f"fusionado_en: {mantenido}" in repetido.read_text()
+    import libros
+
+    assert libros.fuera_del_estante(repetido)
+    # Correr la noche otra vez no lo vuelve a fusionar.
+    assert noche.fusionar_episodios_del_dia(hoy) == []
     texto = (tmp_path / "episodios" / mantenido).read_text()
     assert "Versión corta." in texto
     assert "Versión con más detalle." in texto

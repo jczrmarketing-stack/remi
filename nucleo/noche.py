@@ -155,9 +155,9 @@ def _normalizar_resumen(ruta: Path) -> str:
 
 def fusionar_episodios_del_dia(hoy: date | None = None) -> list[tuple[str, str]]:
     """[(mantenido, fusionado)] — solo cuando dos episodios del mismo día y
-    tema tienen el mismo resumen exacto. El que se fusiona no desaparece sin
-    rastro: su contenido queda anexado al que se mantiene, y el commit de la
-    bóveda deja el revert real."""
+    tema tienen el mismo resumen exacto. Su contenido queda anexado al que se
+    mantiene, y el repetido se queda en disco con `fusionado_en:` (plan de
+    cierre: nunca borrar; antes se borraba)."""
     hoy = hoy or datetime.now(timezone.utc).date()
     carpeta_episodios = libros.carpeta().parent / "episodios"
     por_tema = _agrupar_por_tema(_episodios_de_hoy(carpeta_episodios, hoy))
@@ -182,7 +182,11 @@ def fusionar_episodios_del_dia(hoy: date | None = None) -> list[tuple[str, str]]
                 + f"\n\n---\n\nFusionado con `{ruta.name}` (mismo resumen, mismo día):\n\n"
                 + texto_extra
             )
-            ruta.unlink()
+            # Nunca se borra: queda en disco con fusionado_en, y ningún
+            # lector la cuenta (libros.fuera_del_estante).
+            original = ruta.read_text()
+            cabecera, _, cuerpo = original[3:].partition("\n---")
+            ruta.write_text(f"---{cabecera}\nfusionado_en: {mantenido.name}\n---{cuerpo}")
             boveda_git.snapshot_despues(f"bóveda: fusiona {ruta.name} en {mantenido.name} (episodios repetidos del día)")
             fusiones.append((mantenido.name, ruta.name))
     return fusiones
