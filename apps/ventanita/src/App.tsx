@@ -227,6 +227,9 @@ export default function App() {
   // El último mensaje que mandaste, para «otra respuesta».
   const ultimoEnviadoRef = useRef<{ texto: string; origen: OrigenMensaje } | null>(null);
 
+  // Lo último que el dictado mostró en el campo mientras hablabas: al parar,
+  // eso se queda a la vista y la versión final lo completa.
+  const ultimoParcialRef = useRef("");
   const accionesRef = useRef({ grabando, modo, estado, silenciado, texto, cerebro, velocidad, vozElegida });
   accionesRef.current = { grabando, modo, estado, silenciado, texto, cerebro, velocidad, vozElegida };
 
@@ -773,6 +776,7 @@ export default function App() {
     setGrabando(true);
     grabacionIdRef.current += 1;
     baseDictadoRef.current = accionesRef.current.texto;
+    ultimoParcialRef.current = "";
     const cortarSolo = modoNuevo === "dialogo";
     grabacionDesdeRef.current = performance.now();
     registrar("iniciarEscucha", { modo: modoNuevo, cortarSolo });
@@ -810,7 +814,20 @@ export default function App() {
       grabacionDesdeRef.current = null;
       setGrabando(false);
       setTranscribiendo(true);
-      setEstado("pensando");
+      // Dictando, lo que ya apareció en el campo se queda a la vista y
+      // el campo queda libre mientras llega la versión final (Whisper tarda
+      // más cuanto más hablaste: 55 s → 6 s). Conversando, o con Enter, no:
+      // ahí hace falta el texto final para mandarlo.
+      const previa = ultimoParcialRef.current;
+      const adelantar = !enDialogo && !enviarAlTranscribirRef.current && previa !== "";
+      if (adelantar) {
+        registrar("dictado:adelantado", { caracteres: previa.length });
+        setModo("texto");
+        setEstado("escuchando");
+        campoRef.current?.enfocar();
+      } else {
+        setEstado("pensando");
+      }
       try {
         const transcripcion = await detenerEscuchaYTranscribir(origen);
         if (generacionRef.current !== miGeneracion) return;
@@ -833,6 +850,12 @@ export default function App() {
           await enviar(completo, "texto");
           return;
         }
+        if (adelantar) {
+          // Solo se completa si el campo sigue como lo dejó el dictado: si ya
+          // lo editaste o lo mandaste, no se pisa.
+          setTexto((actual) => (actual === previa ? completo : actual));
+          return;
+        }
         setTexto(completo);
         setModo("texto");
         setEstado("escuchando");
@@ -850,7 +873,7 @@ export default function App() {
             return;
           }
         }
-        setTexto(baseDictadoRef.current);
+        if (!adelantar) setTexto(baseDictadoRef.current);
         registrar("sinTranscripcion", { origen, enDialogo });
         console.error("no se pudo transcribir:", error);
         if (!enDialogo) {
@@ -894,7 +917,9 @@ export default function App() {
         .then((parcial) => {
           if (!vivo || !parcial || grabacionIdRef.current !== deEsta) return;
           const base = baseDictadoRef.current.trim();
-          setTexto(base ? `${base} ${parcial}` : parcial);
+          const visto = base ? `${base} ${parcial}` : parcial;
+          ultimoParcialRef.current = visto;
+          setTexto(visto);
         })
         .catch(() => undefined)
         .finally(() => {
