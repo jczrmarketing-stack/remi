@@ -53,7 +53,7 @@ export default function PaginaHoy() {
 
   async function copiarMensaje() {
     if (!cliente.trim()) return;
-    const respuesta = await nucleo.leerParaCliente(`me escribió ${cliente}: avisale que cerré este hito`);
+    const respuesta = await nucleo.leerParaCliente(`me escribió ${cliente}: avísale que cerré este hito`);
     await navigator.clipboard.writeText(respuesta.texto).catch(() => undefined);
     setCopiado(true);
   }
@@ -279,7 +279,7 @@ function SinNadaAbierto({ propuesta, onEmpezado }: { propuesta: Propuesta | null
           </div>
         </>
       ) : (
-        <p className="voz">No hay una entrega con fecha cerca. Elegí algo y empezá — la próxima vez Remi lo recuerda.</p>
+        <p className="voz">No hay una entrega con fecha cerca. Elige algo y empieza — la próxima vez Remi lo recuerda.</p>
       )}
     </section>
   );
@@ -331,7 +331,7 @@ function ListaDeCierre({ cliente, setCliente, copiado, onCopiar }: {
 }) {
   return (
     <section className="card">
-      <div className="label">Lista de cierre · Remi la llena, vos decidís</div>
+      <div className="label">Lista de cierre · Remi la llena, tú decides</div>
       <div style={{ marginTop: 12 }}>
         <div className="fila">
           <span aria-hidden style={{ width: 20, height: 20, borderRadius: 6, flex: "none", display: "grid", placeContent: "center", background: "var(--luz)", border: "1.5px solid var(--luz)", color: "var(--on-luz)", fontFamily: "var(--font-mono)", fontSize: 12 }}>✓</span>
@@ -347,7 +347,7 @@ function ListaDeCierre({ cliente, setCliente, copiado, onCopiar }: {
           <input
             value={cliente}
             onChange={(e) => setCliente(e.target.value)}
-            placeholder="¿a quién avisás?"
+            placeholder="¿a quién avisas?"
             aria-label="Cliente a avisar"
             className="btn-secundario"
             style={{ flexGrow: 1, minWidth: 140, height: 40, borderRadius: "var(--radius-pill)", padding: "0 14px", border: "1px solid var(--line)", background: "var(--surface-2)", color: "var(--ink)" }}
@@ -444,7 +444,7 @@ function ListaVence({ agenda }: { agenda: AgendaDeHoy }) {
           })
         )}
       </div>
-      <p className="body-muted" style={{ marginTop: 14 }}>El rojo solo habla de tiempo. Nunca de vos.</p>
+      <p className="body-muted" style={{ marginTop: 14 }}>El rojo solo habla de tiempo. Nunca de ti.</p>
     </section>
   );
 }

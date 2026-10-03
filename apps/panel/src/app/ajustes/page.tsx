@@ -4,7 +4,7 @@ import { Bionica } from "@/components/Bionica";
 import { Conexiones } from "@/components/Conexiones";
 import { usePreferencias, type PielReloj } from "@/hooks/PreferenciasContext";
 
-const EJEMPLO = "Llevás 42 minutos en distribución. La factura de Alfonso vence a las 3 de la tarde.";
+const EJEMPLO = "Llevas 42 minutos en distribución. La factura de Alfonso vence a las 3 de la tarde.";
 
 export default function PaginaAjustes() {
   const { prefs, actualizar } = usePreferencias();
@@ -95,7 +95,7 @@ export default function PaginaAjustes() {
 
         <Conexiones />
 
-        <p className="voz"><Bionica texto="Para vos se siente como alivio. Por eso existe." /></p>
+        <p className="voz"><Bionica texto="Para ti se siente como alivio. Por eso existe." /></p>
       </div>
     </div>
   );
