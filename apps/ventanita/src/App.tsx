@@ -633,7 +633,10 @@ export default function App() {
       locucionRef.current += 1;
       if (!reintento) {
         agregar({ rol: "juan", texto: limpio });
-        setTexto("");
+        // Solo se vacía el campo si lo que se manda es lo que estaba escrito
+        // en él. En la conversación por voz con el chat a la vista (3-oct), un
+        // turno hablado no puede borrar lo que estabas escribiendo.
+        setTexto((actual) => (actual.trim() === limpio || origen === "texto" ? "" : actual));
       }
       ultimoEnviadoRef.current = { texto: limpio, origen };
       setEstado("pensando");
@@ -936,24 +939,6 @@ export default function App() {
     }
   }, []);
   empezarAEscucharRef.current = empezarAEscuchar;
-
-  // Pegar en la conversación por voz (3-oct, Juan Camilo): ⌘V pone el texto en
-  // el campo, que aparece solo mientras tiene algo, y Enter lo manda como un
-  // turno de la conversación. Sin esto, el campo está escondido en esa pantalla.
-  useEffect(() => {
-    if (modo !== "dialogo") return;
-    function alPegar(evento: ClipboardEvent) {
-      if ((evento.target as HTMLElement | null)?.closest?.("textarea, input")) return;
-      const pegado = evento.clipboardData?.getData("text") ?? "";
-      if (!pegado.trim()) return;
-      evento.preventDefault();
-      registrar("pegado:conversacion", { caracteres: pegado.length });
-      setTexto((actual) => (actual ? `${actual}\n${pegado}` : pegado));
-      window.setTimeout(() => campoRef.current?.enfocar(), 0);
-    }
-    window.addEventListener("paste", alPegar);
-    return () => window.removeEventListener("paste", alPegar);
-  }, [modo]);
 
   // El silencio es solo de la conversación por voz: al salir de ella, el
   // micrófono vuelve a estar activo (si no, el dictado quedaría bloqueado sin
@@ -1649,7 +1634,7 @@ export default function App() {
   return (
     <div
       ref={ventanaRef}
-      className={`ventanita ventanita--chat ventanita--${estado}${bajada ? " ventanita--baja" : ""}${modo === "dialogo" && texto.trim() !== "" ? " ventanita--pegado" : ""}`}
+      className={`ventanita ventanita--chat ventanita--${estado}${bajada ? " ventanita--baja" : ""}`}
       onMouseDown={alPresionar}
     >
       <Semaforo
@@ -1736,9 +1721,10 @@ export default function App() {
         valor={texto}
         onCambio={setTexto}
         onEnviar={() => {
-          // En la conversación por voz (3-oct): lo pegado va como un turno más
-          // y Remi contesta por voz. Si el micrófono escuchaba, esa escucha se
-          // descarta: el turno es el texto.
+          // En la conversación por voz, desde el panel del chat (la flecha deja
+          // la conversación viva, 3-oct): lo escrito o pegado va como un turno
+          // más y Remi contesta por voz. Si el micrófono escuchaba, esa escucha
+          // se descarta: el turno es el texto.
           if (accionesRef.current.modo === "dialogo" && texto.trim() !== "") {
             if (accionesRef.current.grabando) {
               grabacionIdRef.current += 1;
@@ -1747,7 +1733,7 @@ export default function App() {
               void cancelarEscucha("x").catch(() => undefined);
               setGrabando(false);
             }
-            registrar("pegado:enviar", { caracteres: texto.length });
+            registrar("conversacion:texto", { caracteres: texto.length });
             void enviar(texto, "voz");
             return;
           }
