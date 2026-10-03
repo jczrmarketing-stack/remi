@@ -92,6 +92,7 @@ import {
   type Racha,
 } from "./gestos";
 import { enchufarConsola, registrar } from "./registro";
+import { PREGUNTA_GUARDAR, yaPreguntoSiGuarda } from "./guardarCharla";
 import {
   fijarPosicion,
   fijarTamanoChat,
@@ -200,6 +201,9 @@ export default function App() {
   // voz de Remi.
   const [micSilenciado, setMicSilenciado] = useState(false);
   const micSilenciadoRef = useRef(false);
+  // Si al silenciar se estaba dictando: al activar, el dictado sigue.
+  const dictadoEnPausaRef = useRef(false);
+  const detenerYTranscribirRef = useRef<(origen: OrigenParada) => Promise<void>>(async () => undefined);
   const [velocidad, setVelocidad] = useState<Velocidad>(() => obtenerVelocidad());
   const [vozElegida, setVozElegida] = useState<PreferenciaVoz>(() => obtenerVoz());
   const [vocesDisponibles, setVocesDisponibles] = useState<VozDisponible[]>([]);
@@ -940,17 +944,23 @@ export default function App() {
     const { grabando: grabandoActual, modo: modoActual, estado: estadoActual } = accionesRef.current;
     registrar("microfono", { silenciado: silenciar, grabando: grabandoActual, modo: modoActual });
     if (silenciar) {
+      // Como el mute de una llamada: lo que ya dijiste no se pierde. En la
+      // conversación se transcribe y se manda (Remi contesta y no vuelve a
+      // escuchar hasta activarlo); en el dictado queda en el campo.
+      window.clearTimeout(rearmeRef.current);
       if (grabandoActual) {
-        // Lo que se estaba grabando se descarta, sin transcribir.
-        grabacionIdRef.current += 1;
-        grabacionDesdeRef.current = null;
-        window.clearTimeout(rearmeRef.current);
-        void cancelarEscucha("parar").catch(() => undefined);
-        setGrabando(false);
+        dictadoEnPausaRef.current = modoActual === "voz";
+        void detenerYTranscribirRef.current("silenciar");
       }
       return;
     }
-    // Al activarlo, si la conversación por voz estaba esperando, vuelve a escuchar.
+    // Al activarlo: la conversación por voz que esperaba vuelve a escuchar, y
+    // el dictado en pausa sigue (agrega a lo que ya está en el campo).
+    if (dictadoEnPausaRef.current && !grabandoActual) {
+      dictadoEnPausaRef.current = false;
+      void empezarAEscucharRef.current("voz");
+      return;
+    }
     if (modoActual === "dialogo" && estadoActual === "escuchando" && !grabandoActual) {
       void empezarAEscucharRef.current("dialogo");
     }
@@ -1067,6 +1077,7 @@ export default function App() {
     },
     [enviar, empezarAEscuchar],
   );
+  detenerYTranscribirRef.current = detenerYTranscribir;
 
   // Mientras dictás, lo que vas diciendo aparece en el campo (Whisper
   // residente, cada 1,5 s). Si no hay servidor, no pasa nada: el texto
@@ -1527,24 +1538,30 @@ export default function App() {
     (pegado: string) => {
       const id = nuevoId();
       const quitar = () => setMensajes((actuales) => actuales.filter((m) => m.id !== id));
-      setMensajes((actuales) => [
-        ...actuales,
-        {
-          id,
-          rol: "remi",
-          texto: "¿Lo guardo como conversación?",
-          pregunta: {
-            onSi: () => {
-              quitar();
-              void guardarPegado(pegado);
-            },
-            onNo: () => {
-              quitar();
-              campoRef.current?.enfocar();
+      setMensajes((actuales) => {
+        if (yaPreguntoSiGuarda(actuales)) {
+          registrar("pegar:ya-preguntado");
+          return actuales;
+        }
+        return [
+          ...actuales,
+          {
+            id,
+            rol: "remi",
+            texto: PREGUNTA_GUARDAR,
+            pregunta: {
+              onSi: () => {
+                quitar();
+                void guardarPegado(pegado);
+              },
+              onNo: () => {
+                quitar();
+                campoRef.current?.enfocar();
+              },
             },
           },
-        },
-      ]);
+        ];
+      });
     },
     [guardarPegado],
   );
@@ -1720,9 +1737,10 @@ export default function App() {
       <div className="pie">
         <div className="pie__izquierda">
           <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
-          {(grabando || modo === "dialogo" || micSilenciado) && (
+          {
             // 3-oct, Juan Camilo: silenciar el micrófono, no parar la
-            // conversación. Un interruptor, como el mute de una llamada.
+            // conversación. Un interruptor, como el mute de una llamada, y
+            // siempre a la vista.
             <button
               type="button"
               className="chip chip-mic"
@@ -1738,7 +1756,7 @@ export default function App() {
               )}
               <span className="chip__texto">{micSilenciado ? "Silenciado" : "Silenciar"}</span>
             </button>
-          )}
+          }
         </div>
         <div className="pie__derecha">
           <ChipLectura lectura={lectura} onCambiar={cambiarLectura} />
