@@ -13,6 +13,7 @@ rompe nada: no deja rastro y lo anota una vez en stderr.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -37,8 +38,16 @@ def _hay_cambios(carpeta: Path) -> bool:
     return bool(resultado.stdout.strip())
 
 
+# F3.5 / F4.2: la bóveda de verdad. Una prueba nunca la commitea: si lo
+# intenta, revienta (fuera del try de abajo, para que la suite falle en rojo
+# en vez de tragárselo).
+BOVEDA_REAL = (Path(__file__).resolve().parent.parent / "conocimiento").resolve()
+
+
 def _commit(mensaje: str) -> None:
     carpeta = raiz()
+    if os.environ.get("PYTEST_CURRENT_TEST") and carpeta == BOVEDA_REAL:
+        raise RuntimeError(f"una prueba intentó commitear la bóveda real: {mensaje}")
     if not _es_repo(carpeta):
         return
     try:

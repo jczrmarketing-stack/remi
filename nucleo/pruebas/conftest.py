@@ -38,7 +38,22 @@ os.environ.setdefault("GIT_CONFIG_GLOBAL", _GIT_CONFIG_VACIO.name)
 os.environ.setdefault("REMI_NUCLEO_URL", "http://127.0.0.1:1")
 
 
+import shutil
+
 import pytest
+
+# F3.5 (plan de cierre): REMI_BOVEDA solo aísla los episodios; los libros, los
+# Estados y el git de la bóveda van por REMI_CONOCIMIENTO. Sin aislarlo,
+# cada corrida de la suite reescribía el Estado de upvisuals.md real y
+# commiteaba en remi-mente (1 y 2 de octubre). Una copia por corrida, sin
+# .git (así boveda_git no commitea nada), con el contenido real para las
+# pruebas que leen los oficios de verdad.
+_BOVEDA_REAL = Path(__file__).resolve().parent.parent.parent / "conocimiento"
+_COPIA_DE_LA_BOVEDA = Path(tempfile.mkdtemp(prefix="remi-pruebas-boveda-")) / "boveda"
+if _BOVEDA_REAL.is_dir():
+    shutil.copytree(_BOVEDA_REAL.resolve(), _COPIA_DE_LA_BOVEDA, ignore=shutil.ignore_patterns(".git", ".obsidian"))
+else:
+    (_COPIA_DE_LA_BOVEDA / "proyectos").mkdir(parents=True)
 
 
 @pytest.fixture(autouse=True)
@@ -48,3 +63,6 @@ def _base_propia(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     # Ni la bóveda real: un episodio de prueba no puede aparecer en remi-mente.
     monkeypatch.setenv("REMI_BOVEDA", str(tmp_path / "boveda"))
+    # Ni sus libros ni su git: la copia de esta corrida (las que quieren la
+    # suya la ponen con monkeypatch y pisan esta).
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(_COPIA_DE_LA_BOVEDA / "proyectos"))

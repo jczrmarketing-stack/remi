@@ -7,11 +7,18 @@ from datetime import datetime, timedelta, timezone
 def _arrancar(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     monkeypatch.setenv("REMI_BOVEDA", str(tmp_path / "boveda"))
+    # F3.5: sin esto, los libros eran los reales — cada corrida de la suite
+    # reescribía el Estado de upvisuals.md y commiteaba en la bóveda real
+    # (más de quince commits del 1 y 2 de octubre).
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path / "boveda" / "proyectos"))
     for nombre in ("pensar", "db", "cierre", "experiencia", "libros"):
         sys.modules.pop(nombre, None)
+    import cierre
     import pensar
 
     monkeypatch.setattr(pensar, "_pensar_con_claude", lambda *a, **k: None)
+    # Ni la trastienda: una prueba no llama a un modelo.
+    monkeypatch.setattr(cierre, "redactar", lambda pedido: None)
     return pensar
 
 

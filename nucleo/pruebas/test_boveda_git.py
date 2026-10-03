@@ -64,3 +64,14 @@ def test_sin_repo_git_no_rompe_nada(tmp_path, monkeypatch) -> None:
 
     boveda_git.snapshot_antes("algo")
     boveda_git.snapshot_despues("algo más")  # no debe levantar ninguna excepción
+
+
+def test_una_prueba_que_intenta_commitear_la_boveda_real_revienta(monkeypatch):
+    """F3.5: la suite falla en rojo si una prueba llega al git de remi-mente."""
+    import pytest
+
+    import boveda_git
+
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(boveda_git.BOVEDA_REAL / "proyectos"))
+    with pytest.raises(RuntimeError, match="una prueba intentó commitear la bóveda real"):
+        boveda_git.snapshot_antes("algo")

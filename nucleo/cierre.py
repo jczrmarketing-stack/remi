@@ -166,7 +166,7 @@ def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None
     if libro is not None:
         estado_libro.escribir_estado(libro.archivo, _a_estado(secciones))
     boveda_git.snapshot_despues(
-        f"bóveda: episodio {destino.name} al cerrar sesión en {tema}"
+        _mensaje_del_cierre(destino, f"al cerrar sesión en {tema}")
         + (f"; Estado de {libro.archivo.name} actualizado" if libro is not None else "")
     )
     _memoria(titulo, resumen, tema, ahora, cuerpo, por)
@@ -329,6 +329,21 @@ def _a_estado(secciones: dict[str, str]) -> str:
     return f"Quedaste: {quedaste}\nDecisiones: {decisiones}\nPróximo paso: {paso}"
 
 
+def _mensaje_del_cierre(destino: Path, cuando: str) -> str:
+    """F3.5: el commit de la bóveda nombra el episodio solo si quedó dentro
+    de ESA bóveda. Con REMI_BOVEDA y REMI_CONOCIMIENTO en carpetas distintas
+    (lo que pasaba en la suite), el episodio caía afuera y el commit lo
+    nombraba igual — en `git log` parecía escrito y no estaba en disco."""
+    raiz = boveda_git.raiz()
+    try:
+        adentro = destino.exists() and raiz in destino.resolve().parents
+    except OSError:
+        adentro = False
+    if adentro:
+        return f"bóveda: episodio {destino.name} {cuando}"
+    return f"bóveda: {cuando} (el episodio quedó fuera de esta bóveda: {destino.parent})"
+
+
 def _memoria(titulo: str, resumen: str, tema: str, ahora: datetime, cuerpo: str, por: str) -> None:
     try:
         memoria = Memoria(
@@ -392,7 +407,7 @@ def _escribir_episodio_de_conversacion(conversacion_id: str, turnos: list[db.Tur
     if libro is not None:
         estado_libro.escribir_estado(libro.archivo, _a_estado(secciones))
     boveda_git.snapshot_despues(
-        f"bóveda: episodio {destino.name} al cerrar una conversación"
+        _mensaje_del_cierre(destino, "al cerrar una conversación")
         + (f"; Estado de {libro.archivo.name} actualizado" if libro is not None else "")
     )
     _memoria(titulo, resumen, tema or "charla", ahora, cuerpo, por)
@@ -422,14 +437,24 @@ def cerrar_conversaciones_inactivas(ahora: datetime) -> int:
 
     cerradas = 0
     for conversacion_id, turnos in turnos_por_id.items():
-        if _conversacion_sustancial(turnos):
-            _escribir_episodio_de_conversacion(conversacion_id, turnos, ahora)
-            cerradas += 1
-        conexion = db.conectar()
+        # F3.5: se marca pase lo que pase. Si escribir el episodio falla a la
+        # mitad (el Estado ya escrito, el archivo no), la próxima corrida la
+        # volvía a cerrar — otro Estado, otra paráfrasis, otro commit.
         try:
-            db.marcar_episodio_hecho(conexion, conversacion_id)
+            if _conversacion_sustancial(turnos):
+                _escribir_episodio_de_conversacion(conversacion_id, turnos, ahora)
+                cerradas += 1
+        except Exception as error:  # noqa: BLE001 — una conversación rota no frena las demás
+            print(
+                f"[cierre] la conversación {conversacion_id} no dejó episodio ({type(error).__name__}: {error})",
+                file=sys.stderr,
+            )
         finally:
-            conexion.close()
+            conexion = db.conectar()
+            try:
+                db.marcar_episodio_hecho(conexion, conversacion_id)
+            finally:
+                conexion.close()
     return cerradas
 
 
