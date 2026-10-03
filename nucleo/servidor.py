@@ -115,6 +115,10 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
             sembrar_conocimiento.sembrar_oficios()
         except Exception as error:  # nunca tumbar el arranque por esto
             print(f"[oficios] no pude sembrar ({type(error).__name__}: {error})", file=sys.stderr)
+        try:
+            sembrar_conocimiento.sembrar_referencias()
+        except Exception as error:  # nunca tumbar el arranque por esto
+            print(f"[referencia] no pude sembrar ({type(error).__name__}: {error})", file=sys.stderr)
     telegram.arrancar_hilo()
     yield
 

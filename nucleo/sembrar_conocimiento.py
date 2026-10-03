@@ -99,6 +99,21 @@ def sembrar() -> dict[str, int]:
     return _sembrar_desde(carpeta(), "conocimiento")
 
 
+def carpeta_referencia() -> Path:
+    """Documentos de referencia (la Biblia de Remi, exportada): al lado de
+    proyectos/ y oficios/, nunca adentro de proyectos/ — un `tema: remi` ahí
+    sería un segundo libro de remi para libros.listar()."""
+    return carpeta().parent / "referencia"
+
+
+def sembrar_referencias() -> dict[str, int]:
+    """La Biblia y cualquier otro documento de referencia: nivel 1 siempre
+    (título y resumen en la mente, el cuerpo se baja con `leer`). Se reconoce
+    por tema Y título: la Biblia tiene `tema: remi`, igual que el libro de
+    proyectos/remi.md, y no puede pisarlo (ni él a ella)."""
+    return _sembrar_desde(carpeta_referencia(), "referencia", nivel_fijo=NIVEL_RECIENTE, por_titulo=True)
+
+
 def sembrar_oficios() -> dict[str, int]:
     """Los oficios (Biblia Parte VI) entran al mismo estante que los
     proyectos: título y resumen siempre en la mente, `tipo: oficio` es solo
@@ -108,7 +123,9 @@ def sembrar_oficios() -> dict[str, int]:
     return _sembrar_desde(carpeta_oficios(), "oficios", nivel_fijo=NIVEL_RECIENTE)
 
 
-def _sembrar_desde(origen: Path, etiqueta: str, nivel_fijo: int | None = None) -> dict[str, int]:
+def _sembrar_desde(
+    origen: Path, etiqueta: str, nivel_fijo: int | None = None, por_titulo: bool = False
+) -> dict[str, int]:
     cuenta = {"creadas": 0, "actualizadas": 0, "iguales": 0, "saltadas": 0}
     if not origen.is_dir():
         print(f"[{etiqueta}] no está {origen}: nada que sembrar", file=sys.stderr)
@@ -125,6 +142,10 @@ def _sembrar_desde(origen: Path, etiqueta: str, nivel_fijo: int | None = None) -
 
             nivel = nivel_fijo if nivel_fijo is not None else nivel_de(ruta)
             existentes = db.memorias_por_tema(conexion, ficha.tema)
+            # La del mismo título primero: dos fichas pueden compartir tema
+            # (el libro de remi y la Biblia). Con por_titulo, solo esa.
+            mismas = [m for m in existentes if m.titulo == ficha.titulo]
+            existentes = mismas if por_titulo else (mismas or existentes)
             try:
                 if not existentes:
                     db.guardar_memoria(

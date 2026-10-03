@@ -19,6 +19,9 @@ se evita el ciclo pensar → precarga → estado_libro → pensar.
 """
 from __future__ import annotations
 
+import re
+import unicodedata
+
 import db
 import libros
 
@@ -94,3 +97,95 @@ def bloque() -> tuple[str, str] | None:
     if resumen is None:
         return None
     return f"{ENCABEZADO}{resumen}\n", f"{tema} razon={razon}"
+
+
+# — Los documentos de referencia (la Biblia de Remi), cuando la frase los nombra —
+#
+# Ni Haiku ni Sonnet bajaban la Biblia con `leer` aunque estuviera en el
+# índice: el carácter ya trae un resumen de las seis leyes, contestaban con
+# ese y decían que la habían leído (2-oct). Regla, sin IA: si la frase nombra
+# un documento de referencia por una de sus claves, entra la sección que
+# coincide con lo que se pregunta, literal, y siempre dónde está el resto.
+
+ENCABEZADO_REFERENCIA = "\n\nDe {titulo} (`referencia/{archivo}` en la bóveda), lo que toca a esta pregunta, literal:\n"
+PIE_REFERENCIA = "\nEl documento entero está en `referencia/{archivo}`: bájalo con `leer`{id} si hace falta más.\n"
+MAXIMO_SECCION = 1800
+_INICIO_SECCION = re.compile(r"^(LEY \d+ · .+|#{1,3} .+|PARTE [IVXL]+)$")
+_SIN_PESO = {
+    "que", "dice", "tu", "tus", "de", "del", "la", "el", "los", "las", "un", "una", "y", "o", "en", "es",
+    "esta", "esto", "eso", "sobre", "como", "cual", "me", "mi", "lo", "le", "se", "por", "para", "con",
+}
+
+
+def _normal(texto: str) -> str:
+    sin_tildes = unicodedata.normalize("NFD", texto.lower())
+    return "".join(c for c in sin_tildes if unicodedata.category(c) != "Mn")
+
+
+def _fichas(texto: str) -> set[str]:
+    """Palabras con peso; los números van con dos cifras («ley 3» = «LEY 03»)."""
+    palabras = re.findall(r"[a-z0-9ñ]+", _normal(texto))
+    return {p.zfill(2) if p.isdigit() else p for p in palabras if p not in _SIN_PESO and len(p) > 1 or p.isdigit()}
+
+
+def _secciones(cuerpo: str) -> list[tuple[str, str]]:
+    """[(encabezado, texto)] partiendo en «LEY NN · …», «## …» y «PARTE …»."""
+    secciones: list[tuple[str, list[str]]] = []
+    for linea in cuerpo.splitlines():
+        if _INICIO_SECCION.match(linea.strip()):
+            secciones.append((linea.strip(), [linea]))
+        elif secciones:
+            secciones[-1][1].append(linea)
+    return [(encabezado, "\n".join(lineas).strip()) for encabezado, lineas in secciones]
+
+
+def _id_en_la_mente(tema: str, titulo: str) -> str:
+    try:
+        conexion = db.conectar()
+        try:
+            for memoria in db.memorias_por_tema(conexion, tema):
+                if memoria.titulo == titulo:
+                    return f" (id {str(memoria.id)[:8]})"
+        finally:
+            conexion.close()
+    except Exception:  # noqa: BLE001 — sin base, el pie va sin id
+        pass
+    return ""
+
+
+def de_referencia(frase: str) -> str | None:
+    """El texto a sumar al contexto, o None si la frase no nombra ningún
+    documento de referencia."""
+    import sembrar_conocimiento  # import diferido, como estado_libro
+
+    carpeta = sembrar_conocimiento.carpeta_referencia()
+    if not carpeta.is_dir():
+        return None
+    fichas_frase = _fichas(frase)
+    for ruta in sorted(carpeta.glob("*.md")):
+        if libros.fuera_del_estante(ruta):
+            continue
+        ficha = sembrar_conocimiento.leer_ficha(ruta)
+        if ficha is None:
+            continue
+        # Lo nombra por su primera clave («biblia»), no por cualquiera: «remi»
+        # o «fases» también son claves y aparecen en casi toda frase.
+        primera = re.findall(r"[a-z0-9ñ]+", _normal(ficha.claves or ""))[:1]
+        if not primera or primera[0] not in fichas_frase:
+            continue
+        claves = _fichas(ficha.claves or "")
+        preguntadas = fichas_frase - claves
+        mejor: tuple[int, str] | None = None
+        for encabezado, texto in _secciones(ficha.cuerpo):
+            en_encabezado = preguntadas & _fichas(encabezado)
+            if not en_encabezado:
+                continue
+            puntaje = 3 * len(en_encabezado) + len(preguntadas & _fichas(texto))
+            if mejor is None or puntaje > mejor[0]:
+                mejor = (puntaje, texto)
+        partes = []
+        if mejor is not None:
+            partes.append(ENCABEZADO_REFERENCIA.format(titulo=ficha.titulo, archivo=ruta.name) + mejor[1][:MAXIMO_SECCION])
+        partes.append(PIE_REFERENCIA.format(archivo=ruta.name, id=_id_en_la_mente(ficha.tema, ficha.titulo)))
+        return "".join(partes)
+    return None

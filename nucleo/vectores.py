@@ -105,6 +105,7 @@ def notas() -> list[Nota]:
         (raiz / "oficios", "oficio"),
         (raiz / "episodios", "episodio"),
         (raiz / "experiencia", "leccion"),
+        (raiz / "referencia", "referencia"),
     ):
         if not carpeta.is_dir():
             continue

@@ -482,6 +482,16 @@ def _precarga() -> tuple[str, str] | None:
         return None
 
 
+def _referencia(frase: str) -> str | None:
+    """La sección de la Biblia que la frase pregunta (precarga.de_referencia).
+    Nunca rompe la respuesta."""
+    try:
+        return precarga.de_referencia(frase)
+    except Exception as error:  # noqa: BLE001 — una ayuda, no un requisito
+        print(f"[precarga] no pude leer la referencia ({type(error).__name__}): sigo sin ella", file=sys.stderr)
+        return None
+
+
 @dataclass(frozen=True)
 class Pensado:
     # Lo que el modelo contestó, entero. (El nombre es de cuando Remi solo
@@ -1007,6 +1017,10 @@ def pensar_en_frases(
         print(f"[precarga] precargado={registro}", file=sys.stderr)
     else:
         print("[precarga] nada que precargar (sin bloque abierto ni libro tocado)", file=sys.stderr)
+    referencia = _referencia(frase)
+    if referencia is not None:
+        contexto += referencia
+        print("[precarga] referencia: la frase nombra la Biblia, entra la sección que toca", file=sys.stderr)
     turnos, resumen = _conversacion()
     abre_conversacion_nueva = not turnos  # toda conversación vigente tiene al menos un turno
     mensaje = mensaje_con_historia(frase, turnos, resumen, contexto)
