@@ -482,6 +482,15 @@ def _precarga() -> tuple[str, str] | None:
         return None
 
 
+def _tema_dudoso(frase: str) -> tuple[str, str] | None:
+    """precarga.tema_dudoso, sin romper nunca la respuesta."""
+    try:
+        return precarga.tema_dudoso(frase, _ahora())
+    except Exception as error:  # noqa: BLE001 — si falla, se precarga como siempre
+        print(f"[precarga] no pude ver si el tema es dudoso ({type(error).__name__})", file=sys.stderr)
+        return None
+
+
 def _referencia(frase: str) -> str | None:
     """La sección de la Biblia que la frase pregunta (precarga.de_referencia).
     Nunca rompe la respuesta."""
@@ -1010,14 +1019,21 @@ def pensar_en_frases(
     asociados = _asociados(frase)
     if asociados:
         contexto += ENCABEZADO_ASOCIADOS + ", ".join(asociados)
-    precargado = _precarga()
-    if precargado is not None:
+    dudoso = _tema_dudoso(frase)
+    precargado = None if dudoso is not None else _precarga()
+    if dudoso is not None:
+        contexto += precarga.linea_de_duda(dudoso)
+        print(f"[precarga] tema dudoso entre {dudoso[0]} y {dudoso[1]}: que pregunte", file=sys.stderr)
+    elif precargado is not None:
         texto, registro = precargado
         contexto += texto
         print(f"[precarga] precargado={registro}", file=sys.stderr)
     else:
         print("[precarga] nada que precargar (sin bloque abierto ni libro tocado)", file=sys.stderr)
-    referencia = _referencia(frase)
+    # Con el tema dudoso tampoco entra la referencia: decidiría por él cuál de
+    # los dos proyectos es (probado el 3-oct: con la Biblia de Remi delante no
+    # preguntaba).
+    referencia = _referencia(frase) if dudoso is None else None
     if referencia is not None:
         contexto += referencia
         print("[precarga] referencia: la frase nombra la Biblia, entra la sección que toca", file=sys.stderr)

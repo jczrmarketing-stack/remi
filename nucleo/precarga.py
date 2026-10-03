@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from datetime import datetime, timedelta
 
 import db
 import libros
@@ -189,3 +190,57 @@ def de_referencia(frase: str) -> str | None:
         partes.append(PIE_REFERENCIA.format(archivo=ruta.name, id=_id_en_la_mente(ficha.tema, ficha.titulo)))
         return "".join(partes)
     return None
+
+
+# — Ambigüedad: preguntar, no adivinar (2-oct) —
+#
+# El caso real: a las 23:36 entraron commits en malik-gestion desde otra
+# sesión de Claude Code; Juan Camilo preguntó en la ventanita «¿esta completo
+# cada paso de la biblia?» y la precarga, por «lo último tocado», le dio
+# Malik — contestó de Malik. Regla sin IA: si la frase no tiene tema propio,
+# nombra algo que existe en más de un libro, no hay un bloque abierto en la
+# ventanita y lo último tocado es un commit o una sesión de hace menos de
+# MINUTOS_RECIENTE, no se decide sola: se dan los dos candidatos.
+
+MINUTOS_RECIENTE = 15
+COMPARTIDOS = {
+    "biblia", "plan", "encargo", "panel", "ventanita", "bitacora", "camino", "fase", "fases",
+    "contrato", "prompt", "estado", "mockup", "pantalla", "lienzo", "bot", "repo",
+}
+LINEA_DE_DUDA = "\n\nNo sé si habla de {x} o de {y}: pregunta cuál en una frase antes de contestar.\n"
+
+
+def tema_dudoso(frase: str, ahora: datetime) -> tuple[str, str] | None:
+    """(lo último tocado, el anterior distinto) si hay que preguntar; si no, None."""
+    import temas  # diferido, como estado_libro
+
+    if temas.tema_de_texto(frase) is not None:
+        return None
+    if not (_fichas(frase) & COMPARTIDOS):
+        return None
+    if _tema_de_bloque_abierto():
+        return None
+    conexion = db.conectar()
+    try:
+        filas = conexion.execute(
+            "SELECT tema, fecha FROM trabajo_eventos WHERE tema IS NOT NULL ORDER BY fecha DESC LIMIT 200"
+        ).fetchall()
+    finally:
+        conexion.close()
+    if not filas:
+        return None
+    ultimo = filas[0]
+    if ahora - datetime.fromisoformat(ultimo["fecha"]) > timedelta(minutes=MINUTOS_RECIENTE):
+        return None
+    otro = next((fila["tema"] for fila in filas if fila["tema"] != ultimo["tema"]), None)
+    if otro is None:
+        return None
+    return str(ultimo["tema"]), str(otro)
+
+
+def linea_de_duda(candidatos: tuple[str, str]) -> str:
+    def titulo(tema: str) -> str:
+        libro = _libro_de(tema)
+        return libro.titulo if libro is not None else tema
+
+    return LINEA_DE_DUDA.format(x=titulo(candidatos[0]), y=titulo(candidatos[1]))
