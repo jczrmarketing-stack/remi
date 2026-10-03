@@ -86,6 +86,7 @@ import {
   decidirBolita,
   decidirPalanca,
   decidirTrasVacia,
+  MS_ANTES_DE_REARMAR,
   RACHA_VACIA,
   rachaSigueViva,
   type Accion,
@@ -178,6 +179,13 @@ function nuevoId(): string {
 
 enchufarConsola();
 
+// Si Juan Camilo está escribiendo en el campo (hay texto o tiene el cursor).
+function escribiendoEnLaConversacion(): boolean {
+  const campo = document.querySelector<HTMLTextAreaElement>("textarea.campo");
+  if (!campo) return false;
+  return campo.value.trim() !== "" || document.activeElement === campo;
+}
+
 export default function App() {
   const [estado, setEstado] = useState<Estado>("reposo");
   const [modo, setModo] = useState<Modo>("texto");
@@ -201,6 +209,9 @@ export default function App() {
   // voz de Remi.
   const [micSilenciado, setMicSilenciado] = useState(false);
   const micSilenciadoRef = useRef(false);
+  // Lo escrito en la conversación mientras Remi piensa o habla (3-oct): queda
+  // en el chat y se manda cuando Remi termina, en vez de volver a escuchar.
+  const textoEnEsperaRef = useRef<string | null>(null);
   // Si al silenciar se estaba dictando: al activar, el dictado sigue.
   const dictadoEnPausaRef = useRef(false);
   const detenerYTranscribirRef = useRef<(origen: OrigenParada) => Promise<void>>(async () => undefined);
@@ -569,6 +580,7 @@ export default function App() {
       registrar("cancelar", { origen: "reposo", grabando: true });
       void cancelarEscucha("x").catch(() => undefined);
     }
+    textoEnEsperaRef.current = null;
     setEstado("reposo");
     setModo("texto");
     setGrabando(false);
@@ -618,6 +630,7 @@ export default function App() {
   }, []);
 
   const empezarAEscucharRef = useRef<(modo: Modo) => Promise<void>>(async () => undefined);
+  const enviarRef = useRef<(mensaje: string, origen: OrigenMensaje, reintento?: boolean) => Promise<void>>(async () => undefined);
 
   const enviar = useCallback(
     async (mensaje: string, origen: OrigenMensaje, reintento = false) => {
@@ -705,6 +718,7 @@ export default function App() {
                     anotarLatencia();
                   },
                 );
+  enviarRef.current = enviar;
               }
               vivo.habla.agregar(llegada.voz);
             }
@@ -903,6 +917,15 @@ export default function App() {
   }, [volverAReposo, abrirHistorial]);
 
   const empezarAEscuchar = useCallback(async (modoNuevo: Modo) => {
+    const enEspera = textoEnEsperaRef.current;
+    if (modoNuevo === "dialogo" && enEspera) {
+      // Remi terminó: antes de volver a escuchar, contesta lo que le escribiste.
+      textoEnEsperaRef.current = null;
+      setModo("dialogo");
+      registrar("conversacion:texto", { caracteres: enEspera.length, sale: true });
+      void enviarRef.current(enEspera, "voz", true);
+      return;
+    }
     setModo(modoNuevo);
     setEstado("escuchando");
     if (micSilenciadoRef.current) {
@@ -1072,8 +1095,8 @@ export default function App() {
           return;
         }
         // En conversación, dos vacías seguidas: no era el momento. Queda el
-        // chat abierto, sin escuchar.
-        vaciasSeguidasRef.current += 1;
+        // chat abierto, sin escuchar. Mientras escribe, no cuentan (3-oct).
+        if (!escribiendoEnLaConversacion()) vaciasSeguidasRef.current += 1;
         const tras = decidirTrasVacia(vaciasSeguidasRef.current);
         if (tras.tipo === "reposo") {
           registrar("dialogo:meVoy", { vacias: vaciasSeguidasRef.current });
@@ -1165,6 +1188,16 @@ export default function App() {
       }
       if (motivo === "sin_voz") {
         void cancelarEscucha("silencio:sin_voz").catch(() => undefined);
+        if (modoActual === "dialogo" && escribiendoEnLaConversacion()) {
+          // Callado porque está escribiendo (3-oct): la conversación sigue y
+          // Remi vuelve a escuchar, sin contarlo como escucha vacía.
+          registrar("silencio:escribiendo", { motivo });
+          grabacionDesdeRef.current = null;
+          setGrabando(false);
+          window.clearTimeout(rearmeRef.current);
+          rearmeRef.current = window.setTimeout(() => void empezarAEscucharRef.current("dialogo"), MS_ANTES_DE_REARMAR);
+          return;
+        }
         grabacionDesdeRef.current = null;
         setGrabando(false);
         setTexto(baseDictadoRef.current);
@@ -1726,6 +1759,18 @@ export default function App() {
           // más y Remi contesta por voz. Si el micrófono escuchaba, esa escucha
           // se descarta: el turno es el texto.
           if (accionesRef.current.modo === "dialogo" && texto.trim() !== "") {
+            const ocupado =
+              enviandoRef.current || accionesRef.current.estado === "pensando" || accionesRef.current.estado === "hablando";
+            if (ocupado) {
+              // Remi está pensando o hablando: el texto se ve ya en el chat y
+              // se manda cuando termine. La conversación no se corta.
+              const limpio = texto.trim();
+              agregar({ rol: "juan", texto: limpio });
+              textoEnEsperaRef.current = textoEnEsperaRef.current ? `${textoEnEsperaRef.current}\n\n${limpio}` : limpio;
+              setTexto("");
+              registrar("conversacion:texto", { caracteres: limpio.length, enEspera: true });
+              return;
+            }
             if (accionesRef.current.grabando) {
               grabacionIdRef.current += 1;
               grabacionDesdeRef.current = null;
