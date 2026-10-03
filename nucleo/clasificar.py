@@ -156,6 +156,20 @@ def contenido_anota_esto(texto: str) -> str | None:
     return coincidencia.group(1).strip() or None if coincidencia else None
 
 
+# «Esta es una nueva conversación», «empecemos de cero» (3-oct): empieza una
+# conversación nueva de verdad. Antes iba al modelo, que decía «Borro todo»
+# sin poder hacerlo.
+_PATRON_CONVERSACION_NUEVA = re.compile(
+    r"\b(?:nueva conversacion|conversacion nueva|empe(?:cemos|zamos|zar) de cero|borra(?:mos)? la conversacion)\b"
+)
+
+
+def pide_conversacion_nueva(texto: str) -> bool:
+    limpio = normalizar(texto)
+    # «¿cómo empiezo el proyecto de cero?» no: tiene que ser la conversación.
+    return bool(_PATRON_CONVERSACION_NUEVA.search(limpio)) and "proyecto" not in limpio
+
+
 def _solo_cierres(limpio: str) -> bool:
     """La frase entera son cierres exactos, uno o varios seguidos: «listo»,
     «listo, ya terminé», «ya está, listo». «listo la tarjeta» o «listo por

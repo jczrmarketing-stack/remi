@@ -760,6 +760,13 @@ export default function App() {
         setMensajes((actuales) =>
           actuales.map((m) => (m.id === id ? { ...m, texto: visible, tarea: respuesta?.tarea, sesion: respuesta?.sesion } : m)),
         );
+      } else if (respuesta?.tipo === "conversacion_nueva") {
+        // El núcleo ya empezó una conversación nueva: el chat también, con
+        // solo este intercambio (como el botón de empezar de cero).
+        setMensajes([
+          { id: nuevoId(), rol: "juan", texto: limpio },
+          { id: nuevoId(), rol: "remi", texto: visible },
+        ]);
       } else {
         agregar({ rol: "remi", texto: visible, tarea: respuesta?.tarea, sesion: respuesta?.sesion });
       }

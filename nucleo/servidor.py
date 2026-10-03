@@ -266,7 +266,7 @@ class RespuestaMensaje(BaseModel):
     # ventanita (el panel no llama a /mensaje).
     tipo: clasificar.TipoMensaje | Literal[
         "encargo", "cliente", "correccion", "agenda", "cobro", "entrega", "pregunta_respondida",
-        "leccion",
+        "leccion", "conversacion_nueva",
     ]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
@@ -482,6 +482,17 @@ def _atender(mensaje: MensajeEntrante, emisor: Emisor | None) -> RespuestaMensaj
         ms = (time.perf_counter() - arranque) * 1000
         print(f"[mensaje] tipo=encargo ms={ms:.0f} pensó={'sí' if respuesta.tokens else 'no'}", file=sys.stderr, flush=True)
         return respuesta
+    if clasificar.pide_conversacion_nueva(mensaje.texto):
+        # Sin IA: la vigente se cierra (deja su episodio) y la siguiente frase
+        # abre otra. Remi lo dice solo cuando lo hizo.
+        conexion = db.conectar()
+        try:
+            db.cerrar_conversacion_vigente(conexion, datetime.now(timezone.utc))
+        finally:
+            conexion.close()
+        voz = "Listo, conversación nueva. ¿Qué hay?"
+        print("[mensaje] tipo=conversacion_nueva", file=sys.stderr, flush=True)
+        return RespuestaMensaje(tipo="conversacion_nueva", texto=voz, voz=voz)
     ahora_correccion = datetime.now(timezone.utc)
     aplicada = correcciones.revisar_confirmacion(mensaje.texto, ahora_correccion)
     if aplicada is not None:
