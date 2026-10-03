@@ -156,13 +156,31 @@ def contenido_anota_esto(texto: str) -> str | None:
     return coincidencia.group(1).strip() or None if coincidencia else None
 
 
+def _solo_cierres(limpio: str) -> bool:
+    """La frase entera son cierres exactos, uno o varios seguidos: «listo»,
+    «listo, ya terminé», «ya está, listo». «listo la tarjeta» o «listo por
+    hoy» no: tienen algo que no es un cierre."""
+    palabras = limpio.split()
+    if not palabras:
+        return False
+    # Partir en trozos de 1 a 3 palabras, cada uno un cierre exacto.
+    puede = [True] + [False] * len(palabras)
+    for fin in range(1, len(palabras) + 1):
+        for largo in (1, 2, 3):
+            inicio = fin - largo
+            if inicio >= 0 and puede[inicio] and " ".join(palabras[inicio:fin]) in CIERRES_EXACTOS:
+                puede[fin] = True
+                break
+    return puede[-1]
+
+
 def clasificar(texto: str) -> TipoMensaje:
     limpio = normalizar(texto)
     if not limpio:
         return "idea"
 
     # Una pregunta nunca cierra: «¿listo?» está preguntando, no avisando.
-    if "?" not in texto and limpio in CIERRES_EXACTOS:
+    if "?" not in texto and _solo_cierres(limpio):
         return "hecha"
 
     # Y tampoco abre un bloque ni se guarda: se contesta.

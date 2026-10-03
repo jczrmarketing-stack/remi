@@ -78,6 +78,16 @@ def test_mencionar_un_cierre_no_cierra(frase):
     assert clasificar(frase) == "idea"
 
 
+@pytest.mark.parametrize(
+    "frase",
+    # Revisión del 3-oct: dicho con naturalidad son dos cierres seguidos, y
+    # caía en la Bandeja como idea.
+    ["listo, ya terminé", "Listo ya terminé", "ya está, listo", "hecho. paro", "listo listo"],
+)
+def test_dos_cierres_seguidos_tambien_cierran(frase):
+    assert clasificar(frase) == "hecha"
+
+
 # — Arranques: al principio, con prefijo opcional —
 
 
