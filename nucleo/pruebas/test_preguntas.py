@@ -244,3 +244,80 @@ def test_t3_7_la_voz_de_cada_detector_cumple_la_ley(tmp_path, monkeypatch):
         assert len(voz.split()) <= 20, voz
         assert "!" not in voz, voz
         assert "usted" not in voz.lower(), voz
+
+
+# — F3.3 (plan de cierre): las tres formas de «(Completar …)» de la bóveda —
+
+CON_COMPLETAR_SIN_DOS_PUNTOS = """---
+titulo: Mi voz
+tema: oficio-mi-voz
+resumen: r
+---
+
+- (Completar con mensajes reales.)
+"""
+
+CON_COMPLETAR_CON_ETIQUETA = """---
+titulo: Clientes
+tema: oficio-clientes
+resumen: r
+---
+
+- Piso de precio por fase: (completar; ejemplo real: Fase 1 UpVisuals USD 5.000).
+"""
+
+AREA_SALUD = """---
+titulo: Cuerpo y salud
+tema: salud
+resumen: r
+---
+
+- (Completar: lo que Remi tiene que saber de esto.)
+"""
+
+AREA_APRENDER = AREA_SALUD.replace("Cuerpo y salud", "Aprender").replace("tema: salud", "tema: aprender")
+
+
+def test_completar_sin_dos_puntos_y_con_etiqueta_tambien_se_detectan(tmp_path, monkeypatch):
+    servidor, carpeta = _arrancar(tmp_path, monkeypatch)
+    oficios = carpeta.parent / "oficios"
+    oficios.mkdir()
+    (oficios / "mi-voz.md").write_text(CON_COMPLETAR_SIN_DOS_PUNTOS)
+    (oficios / "clientes.md").write_text(CON_COMPLETAR_CON_ETIQUETA)
+    cliente = TestClient(servidor.app)
+
+    voces = {p["tema"]: p["voz"] for p in cliente.get("/preguntas?tema=oficio-mi-voz").json()}
+    assert voces == {"oficio-mi-voz": "¿mensajes reales de Mi voz?"}
+    voces = {p["tema"]: p["voz"] for p in cliente.get("/preguntas?tema=oficio-clientes").json()}
+    assert voces == {"oficio-clientes": "¿Piso de precio por fase de Clientes?"}
+
+
+def test_la_respuesta_con_etiqueta_conserva_la_etiqueta(tmp_path, monkeypatch):
+    servidor, carpeta = _arrancar(tmp_path, monkeypatch)
+    oficios = carpeta.parent / "oficios"
+    oficios.mkdir()
+    (oficios / "clientes.md").write_text(CON_COMPLETAR_CON_ETIQUETA)
+    cliente = TestClient(servidor.app)
+    pregunta = cliente.get("/preguntas?tema=oficio-clientes").json()[0]
+
+    respuesta = cliente.post(f"/preguntas/{pregunta['id']}/respuesta", json={"texto": "USD 3.000"})
+
+    assert respuesta.status_code == 200
+    texto = (oficios / "clientes.md").read_text()
+    assert "- Piso de precio por fase: USD 3.000\n" in texto
+    assert "completar" not in texto.lower()
+
+
+def test_la_respuesta_va_al_archivo_del_tema_aunque_otro_tenga_completar_en_la_misma_linea(tmp_path, monkeypatch):
+    servidor, carpeta = _arrancar(tmp_path, monkeypatch)
+    areas = carpeta.parent / "areas"
+    areas.mkdir()
+    (areas / "aprender.md").write_text(AREA_APRENDER)
+    (areas / "salud.md").write_text(AREA_SALUD)
+    cliente = TestClient(servidor.app)
+    pregunta = next(p for p in cliente.get("/preguntas?tema=salud").json() if p["campo"].startswith("completar."))
+
+    assert cliente.post(f"/preguntas/{pregunta['id']}/respuesta", json={"texto": "Duermo poco."}).status_code == 200
+
+    assert "Duermo poco." in (areas / "salud.md").read_text()
+    assert "(Completar:" in (areas / "aprender.md").read_text()

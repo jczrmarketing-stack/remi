@@ -176,7 +176,35 @@ def _detectar_ruta(libro: libros.Libro) -> list[Detectada]:
     return []
 
 
-_PATRON_COMPLETAR = re.compile(r"\(Completar:\s*(.+?)\)")
+# F3.3 (plan de cierre): las tres formas que hay en la bóveda —
+# «(Completar: para quién es…)», «(Completar con mensajes reales.)» y
+# «Piso de precio por fase: (completar; ejemplo real: …)». Sin distinguir
+# mayúsculas; lo que sigue a «completar» (dos puntos, punto y coma o «con»)
+# es el pedido, salvo que la línea tenga una etiqueta antes del paréntesis:
+# ahí la etiqueta ES el pedido («¿Piso de precio por fase de Clientes…?»).
+_PATRON_COMPLETAR = re.compile(r"\(completar\b\s*(?::|;|con\b)?\s*(.*?)\)", re.IGNORECASE)
+
+
+def _pedido_de_completar(linea: str) -> str | None:
+    """Qué hay que completar en esta línea, o None si no es una línea
+    «(Completar …)»."""
+    coincidencia = _PATRON_COMPLETAR.search(linea)
+    if coincidencia is None:
+        return None
+    etiqueta = linea[: coincidencia.start()].strip().lstrip("-*").strip().rstrip(":").strip()
+    if etiqueta:
+        return etiqueta
+    return coincidencia.group(1).strip().rstrip(".")
+
+
+def _tema_del_archivo(contenido: str) -> str | None:
+    if not contenido.startswith("---"):
+        return None
+    partes = contenido.split("---", 2)
+    if len(partes) < 3:
+        return None
+    tema = libros._frontmatter(partes[1]).get("tema")
+    return tema if isinstance(tema, str) and tema else None
 
 
 def _carpetas_completar() -> list[Path]:
@@ -205,9 +233,8 @@ def _detectar_completar() -> list[Detectada]:
             if not isinstance(tema, str) or not tema:
                 continue
             for n, linea in enumerate(texto.splitlines(), start=1):
-                coincidencia = _PATRON_COMPLETAR.search(linea)
-                if coincidencia:
-                    pedido = coincidencia.group(1).strip().rstrip(".")
+                pedido = _pedido_de_completar(linea)
+                if pedido:
                     resultado.append(Detectada(tema, f"completar.{n}", f"¿{pedido} de {titulo}?"))
     return resultado
 
@@ -418,21 +445,34 @@ def responder(conexion: sqlite3.Connection, pregunta: Pregunta, texto: str) -> b
         if not texto.strip():
             return False
         n = int(pregunta.campo.split(".")[1])
+        # El archivo es el del tema de la pregunta: dos libros pueden tener
+        # un «(Completar …)» en la misma línea N (areas/aprender.md y
+        # areas/salud.md lo tienen en la 6), y antes se escribía en el
+        # primero que apareciera.
         for carpeta in _carpetas_completar():
             for archivo_md in sorted(carpeta.glob("*.md")) if carpeta.is_dir() else []:
-                lineas_archivo = archivo_md.read_text().splitlines()
-                coincidencia_linea = (
-                    re.match(r"^(\s*)", lineas_archivo[n - 1])
-                    if 1 <= n <= len(lineas_archivo) and _PATRON_COMPLETAR.search(lineas_archivo[n - 1])
-                    else None
-                )
-                if coincidencia_linea is not None:
-                    indentacion = coincidencia_linea.group(1)
-                    boveda_git.snapshot_antes(f"responder completar.{n} de {archivo_md.name}")
+                contenido = archivo_md.read_text()
+                if _tema_del_archivo(contenido) != pregunta.tema:
+                    continue
+                lineas_archivo = contenido.splitlines()
+                if not (1 <= n <= len(lineas_archivo)):
+                    continue
+                linea = lineas_archivo[n - 1]
+                coincidencia = _PATRON_COMPLETAR.search(linea)
+                if coincidencia is None:
+                    continue
+                boveda_git.snapshot_antes(f"responder completar.{n} de {archivo_md.name}")
+                etiqueta = linea[: coincidencia.start()].rstrip()
+                if etiqueta.strip().lstrip("-*").strip():
+                    # «- Piso de precio por fase: (completar; …)» → la etiqueta
+                    # se queda y el paréntesis se cambia por la respuesta.
+                    lineas_archivo[n - 1] = f"{etiqueta} {texto.strip()}"
+                else:
+                    indentacion = re.match(r"^(\s*)", linea).group(1)  # type: ignore[union-attr]
                     lineas_archivo[n - 1] = f"{indentacion}- {texto.strip()}"
-                    archivo_md.write_text("\n".join(lineas_archivo) + "\n")
-                    boveda_git.snapshot_despues(f"{archivo_md.stem}: completar.{n}, respondido")
-                    return True
+                archivo_md.write_text("\n".join(lineas_archivo) + "\n")
+                boveda_git.snapshot_despues(f"{archivo_md.stem}: completar.{n}, respondido")
+                return True
         return False
 
     return False
