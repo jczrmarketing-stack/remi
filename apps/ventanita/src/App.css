@@ -236,8 +236,14 @@
   gap: var(--space-2);
 }
 
-/* «Parar» (3-oct) es un chip como los demás, mismo color: solo sigue visible en
-   la conversación por voz, cuando el resto del pie se aparta. */
+/* «Silenciar» (3-oct) es un chip como los demás: el <button> trae fondo y
+   letra del navegador, que los otros chips (un <label>) no tienen. Solo sigue
+   visible en la conversación por voz, cuando el resto del pie se aparta. */
+.chip-mic {
+  appearance: none;
+  background: transparent;
+  font: inherit;
+}
 
 /* Hablando por voz (ronda 2): la bolita baja al centro mientras Remi piensa
    y habla ahí; el chat se aparta y solo queda la frase. La bajada vive en
@@ -270,7 +276,7 @@
 
 .ventanita--baja .chat,
 .ventanita--baja .campo,
-.ventanita--baja .pie__izquierda > :not(.parar-mic),
+.ventanita--baja .pie__izquierda > :not(.chip-mic),
 .ventanita--baja .pie__derecha,
 .ventanita--baja .nudge,
 .ventanita--baja .asa,

@@ -1,4 +1,4 @@
-import { MicOff } from "lucide-react";
+import { Mic, MicOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { LogicalPosition, LogicalSize, currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
@@ -195,6 +195,11 @@ export default function App() {
   const [grabando, setGrabando] = useState(false);
   const [transcribiendo, setTranscribiendo] = useState(false);
   const [silenciado, setSilenciado] = useState(() => estaSilenciado());
+  // El micrófono silenciado (3-oct): la conversación sigue, solo que Remi no
+  // escucha hasta que se vuelva a activar. Distinto de `silenciado`, que es la
+  // voz de Remi.
+  const [micSilenciado, setMicSilenciado] = useState(false);
+  const micSilenciadoRef = useRef(false);
   const [velocidad, setVelocidad] = useState<Velocidad>(() => obtenerVelocidad());
   const [vozElegida, setVozElegida] = useState<PreferenciaVoz>(() => obtenerVoz());
   const [vocesDisponibles, setVocesDisponibles] = useState<VozDisponible[]>([]);
@@ -893,6 +898,13 @@ export default function App() {
   const empezarAEscuchar = useCallback(async (modoNuevo: Modo) => {
     setModo(modoNuevo);
     setEstado("escuchando");
+    if (micSilenciadoRef.current) {
+      // Con el micrófono silenciado nada lo prende: ni la bolita, ni el
+      // atajo, ni el siguiente turno de la conversación.
+      registrar("iniciarEscucha:silenciado", { modo: modoNuevo });
+      setGrabando(false);
+      return;
+    }
     setGrabando(true);
     grabacionIdRef.current += 1;
     baseDictadoRef.current = accionesRef.current.texto;
@@ -920,6 +932,29 @@ export default function App() {
     }
   }, []);
   empezarAEscucharRef.current = empezarAEscuchar;
+
+  const alternarMicrofono = useCallback(() => {
+    const silenciar = !micSilenciadoRef.current;
+    micSilenciadoRef.current = silenciar;
+    setMicSilenciado(silenciar);
+    const { grabando: grabandoActual, modo: modoActual, estado: estadoActual } = accionesRef.current;
+    registrar("microfono", { silenciado: silenciar, grabando: grabandoActual, modo: modoActual });
+    if (silenciar) {
+      if (grabandoActual) {
+        // Lo que se estaba grabando se descarta, sin transcribir.
+        grabacionIdRef.current += 1;
+        grabacionDesdeRef.current = null;
+        window.clearTimeout(rearmeRef.current);
+        void cancelarEscucha("parar").catch(() => undefined);
+        setGrabando(false);
+      }
+      return;
+    }
+    // Al activarlo, si la conversación por voz estaba esperando, vuelve a escuchar.
+    if (modoActual === "dialogo" && estadoActual === "escuchando" && !grabandoActual) {
+      void empezarAEscucharRef.current("dialogo");
+    }
+  }, []);
 
   const pasarADialogo = useCallback((ahora: number) => {
     setModo("dialogo");
@@ -1064,7 +1099,7 @@ export default function App() {
   }, [grabando]);
 
   const cancelar = useCallback(
-    (origen: "escape" | "x" | "parar") => {
+    (origen: "escape" | "x") => {
       const { grabando: grabandoActual, estado: estadoActual } = accionesRef.current;
       registrar("cancelar", { origen, estado: estadoActual, grabando: grabandoActual });
       enviarAlTranscribirRef.current = false;
@@ -1073,11 +1108,9 @@ export default function App() {
         void cancelarEscucha(origen).catch(() => undefined);
       }
       // Escape con algo en curso corta eso y deja el chat abierto; sin nada
-      // en curso (o con la X), vuelve a la píldora. El botón «Parar» (3-oct)
-      // hace siempre lo de Escape: corta el micrófono y la conversación por
-      // voz, y deja el chat abierto en texto.
+      // en curso (o con la X), vuelve a la píldora.
       const enCurso = grabandoActual || estadoActual === "pensando" || estadoActual === "hablando";
-      if ((origen === "escape" && enCurso) || origen === "parar") {
+      if (origen === "escape" && enCurso) {
         generacionRef.current += 1;
         enviandoRef.current = false;
         locucionRef.current += 1;
@@ -1687,12 +1720,23 @@ export default function App() {
       <div className="pie">
         <div className="pie__izquierda">
           <ChipCerebro eleccion={cerebro} motores={motores} modelosOllama={modelosOllama} onElegir={elegirCerebro} />
-          {(grabando || modo === "dialogo") && (
-            // 3-oct, Juan Camilo: en la conversación por voz no había cómo
-            // apagar el micrófono (los clicks se ignoran mientras escucha).
-            <button type="button" className="chip parar-mic" onClick={() => cancelar("parar")} title="Parar el micrófono (Esc)" aria-label="Parar el micrófono">
-              <MicOff size={16} strokeWidth={1.75} aria-hidden="true" />
-              <span>Parar</span>
+          {(grabando || modo === "dialogo" || micSilenciado) && (
+            // 3-oct, Juan Camilo: silenciar el micrófono, no parar la
+            // conversación. Un interruptor, como el mute de una llamada.
+            <button
+              type="button"
+              className="chip chip-mic"
+              onClick={alternarMicrofono}
+              aria-pressed={micSilenciado}
+              title={micSilenciado ? "Activar el micrófono" : "Silenciar el micrófono"}
+              aria-label={micSilenciado ? "Activar el micrófono" : "Silenciar el micrófono"}
+            >
+              {micSilenciado ? (
+                <MicOff size={16} strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                <Mic size={16} strokeWidth={1.75} aria-hidden="true" />
+              )}
+              <span className="chip__texto">{micSilenciado ? "Silenciado" : "Silenciar"}</span>
             </button>
           )}
         </div>
