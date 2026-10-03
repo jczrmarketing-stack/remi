@@ -24,8 +24,32 @@ INSTRUCCIONES = (
     "Quedaste: (dónde quedó el trabajo, una frase)\n"
     "Decisiones: (lo que se decidió, o «ninguna nueva»)\n"
     "Próximo paso: (una sola acción de cinco minutos)\n"
-    "En español, de tú, sin exclamaciones y sin reproche."
+    "En español, de tú, sin exclamaciones y sin reproche.\n"
+    # 3-oct: el Estado de Remi decía «Próximo paso: ejecutar pytest 802 y
+    # 804» y «se actualizó la Biblia» (el commit decía que *había que*
+    # cambiarla); Remi se lo repetía a Juan Camilo.
+    "El próximo paso es algo que hace Juan Camilo con el proyecto (probar algo en la app, "
+    "decidir algo, seguir una tarea), nunca correr pruebas, tests, pytest, mypy ni revisar "
+    "commits: eso ya lo hizo quien commiteó. Lo que un commit dice que falta o que hay que "
+    "cambiar es pendiente, no hecho."
 )
+
+# Un «Próximo paso» de verificación interna no le sirve a nadie (3-oct).
+_PASO_INTERNO = re.compile(
+    r"\b(?:pytest|mypy|vitest|tsc|lint|linter|suite|tests?|doctor(?:\.sh)?|"
+    r"(?:correr|ejecutar|pasar|lanzar) (?:las |los )?pruebas|"
+    r"validar los cambios|verificar (?:la correccion|los cambios)|revisar el commit|commitear)\b"
+)
+# Las cifras de verificación de los mensajes de commit («pytest 807, mypy
+# limpio.») no son trabajo del proyecto: no entran al pedido.
+_VERIFICACION_EN_COMMIT = re.compile(r"(?:pytest|vitest|mypy|tsc)\b[^.\n]*\.?", re.IGNORECASE)
+
+
+def es_paso_interno(texto: str) -> bool:
+    import unicodedata
+
+    plano_ = "".join(c for c in unicodedata.normalize("NFD", texto.lower()) if unicodedata.category(c) != "Mn")
+    return bool(_PASO_INTERNO.search(plano_))
 
 
 def leer_estado(archivo: Path) -> str:
@@ -125,6 +149,10 @@ def redactar(pedido: str) -> str | None:
         limpio = normalizar(pensado.paso_minimo)
         if limpio is None:
             return False
+        proximo = limpio.splitlines()[-1]
+        if es_paso_interno(proximo):
+            print(f"[estado] rechazado por paso interno ({pensado.motor_usado}): {proximo!r}", file=sys.stderr)
+            return False
         sospechosa = _invento(limpio, pedido)
         if sospechosa is not None:
             print(
@@ -178,7 +206,7 @@ def pedido(titulo: str, anterior: str, commits: list[dict[str, object]]) -> str:
         lineas.append("")
     lineas.append("Commits nuevos:")
     for commit in commits[-12:]:
-        mensaje = str(commit.get("mensaje") or "").strip() or "(sin mensaje)"
+        mensaje = _VERIFICACION_EN_COMMIT.sub("", str(commit.get("mensaje") or "")).strip() or "(sin mensaje)"
         rama = str(commit.get("rama") or "").strip()
         archivos = commit.get("archivos") or []
         if not isinstance(archivos, list):
