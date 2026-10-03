@@ -36,6 +36,31 @@ let urlActual: string | null = null;
 // primera volvía de pedir el audio cuando la segunda ya había arrancado.
 let generacion = 0;
 
+// Parte el texto en frases para generarlas y decirlas de a una. Corta en
+// . ! ? … seguidos de espacio; una frase muy corta («Ajá.») se pega a la
+// siguiente, porque un audio por cada dos palabras suena entrecortado.
+const PALABRAS_MINIMAS_POR_FRASE = 4;
+
+export function dividirEnFrases(texto: string): string[] {
+  const limpio = texto.trim().replace(/\s+/g, " ");
+  if (!limpio) return [];
+  const crudas = limpio.split(/(?<=[.!?…])\s+/).filter((f) => f.length > 0);
+  const frases: string[] = [];
+  let pendiente = "";
+  for (const cruda of crudas) {
+    pendiente = pendiente ? `${pendiente} ${cruda}` : cruda;
+    if (pendiente.split(" ").length >= PALABRAS_MINIMAS_POR_FRASE) {
+      frases.push(pendiente);
+      pendiente = "";
+    }
+  }
+  if (pendiente) {
+    if (frases.length > 0) frases[frases.length - 1] += ` ${pendiente}`;
+    else frases.push(pendiente);
+  }
+  return frases;
+}
+
 export function haySoporteDeVoz(): boolean {
   return "speechSynthesis" in window;
 }
@@ -330,25 +355,46 @@ async function hablarSinMarca(
   liberarAudio();
   if (haySoporteDeVoz()) window.speechSynthesis.cancel();
 
-  const audio = await pedirAudio(texto, voz);
-  if (generacion !== mia) {
-    console.info(`[voz] #${mia} cancelada antes de reproducir`);
-    return;
-  }
-
-  if (audio) {
+  // En frases: la primera suena en cuanto está lista y las siguientes se
+  // generan mientras tanto. Una respuesta de 30 palabras tardaba ~3 s en
+  // generarse entera antes de que sonara nada; la primera frase, ~1 s.
+  const frases = dividirEnFrases(texto);
+  const pedidos: Array<Promise<Blob | null> | undefined> = [];
+  const pedir = (i: number) => {
+    if (i < frases.length && pedidos[i] === undefined) pedidos[i] = pedirAudio(frases[i], voz);
+  };
+  pedir(0);
+  pedir(1);
+  let dichas = 0;
+  for (let i = 0; i < frases.length; i += 1) {
+    const audio = await pedidos[i];
+    if (generacion !== mia) {
+      console.info(`[voz] #${mia} cancelada antes de reproducir`);
+      return;
+    }
+    if (!audio) break;
+    pedir(i + 1);
+    pedir(i + 2);
+    if (i === 0) console.info(`[voz] #${mia} primera frase lista (${frases.length} en total)`);
     const fin = await reproducir(audio, velocidad, mia);
-    if (fin === "terminó" || fin === "cancelada") {
-      console.info(`[voz] #${mia} ${fin}`);
+    if (fin === "cancelada") {
+      console.info(`[voz] #${mia} cancelada`);
       return;
     }
     // "falló": el audio llegó pero no se pudo reproducir. Eso sí es motivo
-    // para la voz del sistema.
+    // para la voz del sistema, con lo que falta.
+    if (fin === "falló") break;
+    dichas = i + 1;
+  }
+  if (dichas === frases.length) {
+    console.info(`[voz] #${mia} terminó`);
+    return;
   }
   if (generacion !== mia) {
     console.info(`[voz] #${mia} cancelada`);
     return;
   }
+  texto = frases.slice(dichas).join(" ");
 
   // Sin audio del núcleo (no contestó, o el motor falló) o sin poder
   // reproducirlo: la voz del sistema, en silencio sobre el fallo.
