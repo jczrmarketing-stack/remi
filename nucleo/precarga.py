@@ -210,6 +210,12 @@ COMPARTIDOS = {
     "contrato", "prompt", "estado", "mockup", "pantalla", "lienzo", "bot", "repo",
 }
 LINEA_DE_DUDA = "\n\nNo sé si habla de {x} o de {y}: pregunta cuál en una frase antes de contestar.\n"
+# En un encargo la duda no se convierte en pregunta (F2.2b y la revisión del
+# 3-oct): el encargo sale igual, con el proyecto marcado.
+LINEA_DE_DUDA_ENCARGO = (
+    "\n\nNo sé si es de {x} o de {y}: arma el encargo igual y marca el proyecto como "
+    "«(a confirmar: {x} o {y})»; la pregunta va en la línea FALTA.\n"
+)
 
 
 def tema_dudoso(frase: str, ahora: datetime) -> tuple[str, str] | None:
@@ -240,9 +246,10 @@ def tema_dudoso(frase: str, ahora: datetime) -> tuple[str, str] | None:
     return str(ultimo["tema"]), str(otro)
 
 
-def linea_de_duda(candidatos: tuple[str, str]) -> str:
+def linea_de_duda(candidatos: tuple[str, str], encargo: bool = False) -> str:
     def titulo(tema: str) -> str:
         libro = _libro_de(tema)
         return libro.titulo if libro is not None else tema
 
-    return LINEA_DE_DUDA.format(x=titulo(candidatos[0]), y=titulo(candidatos[1]))
+    plantilla = LINEA_DE_DUDA_ENCARGO if encargo else LINEA_DE_DUDA
+    return plantilla.format(x=titulo(candidatos[0]), y=titulo(candidatos[1]))

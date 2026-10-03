@@ -105,3 +105,24 @@ def test_pensar_con_duda_no_precarga_malik_y_manda_la_linea(tmp_path, monkeypatc
     assert "No sé si habla de Malik" in mensaje
     assert "en el 401" not in mensaje  # el Estado de Malik no se precarga
     assert "LEY 03" not in mensaje  # ni la Biblia: decidiría por él
+
+
+def test_en_un_encargo_la_duda_no_es_pregunta_sino_hueco_marcado(tmp_path, monkeypatch):
+    precarga, _ = _caso_real(tmp_path, monkeypatch)
+    sys.modules.pop("pensar", None)
+    import pensar
+
+    monkeypatch.setattr(pensar, "_ahora", lambda: AHORA)
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    monkeypatch.setattr(pensar, "_asociados", lambda frase: [])
+    vistos = []
+    monkeypatch.setattr(
+        pensar, "_pensar_con_claude",
+        lambda mensaje, *a, **k: vistos.append(mensaje) or pensar.Pensado("QUÉ LEER PRIMERO…", 1, 1, "sonnet"),
+    )
+
+    pensar.pensar("ordena esto en un prompt: arreglar el login", "claude", "equilibrio", "SISTEMA DEL ENCARGO")
+
+    (mensaje,) = vistos
+    assert "arma el encargo igual" in mensaje and "(a confirmar: Malik" in mensaje
+    assert "pregunta cuál en una frase" not in mensaje

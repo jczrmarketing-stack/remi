@@ -1022,7 +1022,9 @@ def pensar_en_frases(
     dudoso = _tema_dudoso(frase)
     precargado = None if dudoso is not None else _precarga()
     if dudoso is not None:
-        contexto += precarga.linea_de_duda(dudoso)
+        # Con un system prompt propio (el encargo, el cliente) no se pregunta:
+        # el documento sale igual con el hueco marcado.
+        contexto += precarga.linea_de_duda(dudoso, encargo=sistema is not None)
         print(f"[precarga] tema dudoso entre {dudoso[0]} y {dudoso[1]}: que pregunte", file=sys.stderr)
     elif precargado is not None:
         texto, registro = precargado
