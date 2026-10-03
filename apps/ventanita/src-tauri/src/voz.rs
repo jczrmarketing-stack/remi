@@ -674,6 +674,16 @@ fn transcribir(ruta_wav: &Path, bytes_confirmados: usize, texto_confirmado: &str
     let nuevo = texto?;
     let nuevo = nuevo.trim();
     let texto = unir(texto_confirmado, if es_solo_ruido(nuevo) { "" } else { nuevo });
+    // Whisper cierra el silencio con «gracias». Si eso es todo el texto, no
+    // se manda. Si solo cierra una frase y el audio calló al final, se quita
+    // esa palabra. «gracias por el dato» no termina en gracias y se queda.
+    let texto = match limpiar_gracias(&texto, silencio_al_final(ruta_wav)) {
+        Some(limpio) => limpio,
+        None => {
+            log::info!("[voz] «gracias» de whisper, sin más frase: no lo mando");
+            return Err("no se entendió nada de lo grabado".to_string());
+        }
+    };
     if texto.is_empty() {
         log::warn!("[voz] whisper solo devolvió ruido: {nuevo:?}");
         return Err("no se entendió nada de lo grabado".to_string());
@@ -683,6 +693,59 @@ fn transcribir(ruta_wav: &Path, bytes_confirmados: usize, texto_confirmado: &str
         return Err("no se entendió nada de lo grabado".to_string());
     }
     Ok(texto)
+}
+
+fn nucleo_de_palabra(palabra: &str) -> String {
+    palabra
+        .trim_matches(|c: char| {
+            matches!(
+                c,
+                '.' | '!' | '¡' | '?' | '¿' | ',' | ';' | ':' | '…' | '"' | '\''
+            )
+        })
+        .to_lowercase()
+}
+
+fn es_solo_gracias(texto: &str) -> bool {
+    let mut palabras = texto.split_whitespace();
+    match (palabras.next(), palabras.next()) {
+        (Some(unica), None) => nucleo_de_palabra(unica) == "gracias",
+        _ => false,
+    }
+}
+
+fn termina_en_gracias(texto: &str) -> bool {
+    texto
+        .split_whitespace()
+        .next_back()
+        .is_some_and(|palabra| nucleo_de_palabra(palabra) == "gracias")
+}
+
+fn quitar_gracias_final(texto: &str) -> String {
+    let recortado = texto.trim_end();
+    match recortado.rfind(char::is_whitespace) {
+        Some(corte) => recortado[..corte].trim_end().to_string(),
+        None => String::new(),
+    }
+}
+
+/// None: no se manda. Some: el texto que sí se manda.
+fn limpiar_gracias(texto: &str, silencio_al_final: bool) -> Option<String> {
+    if es_solo_gracias(texto) {
+        return None;
+    }
+    if termina_en_gracias(texto) && silencio_al_final {
+        let limpio = quitar_gracias_final(texto);
+        if limpio.is_empty() {
+            return None;
+        }
+        return Some(limpio);
+    }
+    Some(texto.to_string())
+}
+
+fn silencio_al_final(ruta_wav: &Path) -> bool {
+    pico_reciente(ruta_wav).is_some_and(|pico| pico < UMBRAL_VOZ)
 }
 
 /// Lo confirmado y lo nuevo, con un espacio entre medio si hace falta.
@@ -1277,6 +1340,38 @@ mod pruebas {
         );
         println!("\n— entera —\n{entera}\n\n— por trozos —\n{por_trozos}\n");
         assert!(ultimo_ms < 1500, "el último trozo tardó {ultimo_ms} ms");
+    }
+
+    #[test]
+    fn gracias_de_whisper_se_quita_si_el_audio_callo_y_no_se_manda_si_es_todo() {
+        assert_eq!(
+            limpiar_gracias("seguimos con eso gracias.", true).as_deref(),
+            Some("seguimos con eso")
+        );
+        assert_eq!(limpiar_gracias("¡Gracias!", false), None);
+        assert_eq!(limpiar_gracias("Gracias.", true), None);
+        assert_eq!(
+            limpiar_gracias("gracias por el dato", true).as_deref(),
+            Some("gracias por el dato")
+        );
+        assert_eq!(limpiar_gracias("hola gracias", false).as_deref(), Some("hola gracias"));
+        assert_eq!(limpiar_gracias("hola. ¡Gracias!", true).as_deref(), Some("hola."));
+    }
+
+    #[test]
+    fn el_silencio_del_final_se_lee_del_wav() {
+        let callado = escribir_wav("gracias-callado", &vec![0i16; muestras_por_ventana() * 2]);
+        assert!(silencio_al_final(&callado));
+        let _ = fs::remove_file(callado);
+
+        let n = muestras_por_ventana();
+        let mut muestras = vec![0i16; n * 2];
+        for (i, muestra) in muestras[n..].iter_mut().enumerate() {
+            *muestra = if i % 2 == 0 { 3300 } else { -3300 };
+        }
+        let hablando = escribir_wav("gracias-hablando", &muestras);
+        assert!(!silencio_al_final(&hablando));
+        let _ = fs::remove_file(hablando);
     }
 
     #[test]
