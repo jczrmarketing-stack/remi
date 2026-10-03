@@ -11,7 +11,12 @@ de sí: **prueba cada promesa de la Biblia, una por una, y la marca.**
 1. **Una promesa = una fila.** Cada fila cita la Biblia, dice cómo se prueba y qué cuenta como
    «pasa». El resultado va a la tabla de `docs/REVISION.md`: **pasa**, **falla** (con la
    evidencia) o **no existe**.
-2. **Dos tipos de prueba:**
+2. **Híbrido, en dos pasos por fila** (pedido de Juan Camilo, 3-oct): primero la terminal
+   revisa el código y corre lo que se pueda por consola; si el código está bien, te pide
+   probarlo en la app y miramos juntos el resultado en el log. Una fila no «pasa» solo por el
+   código: pasa cuando también anduvo en la app (o, si no se puede ver en la app, por consola
+   contra el banco).
+3. **Dos tipos de prueba:**
    - **Por consola** (la terminal sola): llamadas al núcleo, el log, la base, la bóveda, las
      capturas del panel con Playwright. Siempre con un **núcleo de prueba aislado**: copia de
      la base y copia de la bóveda en el scratchpad, otro puerto. La guarda F4.2b impide hacerlo
@@ -20,11 +25,11 @@ de sí: **prueba cada promesa de la Biblia, una por una, y la marca.**
      terminal **nunca** toca tu mouse, tu teclado ni tus parlantes. Te paso un guion corto de
      qué hacer; tú lo haces en la app instalada, y yo leo el resultado en el log de la
      ventanita y del núcleo, que registran cada gesto, cada estado y cada latencia.
-3. **Lo que falla se arregla en el momento**: prueba que lo reproduce, arreglo, commit, la
+4. **Lo que falla se arregla en el momento**: prueba que lo reproduce, arreglo, commit, la
    fila pasa a «pasa». **Lo que no existe** (la Biblia lo describe y nunca se construyó) no se
    construye por la calle del medio: va a la lista «por construir» con su tamaño, y tú decides
    el orden. Así la revisión no se convierte en un plan nuevo sin que lo decidas.
-4. Reglas de siempre: una tarea = un commit, sin `git add -A`, nada de llaves en git, nunca
+5. Reglas de siempre: una tarea = un commit, sin `git add -A`, nada de llaves en git, nunca
    borrar, de tú y sin voseo, leyes y Design System intactos.
 
 > El plan de cierre dejaba el banco de pruebas para después de los siete días de uso. Esta
