@@ -46,6 +46,8 @@ def _actualizacion(chat_id: int, texto: str) -> dict:
 
 
 def test_sin_token_no_arranca(monkeypatch, capsys):
+    # Prueban el arranque mismo, con hilo y cliente falsos: sin el REMI_TELEGRAM=0 de conftest.
+    monkeypatch.delenv("REMI_TELEGRAM", raising=False)
     monkeypatch.setattr(telegram, "token", lambda: None)
     llamado = {"n": 0}
     monkeypatch.setattr(
@@ -56,6 +58,8 @@ def test_sin_token_no_arranca(monkeypatch, capsys):
 
 
 def test_arranca_hilo_cuando_hay_token(monkeypatch):
+    # Prueban el arranque mismo, con hilo y cliente falsos: sin el REMI_TELEGRAM=0 de conftest.
+    monkeypatch.delenv("REMI_TELEGRAM", raising=False)
     monkeypatch.setattr(telegram, "token", lambda: "un-token")
     monkeypatch.setattr(telegram, "ClienteBotAPI", lambda tok: "transporte-falso")
     arrancado = {}
@@ -91,6 +95,8 @@ def test_remi_telegram_0_apaga_el_hilo_aunque_haya_token(monkeypatch):
 
 
 def test_reiniciar_hilo_para_el_evento_viejo_y_arranca_uno_nuevo(monkeypatch):
+    # Prueban el arranque mismo, con hilo y cliente falsos: sin el REMI_TELEGRAM=0 de conftest.
+    monkeypatch.delenv("REMI_TELEGRAM", raising=False)
     monkeypatch.setattr(telegram, "token", lambda: "token-nuevo")
     monkeypatch.setattr(telegram, "ClienteBotAPI", lambda tok: "transporte-falso")
 
@@ -114,6 +120,8 @@ def test_reiniciar_hilo_para_el_evento_viejo_y_arranca_uno_nuevo(monkeypatch):
 
 
 def test_reiniciar_hilo_sin_token_apaga_y_lo_dice(monkeypatch, capsys):
+    # Prueban el arranque mismo, con hilo y cliente falsos: sin el REMI_TELEGRAM=0 de conftest.
+    monkeypatch.delenv("REMI_TELEGRAM", raising=False)
     monkeypatch.setattr(telegram, "token", lambda: None)
     monkeypatch.setattr(
         telegram.threading, "Thread", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no debía arrancar"))

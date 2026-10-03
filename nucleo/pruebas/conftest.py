@@ -40,7 +40,68 @@ os.environ.setdefault("REMI_NUCLEO_URL", "http://127.0.0.1:1")
 
 import shutil
 
+import httpx
 import pytest
+
+# F4.2 (plan de cierre, T5.9): ninguna prueba toca el mundo real. Sin esto,
+# las dos pruebas de test_tts que entran al ciclo de vida arrancaban el hilo
+# de Telegram con el token de nucleo/.env (2/10: un getUpdates real, 409).
+os.environ.setdefault("REMI_TELEGRAM", "0")
+
+# Y una red con guardia: todo pedido de httpx hacia Telegram, Notion o el
+# núcleo real (127.0.0.1:4400) se corta y queda anotado; la prueba que lo
+# intentó falla al terminar, aunque el código se haya tragado la excepción
+# (telegram.py y notion.py atrapan todo, a propósito).
+_PROHIBIDOS = (("api.telegram.org", None), ("api.notion.com", None), ("127.0.0.1", 4400), ("localhost", 4400))
+_INTENTOS_AL_MUNDO_REAL: list[str] = []
+
+
+class MundoRealProhibido(httpx.ConnectError):
+    pass
+
+
+def _prohibido(url: httpx.URL) -> bool:
+    return any(url.host == host and (puerto is None or url.port == puerto) for host, puerto in _PROHIBIDOS)
+
+
+def _vigilar(original):  # type: ignore[no-untyped-def]
+    def handle_request(self, request):  # type: ignore[no-untyped-def]
+        if _prohibido(request.url):
+            _INTENTOS_AL_MUNDO_REAL.append(f"{request.method} {request.url.copy_with(path='/…', query=None)}")
+            raise MundoRealProhibido("una prueba intentó salir al mundo real", request=request)
+        return original(self, request)
+
+    return handle_request
+
+
+def _vigilar_async(original):  # type: ignore[no-untyped-def]
+    async def handle_async_request(self, request):  # type: ignore[no-untyped-def]
+        if _prohibido(request.url):
+            _INTENTOS_AL_MUNDO_REAL.append(f"{request.method} {request.url.copy_with(path='/…', query=None)}")
+            raise MundoRealProhibido("una prueba intentó salir al mundo real", request=request)
+        return await original(self, request)
+
+    return handle_async_request
+
+
+httpx.HTTPTransport.handle_request = _vigilar(httpx.HTTPTransport.handle_request)  # type: ignore[method-assign]
+httpx.AsyncHTTPTransport.handle_async_request = _vigilar_async(httpx.AsyncHTTPTransport.handle_async_request)  # type: ignore[method-assign]
+
+
+def pytest_configure(config):  # type: ignore[no-untyped-def]
+    config.addinivalue_line("markers", "mundo_real_esperado: la prueba ejercita la guarda del mundo real a propósito")
+
+
+@pytest.fixture(autouse=True)
+def _sin_mundo_real(request):
+    """Falla la prueba que intentó llegar a Telegram, Notion o :4400. Las
+    que prueban la guarda misma lo piden con @pytest.mark.mundo_real_esperado."""
+    _INTENTOS_AL_MUNDO_REAL.clear()
+    yield
+    intentos = list(_INTENTOS_AL_MUNDO_REAL)
+    _INTENTOS_AL_MUNDO_REAL.clear()
+    if intentos and request.node.get_closest_marker("mundo_real_esperado") is None:
+        pytest.fail(f"la prueba intentó salir al mundo real: {intentos}", pytrace=False)
 
 # F3.5 (plan de cierre): REMI_BOVEDA solo aísla los episodios; los libros, los
 # Estados y el git de la bóveda van por REMI_CONOCIMIENTO. Sin aislarlo,
