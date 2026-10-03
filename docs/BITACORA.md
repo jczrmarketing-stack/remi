@@ -20,6 +20,51 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · F5 · cierre del plan de cierre · construido · 0354ded
+
+Escribe la terminal. Instalada la app de `0354ded` con `actualizar.sh`; `doctor.sh` 10/10;
+`/salud` `{"ok":true,"db":true}`; bóveda limpia.
+
+- **Hash por fase:** F0 `1e4efd4` · F1 `f87168b` (V4 `2248162`, V3 `0155c6a`, V1 `2e2a86b`) ·
+  F2 `fbab92c` · F3 `51ded88` (F3.5 `d1a9b0b`) · F4 `0354ded`.
+- **Pruebas al final:** pytest 728 (+2 saltadas), mypy 131 módulos, vitest 108, cargo 19
+  (+1 ignorada), las cuatro en verde. Línea base de F0: 707 / 127 / 108 / 19.
+- **Velocidad, antes → después:**
+
+  | tramo | antes | después |
+  |---|---|---|
+  | Haiku: llamadas con caché leída | 0 de 10 | 9 de 10 |
+  | Haiku: ms por llamada (mediana) | ≈ 4400 | 3367 |
+  | Haiku: hasta la primera frase | la respuesta entera (3971 mediana; 10 350 con 315 tokens) | 2821 mediana |
+  | Groq: hasta la primera frase | — | 1201 (n=1; el resto, 429 del plan gratis) |
+  | Dictado de 57 s: Whisper al parar | 4179–4346 | 991 |
+  | Micrófono: el wav aparece (en caliente) | mediana 202, 20/20 ≤ 400 | sin cambio (la opción (a) dio 226) |
+
+  `fin_habla→primer_sonido` real (V3) se lee de la línea `[gesto] latencia` del log de la
+  ventanita en los primeros turnos de voz de Juan Camilo.
+- **BLOQUEADO:** ninguno. Lo que no se cerró como estaba escrito: V2 no mejora con la opción
+  (a) y la (b) no está autorizada; el «listo cuando» de V3 pide turnos reales; F2 «a mano en
+  la ventanita» lo hice con un núcleo de prueba aislado (voseo 2/3 y 1/3, encargo con forma
+  1/3, en la entrada de F2).
+- **Lo que se ve distinto en el panel:** Ajustes a 375 px se desborda 150 px y aprieta sus
+  columnas; voseo en tres textos del panel; la barra inferior de Hoy en el teléfono, a
+  mirar (detalle en F4).
+- **Lo que solo puede hacer Juan Camilo (pendiente):**
+  1. Contestarle a Remi las ocho preguntas «(Completar …)» y las de fases: el cliente de BeaM,
+     cuánto pagó Alfonso, los «listo cuando» de UpVisuals, las cuatro áreas, el piso de precio
+     por fase, y 5–10 mensajes reales para «mi voz».
+  2. Leer `caracter.md` v1 y corregirlo a mano. Y, si quiere, el Estado de `upvisuals.md`, que
+     hoy es una paráfrasis que dejó la suite de pruebas.
+  3. Cloudflare: Access delante del túnel y `cloudflared tunnel login`.
+  4. Rotar las cuatro llaves desde Ajustes → Conexiones → Probar.
+  5. `pmset` y el UPS de la Mac mini.
+  6. Siete días de uso real (4 al 10 de octubre) y la revisión semanal del lunes 12. Borrar
+     los once worktrees cuando quiera (`git worktree remove ~/proyectos/remi-<x>`).
+- **Después de los siete días (sin empezar):** 3f banco de pruebas, 2e.1, 2e.2, el ritual de
+  la mañana como pantalla, «pensar en voz alta» si V3 no alcanza.
+
+---
+
 ## 2026-10-02 · F4 · producción de verdad · construido · 868f9b0
 
 Escribe la terminal. Commits: `bfb9f62` (F4.2b), `3d81fec` (F4.2), `1016c9b` (F4.6),
