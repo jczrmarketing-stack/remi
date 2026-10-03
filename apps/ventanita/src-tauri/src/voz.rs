@@ -58,7 +58,7 @@ fn umbral_para(piso: f32) -> f32 {
 // 2 s y no 1,2: con 1,2 el diálogo cortaba a mitad de frase cada vez que
 // Juan Camilo se paraba a pensar la palabra siguiente (3b). Solo lo usa el
 // diálogo: el dictado nunca corta por silencio.
-const SILENCIO_PARA_CORTAR: Duration = Duration::from_millis(2000);
+const SILENCIO_PARA_CORTAR: Duration = Duration::from_millis(1400);
 // Si en todo este tiempo no dijiste nada, Remi deja de esperar (en diálogo
 // no hay cuadro para escribir: sin esto quedaba grabando para siempre).
 const SIN_VOZ_MAXIMO: Duration = Duration::from_secs(10);

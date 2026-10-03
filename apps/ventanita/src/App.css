@@ -242,6 +242,9 @@
 
 .ventanita--baja .bolita {
   transform: translateY(var(--baja-y, 0));
+  /* Primero se difuminan las letras (250 ms); la bolita sale después. Al
+     subir no hay espera. */
+  transition-delay: 350ms;
 }
 
 .ventanita--baja .bolita .status-dot[data-estado="hablando"] {
