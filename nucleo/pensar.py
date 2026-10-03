@@ -832,10 +832,19 @@ def _lineas(turnos: list[db.Turno]) -> str:
     return "\n".join(f"{'Juan Camilo' if t.rol == 'juan' else 'Remi'}: {t.texto}" for t in turnos)
 
 
-def mensaje_con_historia(frase: str, turnos: list[db.Turno], resumen: str = "") -> str:
-    """Lo que viaja como mensaje: el resumen de lo anterior, los últimos
-    turnos literales y, al final, lo que Juan Camilo acaba de decir."""
+def mensaje_con_historia(frase: str, turnos: list[db.Turno], resumen: str = "", contexto: str = "") -> str:
+    """Lo que viaja como mensaje: el contexto que cambia por turno (la
+    precarga del proyecto activo y los asociados por vector), el resumen de
+    lo anterior, los últimos turnos literales y, al final, lo que Juan
+    Camilo acaba de decir.
+
+    V4 (2/10/2026): lo que cambia de un turno al otro va acá y no en el
+    system prompt. La caché de la API es por prefijo y el system prompt es
+    un solo bloque: un título de asociado distinto al final lo invalidaba
+    entero (medido: cache_leida=0 en 10 de 12 llamadas seguidas)."""
     partes = []
+    if contexto.strip():
+        partes.append(contexto.strip())
     if resumen:
         partes.append(f"Resumen de lo anterior en esta conversación:\n{resumen}")
     if turnos:
@@ -937,20 +946,23 @@ def pensar(
     última hora. None si el motor no está, falla o no devolvió texto: el que
     llama sigue por el camino sin IA — nunca se rompe la respuesta por esto."""
     indice = _indice()
+    # El system prompt es lo estable (carácter, rol técnico, índice): así la
+    # caché de la API lo lee en vez de reescribirlo en cada turno.
     instrucciones = instrucciones_con_indice(indice, sistema)
+    contexto = ""
     asociados = _asociados(frase)
     if asociados:
-        instrucciones = instrucciones + ENCABEZADO_ASOCIADOS + ", ".join(asociados)
+        contexto += ENCABEZADO_ASOCIADOS + ", ".join(asociados)
     precargado = _precarga()
     if precargado is not None:
         texto, registro = precargado
-        instrucciones = instrucciones + texto
+        contexto += texto
         print(f"[precarga] precargado={registro}", file=sys.stderr)
     else:
         print("[precarga] nada que precargar (sin bloque abierto ni libro tocado)", file=sys.stderr)
     turnos, resumen = _conversacion()
     abre_conversacion_nueva = not turnos  # toda conversación vigente tiene al menos un turno
-    mensaje = mensaje_con_historia(frase, turnos, resumen)
+    mensaje = mensaje_con_historia(frase, turnos, resumen, contexto)
     elegido = motor(motor_pedido)
     if buscar:
         # Solo Claude tiene WebSearch: una búsqueda va por Claude aunque el
@@ -1287,6 +1299,18 @@ def _pensar_con_claude(
     return None
 
 
+# cwd de la CLI: una carpeta vacía y SIEMPRE la misma. La CLI escribe su
+# carpeta de trabajo en el prompt; una temporal distinta por llamada
+# reescribía ~855 tokens de caché en cada turno (medido 2/10/2026). Vacía
+# para que no cargue CLAUDE.md ni contexto de ningún repo.
+CARPETA_CWD = Path(tempfile.gettempdir()) / "remi-pensar-cwd"
+
+
+def _cwd_de_la_cli() -> Path:
+    CARPETA_CWD.mkdir(parents=True, exist_ok=True)
+    return CARPETA_CWD
+
+
 def _una_llamada_claude(
     m: Modo,
     frase: str,
@@ -1300,8 +1324,8 @@ def _una_llamada_claude(
 
     arranque = time.perf_counter()
     try:
-        # cwd neutral: dentro del repo la CLI cargaría CLAUDE.md y contexto
-        # que acá no pinta nada.
+        # La config del MCP y la marca de lectura son de esta llamada (una
+        # carpeta temporal); el cwd no: es el fijo de arriba.
         with tempfile.TemporaryDirectory(prefix="remi-pensar-") as vacio:
             marca = Path(vacio) / "leyo"
             terminado = subprocess.run(
@@ -1311,7 +1335,7 @@ def _una_llamada_claude(
                 text=True,
                 timeout=timeout,
                 env=_entorno(m),
-                cwd=vacio,
+                cwd=_cwd_de_la_cli(),
             )
             # El JSON final de la CLI no dice qué herramientas usó; la marca
             # la deja el propio estante al ser leído. Hay que mirarla antes
@@ -1348,11 +1372,15 @@ def _una_llamada_claude(
     cache_leida, cache_escrita = _tokens_cacheados(datos.get("usage"))
     modelo_real = _modelo_real(datos, nombre_modelo)
     ms = (time.perf_counter() - arranque) * 1000
+    api_ms = datos.get("duration_api_ms")
     # La cuenta va a consola, no a la pantalla: es dato de operación.
     # `entrada` es solo lo no cacheado (así lo informa la CLI); lo que viajó
-    # de verdad es entrada + cache_leida + cache_escrita.
+    # de verdad es entrada + cache_leida + cache_escrita. `api` es lo que
+    # tardó el modelo según la CLI; la diferencia con `ms` es el arranque
+    # de la CLI (node + el estante), ~1,5 s medidos.
     print(
         f"[claude] modo={m.nombre} modelo={modelo_real} ms={ms:.0f} "
+        f"api={api_ms if isinstance(api_ms, int) else '-'} "
         f"tokens entrada={tokens_entrada} cache_leida={cache_leida} cache_escrita={cache_escrita} "
         f"salida={tokens_salida} memoria={len(indice)} "
         f"leyó={'sí' if leyo else 'no'} libros={','.join(libros) or '-'}",

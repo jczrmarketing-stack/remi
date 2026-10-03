@@ -863,3 +863,52 @@ def test_pensar_con_trastienda_ninguno_sirve_devuelve_none(monkeypatch, tmp_path
     monkeypatch.setattr(pensar, "RUTA_MOTORES", tmp_path / "no-existe.json")
     monkeypatch.setattr(pensar, "_llamar_proveedor", lambda *a, **k: {"choices": []})
     assert pensar.pensar_con_trastienda("pedido", "instrucciones") is None
+
+
+# — V4 (2/10/2026): la caché de la API se lee solo si el prefijo no cambia —
+
+
+def test_lo_que_cambia_por_turno_va_en_el_mensaje_y_el_system_prompt_queda_fijo(monkeypatch):
+    """Los asociados por vector cambian con cada frase y la precarga con el
+    proyecto activo. Si van al final del system prompt, el bloque entero se
+    reescribe en la caché cada turno (medido: cache_leida=0 en 10 de 12).
+    Van en el mensaje; el system prompt es el mismo para dos frases distintas."""
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    monkeypatch.setattr(pensar, "_asociados", lambda frase: [f"título para «{frase}»", "otro título"])
+    monkeypatch.setattr(pensar, "_precarga", lambda: ("\n\nEsto es lo que estás haciendo: UpVisuals.\n", "upvisuals razon=prueba"))
+    vistos = []
+
+    def espiar(comando, **kwargs):
+        vistos.append((comando[comando.index("--system-prompt") + 1], kwargs["input"]))
+        return _salida_cli()
+
+    monkeypatch.setattr(pensar.subprocess, "run", espiar)
+    pensar.pensar("voy a llamar al banco")
+    pensar.pensar("¿y la tarjeta?")
+
+    (sistema_1, mensaje_1), (sistema_2, mensaje_2) = vistos
+    assert sistema_1 == sistema_2 == pensar.instrucciones_con_indice([])
+    for mensaje, frase in ((mensaje_1, "voy a llamar al banco"), (mensaje_2, "¿y la tarjeta?")):
+        assert f"título para «{frase}»" in mensaje
+        assert "Esto es lo que estás haciendo: UpVisuals." in mensaje
+        assert mensaje.rstrip().endswith(frase)
+
+
+def test_la_cli_corre_siempre_en_la_misma_carpeta_vacia(monkeypatch, tmp_path):
+    """La CLI escribe su carpeta de trabajo en el prompt: una temporal
+    distinta por llamada reescribía ~855 tokens de caché cada vez."""
+    pensar = _importar_pensar()
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    monkeypatch.setattr(pensar, "CARPETA_CWD", tmp_path / "cwd-fijo")
+    cwds = []
+
+    def espiar(comando, **kwargs):
+        cwds.append(kwargs["cwd"])
+        return _salida_cli()
+
+    monkeypatch.setattr(pensar.subprocess, "run", espiar)
+    pensar.pensar("una")
+    pensar.pensar("otra")
+    assert cwds[0] == cwds[1] == tmp_path / "cwd-fijo"
+    assert (tmp_path / "cwd-fijo").is_dir() and not any((tmp_path / "cwd-fijo").iterdir())
