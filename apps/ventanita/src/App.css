@@ -236,11 +236,8 @@
   gap: var(--space-2);
 }
 
-/* «Parar» (3-oct): visible incluso en la conversación por voz, cuando el resto
-   del pie se aparta. Mismo chip, sin color nuevo. */
-.parar-mic {
-  color: var(--ink);
-}
+/* «Parar» (3-oct) es un chip como los demás, mismo color: solo sigue visible en
+   la conversación por voz, cuando el resto del pie se aparta. */
 
 /* Hablando por voz (ronda 2): la bolita baja al centro mientras Remi piensa
    y habla ahí; el chat se aparta y solo queda la frase. La bajada vive en
