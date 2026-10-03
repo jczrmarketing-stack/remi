@@ -476,10 +476,15 @@ export default function App() {
     bolita.style.setProperty("--baja-y", `${Math.max(0, ventana.clientHeight * 0.42 - centroActual)}px`);
   }, [bajada]);
 
-  // Al volver a escuchar o a reposo, sube a su sitio.
+  // La conversación por voz es una pantalla: al entrar, la bolita baja y el
+  // texto se difumina, y así se queda mientras dura (no solo cuando Remi
+  // habla). Se sale al tocar la bolita de nuevo o con la flecha (ahí el texto
+  // vuelve y la conversación sigue). Sin voz de Remi (silenciada) no tiene
+  // sentido esconder lo que contesta: ahí el texto se queda.
   useEffect(() => {
-    if (estado === "escuchando" || estado === "reposo") setBajada(false);
-  }, [estado]);
+    if (modo === "dialogo") setBajada(!accionesRef.current.silenciado);
+    else setBajada(false);
+  }, [modo]);
 
   // — La voz de Remi —
 
@@ -576,7 +581,6 @@ export default function App() {
         setTexto("");
       }
       ultimoEnviadoRef.current = { texto: limpio, origen };
-      setBajada(origen === "voz" && !accionesRef.current.silenciado);
       setEstado("pensando");
       const elegido = paraEnviar(accionesRef.current.cerebro);
       const arranque = performance.now();
@@ -1416,6 +1420,23 @@ export default function App() {
         {grabando && modo === "dialogo" && <p className="num modo-escucha">conversación</p>}
         {transcribiendo && <p className="num trabajando">transcribiendo</p>}
       </div>
+
+      {bajada && (
+        <button
+          type="button"
+          className="volver-texto"
+          aria-label="Volver al texto"
+          title="Ver el texto (la conversación sigue)"
+          onClick={() => {
+            registrar("volverAlTexto");
+            setBajada(false);
+          }}
+        >
+          <svg width="8" height="12" viewBox="0 0 8 12" aria-hidden="true">
+            <path d="M7 1 L1 6 L7 11 Z" fill="currentColor" />
+          </svg>
+        </button>
+      )}
 
       {bajada && estado === "hablando" && (
         <div className="habla">

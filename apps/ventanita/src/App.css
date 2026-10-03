@@ -256,14 +256,42 @@
   transition: opacity var(--dur-aparecer) var(--curva);
 }
 
-.ventanita--baja.ventanita--hablando .chat,
-.ventanita--baja.ventanita--hablando .campo,
-.ventanita--baja.ventanita--hablando .pie,
-.ventanita--baja.ventanita--hablando .nudge,
-.ventanita--baja.ventanita--hablando .asa,
-.ventanita--baja.ventanita--hablando .historial__triangulo {
+.ventanita--baja .chat,
+.ventanita--baja .campo,
+.ventanita--baja .pie,
+.ventanita--baja .nudge,
+.ventanita--baja .asa,
+.ventanita--baja .historial__triangulo {
   opacity: 0;
   pointer-events: none;
+}
+
+/* La flecha para volver al texto: el mismo lugar y tamaño que el triángulo
+   del historial, que en esta pantalla se esconde. */
+.volver-texto {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 48px;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  animation: habla-aparece var(--dur-aparecer) var(--curva) 300ms both;
+  transition: color var(--dur-estado) var(--curva);
+}
+
+.volver-texto:hover,
+.volver-texto:focus-visible {
+  color: var(--ink);
 }
 
 .habla {
@@ -308,7 +336,8 @@
     transform: none;
   }
 
-  .habla {
+  .habla,
+  .volver-texto {
     animation: none;
   }
 }
