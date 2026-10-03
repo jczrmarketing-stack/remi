@@ -743,7 +743,7 @@ export default function App() {
       Digit0: () => nudgeDemo("encoger", "Esto se quedó grande. Hoy solo el primer paso."),
       KeyN: () => { charla(); setBajada(false); setEstado("escuchando"); window.setTimeout(() => setNudgePendiente({ id: `demo-chat-${Date.now()}`, tipo: "cuerpo", voz: "Van dos horas. Agua, y seguimos.", salida_amable: true, respuesta: null }), 300); },
       KeyE: () => { setBajada(false); setMensajes([{ id: nuevoId(), rol: "juan", texto: "¿qué sigue hoy?" }, { id: nuevoId(), rol: "remi", texto: FRASE_DE_FALLO }]); setEstado("escuchando"); },
-      KeyH: () => { charla(); setBajada(false); setEstado("escuchando"); window.setTimeout(abrirHistorial, 250); },
+      KeyJ: () => { charla(); setBajada(false); setEstado("escuchando"); window.setTimeout(abrirHistorial, 250); },
     };
     function alTeclado(evento: KeyboardEvent) {
       if (!(evento.metaKey && evento.altKey)) return;
@@ -1362,6 +1362,10 @@ export default function App() {
       >
         <Semaforo enPildora onVerde={abrirChat} />
         {nudgeEnReposo && nudgePendiente ? (
+          <>
+            <div className="nudge-punto">
+              <StatusDot estado="reposo" />
+            </div>
           <Nudge
             voz={nudgePendiente.voz}
             tipo={nudgePendiente.tipo}
@@ -1369,6 +1373,7 @@ export default function App() {
             onResponder={responderAlNudge}
             bionica={lectura.bionica ? lectura.intensidad : null}
           />
+          </>
         ) : (
           <div className="punto-zona">
             <StatusDot estado="reposo" />

@@ -15,6 +15,7 @@
 
 .nudge__voz {
   margin: 0;
+  text-align: left;
 }
 
 .nudge__pildoras {
@@ -96,4 +97,11 @@
   .nudge--isla {
     animation: none;
   }
+}
+
+/* El punto vivo también acompaña al nudge del cuadradito ensanchado. */
+.nudge-punto {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
 }

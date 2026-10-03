@@ -87,6 +87,7 @@
   margin: 0;
   padding: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -97,6 +98,8 @@
 .historial__fila {
   appearance: none;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   background: transparent;
   border: none;
   border-left: 2px solid transparent;
@@ -117,6 +120,8 @@
 }
 
 .historial__titulo {
+  display: block;
+  max-width: 100%;
   font-size: 14px;
   line-height: 20px;
   overflow: hidden;

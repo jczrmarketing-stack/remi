@@ -221,3 +221,10 @@
 .chat__reloj--dinero {
   color: var(--dinero);
 }
+
+/* En la celebración el fondo es `luz`: la ancla de la lectura biónica también
+   pasa a `on-luz`, para que no se pierda sobre el relleno. */
+.chat[data-bionica="si"] .chat__mensaje--remi[data-celebrando="si"] .bio-ancla {
+  color: var(--on-luz);
+}
+
