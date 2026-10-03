@@ -756,9 +756,15 @@ INSTRUCCIONES_BUSQUEDA = (
 )
 
 
-def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path, buscar: bool = False) -> list[str]:
+def _comando(
+    nombre_modelo: str, instrucciones: str, config_mcp: Path, buscar: bool = False, leer_codigo: bool = True
+) -> list[str]:
     # WebSearch solo en el mensaje que lo pide: nunca queda prendido.
-    herramientas_casa = (*HERRAMIENTAS_DE_LECTURA, "WebSearch") if buscar else HERRAMIENTAS_DE_LECTURA
+    # Sin leer código cuando le preguntan por Remi (3-oct): su estado ya le
+    # llega medido, y con Read abría planes viejos de docs/ y los contaba
+    # como pendientes.
+    lectura = HERRAMIENTAS_DE_LECTURA if leer_codigo else ()
+    herramientas_casa = (*lectura, "WebSearch") if buscar else lectura
     return [
         BINARIO,
         "-p",
@@ -773,7 +779,7 @@ def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path, buscar: b
         # solo esas dos puertas.
         "--tools",
         ",".join(herramientas_casa),
-        *_carpetas_de_codigo(),
+        *(_carpetas_de_codigo() if leer_codigo else []),
         "--restricted",
         "--strict-mcp-config",
         "--setting-sources",
@@ -782,9 +788,11 @@ def _comando(nombre_modelo: str, instrucciones: str, config_mcp: Path, buscar: b
         "--mcp-config",
         str(config_mcp),
         "--allowedTools",
-        ",".join((*HERRAMIENTAS, *herramientas_casa)),
+        # Tampoco el estante cuando le preguntan por Remi (3-oct): de ahí
+        # sacaba un «Siguiente:» viejo del libro como si estuviera pendiente.
+        ",".join((*(HERRAMIENTAS if leer_codigo else ()), *herramientas_casa)),
         "--disallowedTools",
-        ",".join(reglas_de_no_leer()),
+        ",".join((*reglas_de_no_leer(), *(() if leer_codigo else HERRAMIENTAS))),
         "--max-turns",
         MAX_VUELTAS,
     ]
@@ -1646,7 +1654,7 @@ def _una_llamada_claude(
         with tempfile.TemporaryDirectory(prefix="remi-pensar-") as vacio:
             marca = Path(vacio) / "leyo"
             terminado = subprocess.run(
-                _comando(nombre_modelo, instrucciones, _config_mcp(Path(vacio), marca), buscar),
+                _comando(nombre_modelo, instrucciones, _config_mcp(Path(vacio), marca), buscar, not _pregunta_por_remi(frase)),
                 input=frase,
                 capture_output=True,
                 text=True,
@@ -1705,7 +1713,7 @@ def _deltas_claude(
     datos: Any = None
     with tempfile.TemporaryDirectory(prefix="remi-pensar-") as vacio:
         marca = Path(vacio) / "leyo"
-        comando = _comando(nombre_modelo, instrucciones, _config_mcp(Path(vacio), marca), buscar)
+        comando = _comando(nombre_modelo, instrucciones, _config_mcp(Path(vacio), marca), buscar, not _pregunta_por_remi(frase))
         comando[comando.index("--output-format") + 1] = "stream-json"
         comando += ["--include-partial-messages", "--verbose"]
         try:

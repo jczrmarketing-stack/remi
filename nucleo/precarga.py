@@ -350,7 +350,17 @@ def _pendientes_de_la_revision() -> list[str]:
         if estado.startswith("pasa"):
             continue
         pendientes.append(f"{celdas[0]}. {celdas[1]} — {_estado_en_palabras(estado)}")
-    return pendientes[:MAX_PENDIENTES_DE_REVISION]
+    pendientes = pendientes[:MAX_PENDIENTES_DE_REVISION]
+    # Las partes que ni se han revisado (3-oct: Remi dijo «el panel está
+    # completo en código» y la revisión del panel no había empezado).
+    for linea in lineas:
+        sin_revisar = re.match(r"^## (R\d+) · (.+?) — \*pendiente\*", linea.strip())
+        if sin_revisar:
+            pendientes.append(
+                f"{sin_revisar.group(1)} {sin_revisar.group(2)}: sin revisar todavía contra la Biblia; "
+                "no se sabe si está completo, no lo afirmes"
+            )
+    return pendientes
 
 
 def estado_propio() -> str:
@@ -363,5 +373,12 @@ def estado_propio() -> str:
         extra += (
             "\nLo que todavía no está cerrado según la revisión contra tu Biblia (docs/REVISION.md):\n"
             + "\n".join(f"- {fila}" for fila in revision)
+            # 3-oct: Haiku abrió un plan viejo de docs/ (ya ejecutado) y lo
+            # contó como pendiente.
+            + "\nLo que te falta como app sale SOLO de este bloque. Los planes, guías y encargos de "
+            "docs/ y de charlas viejas son anteriores y ya se ejecutaron: no los abras para esto ni "
+            "los cuentes como pendientes. No inventes plazos ni bloqueadores. Para esta pregunta no "
+            "tienes herramientas (ni estante ni código): todo lo que necesitas está aquí; no las pidas "
+            "ni pidas permiso. Si no te pregunta por algo concreto, di lo que falta en pocas líneas."
         )
     return ENCABEZADO_ESTADO_PROPIO + cuerpo + extra + "\n"

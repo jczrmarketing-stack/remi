@@ -137,3 +137,32 @@ def test_por_ver_en_la_app_no_se_lee_como_que_falla(tmp_path, monkeypatch):
     monkeypatch.setattr(precarga, "_correr_doctor", lambda: "doctor: 10/10 OK")
     texto = precarga.estado_propio()
     assert "falta que Juan Camilo lo pruebe en la app (no quiere decir que falle)" in texto
+
+
+def test_las_partes_sin_revisar_no_se_dan_por_completas(tmp_path, monkeypatch):
+    revision = tmp_path / "REVISION.md"
+    revision.write_text("## R1 · La ventanita\n\n| 3 | Atajo | x | ok | **pasa** |\n\n## R4 · Panel — *pendiente*\n")
+    monkeypatch.setattr(precarga, "RUTA_REVISION", revision)
+    monkeypatch.setattr(precarga, "_correr_doctor", lambda: "doctor: 10/10 OK")
+    texto = precarga.estado_propio()
+    assert "R4 Panel: sin revisar todavía" in texto
+    assert "R1" not in texto
+
+
+def test_el_estado_dice_que_los_planes_viejos_no_cuentan(tmp_path, monkeypatch):
+    revision = tmp_path / "REVISION.md"
+    revision.write_text("| 2 | Doble click | x | probar | por ver en la app |\n")
+    monkeypatch.setattr(precarga, "RUTA_REVISION", revision)
+    monkeypatch.setattr(precarga, "_correr_doctor", lambda: "doctor: 10/10 OK")
+    assert "sale SOLO de este bloque" in precarga.estado_propio()
+
+
+def test_si_le_preguntan_por_remi_no_lee_codigo(tmp_path):
+    import pensar
+
+    con = pensar._comando("haiku", "x", tmp_path / "mcp.json")
+    sin = pensar._comando("haiku", "x", tmp_path / "mcp.json", leer_codigo=False)
+    assert "--add-dir" in con and "Read" in con[con.index("--tools") + 1]
+    assert "--add-dir" not in sin and "Read" not in sin[sin.index("--tools") + 1]
+    assert "mcp__memoria__leer" not in sin[sin.index("--allowedTools") + 1]
+    assert "mcp__memoria__leer" in sin[sin.index("--disallowedTools") + 1]
