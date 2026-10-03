@@ -229,3 +229,86 @@
   align-items: center;
   gap: var(--space-2);
 }
+
+/* Hablando por voz (ronda 2): la bolita baja al centro mientras Remi piensa
+   y habla ahí; el chat se aparta y solo queda la frase. La bajada vive en
+   el tiempo que Remi ya tarda en pensar, y el audio nunca la espera. */
+.bolita {
+  transform: translateY(0);
+  transition: transform 600ms var(--curva);
+  position: relative;
+  z-index: 3;
+}
+
+.ventanita--baja .bolita {
+  transform: translateY(var(--baja-y, 0));
+}
+
+.ventanita--baja .bolita .status-dot[data-estado="hablando"] {
+  width: 48px;
+  height: 48px;
+}
+
+.chat,
+.campo,
+.pie,
+.nudge {
+  transition: opacity var(--dur-aparecer) var(--curva);
+}
+
+.ventanita--baja.ventanita--hablando .chat,
+.ventanita--baja.ventanita--hablando .campo,
+.ventanita--baja.ventanita--hablando .pie,
+.ventanita--baja.ventanita--hablando .nudge,
+.ventanita--baja.ventanita--hablando .asa,
+.ventanita--baja.ventanita--hablando .historial__triangulo {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.habla {
+  position: absolute;
+  left: var(--space-8);
+  right: var(--space-8);
+  top: 54%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
+  animation: habla-aparece var(--dur-aparecer) var(--curva) 200ms both;
+}
+
+.habla__frase {
+  margin: 0;
+}
+
+.habla__esc {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+@keyframes habla-aparece {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bolita,
+  .chat,
+  .campo,
+  .pie,
+  .nudge {
+    transition: none;
+  }
+
+  .ventanita--baja .bolita {
+    transform: none;
+  }
+
+  .habla {
+    animation: none;
+  }
+}

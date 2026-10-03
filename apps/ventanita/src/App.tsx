@@ -202,6 +202,12 @@ export default function App() {
   const [ultimaInteraccionMs, setUltimaInteraccionMs] = useState<number | null>(() => ultimaInteraccion());
   const [ahoraMs, setAhoraMs] = useState(() => Date.now());
   const [historialAbierto, setHistorialAbierto] = useState(false);
+  // Hablando (ronda 2): si le hablaste en voz alta, la bolita baja al centro
+  // mientras Remi piensa y habla ahí. Escrito, la ventana no se mueve.
+  const [bajada, setBajada] = useState(false);
+  const [fraseDicha, setFraseDicha] = useState("");
+  const ventanaRef = useRef<HTMLDivElement>(null);
+  const bolitaRef = useRef<HTMLDivElement>(null);
   const [conversaciones, setConversaciones] = useState<ConversacionDeAntes[]>([]);
   const [ultimaVezDeHoy, setUltimaVezDeHoy] = useState<number | null>(null);
 
@@ -457,6 +463,21 @@ export default function App() {
     };
   }, [mensajes]);
 
+  // La bolita sabe a dónde bajar: un poco por encima del centro, que debajo
+  // va la frase. Se mide al empezar a bajar, no antes.
+  useEffect(() => {
+    const bolita = bolitaRef.current;
+    const ventana = ventanaRef.current;
+    if (!bajada || !bolita || !ventana) return;
+    const centroActual = bolita.offsetTop + bolita.offsetHeight / 2;
+    bolita.style.setProperty("--baja-y", `${Math.max(0, ventana.clientHeight * 0.42 - centroActual)}px`);
+  }, [bajada]);
+
+  // Al volver a escuchar o a reposo, sube a su sitio.
+  useEffect(() => {
+    if (estado === "escuchando" || estado === "reposo") setBajada(false);
+  }, [estado]);
+
   // — La voz de Remi —
 
   // Dice un texto. Mientras suena, el estado es «hablando» (la bolita late
@@ -464,6 +485,7 @@ export default function App() {
   // escucharte; si no, queda el chat abierto esperando.
   const decir = useCallback(async (frase: string, alTerminar?: () => void) => {
     const mia = ++locucionRef.current;
+    setFraseDicha(frase);
     setEstado("hablando");
     const { velocidad: vel, vozElegida: v } = accionesRef.current;
     await Promise.race([hablar(frase, vel, v), new Promise((r) => window.setTimeout(r, TECHO_LOCUCION_MS))]);
@@ -551,6 +573,7 @@ export default function App() {
         setTexto("");
       }
       ultimoEnviadoRef.current = { texto: limpio, origen };
+      setBajada(origen === "voz" && !accionesRef.current.silenciado);
       setEstado("pensando");
       const elegido = paraEnviar(accionesRef.current.cerebro);
       const arranque = performance.now();
@@ -1257,7 +1280,11 @@ export default function App() {
   }
 
   return (
-    <div className={`ventanita ventanita--chat ventanita--${estado}`} onMouseDown={alPresionar}>
+    <div
+      ref={ventanaRef}
+      className={`ventanita ventanita--chat ventanita--${estado}${bajada ? " ventanita--baja" : ""}`}
+      onMouseDown={alPresionar}
+    >
       <Semaforo
         enPildora={false}
         onMinimizar={volverAReposo}
@@ -1265,6 +1292,7 @@ export default function App() {
         maximizada={maximizada}
       />
       <div
+        ref={bolitaRef}
         className="bolita"
         role="button"
         tabIndex={0}
@@ -1275,6 +1303,13 @@ export default function App() {
         {grabando && modo === "dialogo" && <p className="num modo-escucha">conversación</p>}
         {transcribiendo && <p className="num trabajando">transcribiendo</p>}
       </div>
+
+      {bajada && estado === "hablando" && (
+        <div className="habla">
+          <p className="display-it habla__frase">{fraseDicha}</p>
+          <p className="num habla__esc">esc · callar</p>
+        </div>
+      )}
 
       <Historial
         abierto={historialAbierto}
