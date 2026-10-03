@@ -48,6 +48,11 @@ pkill -f "Remi.app/Contents/MacOS" 2>/dev/null || true
 rm -rf "$INSTALADA"
 cp -R "$CONSTRUIDA" "$INSTALADA"
 
+# Cada compilación cambia la firma de la app y macOS deja de reconocerle el
+# permiso del micrófono: no pregunta, graba silencio (-91 dB). Se borra la
+# entrada vieja para que al abrir salga el aviso de nuevo.
+tccutil reset Microphone com.remi.ventanita >/dev/null 2>&1 || true
+
 # La copia de target/ también se llama Remi.app, y mientras LaunchServices
 # la conozca, `open -a Remi` y Launchpad pueden elegirla a ella. Se la saca
 # del registro y se deja solo la instalada.
