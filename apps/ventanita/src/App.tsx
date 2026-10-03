@@ -15,6 +15,7 @@ import {
   cerrarTarea,
   dondeQuede,
   enviarMensaje,
+  enviarMensajeEnVivo,
   guardarEpisodio,
   empezarDeCero,
   obtenerConversacion,
@@ -37,6 +38,7 @@ import { animarTamano } from "./movimiento";
 import {
   callarse,
   decirMuletilla,
+  empezarLocucion,
   despertarAudio,
   estadoDeVoz,
   hablar,
@@ -242,6 +244,10 @@ export default function App() {
   const vaciasSeguidasRef = useRef(0);
   const rearmeRef = useRef(0);
   const locucionRef = useRef(0);
+  // V3: los tiempos de un turno de voz, para la línea «latencia …» del log.
+  // fin_habla es cuando dejaste de hablar (la parada), transcrito cuando
+  // Whisper devolvió el texto; lo demás lo pone enviar().
+  const latenciaRef = useRef<{ finHablaMs: number; transcritoMs: number | null } | null>(null);
   const toqueBolitaRef = useRef<number | null>(null);
   const rachaRef = useRef<Racha>(RACHA_VACIA);
 
@@ -510,6 +516,34 @@ export default function App() {
     setEstado("escuchando");
   }, []);
 
+  // V3: dice frases a medida que llegan del núcleo. Igual que decir(),
+  // pero la locución queda abierta: enviar() le agrega cada frase con voz y
+  // la cierra con el `fin`. Al terminar hace lo mismo que decir().
+  const decirEnVivo = useCallback((alTerminar?: () => void, alPrimerSonido?: () => void) => {
+    const mia = ++locucionRef.current;
+    setFraseDicha("");
+    setEstado("hablando");
+    const { velocidad: vel, vozElegida: v } = accionesRef.current;
+    const locucion = empezarLocucion(vel, v, alPrimerSonido);
+    let dicho = "";
+    void Promise.race([locucion.fin, new Promise((r) => window.setTimeout(r, TECHO_LOCUCION_MS))]).then(() => {
+      if (locucionRef.current !== mia || accionesRef.current.estado !== "hablando") return;
+      if (alTerminar) {
+        alTerminar();
+        return;
+      }
+      setEstado("escuchando");
+    });
+    return {
+      agregar(frase: string) {
+        dicho = dicho ? `${dicho} ${frase}` : frase;
+        setFraseDicha(dicho);
+        locucion.agregar(frase);
+      },
+      terminar: locucion.terminar,
+    };
+  }, []);
+
   const callar = useCallback(() => {
     locucionRef.current += 1;
     callarse();
@@ -599,19 +633,86 @@ export default function App() {
         cerebro: etiquetaDe(accionesRef.current.cerebro),
         reintento,
       });
+      // V3: hablándole, la respuesta llega en frases y la voz arranca con
+      // la primera. El mensaje de Remi aparece en el chat y va creciendo;
+      // al final se reemplaza por la respuesta entera (la misma de /mensaje).
+      const enDialogo = accionesRef.current.modo === "dialogo";
+      const conVoz = origen === "voz" && !accionesRef.current.silenciado;
+      const latencia = latenciaRef.current;
+      latenciaRef.current = null;
+      // En un objeto y no en variables sueltas: se escriben desde el
+      // callback de cada frase, y así TypeScript no las da por nulas.
+      const vivo = {
+        habla: null as ReturnType<typeof decirEnVivo> | null,
+        id: null as string | null,
+        texto: "",
+        primeraFraseMs: null as number | null,
+        primerSonidoMs: null as number | null,
+        finMs: null as number | null,
+      };
+      // Una sola línea por turno de voz, cuando ya se sabe todo: el fin y el
+      // primer sonido pueden llegar en cualquier orden.
+      const anotarLatencia = () => {
+        if (!latencia || vivo.finMs === null) return;
+        const desde = (ms: number | null) => (ms === null ? "-" : Math.round(ms - latencia.finHablaMs));
+        registrar("latencia", {
+          "fin_habla→transcrito": desde(latencia.transcritoMs),
+          "→primera_frase": desde(vivo.primeraFraseMs),
+          "→primer_sonido": desde(vivo.primerSonidoMs),
+        });
+      };
       let respuesta: Awaited<ReturnType<typeof enviarMensaje>> | null = null;
       try {
-        respuesta = await enviarMensaje(limpio, { think: true, ...elegido, origen });
+        if (conVoz) {
+          respuesta = await enviarMensajeEnVivo(limpio, { think: true, ...elegido, origen }, (llegada) => {
+            if (generacionRef.current !== miGeneracion) return;
+            if (vivo.primeraFraseMs === null) vivo.primeraFraseMs = performance.now();
+            vivo.texto = vivo.texto ? `${vivo.texto}\n${llegada.frase}` : llegada.frase;
+            const texto = vivo.texto;
+            if (vivo.id === null) {
+              const id = nuevoId();
+              vivo.id = id;
+              setMensajes((actuales) => [...actuales, { id, rol: "remi", texto }]);
+            } else {
+              const id = vivo.id;
+              setMensajes((actuales) => actuales.map((m) => (m.id === id ? { ...m, texto } : m)));
+            }
+            if (llegada.voz) {
+              if (!vivo.habla) {
+                vivo.habla = decirEnVivo(
+                  enDialogo ? () => void empezarAEscucharRef.current("dialogo") : undefined,
+                  () => {
+                    vivo.primerSonidoMs = performance.now();
+                    anotarLatencia();
+                  },
+                );
+              }
+              vivo.habla.agregar(llegada.voz);
+            }
+          });
+          if (!respuesta && generacionRef.current === miGeneracion) {
+            registrar("envivo:caída", { frases: vivo.texto ? vivo.texto.split("\n").length : 0 });
+            respuesta = await enviarMensaje(limpio, { think: true, ...elegido, origen });
+          }
+        } else {
+          respuesta = await enviarMensaje(limpio, { think: true, ...elegido, origen });
+        }
       } catch (error) {
         console.error("no se pudo mandar el mensaje:", error);
       } finally {
         enviandoRef.current = false;
       }
-      if (generacionRef.current !== miGeneracion) return;
+      if (generacionRef.current !== miGeneracion) {
+        vivo.habla?.terminar();
+        return;
+      }
       registrar(respuesta ? "respuesta" : "enviar:falló", {
         tipo: respuesta?.tipo ?? "-",
         ms: Math.round(performance.now() - arranque),
+        enVivo: vivo.id !== null,
       });
+      vivo.finMs = performance.now();
+      if (vivo.habla === null || vivo.primerSonidoMs !== null) anotarLatencia();
       const ahora = Date.now();
       registrarInteraccion(ahora);
       setUltimaInteraccionMs(ahora);
@@ -621,11 +722,23 @@ export default function App() {
       }
       const visible = respuesta ? respuesta.texto || respuesta.voz : FRASE_DE_FALLO;
       const dicho = respuesta ? respuesta.voz : FRASE_DE_FALLO;
-      agregar({ rol: "remi", texto: visible, tarea: respuesta?.tarea, sesion: respuesta?.sesion });
+      if (vivo.id !== null) {
+        const id = vivo.id;
+        setMensajes((actuales) =>
+          actuales.map((m) => (m.id === id ? { ...m, texto: visible, tarea: respuesta?.tarea, sesion: respuesta?.sesion } : m)),
+        );
+      } else {
+        agregar({ rol: "remi", texto: visible, tarea: respuesta?.tarea, sesion: respuesta?.sesion });
+      }
       // Habla si le hablaste (y la voz no está silenciada). Escrito, calla:
       // para oírla está el ícono de escuchar.
-      const enDialogo = accionesRef.current.modo === "dialogo";
-      if (origen === "voz" && !accionesRef.current.silenciado) {
+      if (conVoz) {
+        if (vivo.habla) {
+          // Ya está sonando lo que llegó en vivo; solo falta avisarle que no
+          // viene más. Al terminar hace lo mismo que decir().
+          vivo.habla.terminar();
+          return;
+        }
         void decir(dicho, enDialogo ? () => void empezarAEscucharRef.current("dialogo") : undefined);
         return;
       }
@@ -636,7 +749,7 @@ export default function App() {
       setEstado("escuchando");
       campoRef.current?.enfocar();
     },
-    [agregar, decir],
+    [agregar, decir, decirEnVivo],
   );
 
   // — Escuchar —
@@ -810,6 +923,7 @@ export default function App() {
       const enDialogo = accionesRef.current.modo === "dialogo";
       const miGeneracion = generacionRef.current;
       registrar("parada", { origen, modo: accionesRef.current.modo });
+      latenciaRef.current = { finHablaMs: performance.now(), transcritoMs: null };
       grabacionIdRef.current += 1;
       grabacionDesdeRef.current = null;
       setGrabando(false);
@@ -833,6 +947,7 @@ export default function App() {
         if (generacionRef.current !== miGeneracion) return;
         setTranscribiendo(false);
         registrar("transcrito", { origen, caracteres: transcripcion.length });
+        if (latenciaRef.current) latenciaRef.current.transcritoMs = performance.now();
         vaciasSeguidasRef.current = 0;
         if (enDialogo) {
           setTexto(baseDictadoRef.current);

@@ -5,17 +5,19 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import sys
 import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
@@ -358,10 +360,77 @@ def abrir_donde_quede() -> DondeQuede:
     return DondeQuede(lineas=trabajo.lineas_donde_quede())
 
 
+# V3 (2/10/2026): quien quiera oír la respuesta a medida que sale pasa un
+# emisor; recibe cada frase completa en cuanto el motor la termina.
+Emisor = Callable[[str], None]
+
+
 @app.post("/mensaje", response_model=RespuestaMensaje)
 def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     """Lo que decís no siempre es una tarea. El clasificador (sin IA) decide
     si enfría en la Bandeja, si abre un bloque o si cierra el que estaba."""
+    return _atender(mensaje, None)
+
+
+@app.post("/mensaje/stream")
+def recibir_mensaje_en_vivo(mensaje: MensajeEntrante) -> StreamingResponse:
+    """La misma respuesta que POST /mensaje, pero en NDJSON y a medida que
+    el motor la escribe: una línea `{"frase": …, "voz": …}` por oración
+    completa (`voz` es la frase lista para decirse, solo en las primeras
+    MAX_FRASES_HABLADAS, como para_hablar; después, null) y al final
+    `{"fin": …}` con la respuesta entera, igual que la de /mensaje. Si algo
+    revienta a mitad, la conexión se cierra sin `fin`: la ventanita vuelve
+    a pedir /mensaje normal, sin decir nada."""
+    cola: queue.Queue[str | None] = queue.Queue()
+
+    def correr() -> None:
+        dichas = 0
+
+        def emisor(frase: str) -> None:
+            nonlocal dichas
+            voz = sin_markdown(frase) if dichas < MAX_FRASES_HABLADAS else None
+            dichas += 1
+            cola.put(json.dumps({"frase": frase, "voz": voz}, ensure_ascii=False) + "\n")
+
+        try:
+            respuesta = _atender(mensaje, emisor)
+            cola.put(json.dumps({"fin": respuesta.model_dump(mode="json")}, ensure_ascii=False) + "\n")
+        except Exception as error:  # noqa: BLE001 — se cierra sin `fin` y la ventanita cae a /mensaje
+            print(
+                f"[mensaje/stream] falló a mitad ({type(error).__name__}: {error}): la ventanita cae a /mensaje",
+                file=sys.stderr,
+                flush=True,
+            )
+        finally:
+            cola.put(None)
+
+    threading.Thread(target=correr, daemon=True).start()
+
+    def lineas() -> Iterator[str]:
+        while True:
+            linea = cola.get()
+            if linea is None:
+                return
+            yield linea
+
+    return StreamingResponse(lineas(), media_type="application/x-ndjson")
+
+
+def _pensado(mensaje: MensajeEntrante, emisor: Emisor | None, **extra: Any) -> pensar.Pensado | None:
+    """pensar() con lo que pide el mensaje. Con emisor, en frases y en vivo."""
+    comunes: dict[str, Any] = dict(nivel=mensaje.nivel, modelo_ollama=mensaje.modelo_ollama, modelo_venice=mensaje.modelo_venice)
+    if emisor is None:
+        return pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, **comunes, **extra)
+    frases = pensar.pensar_en_frases(mensaje.texto, mensaje.motor, mensaje.modo, **comunes, **extra, en_vivo=True)
+    try:
+        while True:
+            emisor(next(frases))
+    except StopIteration as fin:
+        pensado: pensar.Pensado | None = fin.value
+        return pensado
+
+
+def _atender(mensaje: MensajeEntrante, emisor: Emisor | None) -> RespuestaMensaje:
     arranque = time.perf_counter()
     if mensaje.modo == "prompt":
         respuesta = _armar_encargo(mensaje)
@@ -445,9 +514,9 @@ def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
             tipo = "pregunta"
 
     if tipo == "idea":
-        respuesta = _guardar_idea(mensaje, texto_idea=contenido_explicito)
+        respuesta = _guardar_idea(mensaje, texto_idea=contenido_explicito, emisor=emisor)
     elif tipo == "pregunta":
-        respuesta = _contestar(mensaje)
+        respuesta = _contestar(mensaje, emisor)
     elif tipo == "hecha":
         respuesta = _cerrar_lo_abierto()
     else:
@@ -590,7 +659,9 @@ def _hay_conversacion_vigente() -> bool:
         conexion.close()
 
 
-def _guardar_idea(mensaje: MensajeEntrante, texto_idea: str | None = None) -> RespuestaMensaje:
+def _guardar_idea(
+    mensaje: MensajeEntrante, texto_idea: str | None = None, emisor: Emisor | None = None
+) -> RespuestaMensaje:
     """Ley 6: enfría 48 h en la Bandeja. No crea tarea ni sesión — si cada
     cosa suelta abriera un bloque, la ley 1 mediría cualquier cosa.
 
@@ -619,7 +690,7 @@ def _guardar_idea(mensaje: MensajeEntrante, texto_idea: str | None = None) -> Re
     # El tipo ya está decidido (idea, y se guardó): pensar solo cambia lo que
     # Remi CONTESTA. En diálogo, «Guardada. La miramos en dos días.» a todo
     # lo que digas no es una conversación.
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, mensaje.modo, nivel=mensaje.nivel, modelo_ollama=mensaje.modelo_ollama, modelo_venice=mensaje.modelo_venice) if mensaje.think else None
+    pensado = _pensado(mensaje, emisor) if mensaje.think else None
     if pensado is None:
         return _respuesta_fija("idea", "Guardada. La miramos en dos días.")
     return RespuestaMensaje(
@@ -679,7 +750,7 @@ def _leer_cliente(mensaje: MensajeEntrante) -> RespuestaMensaje:
     )
 
 
-def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
+def _contestar(mensaje: MensajeEntrante, emisor: Emisor | None = None) -> RespuestaMensaje:
     """Una pregunta se contesta y no deja nada: ni idea en la Bandeja, ni
     tarea, ni sesión. Sin modelo no hay con qué contestar, y se dice.
     «¿Dónde quedé?» no gasta un token: sale del Estado del libro."""
@@ -693,19 +764,7 @@ def _contestar(mensaje: MensajeEntrante) -> RespuestaMensaje:
     if falta is not None:
         return RespuestaMensaje(tipo="pregunta", texto=falta, voz=_voz_de(falta, mensaje))
     buscar = clasificar.pide_busqueda(mensaje.texto)
-    pensado = (
-        pensar.pensar(
-            mensaje.texto,
-            mensaje.motor,
-            mensaje.modo,
-            nivel=mensaje.nivel,
-            buscar=buscar,
-            modelo_ollama=mensaje.modelo_ollama,
-            modelo_venice=mensaje.modelo_venice,
-        )
-        if mensaje.think
-        else None
-    )
+    pensado = _pensado(mensaje, emisor, buscar=buscar) if mensaje.think else None
     if pensado is None:
         return _respuesta_fija("pregunta", "Sin pensar no puedo contestarte eso. No guardé nada.")
     return RespuestaMensaje(

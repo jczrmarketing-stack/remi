@@ -14,13 +14,14 @@ import json
 import os
 import re
 import subprocess
+import threading
 import sys
 import tempfile
 import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Generator, Callable
 
 import httpx
 
@@ -932,6 +933,21 @@ def _cerrar_conversaciones_inactivas_en_segundo_plano() -> None:
     threading.Thread(target=correr, daemon=True).start()
 
 
+# V3 (2/10/2026): un turno sale en frases. El generador rinde cada oración
+# completa en cuanto el motor la termina y, al agotarse, devuelve el Pensado
+# (o None). `pensar()` lo consume entero: es el mismo camino, sin público.
+Frases = Generator[str, None, "Pensado | None"]
+
+
+def _agotar(frases: Frases) -> Pensado | None:
+    try:
+        while True:
+            next(frases)
+    except StopIteration as fin:
+        resultado: Pensado | None = fin.value
+        return resultado
+
+
 def pensar(
     frase: str,
     motor_pedido: str | None = None,
@@ -945,6 +961,33 @@ def pensar(
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
     llama sigue por el camino sin IA — nunca se rompe la respuesta por esto."""
+    return _agotar(
+        pensar_en_frases(
+            frase, motor_pedido, modo_pedido, sistema, nivel, buscar, modelo_ollama, modelo_venice, en_vivo=False
+        )
+    )
+
+
+def pensar_en_frases(
+    frase: str,
+    motor_pedido: str | None = None,
+    modo_pedido: str | None = None,
+    sistema: str | None = None,
+    nivel: str | None = None,
+    buscar: bool = False,
+    modelo_ollama: str | None = None,
+    modelo_venice: str | None = None,
+    en_vivo: bool = True,
+) -> Frases:
+    """Como `pensar()`, pero rinde cada frase completa en cuanto llega (la
+    voz arranca con la primera, no con la respuesta entera) y al final
+    devuelve el mismo Pensado. Con `en_vivo=False` no transmite nada: pide
+    la respuesta entera como siempre (es lo que hace `pensar()`).
+
+    En vivo, si un motor falla después de haber soltado alguna frase, no se
+    cae a otro motor ni a otro modo: lo dicho ya se oyó, y una segunda
+    respuesta distinta encima sería peor que quedarse sin la primera. El que
+    llama recibe None y contesta sin IA, como cuando el motor no está."""
     indice = _indice()
     # El system prompt es lo estable (carácter, rol técnico, índice): así la
     # caché de la API lo lee en vez de reescribirlo en cada turno.
@@ -971,24 +1014,24 @@ def pensar(
             print(f"[pensar] búsqueda pedida con {elegido}: va por Claude", file=sys.stderr)
         elegido = "claude"
         instrucciones = f"{instrucciones}\n\n{INSTRUCCIONES_BUSQUEDA}"
-    if elegido == "venice":
-        pensado = _pensar_con_venice(mensaje, instrucciones, len(indice), modelo_venice)
-    elif elegido == "groq":
-        pensado = _pensar_con_charla("groq", "GROQ_API_KEY", mensaje, instrucciones, len(indice), modo_pedido)
-    elif elegido == "openrouter":
-        pensado = _pensar_con_charla("openrouter", "OPENROUTER_API_KEY", mensaje, instrucciones, len(indice), modo_pedido)
-    elif elegido == "ollama":
-        pensado = _pensar_con_ollama(mensaje, instrucciones, len(indice), modelo_ollama)
-    else:
-        try:
-            pensado = _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel, buscar)
-        except LimiteDeClaude as limite:
-            print(
-                f"[pensar] Claude en su límite ({limite}): respaldo de charla por "
-                f"{RESPALDO_DE_CHARLA[0]}/{RESPALDO_DE_CHARLA[1]}",
-                file=sys.stderr,
+    try:
+        if en_vivo:
+            pensado = yield from _frases_del_motor(
+                elegido, mensaje, instrucciones, indice, modo_pedido, nivel, buscar, modelo_ollama, modelo_venice
             )
-            pensado = _respaldo_de_charla(mensaje, instrucciones, len(indice))
+        else:
+            pensado = _respuesta_entera_del_motor(
+                elegido, mensaje, instrucciones, indice, modo_pedido, nivel, buscar, modelo_ollama, modelo_venice
+            )
+    except LimiteDeClaude as limite:
+        print(
+            f"[pensar] Claude en su límite ({limite}): respaldo de charla por "
+            f"{RESPALDO_DE_CHARLA[0]}/{RESPALDO_DE_CHARLA[1]}",
+            file=sys.stderr,
+        )
+        pensado = _respaldo_de_charla(mensaje, instrucciones, len(indice))
+        if pensado is not None and en_vivo:
+            yield from _en_frases(_un_solo_delta(pensado.paso_minimo))
 
     # El turno de Juan Camilo se guarda siempre que se pensó; el de Remi,
     # solo si contestó.
@@ -1001,7 +1044,159 @@ def pensar(
     return pensado
 
 
+def _respuesta_entera_del_motor(
+    elegido: str,
+    mensaje: str,
+    instrucciones: str,
+    indice: list[db.EntradaIndice],
+    modo_pedido: str | None,
+    nivel: str | None,
+    buscar: bool,
+    modelo_ollama: str | None,
+    modelo_venice: str | None,
+) -> Pensado | None:
+    """El motor elegido, de una vez (sin público)."""
+    if elegido == "venice":
+        return _pensar_con_venice(mensaje, instrucciones, len(indice), modelo_venice)
+    if elegido == "groq":
+        return _pensar_con_charla("groq", "GROQ_API_KEY", mensaje, instrucciones, len(indice), modo_pedido)
+    if elegido == "openrouter":
+        return _pensar_con_charla("openrouter", "OPENROUTER_API_KEY", mensaje, instrucciones, len(indice), modo_pedido)
+    if elegido == "ollama":
+        return _pensar_con_ollama(mensaje, instrucciones, len(indice), modelo_ollama)
+    return _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel, buscar)
+
+
+def _frases_del_motor(
+    elegido: str,
+    mensaje: str,
+    instrucciones: str,
+    indice: list[db.EntradaIndice],
+    modo_pedido: str | None,
+    nivel: str | None,
+    buscar: bool,
+    modelo_ollama: str | None,
+    modelo_venice: str | None,
+) -> Frases:
+    """El motor elegido, en frases y en vivo."""
+    if elegido == "venice":
+        return (yield from _en_frases(_charla_venice(mensaje, instrucciones, len(indice), modelo_venice, en_vivo=True)))
+    if elegido == "groq":
+        return (
+            yield from _en_frases(
+                _charla("groq", "GROQ_API_KEY", mensaje, instrucciones, len(indice), modo_pedido, en_vivo=True)
+            )
+        )
+    if elegido == "openrouter":
+        return (
+            yield from _en_frases(
+                _charla("openrouter", "OPENROUTER_API_KEY", mensaje, instrucciones, len(indice), modo_pedido, en_vivo=True)
+            )
+        )
+    if elegido == "ollama":
+        return (yield from _en_frases(_charla_ollama(mensaje, instrucciones, len(indice), modelo_ollama, en_vivo=True)))
+    return (yield from _charla_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel, buscar, en_vivo=True))
+
+
+# — Partir en frases (V3) —
+#
+# Mismo corte que `dividirEnFrases` en la ventanita (voz.ts): . ! ? …
+# seguidos de espacio, o un salto de línea (cada renglón de una lista es
+# una frase). Una frase muy corta («Ajá.») se pega a la siguiente: un audio
+# por cada dos palabras suena entrecortado. «3.5» no corta (no hay espacio
+# después del punto).
+_FIN_DE_FRASE = re.compile(r"(?<=[.!?…])\s+|\n+")
+PALABRAS_MINIMAS_POR_FRASE = 4
+
+
+def _en_frases(deltas: Generator[str, None, Any]) -> Frases:
+    """Convierte trozos de texto (como los suelta un motor) en oraciones
+    completas. Devuelve lo que devuelva `deltas` al agotarse."""
+    pendiente = ""
+    corta = ""
+    while True:
+        try:
+            pendiente += next(deltas)
+        except StopIteration as fin:
+            resultado: Pensado | None = fin.value
+            break
+        while True:
+            corte = _FIN_DE_FRASE.search(pendiente)
+            if corte is None:
+                break
+            completa = pendiente[: corte.start()].strip()
+            pendiente = pendiente[corte.end() :]
+            if not completa:
+                continue
+            corta = f"{corta} {completa}".strip()
+            if len(corta.split()) >= PALABRAS_MINIMAS_POR_FRASE:
+                yield corta
+                corta = ""
+    resto = f"{corta} {pendiente.strip()}".strip()
+    if resto:
+        yield resto
+    return resultado
+
+
+def _un_solo_delta(texto: str) -> Generator[str, None, None]:
+    yield texto
+
+
 # — Los OpenAI-compatibles: Venice, Groq, OpenRouter y Ollama comparten cliente y lector —
+
+
+def _deltas_openai_compatible(
+    url: str, clave: str | None, nombre_modelo: str, instrucciones: str, frase: str, timeout: float
+) -> Generator[str, None, dict[str, Any]]:
+    """La misma llamada que `_llamar_openai_compatible`, con `stream: true`:
+    rinde cada trozo de texto al llegar y devuelve un JSON con la forma de
+    la respuesta entera (choices[0].message.content, usage, model), para
+    que `_leer_respuesta_venice` lo lea igual que siempre."""
+    cabeceras = {"Content-Type": "application/json"}
+    if clave:
+        cabeceras["Authorization"] = f"Bearer {clave}"
+    trozos: list[str] = []
+    uso: dict[str, Any] = {}
+    modelo_real = nombre_modelo
+    with httpx.stream(
+        "POST",
+        url,
+        headers=cabeceras,
+        json={
+            "model": nombre_modelo,
+            "messages": [
+                {"role": "system", "content": instrucciones},
+                {"role": "user", "content": frase},
+            ],
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        },
+        timeout=timeout,
+    ) as respuesta:
+        respuesta.raise_for_status()
+        for linea in respuesta.iter_lines():
+            if not linea.startswith("data:"):
+                continue
+            dato = linea[5:].strip()
+            if dato == "[DONE]":
+                break
+            try:
+                trozo = json.loads(dato)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(trozo, dict):
+                continue
+            if isinstance(trozo.get("usage"), dict):
+                uso = trozo["usage"]
+            if isinstance(trozo.get("model"), str):
+                modelo_real = trozo["model"]
+            for opcion in trozo.get("choices") or []:
+                delta = opcion.get("delta") if isinstance(opcion, dict) else None
+                contenido = delta.get("content") if isinstance(delta, dict) else None
+                if isinstance(contenido, str) and contenido:
+                    trozos.append(contenido)
+                    yield contenido
+    return {"choices": [{"message": {"content": "".join(trozos)}}], "usage": uso, "model": modelo_real}
 
 
 def _llamar_openai_compatible(
@@ -1074,13 +1269,23 @@ def _modelo_venice(pedido: str | None) -> str:
 def _pensar_con_venice(
     frase: str, instrucciones: str, entradas: int, modelo_pedido: str | None = None
 ) -> Pensado | None:
+    return _agotar(_charla_venice(frase, instrucciones, entradas, modelo_pedido, en_vivo=False))
+
+
+def _charla_venice(
+    frase: str, instrucciones: str, entradas: int, modelo_pedido: str | None = None, en_vivo: bool = False
+) -> Frases:
     clave = _ajuste("VENICE_API_KEY", "")
     if not clave:
         print("[venice] sin VENICE_API_KEY en nucleo/.env: sigo sin IA", file=sys.stderr)
         return None
     nombre_modelo = _modelo_venice(modelo_pedido)
     try:
-        datos = _llamar_venice(clave, nombre_modelo, instrucciones, frase)
+        datos = (
+            (yield from _deltas_openai_compatible(VENICE_URL, clave, nombre_modelo, instrucciones, frase, VENICE_TIMEOUT_SEGUNDOS))
+            if en_vivo
+            else _llamar_venice(clave, nombre_modelo, instrucciones, frase)
+        )
     except httpx.HTTPStatusError as error:
         print(f"[venice] la API respondió {error.response.status_code}: sigo sin IA", file=sys.stderr)
         return None
@@ -1118,6 +1323,18 @@ def _modelo_charla(proveedor: str, nivel_pedido: str | None) -> str | None:
 def _pensar_con_charla(
     proveedor: str, clave_env: str, frase: str, instrucciones: str, entradas: int, modo_pedido: str | None = None
 ) -> Pensado | None:
+    return _agotar(_charla(proveedor, clave_env, frase, instrucciones, entradas, modo_pedido, en_vivo=False))
+
+
+def _charla(
+    proveedor: str,
+    clave_env: str,
+    frase: str,
+    instrucciones: str,
+    entradas: int,
+    modo_pedido: str | None = None,
+    en_vivo: bool = False,
+) -> Frases:
     """Groq y OpenRouter en la charla: mismo cliente OpenAI-compatible que
     la trastienda, pero el id de modelo sale de config/motores.json → charla
     según el nivel pedido, y acá sí se guarda el turno (pensar() lo hace)."""
@@ -1132,7 +1349,11 @@ def _pensar_con_charla(
     url, _ = PROVEEDORES_TRASTIENDA[proveedor]
     arranque = time.perf_counter()
     try:
-        datos = _llamar_openai_compatible(url, clave, nombre_modelo, instrucciones, frase, TRASTIENDA_TIMEOUT_SEGUNDOS)
+        datos = (
+            (yield from _deltas_openai_compatible(url, clave, nombre_modelo, instrucciones, frase, TRASTIENDA_TIMEOUT_SEGUNDOS))
+            if en_vivo
+            else _llamar_openai_compatible(url, clave, nombre_modelo, instrucciones, frase, TRASTIENDA_TIMEOUT_SEGUNDOS)
+        )
     except httpx.HTTPStatusError as error:
         print(f"[{proveedor}] la API respondió {error.response.status_code}: sigo sin IA", file=sys.stderr)
         return None
@@ -1253,9 +1474,19 @@ def modelos_de_ollama() -> list[str]:
 
 
 def _pensar_con_ollama(frase: str, instrucciones: str, entradas: int, modelo_pedido: str | None = None) -> Pensado | None:
+    return _agotar(_charla_ollama(frase, instrucciones, entradas, modelo_pedido, en_vivo=False))
+
+
+def _charla_ollama(
+    frase: str, instrucciones: str, entradas: int, modelo_pedido: str | None = None, en_vivo: bool = False
+) -> Frases:
     nombre_modelo = modelo_pedido or _ajuste("REMI_OLLAMA_MODELO", OLLAMA_MODELO_POR_DEFECTO)
     try:
-        datos = _llamar_ollama(nombre_modelo, instrucciones, frase)
+        datos = (
+            (yield from _deltas_openai_compatible(OLLAMA_URL, None, nombre_modelo, instrucciones, frase, OLLAMA_TIMEOUT_SEGUNDOS))
+            if en_vivo
+            else _llamar_ollama(nombre_modelo, instrucciones, frase)
+        )
     except httpx.HTTPStatusError as error:
         print(f"[ollama] respondió {error.response.status_code} (¿falta `ollama pull {nombre_modelo}`?): sigo sin IA", file=sys.stderr)
         return None
@@ -1287,11 +1518,39 @@ def _pensar_con_claude(
     buscar: bool = False,
 ) -> Pensado | None:
     """El modo elegido (con su nivel); si falla o se pasa de su techo, el anterior."""
+    return _agotar(_charla_claude(frase, instrucciones, indice, elegido, nivel, buscar, en_vivo=False))
+
+
+def _charla_claude(
+    frase: str,
+    instrucciones: str,
+    indice: list[db.EntradaIndice],
+    elegido: Modo | None = None,
+    nivel: str | None = None,
+    buscar: bool = False,
+    en_vivo: bool = False,
+) -> Frases:
+    """La cadena de modos, en frases. En vivo, un modo que ya soltó alguna
+    frase y después falló no cae al anterior (lo dicho ya se oyó)."""
     elegido = MODOS[MODO_POR_DEFECTO] if elegido is None else elegido
     cadena = cadena_de_modos(elegido)
     cadena[0] = con_nivel(cadena[0], nivel)
     for i, m in enumerate(cadena):
-        pensado = _una_llamada_claude(m, frase, instrucciones, indice, buscar)
+        if not en_vivo:
+            pensado = _una_llamada_claude(m, frase, instrucciones, indice, buscar)
+        else:
+            dichas = 0
+            frases = _en_frases(_deltas_claude(m, frase, instrucciones, indice, buscar))
+            try:
+                while True:
+                    frase_lista = next(frases)
+                    dichas += 1
+                    yield frase_lista
+            except StopIteration as fin:
+                pensado = fin.value
+            if pensado is None and dichas:
+                print(f"[claude] modo={m.nombre} falló después de {dichas} frase(s): sigo sin IA", file=sys.stderr)
+                return None
         if pensado is not None:
             return pensado
         if i + 1 < len(cadena):
@@ -1320,8 +1579,6 @@ def _una_llamada_claude(
 ) -> Pensado | None:
     nombre_modelo = m.modelo
     timeout = m.techo_segundos
-    import time
-
     arranque = time.perf_counter()
     try:
         # La config del MCP y la marca de lectura son de esta llamada (una
@@ -1341,7 +1598,6 @@ def _una_llamada_claude(
             # la deja el propio estante al ser leído. Hay que mirarla antes
             # de que la carpeta temporal desaparezca.
             libros = marca.read_text().split() if marca.exists() else []
-            leyo = bool(libros)
     except FileNotFoundError:
         print(f"[claude] no encontré `{BINARIO}` en el PATH: sigo sin IA", file=sys.stderr)
         return None
@@ -1367,7 +1623,109 @@ def _una_llamada_claude(
     if not isinstance(datos, dict):
         print("[claude] la CLI no devolvió un objeto: sigo sin IA", file=sys.stderr)
         return None
+    return _pensado_de_la_cli(m, datos, indice, libros, arranque)
 
+
+def _deltas_claude(
+    m: Modo,
+    frase: str,
+    instrucciones: str,
+    indice: list[db.EntradaIndice],
+    buscar: bool = False,
+) -> Generator[str, None, Pensado | None]:
+    """La misma llamada que `_una_llamada_claude`, con `--output-format
+    stream-json --include-partial-messages`: rinde cada trozo de texto del
+    modelo al llegar (un salto de línea al cerrar cada mensaje, para que el
+    corte en frases no pegue dos mensajes) y al final lee la línea `result`
+    igual que siempre. El techo de tiempo lo pone un temporizador que mata
+    el proceso: lo que ya se dijo, se dijo."""
+    nombre_modelo = m.modelo
+    timeout = m.techo_segundos
+    arranque = time.perf_counter()
+    datos: Any = None
+    with tempfile.TemporaryDirectory(prefix="remi-pensar-") as vacio:
+        marca = Path(vacio) / "leyo"
+        comando = _comando(nombre_modelo, instrucciones, _config_mcp(Path(vacio), marca), buscar)
+        comando[comando.index("--output-format") + 1] = "stream-json"
+        comando += ["--include-partial-messages", "--verbose"]
+        try:
+            proceso = subprocess.Popen(
+                comando,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                env=_entorno(m),
+                cwd=_cwd_de_la_cli(),
+            )
+        except FileNotFoundError:
+            print(f"[claude] no encontré `{BINARIO}` en el PATH: sigo sin IA", file=sys.stderr)
+            return None
+        except OSError as error:
+            print(f"[claude] no pude correr la CLI ({error}): sigo sin IA", file=sys.stderr)
+            return None
+        vencido = threading.Event()
+
+        def matar() -> None:
+            vencido.set()
+            proceso.kill()
+
+        reloj = threading.Timer(timeout, matar)
+        reloj.start()
+        try:
+            assert proceso.stdin is not None and proceso.stdout is not None
+            try:
+                proceso.stdin.write(frase)
+                proceso.stdin.close()
+            except OSError:
+                pass
+            for linea in proceso.stdout:
+                try:
+                    evento = json.loads(linea)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(evento, dict):
+                    continue
+                if evento.get("type") == "result":
+                    datos = evento
+                    continue
+                if evento.get("type") != "stream_event":
+                    continue
+                interno = evento.get("event")
+                if not isinstance(interno, dict):
+                    continue
+                if interno.get("type") == "content_block_delta":
+                    delta = interno.get("delta")
+                    if isinstance(delta, dict) and delta.get("type") == "text_delta":
+                        texto = delta.get("text")
+                        if isinstance(texto, str) and texto:
+                            yield texto
+                elif interno.get("type") == "message_stop":
+                    yield "\n"
+            proceso.wait()
+        finally:
+            reloj.cancel()
+        libros = marca.read_text().split() if marca.exists() else []
+
+    if vencido.is_set():
+        print(f"[claude] {nombre_modelo} tardó más de {timeout:.0f} s", file=sys.stderr)
+        return None
+    if proceso.returncode != 0:
+        print(f"[claude] la CLI terminó en {proceso.returncode}: sigo sin IA", file=sys.stderr)
+        return None
+    if not isinstance(datos, dict):
+        print("[claude] la CLI no cerró con un resultado: sigo sin IA", file=sys.stderr)
+        return None
+    return _pensado_de_la_cli(m, datos, indice, libros, arranque)
+
+
+def _pensado_de_la_cli(
+    m: Modo, datos: dict[str, Any], indice: list[db.EntradaIndice], libros: list[str], arranque: float
+) -> Pensado | None:
+    """Del JSON final de la CLI (el de `--output-format json`, o la línea
+    `result` del stream) al Pensado, con la línea de log de siempre."""
+    nombre_modelo = m.modelo
+    leyo = bool(libros)
     tokens_entrada, tokens_salida = _tokens(datos.get("usage"))
     cache_leida, cache_escrita = _tokens_cacheados(datos.get("usage"))
     modelo_real = _modelo_real(datos, nombre_modelo)

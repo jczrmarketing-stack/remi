@@ -101,3 +101,53 @@ describe("cuánto se espera a Kokoro", () => {
     expect(limiteDeVoz(Array(500).fill("palabra").join(" "))).toBe(20000);
   });
 });
+
+describe("empezarLocucion() en vivo (V3)", () => {
+  it("dice las frases en el orden en que llegan y fin resuelve solo después de terminar()", async () => {
+    const { empezarLocucion } = await import("./voz");
+    const sonidos: number[] = [];
+    const locucion = empezarLocucion(1, "auto", () => sonidos.push(AudioFalso.reproducidos.length));
+
+    locucion.agregar("Parás ahora mismo, ya.");
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    // La primera frase suena sin esperar a que lleguen las demás.
+    expect(AudioFalso.reproducidos).toHaveLength(1);
+    expect(sonidos).toEqual([0]);
+
+    locucion.agregar("Tomá agua y dormí temprano.");
+    AudioFalso.reproducidos[0].disparar("ended");
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(AudioFalso.reproducidos).toHaveLength(2);
+    // El primer sonido se avisa una sola vez.
+    expect(sonidos).toEqual([0]);
+
+    let termino = false;
+    void locucion.fin.then(() => {
+      termino = true;
+    });
+    AudioFalso.reproducidos[1].disparar("ended");
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    // Dijo todo lo que tenía, pero todavía pueden llegar más frases.
+    expect(termino).toBe(false);
+
+    locucion.terminar();
+    await locucion.fin;
+    expect(termino).toBe(true);
+  });
+
+  it("otra locución (o hablar) la pisa: lo pendiente no suena", async () => {
+    const { empezarLocucion, hablar } = await import("./voz");
+    const primera = empezarLocucion(1, "auto");
+    primera.agregar("Una frase que iba a sonar.");
+    const segunda = hablar("Y esto es lo segundo, que sí suena.", 1, "auto");
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(AudioFalso.reproducidos).toHaveLength(1);
+    await primera.fin;
+    AudioFalso.reproducidos[0].disparar("ended");
+    await segunda;
+  });
+});

@@ -1,5 +1,6 @@
 import type { Entrega, Nudge, Sesion, Tarea } from "./contratos";
 import { URL_NUCLEO } from "./config";
+import { leerLinea, partirLineas, type FraseEnVivo } from "./envivo";
 
 // Solo viene cuando pensó con Claude. Dato de operación: va a la consola,
 // nunca a la pantalla.
@@ -93,6 +94,73 @@ export async function enviarMensaje(texto: string, opciones: OpcionesMensaje): P
       throw new Error(`El núcleo respondió ${respuesta.status}`);
     }
     return (await respuesta.json()) as RespuestaMensaje;
+  } finally {
+    clearTimeout(limite);
+  }
+}
+
+// V3: la misma respuesta, pero a medida que el motor la escribe. `alFrase`
+// recibe cada oración completa en cuanto llega. Resuelve con la respuesta
+// entera (la línea `fin`), o con null si el chorro se cerró sin `fin`, el
+// núcleo dijo que no, o algo falló a mitad: ahí quien llama vuelve a pedir
+// /mensaje normal, sin decir nada (lo que ya se dijo, se dijo).
+export async function enviarMensajeEnVivo(
+  texto: string,
+  opciones: OpcionesMensaje,
+  alFrase: (frase: FraseEnVivo) => void,
+): Promise<RespuestaMensaje | null> {
+  const { think, motor, modo, nivel, modeloOllama, modeloVenice, origen } = opciones;
+  const controlador = new AbortController();
+  const limite = setTimeout(() => controlador.abort(), TIMEOUT_NUCLEO_MS);
+  try {
+    const respuesta = await fetch(`${URL_NUCLEO}/mensaje/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        texto,
+        think,
+        motor: think ? motor : null,
+        ...(think && modo ? { modo } : {}),
+        ...(think && nivel ? { nivel } : {}),
+        ...(think && modeloOllama ? { modelo_ollama: modeloOllama } : {}),
+        ...(think && modeloVenice ? { modelo_venice: modeloVenice } : {}),
+        ...(origen ? { origen } : {}),
+      }),
+      signal: controlador.signal,
+    });
+    if (!respuesta.ok || !respuesta.body) {
+      console.info(`[envivo] el núcleo respondió ${respuesta.status} sin chorro: pido /mensaje normal`);
+      return null;
+    }
+    const lector = respuesta.body.getReader();
+    const decodificador = new TextDecoder();
+    let resto = "";
+    const atender = (linea: string): RespuestaMensaje | null => {
+      const leida = leerLinea(linea);
+      if (!leida) return null;
+      if (leida.tipo === "fin") return leida.fin as RespuestaMensaje;
+      alFrase(leida.frase);
+      return null;
+    };
+    for (;;) {
+      const { done, value } = await lector.read();
+      if (done) break;
+      const partido = partirLineas(resto + decodificador.decode(value, { stream: true }));
+      resto = partido.resto;
+      for (const linea of partido.lineas) {
+        const fin = atender(linea);
+        if (fin) return fin;
+      }
+    }
+    if (resto.trim()) {
+      const fin = atender(resto);
+      if (fin) return fin;
+    }
+    console.info("[envivo] el chorro se cerró sin fin: pido /mensaje normal");
+    return null;
+  } catch (error) {
+    console.info("[envivo] falló el chorro:", error);
+    return null;
   } finally {
     clearTimeout(limite);
   }

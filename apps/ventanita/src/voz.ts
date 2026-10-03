@@ -402,6 +402,71 @@ export function decirMuletilla(voz: PreferenciaVoz = VOZ_AUTOMATICA): void {
 // — Lo que usa la ventanita —
 
 /**
+ * Una locución: frases que se dicen en orden, de a una, generando la
+ * siguiente mientras suena la anterior. Las frases pueden ir llegando (V3:
+ * el núcleo manda cada oración en cuanto el motor la termina) — por eso
+ * `agregar` y `terminar` son dos cosas: `fin` resuelve cuando se dijo todo
+ * lo agregado y ya no viene más, o cuando otra locución (o callarse) la pisó.
+ */
+export interface Locucion {
+  agregar(frase: string): void;
+  terminar(): void;
+  fin: Promise<void>;
+}
+
+interface Cola {
+  frases: string[];
+  cerrada: boolean;
+  despertar: (() => void) | null;
+}
+
+function esperarCola(cola: Cola): Promise<void> {
+  return new Promise((resolve) => {
+    cola.despertar = resolve;
+  });
+}
+
+function avisarCola(cola: Cola): void {
+  const despertar = cola.despertar;
+  cola.despertar = null;
+  despertar?.();
+}
+
+/**
+ * Empieza a hablar. `alPrimerSonido` se llama justo cuando arranca el
+ * primer audio (después de la muletilla, si la había): es el dato de
+ * «→primer_sonido» del log de latencia.
+ */
+export function empezarLocucion(
+  velocidad: Velocidad = 1,
+  voz: PreferenciaVoz = VOZ_AUTOMATICA,
+  alPrimerSonido?: () => void,
+): Locucion {
+  generacion += 1;
+  const mia = generacion;
+  ocupadaHasta = mia;
+  despertarAudio();
+  const cola: Cola = { frases: [], cerrada: false, despertar: null };
+  const fin = locucionSinMarca(cola, velocidad, voz, mia, alPrimerSonido).finally(() => {
+    if (ocupadaHasta === mia) ocupadaHasta = null;
+  });
+  return {
+    agregar(frase: string) {
+      if (cola.cerrada) return;
+      const limpia = frase.trim();
+      if (!limpia) return;
+      cola.frases.push(limpia);
+      avisarCola(cola);
+    },
+    terminar() {
+      cola.cerrada = true;
+      avisarCola(cola);
+    },
+    fin,
+  };
+}
+
+/**
  * Resuelve cuando Remi terminó de hablar, por el camino que haya sido — o
  * cuando la pisó otra llamada. Cada llamada tiene un id que queda en el log
  * al empezar y al terminar, con cómo terminó.
@@ -411,25 +476,22 @@ export async function hablar(
   velocidad: Velocidad = 1,
   voz: PreferenciaVoz = VOZ_AUTOMATICA,
 ): Promise<void> {
-  generacion += 1;
-  const mia = generacion;
-  ocupadaHasta = mia;
-  despertarAudio();
-  try {
-    await hablarSinMarca(texto, velocidad, voz, mia);
-  } finally {
-    if (ocupadaHasta === mia) ocupadaHasta = null;
-  }
+  const palabras = texto.trim() ? texto.trim().split(/\s+/).length : 0;
+  const locucion = empezarLocucion(velocidad, voz);
+  console.info(`[voz] #${generacion} texto entero: ${palabras} palabras`);
+  for (const frase of dividirEnFrases(texto)) locucion.agregar(frase);
+  locucion.terminar();
+  await locucion.fin;
 }
 
-async function hablarSinMarca(
-  texto: string,
+async function locucionSinMarca(
+  cola: Cola,
   velocidad: Velocidad,
   voz: PreferenciaVoz,
   mia: number,
+  alPrimerSonido?: () => void,
 ): Promise<void> {
-  const palabras = texto.trim() ? texto.trim().split(/\s+/).length : 0;
-  console.info(`[voz] #${mia} empieza: ${palabras} palabras, ${velocidad}×, voz=${voz}`);
+  console.info(`[voz] #${mia} empieza: ${velocidad}×, voz=${voz}`);
 
   liberarAudio();
   if (haySoporteDeVoz()) window.speechSynthesis.cancel();
@@ -437,58 +499,81 @@ async function hablarSinMarca(
   // En frases: la primera suena en cuanto está lista y las siguientes se
   // generan mientras tanto. Una respuesta de 30 palabras tardaba ~3 s en
   // generarse entera antes de que sonara nada; la primera frase, ~1 s.
-  const frases = dividirEnFrases(texto);
   const { modelo: velocidadModelo, reproductor: velocidadReproductor } = repartirVelocidad(velocidad);
   const pedidos: Array<Promise<Blob | null> | undefined> = [];
   const pedir = (i: number) => {
-    if (i < frases.length && pedidos[i] === undefined) pedidos[i] = pedirAudio(frases[i], voz, velocidadModelo);
+    if (i < cola.frases.length && pedidos[i] === undefined) pedidos[i] = pedirAudio(cola.frases[i], voz, velocidadModelo);
   };
-  pedir(0);
-  pedir(1);
+  const cancelada = () => generacion !== mia;
+  // Sin audio del núcleo (no contestó, o el motor falló) o sin poder
+  // reproducirlo: de ahí en adelante, la voz del sistema, en silencio
+  // sobre el fallo.
+  let conElSistema = false;
+  let sono = false;
   let dichas = 0;
-  for (let i = 0; i < frases.length; i += 1) {
+  for (let i = 0; ; i += 1) {
+    while (i >= cola.frases.length && !cola.cerrada) {
+      await esperarCola(cola);
+      if (cancelada()) {
+        console.info(`[voz] #${mia} cancelada esperando frases`);
+        return;
+      }
+    }
+    if (i >= cola.frases.length) break;
+    if (conElSistema) {
+      await hablarConElSistema(cola.frases[i], velocidad);
+      if (cancelada()) {
+        console.info(`[voz] #${mia} cancelada (sistema)`);
+        return;
+      }
+      dichas = i + 1;
+      continue;
+    }
+    pedir(i);
+    pedir(i + 1);
+    pedir(i + 2);
     const audio = await pedidos[i];
-    if (generacion !== mia) {
+    if (cancelada()) {
       console.info(`[voz] #${mia} cancelada antes de reproducir`);
       return;
     }
-    if (!audio) break;
-    pedir(i + 1);
-    pedir(i + 2);
-    if (i === 0) console.info(`[voz] #${mia} primera frase lista (${frases.length} en total)`);
+    if (i === 0) console.info(`[voz] #${mia} primera frase lista`);
     // La muletilla no se corta: la respuesta suena cuando ella termina.
     if (muletillaFin) {
       await muletillaFin;
-      if (generacion !== mia) {
+      if (cancelada()) {
         console.info(`[voz] #${mia} cancelada tras la muletilla`);
         return;
       }
     }
-    const fin = await reproducir(audio, velocidadReproductor, mia);
+    let fin: FinDeReproduccion = "falló";
+    if (audio) {
+      if (!sono) {
+        sono = true;
+        alPrimerSonido?.();
+      }
+      fin = await reproducir(audio, velocidadReproductor, mia);
+    }
     if (fin === "cancelada") {
       console.info(`[voz] #${mia} cancelada`);
       return;
     }
-    // "falló": el audio llegó pero no se pudo reproducir. Eso sí es motivo
-    // para la voz del sistema, con lo que falta.
-    if (fin === "falló") break;
+    if (fin === "falló") {
+      console.info(`[voz] #${mia} cae a la voz del sistema`);
+      conElSistema = true;
+      if (!sono) {
+        sono = true;
+        alPrimerSonido?.();
+      }
+      await hablarConElSistema(cola.frases[i], velocidad);
+      if (cancelada()) {
+        console.info(`[voz] #${mia} cancelada (sistema)`);
+        return;
+      }
+    }
     dichas = i + 1;
   }
-  if (dichas === frases.length) {
-    console.info(`[voz] #${mia} terminó`);
-    return;
-  }
-  if (generacion !== mia) {
-    console.info(`[voz] #${mia} cancelada`);
-    return;
-  }
-  texto = frases.slice(dichas).join(" ");
-
-  // Sin audio del núcleo (no contestó, o el motor falló) o sin poder
-  // reproducirlo: la voz del sistema, en silencio sobre el fallo.
-  console.info(`[voz] #${mia} cae a la voz del sistema`);
-  await hablarConElSistema(texto, velocidad);
-  console.info(`[voz] #${mia} ${generacion === mia ? "terminó (sistema)" : "cancelada (sistema)"}`);
+  console.info(`[voz] #${mia} terminó${conElSistema ? " (sistema)" : ""}: ${dichas} frase(s)`);
 }
 
 export function callarse(): void {
