@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -39,20 +39,50 @@ def _preparar_en_el_aire(conexion: sqlite3.Connection) -> None:
     conexion.executescript(ESQUEMA_EN_EL_AIRE)
 
 
-def marcar_en_el_aire(conexion: sqlite3.Connection, pregunta_id: UUID) -> None:
+# 3-oct: la pregunta del cliente de BeaM salió por Telegram a las 4:00, quedó
+# «en el aire», y una frase de la ventanita cinco horas después («quiero saber
+# qué te falta… el panel web como ventanita») terminó escrita como el cliente.
+# Ahora la pregunta recuerda por dónde salió y cuándo: solo la contesta un
+# mensaje del mismo canal y mientras está fresca.
+VIGENCIA_EN_EL_AIRE = {"ventanita": timedelta(minutes=10), "telegram": timedelta(hours=18)}
+
+
+def _columnas_en_el_aire(conexion: sqlite3.Connection) -> None:
+    columnas = {fila["name"] for fila in conexion.execute("PRAGMA table_info(pregunta_en_el_aire)")}
+    if "canal" not in columnas:
+        conexion.execute("ALTER TABLE pregunta_en_el_aire ADD COLUMN canal TEXT NOT NULL DEFAULT 'ventanita'")
+    if "desde" not in columnas:
+        conexion.execute("ALTER TABLE pregunta_en_el_aire ADD COLUMN desde TEXT")
+
+
+def marcar_en_el_aire(
+    conexion: sqlite3.Connection, pregunta_id: UUID, canal: str = "ventanita", ahora: datetime | None = None
+) -> None:
     _preparar_en_el_aire(conexion)
+    _columnas_en_el_aire(conexion)
+    desde = (ahora or datetime.now(timezone.utc)).isoformat()
     conexion.execute(
-        "INSERT INTO pregunta_en_el_aire (id, pregunta_id) VALUES (1, ?) "
-        "ON CONFLICT(id) DO UPDATE SET pregunta_id = excluded.pregunta_id",
-        (str(pregunta_id),),
+        "INSERT INTO pregunta_en_el_aire (id, pregunta_id, canal, desde) VALUES (1, ?, ?, ?) "
+        "ON CONFLICT(id) DO UPDATE SET pregunta_id = excluded.pregunta_id, canal = excluded.canal, desde = excluded.desde",
+        (str(pregunta_id), canal, desde),
     )
     conexion.commit()
 
 
-def en_el_aire(conexion: sqlite3.Connection) -> Pregunta | None:
+def en_el_aire(
+    conexion: sqlite3.Connection, ahora: datetime | None = None, canal: str = "ventanita"
+) -> Pregunta | None:
+    """La pregunta en el aire de este canal, si sigue fresca. Una sin hora
+    (de antes del 3-oct) o de otro canal no cuenta."""
     _preparar_en_el_aire(conexion)
-    fila = conexion.execute("SELECT pregunta_id FROM pregunta_en_el_aire WHERE id = 1").fetchone()
-    return db.leer_pregunta(conexion, UUID(fila["pregunta_id"])) if fila else None
+    _columnas_en_el_aire(conexion)
+    fila = conexion.execute("SELECT pregunta_id, canal, desde FROM pregunta_en_el_aire WHERE id = 1").fetchone()
+    if fila is None or fila["canal"] != canal or not fila["desde"]:
+        return None
+    ahora = ahora or datetime.now(timezone.utc)
+    if ahora - datetime.fromisoformat(fila["desde"]) > VIGENCIA_EN_EL_AIRE.get(canal, timedelta(minutes=10)):
+        return None
+    return db.leer_pregunta(conexion, UUID(fila["pregunta_id"]))
 
 
 def borrar_en_el_aire(conexion: sqlite3.Connection) -> None:
@@ -61,8 +91,20 @@ def borrar_en_el_aire(conexion: sqlite3.Connection) -> None:
     conexion.commit()
 
 
+# Una respuesta a «¿cómo se llama el cliente?» es corta. Una frase larga, o
+# que empieza pidiendo algo, es otra cosa (3-oct).
+MAX_PALABRAS_DE_RESPUESTA = 12
+_EMPIEZA_PIDIENDO = re.compile(
+    r"^(?:no,? )?(?:quiero|necesito|ayudame|ayudame a|dime|explicame|como|que|cual|cuales|por que|oye|mira|hola)\b"
+)
+
+
 def es_arranque_cierre_o_pregunta(texto: str) -> bool:
+    """Lo que NO es una respuesta a la pregunta en el aire."""
     if "?" in texto or "¿" in texto:
+        return True
+    limpio = clasificar.normalizar(texto)
+    if len(limpio.split()) > MAX_PALABRAS_DE_RESPUESTA or _EMPIEZA_PIDIENDO.match(limpio):
         return True
     return clasificar.clasificar(texto) in ("hoy", "hecha", "pregunta")
 
@@ -81,7 +123,7 @@ def preguntar_en_voz(conexion: sqlite3.Connection, tema: str | None, ahora: date
         return None
     pregunta = pendientes[0]
     iniciativa.registrar(conexion, uuid4(), "ritual", ahora)
-    marcar_en_el_aire(conexion, pregunta.id)
+    marcar_en_el_aire(conexion, pregunta.id, "ventanita", ahora)
     return pregunta
 
 
@@ -114,7 +156,7 @@ def avisar_por_telegram_si_toca(conexion: sqlite3.Connection, ahora: datetime) -
         return None
     pregunta = pendientes[0]
     telegram.avisar(telegram.AvisoSaliente(texto=pregunta.voz, urgente=False))
-    marcar_en_el_aire(conexion, pregunta.id)
+    marcar_en_el_aire(conexion, pregunta.id, "telegram", ahora)
     conexion.execute("INSERT INTO pregunta_telegram_dia (dia) VALUES (?)", (dia,))
     conexion.commit()
     return pregunta

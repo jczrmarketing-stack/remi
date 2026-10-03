@@ -133,7 +133,7 @@ def _procesar_texto(texto: str) -> str:
         monto = _monto_corto(entrega.monto) if entrega.monto is not None else "?"
         return f"Entrega para {entrega.cliente}: {_fecha_corta(entrega.fecha)}, ${monto}"
 
-    mensaje = servidor.MensajeEntrante(texto=texto, origen="texto", modo="rapido", think=True)
+    mensaje = servidor.MensajeEntrante(texto=texto, origen="texto", modo="rapido", think=True, canal="telegram")
     respuesta = servidor.recibir_mensaje(mensaje)
     return servidor.para_hablar(respuesta.texto)
 

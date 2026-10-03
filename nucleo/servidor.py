@@ -245,6 +245,9 @@ class MensajeEntrante(BaseModel):
     modelo_venice: str | None = None
     # Cómo entró: por voz o escrito. Lo guarda la Idea (contrato).
     origen: Literal["voz", "texto"] = "texto"
+    # Por dónde llegó (3-oct): una pregunta «en el aire» solo la contesta un
+    # mensaje del mismo canal por el que salió.
+    canal: Literal["ventanita", "telegram"] = "ventanita"
 
 
 class TokensClaude(BaseModel):
@@ -631,7 +634,7 @@ def _responder_pregunta_en_el_aire(mensaje: MensajeEntrante) -> RespuestaMensaje
     camino normal."""
     conexion = db.conectar()
     try:
-        pregunta = preguntas.en_el_aire(conexion)
+        pregunta = preguntas.en_el_aire(conexion, datetime.now(timezone.utc), mensaje.canal)
         if pregunta is None or preguntas.es_arranque_cierre_o_pregunta(mensaje.texto):
             return None
         entendida = preguntas.responder(conexion, pregunta, mensaje.texto)
@@ -639,7 +642,12 @@ def _responder_pregunta_en_el_aire(mensaje: MensajeEntrante) -> RespuestaMensaje
             return RespuestaMensaje(tipo="pregunta_respondida", texto=f"No te entendí. {pregunta.voz}", voz=f"No te entendí. {pregunta.voz}")
         db.actualizar_estado_pregunta(conexion, pregunta.id, "respondida")
         preguntas.borrar_en_el_aire(conexion)
-        return RespuestaMensaje(tipo="pregunta_respondida", texto="Anotado, gracias.", voz="Anotado, gracias.")
+        # Qué guardó y dónde (3-oct): un «Anotado, gracias.» a secas escondía
+        # que una frase cualquiera había quedado como el cliente de BeaM.
+        libro = next((l for l in libros.listar() if l.tema == pregunta.tema), None)
+        donde = libro.titulo.split(" —")[0] if libro else pregunta.tema
+        voz = f"Anotado en {donde}: «{recortar_voz(mensaje.texto.strip())}»."
+        return RespuestaMensaje(tipo="pregunta_respondida", texto=voz, voz=voz)
     finally:
         conexion.close()
 

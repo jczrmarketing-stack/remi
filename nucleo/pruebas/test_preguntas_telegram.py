@@ -38,7 +38,9 @@ def test_avisa_la_primera_vez_del_dia(tmp_path, monkeypatch):
 
     assert pregunta is not None
     assert enviados == [pregunta.voz]
-    assert preguntas.en_el_aire(conexion) is not None
+    # Queda en el aire para Telegram, no para la ventanita (3-oct).
+    assert preguntas.en_el_aire(conexion, ahora, "telegram") is not None
+    assert preguntas.en_el_aire(conexion, ahora, "ventanita") is None
 
 
 def test_no_avisa_dos_veces_el_mismo_dia(tmp_path, monkeypatch):
@@ -63,7 +65,7 @@ def test_al_dia_siguiente_vuelve_a_avisar(tmp_path, monkeypatch):
 
     preguntas.avisar_por_telegram_si_toca(conexion, ahora)
     # Responde la primera para que quede una segunda pendiente al día siguiente.
-    pregunta = preguntas.en_el_aire(conexion)
+    pregunta = preguntas.en_el_aire(conexion, ahora, "telegram")
     db_mod.actualizar_estado_pregunta(conexion, pregunta.id, "respondida")
     preguntas.borrar_en_el_aire(conexion)
 

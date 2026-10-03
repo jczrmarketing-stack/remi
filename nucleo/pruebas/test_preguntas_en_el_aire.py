@@ -86,3 +86,58 @@ def test_un_arranque_no_se_toma_como_respuesta(tmp_path, monkeypatch):
     siguiente = cliente.post("/mensaje", json={"texto": "es de un cliente"})
     assert siguiente.json()["tipo"] == "pregunta_respondida"
     assert "tipo: cliente" in (tmp_path / "libros" / "malik.md").read_text()
+
+
+# — 3-oct: la frase de Juan Camilo terminó como «cliente» de BeaM —
+# «No, todo bien… quiero saber qué te falta para dejarlo haciendo mientras
+# duermo… el panel web como ventanita» se tomó como la respuesta a una
+# pregunta que llevaba horas en el aire.
+
+FRASE_REAL = (
+    "No, todo bien, todo bien. Quiero saber qué te falta para dejarlo haciendo mientras duermo "
+    "para terminar por completo ... todo el apartado de Remy tanto el panel web como ventanita"
+)
+
+
+def test_una_frase_larga_o_que_pide_algo_no_es_una_respuesta(tmp_path, monkeypatch):
+    servidor, db_mod = _arrancar(tmp_path, monkeypatch)
+    _marcar_malik_activo(db_mod)
+    cliente = TestClient(servidor.app)
+    cliente.post("/mensaje", json={"texto": "voy a revisar la estrategia"})
+
+    respuesta = cliente.post("/mensaje", json={"texto": FRASE_REAL})
+
+    assert respuesta.json()["tipo"] != "pregunta_respondida"
+    assert "tipo:" not in (tmp_path / "libros" / "malik.md").read_text()
+
+
+def test_la_pregunta_en_el_aire_vence_a_los_10_minutos(tmp_path, monkeypatch):
+    from datetime import timedelta
+
+    servidor, db_mod = _arrancar(tmp_path, monkeypatch)
+    _marcar_malik_activo(db_mod)
+    cliente = TestClient(servidor.app)
+    cliente.post("/mensaje", json={"texto": "voy a revisar la estrategia"})
+    import preguntas
+
+    conexion = db_mod.conectar()
+    try:
+        hace = (datetime.now(timezone.utc) - timedelta(minutes=11)).isoformat()
+        conexion.execute("UPDATE pregunta_en_el_aire SET desde = ?", (hace,))
+        conexion.commit()
+        assert preguntas.en_el_aire(conexion, datetime.now(timezone.utc)) is None
+    finally:
+        conexion.close()
+    respuesta = cliente.post("/mensaje", json={"texto": "es propio"})
+    assert respuesta.json()["tipo"] != "pregunta_respondida"
+
+
+def test_la_confirmacion_dice_que_guardo_y_donde(tmp_path, monkeypatch):
+    servidor, db_mod = _arrancar(tmp_path, monkeypatch)
+    _marcar_malik_activo(db_mod)
+    cliente = TestClient(servidor.app)
+    cliente.post("/mensaje", json={"texto": "voy a revisar la estrategia"})
+
+    voz = cliente.post("/mensaje", json={"texto": "es propio"}).json()["voz"]
+
+    assert voz.startswith("Anotado en Malik") and "es propio" in voz
