@@ -108,6 +108,13 @@ pub struct Grabacion {
     // vivo sobre el archivo ya cerrado y podía avisar un silencio viejo
     // encima de la grabación siguiente.
     cancelar_vigilancia: Arc<AtomicBool>,
+    // V1 (2/10/2026): hasta dónde (bytes de muestras, después de la
+    // cabecera) lo grabado ya es texto definitivo, y ese texto. Cada
+    // transcripción parcial confirma un trozo cuando hay una pausa, y al
+    // parar solo se transcribe lo que queda: 55 s de dictado tardaban 5,9 s
+    // al parar porque Whisper volvía a pasar por todo.
+    bytes_confirmados: usize,
+    texto_confirmado: String,
 }
 
 impl Grabacion {
@@ -485,6 +492,8 @@ pub fn iniciar_escucha(
         ruta_wav,
         vigilando: cortar_solo,
         cancelar_vigilancia,
+        bytes_confirmados: 0,
+        texto_confirmado: String::new(),
     });
     Ok(())
 }
@@ -554,8 +563,10 @@ pub fn detener_escucha_y_transcribir(
         })?;
 
     log::info!("[voz] parada ({origen}): cierro ffmpeg y transcribo");
+    let bytes_confirmados = grabacion.bytes_confirmados;
+    let texto_confirmado = grabacion.texto_confirmado.clone();
     let ruta_wav = grabacion.detener();
-    let resultado = transcribir(&ruta_wav);
+    let resultado = transcribir(&ruta_wav, bytes_confirmados, &texto_confirmado);
     let _ = fs::remove_file(&ruta_wav);
     match &resultado {
         Ok(texto) => log::info!("[voz] transcrito ({origen}): {} caracteres", texto.len()),
@@ -598,7 +609,10 @@ fn pico_db(ffmpeg_bin: &str, ruta_wav: &Path) -> Option<f32> {
         .ok()
 }
 
-fn transcribir(ruta_wav: &Path) -> Result<String, String> {
+/// Transcribe lo grabado. `bytes_confirmados` y `texto_confirmado` son lo
+/// que las parciales ya dejaron definitivo: solo se pasa por Whisper lo que
+/// sigue, y el texto final es lo confirmado más eso.
+fn transcribir(ruta_wav: &Path, bytes_confirmados: usize, texto_confirmado: &str) -> Result<String, String> {
     let config = leer_config_voz()?;
 
     if let Some(duracion) = duracion_del_wav(ruta_wav) {
@@ -621,25 +635,47 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
         }
     }
 
+    // Lo que queda por transcribir: desde lo confirmado. Si no hay nada
+    // confirmado, el archivo entero, como siempre.
+    let (ruta_a_transcribir, trozo_temporal) = if bytes_confirmados > 0 {
+        let mut bytes = fs::read(ruta_wav).map_err(|e| format!("no pude leer lo grabado: {e}"))?;
+        let inicio_datos = cabecera_completa(&mut bytes).ok_or("el wav no tiene datos")?;
+        let desde = (inicio_datos + bytes_confirmados).min(bytes.len());
+        let trozo = escribir_trozo(&bytes[..inicio_datos], &bytes[desde..])?;
+        log::info!(
+            "[voz] confirmados {} s antes de parar: transcribo solo los últimos {} s",
+            bytes_confirmados as u64 / BYTES_POR_SEGUNDO,
+            (bytes.len() - desde) as u64 / BYTES_POR_SEGUNDO
+        );
+        (trozo.clone(), Some(trozo))
+    } else {
+        (ruta_wav.to_path_buf(), None)
+    };
+
     let arranque = Instant::now();
-    let texto = match config.whisper_server_url.as_deref().map(|url| transcribir_con_servidor(url, ruta_wav)) {
+    let texto = match config.whisper_server_url.as_deref().map(|url| transcribir_con_servidor(url, &ruta_a_transcribir)) {
         Some(Ok(texto)) => {
             log::info!("[voz] whisper residente: {} ms", arranque.elapsed().as_millis());
-            texto
+            Ok(texto)
         }
         otro => {
             if let Some(Err(error)) = otro {
                 log::warn!("[voz] whisper residente no contestó ({error}): uso whisper-cli");
             }
-            let texto = transcribir_con_cli(&config, ruta_wav)?;
-            log::info!("[voz] whisper-cli: {} ms", arranque.elapsed().as_millis());
-            texto
+            transcribir_con_cli(&config, &ruta_a_transcribir).map(|texto| {
+                log::info!("[voz] whisper-cli: {} ms", arranque.elapsed().as_millis());
+                texto
+            })
         }
     };
-
-    let texto = texto.trim().to_string();
-    if es_solo_ruido(&texto) {
-        log::warn!("[voz] whisper solo devolvió ruido: {texto:?}");
+    if let Some(trozo) = trozo_temporal {
+        let _ = fs::remove_file(trozo);
+    }
+    let nuevo = texto?;
+    let nuevo = nuevo.trim();
+    let texto = unir(texto_confirmado, if es_solo_ruido(nuevo) { "" } else { nuevo });
+    if texto.is_empty() {
+        log::warn!("[voz] whisper solo devolvió ruido: {nuevo:?}");
         return Err("no se entendió nada de lo grabado".to_string());
     }
     if texto.chars().count() < LARGO_MINIMO_TRANSCRIPCION {
@@ -647,6 +683,199 @@ fn transcribir(ruta_wav: &Path) -> Result<String, String> {
         return Err("no se entendió nada de lo grabado".to_string());
     }
     Ok(texto)
+}
+
+/// Lo confirmado y lo nuevo, con un espacio entre medio si hace falta.
+fn unir(confirmado: &str, nuevo: &str) -> String {
+    match (confirmado.trim(), nuevo.trim()) {
+        ("", n) => n.to_string(),
+        (c, "") => c.to_string(),
+        (c, n) => format!("{c} {n}"),
+    }
+}
+
+/// Un wav aparte con la cabecera dada y solo estas muestras, con los
+/// tamaños RIFF/data arreglados. Quien lo pide lo borra.
+fn escribir_trozo(cabecera: &[u8], datos: &[u8]) -> Result<PathBuf, String> {
+    let mut bytes = Vec::with_capacity(cabecera.len() + datos.len());
+    bytes.extend_from_slice(cabecera);
+    bytes.extend_from_slice(datos);
+    cabecera_completa(&mut bytes).ok_or("la cabecera del trozo no sirve")?;
+    let ruta = ruta_temporal("-trozo.wav");
+    fs::write(&ruta, &bytes).map_err(|e| e.to_string())?;
+    Ok(ruta)
+}
+
+// — V1: el dictado no espera por lo ya dicho —
+//
+// Cada parcial mira lo que todavía no es definitivo (desde
+// `bytes_confirmados`). Si ahí hay una pausa (nivel bajo el umbral durante
+// PAUSA_PARA_CONFIRMAR) después de haber hablado, lo de antes de la pausa
+// se transcribe una sola vez y queda confirmado; se corta EN LA MITAD de la
+// pausa, nunca a mitad de palabra: así cada lado queda con ≥ 200 ms de
+// silencio de margen — el trozo que termina no pierde su última «s» y el
+// que empieza no arranca con la cola de un sonido ni pierde la primera
+// sílaba. (Un solape de 300 ms, probado el 2/10, repetía la cola de la
+// palabra anterior: «acces os».) Sin pausa, a los PENDIENTE_MAXIMO se corta
+// en la mitad del hueco más largo que haya.
+const VENTANA_CORTE: Duration = Duration::from_millis(100);
+const PAUSA_PARA_CONFIRMAR: Duration = Duration::from_millis(400);
+// Un trozo confirmado tiene al menos esto: a Whisper no se le dan pedacitos.
+const TROZO_MINIMO: Duration = Duration::from_secs(1);
+const PENDIENTE_MAXIMO: Duration = Duration::from_secs(12);
+
+fn bytes_de(duracion: Duration) -> usize {
+    (duracion.as_secs_f64() * BYTES_POR_SEGUNDO as f64) as usize
+}
+
+fn ventanas_de(duracion: Duration) -> usize {
+    (duracion.as_millis() / VENTANA_CORTE.as_millis()) as usize
+}
+
+/// Pico (0.0–1.0) de cada ventana entera de VENTANA_CORTE.
+fn niveles_por_ventana(datos: &[u8]) -> Vec<f32> {
+    datos
+        .chunks_exact(bytes_de(VENTANA_CORTE))
+        .map(|ventana| {
+            let pico = ventana
+                .chunks_exact(2)
+                .map(|par| i16::from_le_bytes([par[0], par[1]]).unsigned_abs())
+                .max()
+                .unwrap_or(0);
+            pico as f32 / i16::MAX as f32
+        })
+        .collect()
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct Corte {
+    // Cuántas ventanas del pendiente quedan confirmadas (el corte es al final
+    // de la última; el trozo siguiente arranca justo ahí).
+    ventanas: usize,
+    // Si en ese trozo hubo voz. Sin voz no hay nada que transcribir: solo se
+    // avanza.
+    con_voz: bool,
+}
+
+/// Dónde cortar lo pendiente, o None si todavía no toca.
+fn decidir_corte(niveles: &[f32]) -> Option<Corte> {
+    let minimo = ventanas_de(TROZO_MINIMO);
+    let pausa = ventanas_de(PAUSA_PARA_CONFIRMAR);
+    let maximo = ventanas_de(PENDIENTE_MAXIMO);
+    if niveles.len() < minimo + pausa {
+        return None;
+    }
+    let piso = piso_de(niveles)?;
+    let umbral = umbral_para(piso);
+    let con_voz_hasta = |n: usize| niveles[..n].iter().any(|&p| p >= umbral);
+
+    // Las rachas bajo el umbral: (inicio, largo), en orden.
+    let mut rachas: Vec<(usize, usize)> = Vec::new();
+    for (i, &nivel) in niveles.iter().enumerate() {
+        if nivel >= umbral {
+            continue;
+        }
+        match rachas.last_mut() {
+            Some((inicio, largo)) if *inicio + *largo == i => *largo += 1,
+            _ => rachas.push((i, 1)),
+        }
+    }
+    // El corte es la mitad de la racha, y tiene que dejar TROZO_MINIMO antes.
+    let mitad = |(inicio, largo): (usize, usize)| inicio + largo / 2;
+
+    // La última pausa después de haber hablado.
+    if let Some(racha) = rachas
+        .iter()
+        .copied()
+        .filter(|&(inicio, largo)| largo >= pausa && mitad((inicio, largo)) >= minimo && con_voz_hasta(inicio))
+        .next_back()
+    {
+        return Some(Corte { ventanas: mitad(racha), con_voz: true });
+    }
+    if niveles.len() < maximo {
+        return None;
+    }
+    if !con_voz_hasta(niveles.len()) {
+        // Doce segundos sin decir nada: no hay texto ahí, solo se avanza.
+        return Some(Corte { ventanas: niveles.len(), con_voz: false });
+    }
+    // Sin pausa en doce segundos: la mitad del hueco más largo bajo el umbral
+    // (aunque no llegue a pausa) es donde menos probable es partir una palabra.
+    if let Some(racha) = rachas
+        .iter()
+        .copied()
+        .filter(|&racha| mitad(racha) >= minimo)
+        .max_by_key(|&(_, largo)| largo)
+    {
+        return Some(Corte { ventanas: mitad(racha), con_voz: true });
+    }
+    // Ni un hueco: la ventana más callada.
+    let (mas_callada, _) = niveles
+        .iter()
+        .enumerate()
+        .skip(minimo)
+        .min_by(|a, b| a.1.total_cmp(b.1))?;
+    Some(Corte { ventanas: mas_callada + 1, con_voz: true })
+}
+
+/// Lo que devuelve una parcial, y lo que queda confirmado después de ella.
+struct Parcial {
+    texto: String,
+    bytes_confirmados: usize,
+    texto_confirmado: String,
+}
+
+/// Una vuelta del dictado sobre `datos` (las muestras, sin cabecera): si hay
+/// un trozo que confirmar, lo transcribe y lo deja definitivo; después
+/// transcribe lo pendiente. Devuelve confirmado + pendiente.
+fn avanzar_parcial(
+    url: &str,
+    cabecera: &[u8],
+    datos: &[u8],
+    bytes_confirmados: usize,
+    texto_confirmado: &str,
+) -> Result<Parcial, String> {
+    let mut confirmados = bytes_confirmados.min(datos.len());
+    let mut texto_confirmado = texto_confirmado.to_string();
+
+    if let Some(corte) = decidir_corte(&niveles_por_ventana(&datos[confirmados..])) {
+        let fin = confirmados + corte.ventanas * bytes_de(VENTANA_CORTE);
+        if corte.con_voz {
+            let arranque = Instant::now();
+            let trozo = escribir_trozo(cabecera, &datos[confirmados..fin])?;
+            let texto = transcribir_con_servidor(url, &trozo);
+            let _ = fs::remove_file(&trozo);
+            let texto = texto?;
+            log::info!(
+                "[voz] confirmado: trozo de {} ms transcrito en {} ms (total confirmado {} s)",
+                ((fin - confirmados) as u64 * 1000) / BYTES_POR_SEGUNDO,
+                arranque.elapsed().as_millis(),
+                fin as u64 / BYTES_POR_SEGUNDO
+            );
+            if !es_solo_ruido(&texto) {
+                texto_confirmado = unir(&texto_confirmado, &texto);
+            }
+        } else {
+            log::info!("[voz] {} s sin voz: avanzo sin transcribir", (fin - confirmados) as u64 / BYTES_POR_SEGUNDO);
+        }
+        confirmados = fin;
+    }
+
+    let pendiente = &datos[confirmados..];
+    let nuevo = if pendiente.len() < PARCIAL_MINIMO_BYTES {
+        String::new()
+    } else {
+        let trozo = escribir_trozo(cabecera, pendiente)?;
+        let texto = transcribir_con_servidor(url, &trozo);
+        let _ = fs::remove_file(&trozo);
+        let texto = texto?;
+        if es_solo_ruido(&texto) { String::new() } else { texto }
+    };
+    Ok(Parcial {
+        texto: unir(&texto_confirmado, &nuevo),
+        bytes_confirmados: confirmados,
+        texto_confirmado,
+    })
 }
 
 // — Lo que vas diciendo, mientras lo decís (3c · 2) —
@@ -658,10 +887,14 @@ const PARCIAL_MINIMO_BYTES: usize = 16_000 * 2; // 1 s de audio a 16 kHz mono
 
 #[tauri::command(async)]
 pub fn transcribir_parcial(estado: tauri::State<'_, EstadoGrabacion>) -> Result<String, String> {
-    let ruta = {
+    let (ruta, bytes_confirmados, texto_confirmado) = {
         let guarda = estado.0.lock().map_err(|e| e.to_string())?;
         match guarda.as_ref() {
-            Some(grabacion) => grabacion.ruta_wav.clone(),
+            Some(grabacion) => (
+                grabacion.ruta_wav.clone(),
+                grabacion.bytes_confirmados,
+                grabacion.texto_confirmado.clone(),
+            ),
             None => return Err("no hay grabación".to_string()),
         }
     };
@@ -676,12 +909,20 @@ pub fn transcribir_parcial(estado: tauri::State<'_, EstadoGrabacion>) -> Result<
     if bytes.len() - inicio_datos < PARCIAL_MINIMO_BYTES {
         return Err("muy poco audio todavía".to_string());
     }
-    let copia = ruta_temporal("-parcial.wav");
-    fs::write(&copia, &bytes).map_err(|e| e.to_string())?;
-    let texto = transcribir_con_servidor(url, &copia);
-    let _ = fs::remove_file(&copia);
-    let texto = texto?;
-    Ok(if es_solo_ruido(&texto) { String::new() } else { texto })
+    let (cabecera, datos) = bytes.split_at(inicio_datos);
+    let parcial = avanzar_parcial(url, cabecera, datos, bytes_confirmados, &texto_confirmado)?;
+    if parcial.bytes_confirmados != bytes_confirmados {
+        // Solo si la grabación sigue siendo esta y nadie confirmó entre
+        // medio (las parciales van de a una desde la ventanita).
+        let mut guarda = estado.0.lock().map_err(|e| e.to_string())?;
+        if let Some(grabacion) = guarda.as_mut() {
+            if grabacion.ruta_wav == ruta && grabacion.bytes_confirmados == bytes_confirmados {
+                grabacion.bytes_confirmados = parcial.bytes_confirmados;
+                grabacion.texto_confirmado = parcial.texto_confirmado;
+            }
+        }
+    }
+    Ok(parcial.texto)
 }
 
 /// Arregla los tamaños RIFF y data de un wav a medio escribir. Devuelve dónde
@@ -889,6 +1130,153 @@ mod pruebas {
         assert!(0.24 >= umbral);
         // …y el silencio del RODE sigue siendo silencio.
         assert!(0.08 < umbral);
+    }
+
+    // — V1: dónde se corta el dictado —
+
+    fn niveles(trozos: &[(usize, f32)]) -> Vec<f32> {
+        trozos.iter().flat_map(|&(n, nivel)| std::iter::repeat_n(nivel, n)).collect()
+    }
+
+    #[test]
+    fn con_una_pausa_despues_de_hablar_se_corta_en_la_mitad_de_la_pausa() {
+        // 2 s de voz, 0,6 s de pausa, 1 s de voz, y sigue hablando.
+        let n = niveles(&[(20, 0.4), (6, 0.03), (10, 0.5)]);
+        let corte = decidir_corte(&n).unwrap();
+        assert_eq!(corte, Corte { ventanas: 23, con_voz: true });
+        // Dentro de la pausa, nunca en voz: a los dos lados del corte hay
+        // silencio.
+        let umbral = umbral_para(piso_de(&n).unwrap());
+        assert!(n[corte.ventanas - 1] < umbral && n[corte.ventanas] < umbral);
+    }
+
+    #[test]
+    fn se_corta_en_la_ultima_pausa_para_confirmar_lo_mas_posible() {
+        let n = niveles(&[(20, 0.4), (5, 0.03), (20, 0.5), (4, 0.03), (3, 0.5)]);
+        assert_eq!(decidir_corte(&n), Some(Corte { ventanas: 47, con_voz: true }));
+    }
+
+    #[test]
+    fn una_pausa_corta_entre_palabras_no_corta() {
+        // 3 s de voz con huecos de 200–300 ms: ninguno llega a 400 ms.
+        let n = niveles(&[(10, 0.4), (3, 0.03), (10, 0.5), (2, 0.03), (10, 0.4)]);
+        assert_eq!(decidir_corte(&n), None);
+    }
+
+    #[test]
+    fn sin_pausa_a_los_doce_segundos_se_corta_en_la_mitad_del_hueco_mas_largo() {
+        // Huecos de 200 y 300 ms (ninguno es pausa): se corta en la mitad
+        // del de 300, nunca en voz.
+        let n = niveles(&[(30, 0.4), (2, 0.03), (40, 0.4), (3, 0.03), (45, 0.4)]);
+        assert_eq!(decidir_corte(&n), Some(Corte { ventanas: 73, con_voz: true }));
+        let n = niveles(&[(30, 0.4), (2, 0.03), (90, 0.4)]);
+        assert_eq!(decidir_corte(&n), Some(Corte { ventanas: 31, con_voz: true }));
+        // Sin ningún hueco: la ventana más callada.
+        let mut n = niveles(&[(120, 0.4)]);
+        n[80] = 0.2;
+        assert_eq!(decidir_corte(&n), Some(Corte { ventanas: 81, con_voz: true }));
+        // Antes de los doce segundos, sin pausa, no toca.
+        assert_eq!(decidir_corte(&niveles(&[(110, 0.4)])), None);
+    }
+
+    #[test]
+    fn el_silencio_del_principio_no_se_confirma_y_doce_segundos_callado_solo_avanza() {
+        // Todavía no hablaste: nada que transcribir.
+        assert_eq!(decidir_corte(&niveles(&[(30, 0.03)])), None);
+        assert_eq!(decidir_corte(&niveles(&[(120, 0.03)])), Some(Corte { ventanas: 120, con_voz: false }));
+        // Silencio y después voz sin pausa: tampoco.
+        assert_eq!(decidir_corte(&niveles(&[(20, 0.03), (20, 0.4)])), None);
+    }
+
+    #[test]
+    fn con_menos_de_un_segundo_y_medio_no_se_decide_nada() {
+        assert_eq!(decidir_corte(&niveles(&[(13, 0.4)])), None);
+        assert_eq!(decidir_corte(&[]), None);
+    }
+
+    #[test]
+    fn los_niveles_salen_por_ventana_de_cien_ms() {
+        let por_ventana = bytes_de(VENTANA_CORTE);
+        assert_eq!(por_ventana, 3200);
+        let mut datos = vec![0u8; por_ventana * 2 + 10];
+        datos[por_ventana + 4..por_ventana + 6].copy_from_slice(&3300i16.to_le_bytes());
+        let n = niveles_por_ventana(&datos);
+        assert_eq!(n.len(), 2);
+        assert!(n[0] < 0.001 && (n[1] - 0.1).abs() < 0.01, "{n:?}");
+    }
+
+    #[test]
+    fn un_trozo_es_un_wav_valido_con_sus_tamanos() {
+        let mut cabecera = b"RIFF\0\0\0\0WAVEfmt ".to_vec();
+        cabecera.extend_from_slice(&[0u8; 20]);
+        cabecera.extend_from_slice(b"data\0\0\0\0");
+        let ruta = escribir_trozo(&cabecera, &[7u8; 100]).unwrap();
+        let bytes = fs::read(&ruta).unwrap();
+        let _ = fs::remove_file(&ruta);
+        assert_eq!(bytes.len(), cabecera.len() + 100);
+        assert_eq!(u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize, bytes.len() - 8);
+        let pos = cabecera.len() - 8;
+        assert_eq!(u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap()), 100);
+        assert_eq!(unir("", "hola"), "hola");
+        assert_eq!(unir("hola", ""), "hola");
+        assert_eq!(unir("hola", " qué tal "), "hola qué tal");
+    }
+
+    /// Medición del «listo cuando» de V1 sobre un clip real, contra el
+    /// Whisper residente (no corre sola: pide el servidor y un wav de 16 kHz
+    /// mono). Simula el dictado creciendo de a 1,5 s, como hace la ventanita,
+    /// y al final transcribe solo lo que quedó, como la parada. Imprime los
+    /// tiempos y las dos transcripciones (entera vs por trozos) para
+    /// compararlas a ojo.
+    ///
+    ///   REMI_CLIP_WAV=/ruta/clip.wav REMI_WHISPER_URL=http://127.0.0.1:4401 \
+    ///   cargo test --quiet medir_dictado_largo -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn medir_dictado_largo() {
+        let ruta = PathBuf::from(std::env::var("REMI_CLIP_WAV").expect("REMI_CLIP_WAV"));
+        let url = std::env::var("REMI_WHISPER_URL").unwrap_or_else(|_| "http://127.0.0.1:4401".to_string());
+        let mut bytes = fs::read(&ruta).unwrap();
+        let inicio_datos = cabecera_completa(&mut bytes).unwrap();
+        let (cabecera, datos) = bytes.split_at(inicio_datos);
+        let segundos = datos.len() as f64 / BYTES_POR_SEGUNDO as f64;
+        println!("clip de {segundos:.1} s");
+
+        // Hoy: todo el archivo de una vez al parar.
+        let arranque = Instant::now();
+        let entera = transcribir_con_servidor(&url, &ruta).unwrap();
+        println!("entera al parar: {} ms", arranque.elapsed().as_millis());
+
+        // V1: parciales cada 1,5 s de audio, y al parar solo el resto.
+        let paso = bytes_de(Duration::from_millis(1500));
+        let mut confirmados = 0usize;
+        let mut texto_confirmado = String::new();
+        let mut hasta = paso;
+        let mut parciales_ms = Vec::new();
+        while hasta < datos.len() {
+            let arranque = Instant::now();
+            let parcial = avanzar_parcial(&url, cabecera, &datos[..hasta], confirmados, &texto_confirmado).unwrap();
+            parciales_ms.push(arranque.elapsed().as_millis());
+            confirmados = parcial.bytes_confirmados;
+            texto_confirmado = parcial.texto_confirmado;
+            hasta += paso;
+        }
+        let trozo = escribir_trozo(cabecera, &datos[confirmados..]).unwrap();
+        let arranque = Instant::now();
+        let ultimo = transcribir_con_servidor(&url, &trozo).unwrap();
+        let ultimo_ms = arranque.elapsed().as_millis();
+        let _ = fs::remove_file(&trozo);
+        let por_trozos = unir(&texto_confirmado, if es_solo_ruido(&ultimo) { "" } else { &ultimo });
+        println!(
+            "por trozos: confirmados {:.1} s antes de parar; último trozo de {:.1} s en {} ms; parciales máx {} ms, mediana {} ms",
+            confirmados as f64 / BYTES_POR_SEGUNDO as f64,
+            (datos.len() - confirmados) as f64 / BYTES_POR_SEGUNDO as f64,
+            ultimo_ms,
+            parciales_ms.iter().max().unwrap_or(&0),
+            { let mut v = parciales_ms.clone(); v.sort(); v.get(v.len() / 2).copied().unwrap_or(0) }
+        );
+        println!("\n— entera —\n{entera}\n\n— por trozos —\n{por_trozos}\n");
+        assert!(ultimo_ms < 1500, "el último trozo tardó {ultimo_ms} ms");
     }
 
     #[test]
