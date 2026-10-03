@@ -689,6 +689,74 @@ export default function App() {
     });
   }, []);
 
+  // — Banco de pruebas (⌘⌥ + tecla) —
+  // Para ver en vivo cada pieza del diseño sin esperar a que pase de verdad:
+  // fuerza un estado con datos de mentira. Nada de esto toca el núcleo: el
+  // bloque de prueba («demo-») se cierra sin llamar al servidor.
+  useEffect(() => {
+    const TAREA_DEMO = {
+      id: "demo-tarea", titulo: "Terminar el flujo de distribución", proyecto_id: null, estado: "hoy" as const,
+      paso_minimo: "Abrir la tarjeta", estimado_min: null, real_min: null, hora: null, fecha_limite: null, compartible: false,
+    };
+    const sesionDemo = () => ({
+      id: "demo-sesion", tarea_id: "demo-tarea", inicio: new Date(Date.now() - 12 * 60000).toISOString(),
+      fin: null, real_min: 12, app_contexto: null,
+    });
+    const charla = (extra: Array<Omit<Mensaje, "id">> = []) =>
+      setMensajes([
+        { rol: "juan" as const, texto: "¿qué sigue hoy?" },
+        { rol: "remi" as const, texto: "Hoy solo esto: la tarjeta. Cinco minutos." },
+        ...extra,
+      ].map((m) => ({ ...m, id: nuevoId() })));
+    const nudgeDemo = (tipo: NudgeContrato["tipo"], voz: string) => {
+      volverAReposo();
+      window.setTimeout(() => setNudgePendiente({ id: `demo-${tipo}-${Date.now()}`, tipo, voz, salida_amable: true, respuesta: null }), 450);
+    };
+    const pasos: Record<string, () => void> = {
+      Digit1: () => volverAReposo(),
+      Digit2: () => { charla(); setBajada(false); setEstado("escuchando"); },
+      Digit3: () => { charla(); setBajada(false); setEstado("pensando"); },
+      Digit4: () => {
+        charla();
+        setBajada(true);
+        setEstado("pensando");
+        window.setTimeout(() => { setFraseDicha("Hoy solo esto: la tarjeta. Cinco minutos."); setEstado("hablando"); }, 1400);
+        window.setTimeout(() => setEstado("escuchando"), 7500);
+      },
+      Digit5: () => { charla(); setBajada(false); setEstado("escuchando"); },
+      Digit6: () => {
+        charla([{ rol: "remi", texto: "Empezamos: terminar el flujo de distribución.", tarea: TAREA_DEMO, sesion: sesionDemo() }]);
+        setBajada(false);
+        setEstado("escuchando");
+      },
+      Digit7: () => {
+        charla([{ rol: "remi", texto: "Empezamos: la entrega de Alfonso, que paga.", tarea: TAREA_DEMO, sesion: sesionDemo() }]);
+        setBajada(false);
+        setEstado("escuchando");
+        window.setTimeout(
+          () => setEntregaDelBloque({ id: "demo-entrega", cliente: "Alfonso", proyecto_id: "demo", fecha: new Date().toISOString(), monto: 1200, estado: "camino", compartible: true } as unknown as Entrega),
+          120,
+        );
+      },
+      Digit8: () => nudgeDemo("cuerpo", "Van dos horas. Agua, y seguimos."),
+      Digit9: () => nudgeDemo("ritual", "Es hora de cerrar el día. ¿Lo revisamos juntos?"),
+      Digit0: () => nudgeDemo("encoger", "Esto se quedó grande. Hoy solo el primer paso."),
+      KeyN: () => { charla(); setBajada(false); setEstado("escuchando"); window.setTimeout(() => setNudgePendiente({ id: `demo-chat-${Date.now()}`, tipo: "cuerpo", voz: "Van dos horas. Agua, y seguimos.", salida_amable: true, respuesta: null }), 300); },
+      KeyE: () => { setBajada(false); setMensajes([{ id: nuevoId(), rol: "juan", texto: "¿qué sigue hoy?" }, { id: nuevoId(), rol: "remi", texto: FRASE_DE_FALLO }]); setEstado("escuchando"); },
+      KeyH: () => { charla(); setBajada(false); setEstado("escuchando"); window.setTimeout(abrirHistorial, 250); },
+    };
+    function alTeclado(evento: KeyboardEvent) {
+      if (!(evento.metaKey && evento.altKey)) return;
+      const paso = pasos[evento.code];
+      if (!paso) return;
+      evento.preventDefault();
+      registrar("demo", { tecla: evento.code });
+      paso();
+    }
+    window.addEventListener("keydown", alTeclado);
+    return () => window.removeEventListener("keydown", alTeclado);
+  }, [volverAReposo, abrirHistorial]);
+
   const empezarAEscuchar = useCallback(async (modoNuevo: Modo) => {
     setModo(modoNuevo);
     setEstado("escuchando");
@@ -1367,7 +1435,7 @@ export default function App() {
         onCallar={callar}
         onCopiar={copiar}
         onReintentar={reintentar}
-        onCerrarBloque={cerrarTarea}
+        onCerrarBloque={(id) => (id.startsWith("demo-") ? Promise.resolve(25) : cerrarTarea(id))}
         bionica={lectura.bionica ? lectura.intensidad : null}
         ultimaVezMin={ultimaVezDelBloqueMin}
         dinero={esDinero}
