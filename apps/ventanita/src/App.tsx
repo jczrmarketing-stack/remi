@@ -36,10 +36,12 @@ import { MS_ENTRE_CONSULTAS_NUDGE, type RespuestaNudge } from "./nudges";
 import { animarTamano } from "./movimiento";
 import {
   callarse,
+  decirMuletilla,
   despertarAudio,
   estadoDeVoz,
   hablar,
   obtenerVoces,
+  precalentarMuletillas,
   type VozDisponible,
 } from "./voz";
 import { copiarAlPortapapeles } from "./portapapeles";
@@ -582,6 +584,10 @@ export default function App() {
       }
       ultimoEnviadoRef.current = { texto: limpio, origen };
       setEstado("pensando");
+      // Hablándole en voz alta: «mmm, a ver…» al instante, mientras piensa.
+      if (origen === "voz" && !accionesRef.current.silenciado) {
+        decirMuletilla(accionesRef.current.velocidad, accionesRef.current.vozElegida);
+      }
       const elegido = paraEnviar(accionesRef.current.cerebro);
       const arranque = performance.now();
       registrar("enviar", {
@@ -1025,6 +1031,12 @@ export default function App() {
       .then(setModelosOllama)
       .catch(() => setModelosOllama([]));
   }, [expandido]);
+
+  // Las muletillas se piden una vez, cuando Kokoro ya cargó (~15 s).
+  useEffect(() => {
+    const id = window.setTimeout(() => void precalentarMuletillas(accionesRef.current.vozElegida), 20000);
+    return () => window.clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     if (vocesDisponibles.length > 0) return;

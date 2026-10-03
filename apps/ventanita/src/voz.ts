@@ -320,6 +320,74 @@ function hablarConElSistema(texto: string, velocidad: Velocidad): Promise<void> 
   );
 }
 
+// — Las muletillas —
+// Lo primero que se oye al terminar de hablarle: «mmm, a ver…». Son audios
+// cortos del propio núcleo, pedidos una vez y guardados, elegidos al azar:
+// no hay IA ni datos en ellas, así que no pueden inventar nada. Tapan el
+// silencio mientras Remi piensa; la respuesta espera a que terminen.
+const MULETILLAS = ["Mmm, a ver…", "Ajá, déjame pensar.", "Ok, un momento.", "Mm, claro. A ver…", "A ver, déjame ver."];
+const muletillasListas = new Map<string, Blob[]>();
+let muletillasPidiendo = false;
+let ultimaMuletilla = -1;
+let muletillaAudio: HTMLAudioElement | null = null;
+let muletillaFin: Promise<void> | null = null;
+let muletillaTerminar: (() => void) | null = null;
+
+export async function precalentarMuletillas(voz: PreferenciaVoz): Promise<void> {
+  const clave = String(voz);
+  if (muletillasListas.has(clave) || muletillasPidiendo) return;
+  muletillasPidiendo = true;
+  try {
+    const blobs: Blob[] = [];
+    for (const frase of MULETILLAS) {
+      const audio = await pedirAudio(frase, voz);
+      if (audio) blobs.push(audio);
+    }
+    if (blobs.length > 0) muletillasListas.set(clave, blobs);
+  } finally {
+    muletillasPidiendo = false;
+  }
+}
+
+function pararMuletilla(): void {
+  if (muletillaAudio) muletillaAudio.pause();
+  muletillaTerminar?.();
+}
+
+/** Suena una muletilla ya guardada, sin esperar nada. Si no hay, no hace nada. */
+export function decirMuletilla(velocidad: Velocidad = 1, voz: PreferenciaVoz = VOZ_AUTOMATICA): void {
+  const blobs = muletillasListas.get(String(voz));
+  if (!blobs || blobs.length === 0) {
+    void precalentarMuletillas(voz);
+    return;
+  }
+  pararMuletilla();
+  let i = Math.floor(Math.random() * blobs.length);
+  if (blobs.length > 1 && i === ultimaMuletilla) i = (i + 1) % blobs.length;
+  ultimaMuletilla = i;
+  const url = URL.createObjectURL(blobs[i]);
+  const elemento = new Audio(url);
+  elemento.preservesPitch = true;
+  elemento.playbackRate = velocidad;
+  muletillaAudio = elemento;
+  console.info("[voz] muletilla");
+  muletillaFin = new Promise<void>((resolver) => {
+    const terminar = () => {
+      URL.revokeObjectURL(url);
+      if (muletillaAudio === elemento) {
+        muletillaAudio = null;
+        muletillaFin = null;
+        muletillaTerminar = null;
+      }
+      resolver();
+    };
+    muletillaTerminar = terminar;
+    elemento.addEventListener("ended", terminar, { once: true });
+    elemento.addEventListener("error", terminar, { once: true });
+    void elemento.play().catch(terminar);
+  });
+}
+
 // — Lo que usa la ventanita —
 
 /**
@@ -376,6 +444,14 @@ async function hablarSinMarca(
     pedir(i + 1);
     pedir(i + 2);
     if (i === 0) console.info(`[voz] #${mia} primera frase lista (${frases.length} en total)`);
+    // La muletilla no se corta: la respuesta suena cuando ella termina.
+    if (muletillaFin) {
+      await muletillaFin;
+      if (generacion !== mia) {
+        console.info(`[voz] #${mia} cancelada tras la muletilla`);
+        return;
+      }
+    }
     const fin = await reproducir(audio, velocidad, mia);
     if (fin === "cancelada") {
       console.info(`[voz] #${mia} cancelada`);
@@ -406,6 +482,7 @@ async function hablarSinMarca(
 export function callarse(): void {
   generacion += 1;
   ocupadaHasta = null;
+  pararMuletilla();
   liberarAudio();
   if (haySoporteDeVoz()) {
     window.speechSynthesis.cancel();
