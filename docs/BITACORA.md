@@ -20,6 +20,29 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · tres arreglos después del cierre · construido · 02ac66d
+
+Escribe la terminal, por encargo de Claude en la app.
+
+- **Qué cambió:**
+  1. `.notion-estado.json` fuera de git en la bóveda (`7dad977` allá: `.gitignore` +
+     `git rm --cached`; el archivo sigue en disco). Prueba en `cb97bcf`: una sincronización
+     con bóveda temporal y el `.gitignore` real deja `git status` limpio.
+  2. Panel de tú (`1a45642`): siete líneas, no tres. El grep pedido no veía «Llevás»
+     (mayúscula y tilde al final de palabra), y además había «vos decidís», «Elegí algo y
+     empezá», «¿a quién avisás?» y «avisale que cerré este hito».
+  3. Ajustes sin scroll horizontal (`02ac66d`): las filas de Ajustes y Conexiones son la clase
+     `.fila-ajuste`, en una columna debajo de 640 px. Playwright: desborde 0 px a 375 y a 1280
+     en el panel instalado; a 1280 se ve igual que antes.
+- **Decisiones que tomé sin preguntar:** el punto 1 lleva dos commits, uno en la bóveda (el
+  arreglo) y uno en el repo (la prueba), porque viven en repos distintos.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `bash scripts/doctor.sh` → 10/10 (23 GB libres); abrir
+  `/ajustes` en el teléfono. pytest 729, mypy 131 módulos, Playwright del panel 63. Instalada
+  la de `02ac66d` con `actualizar.sh`.
+
+---
+
 ## 2026-10-02 · F5 · cierre del plan de cierre · construido · 0354ded
 
 Escribe la terminal. Instalada la app de `0354ded` con `actualizar.sh`; `doctor.sh` 10/10;
