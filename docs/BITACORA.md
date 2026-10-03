@@ -20,6 +20,65 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · F2 · el carácter v1 · construido · bfb9f62
+
+Escribe la terminal. Bóveda: `d0e1b11` (F2.1), `a23ffd4` (F2.1b), `6163f6e` (F2.2),
+`8c4d203` (F2.3), `49b61cf` (F2.4), `1398689` (F2.1c), `8d32331` (F2.2b). Repo: `4582042`
+(F2.5), `a1e6aaa` (prompts de tú), `21a0354` (notas archivadas), `bfb9f62` (F4.2b, la guarda).
+
+- **Qué cambió:**
+  1. `caracter.md` v1 en la bóveda: de tú (cero voseo por el grep del plan; también «De qué te
+     ocupás», que el grep no veía), «Dos registros, sin botón», «Dónde está lo que sabes», la
+     línea de no rehacer lo que Claude ya hace bien, y las dos que pidió Claude en la app:
+     F2.1c (nada de voseo aunque sea de Medellín) y F2.2b (el encargo sale igual con el hueco
+     marcado; nunca un interrogatorio).
+  2. F2.5: el registro de trabajo **no** llevaba el carácter (3b lo dejaba fuera a propósito y
+     una prueba lo afirmaba). Ahora `sistema_encargo()` empieza por `caracter()`.
+     `test_registros.py` prueba los dos registros: trabajo = carácter + prompting, claude-code,
+     stack, vibe-coding + «Reglas de este proyecto» + hasta tres «Ojo:»; charla = carácter +
+     índice, sin oficios.
+  3. Los prompts del repo (`encargo.md`, `cliente.md`, `tecnico.md`) y las cadenas de
+     `pensar.py` que viajan al modelo (índice, asociados, búsqueda, resumen, carácter de
+     respaldo) pasaron a tú: con el carácter ya de tú, Remi seguía contestando «lo que pedís».
+- **INCIDENTE (lo causé yo):** probando F2 con un núcleo de prueba en :4499 con la base en
+  una copia pero **la bóveda real**, cada cierre de conversación escribió en `remi-mente`:
+  `91ac91c`, `72c1a58` (Estado de `upvisuals.md`), `86daa6c` y `f2550c2` (dos episodios de mis
+  frases de prueba). `cfbf25e`, `72ae8b3` y `7fd7395` no son míos: son anteriores. La base real
+  no se tocó. Arreglo: los dos episodios de prueba quedaron `estado: archivada` (`a2e9b0a` en
+  la bóveda; siguen en disco), y `libros.fuera_del_estante()` hace que ningún lector cuente
+  una nota archivada o fusionada. Y la guarda F4.2b (abajo) impide repetirlo.
+- **Decisiones que tomé con Claude en la app:**
+  1. El Estado de `upvisuals.md` se deja como está hoy (el de antes de las 21:36, `47fa8ae`,
+     era basura de prueba). Juan Camilo lo corrige en Obsidian si quiere.
+  2. Archivar los dos episodios de prueba con `estado: archivada`, un commit en la bóveda.
+  3. F3.5 nuevo (antes de F4): el cierre de conversación repetido (abajo, en F3).
+  4. F4.2b nuevo: el núcleo no arranca si es de prueba y la bóveda no está aislada. Hecho en
+     `bfb9f62`; revisa `REMI_CONOCIMIENTO` **y** `REMI_BOVEDA` (decisión mía: la bóveda se
+     alcanza por las dos; los episodios van por `REMI_BOVEDA`). Probado en vivo: sin bóveda
+     aislada, «[núcleo] NO ARRANCO: núcleo de prueba apuntando a la bóveda real».
+  5. F2.1c y F2.2b, literales.
+- **Decisiones que tomé sin preguntar:** los prompts del repo a tú (punto 3), que el plan no
+  nombraba; sin eso la regla 7 no se cumplía.
+- **Dudas abiertas:**
+  1. **Voseo:** con todo de tú en lo que recibe el modelo, Haiku todavía cuela «vos» (2 de 3
+     charlas) y Sonnet «querés» (1 de 3 encargos). Bajó (antes 3 de 3), no desapareció.
+  2. **El encargo pregunta en vez de armar:** con la petición del plan («arma el encargo para
+     el endpoint de pagos de UpVisuals») sale con forma de encargo en 1 de 3. El libro de
+     UpVisuals no tiene `ruta:` ni nada de un endpoint de pagos; con el carácter delante, el
+     modelo prefiere no inventar. Antes de F2.2b: 0 de 9 con carácter, 4 de 6 sin carácter.
+- **Cómo probarlo a mano / números** (núcleo de prueba con copia de base **y** de bóveda,
+  conversación nueva por corrida, 2-oct ~22:50):
+
+  | frase | corridas | no crea nada | forma de encargo | con voseo |
+  |---|---|---|---|---|
+  | «¿qué opinas de que haga esto el fin de semana?» (Haiku) | 3 | 3/3 (bandeja 12→12) | — | 2/3 («vos») |
+  | «arma el encargo para el endpoint de pagos de UpVisuals» (modo prompt, Sonnet) | 3 | 3/3 | 1/3 | 1/3 («querés») |
+
+  `grep -cE '\b(sos|tenés|podés|hablás|pensás|decís|leés|sabés|vos)\b' caracter.md` → 0.
+  pytest 719, mypy 130 módulos.
+
+---
+
 ## 2026-10-02 · F1 · velocidad (V3, V1, V2) e instalación · construido · 2e2a86b
 
 Escribe la terminal. Orden real: V4 (`2248162`, ya estaba), V3 (`0155c6a`), V1 (`2e2a86b`),
