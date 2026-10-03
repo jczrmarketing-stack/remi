@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MS_ISLA_VISIBLE, mostrarTextoIsla, TAMANO_ISLA_CON_TEXTO, TAMANO_ISLA_MINIMA, tamanoIsla } from "./reposo";
+import { MS_ISLA_VISIBLE, TAMANO_ISLA_NUDGE, mostrarTextoIsla, TAMANO_ISLA_CON_TEXTO, TAMANO_ISLA_MINIMA, tamanoIsla } from "./reposo";
 
 describe("mostrarTextoIsla", () => {
   it("sin contenido nunca muestra texto, ni con el mouse encima", () => {
@@ -34,5 +34,12 @@ describe("tamanoIsla", () => {
   it("200×72 con texto: crece a lo ancho, no a lo alto", () => {
     expect(tamanoIsla(true)).toEqual(TAMANO_ISLA_CON_TEXTO);
     expect(TAMANO_ISLA_CON_TEXTO).toEqual({ width: 200, height: 72 });
+  });
+});
+
+describe("tamanoIsla con nudge", () => {
+  it("el nudge manda sobre el texto de la isla", () => {
+    expect(tamanoIsla(true, true)).toEqual(TAMANO_ISLA_NUDGE);
+    expect(tamanoIsla(false, true)).toEqual(TAMANO_ISLA_NUDGE);
   });
 });

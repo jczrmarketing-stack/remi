@@ -5,6 +5,10 @@ import "./Nudge.css";
 
 interface Props {
   voz: string;
+  // El color sale del tipo: cuerpo brasa, ritual luz, encoger pensar.
+  tipo?: "cuerpo" | "ritual" | "encoger" | "rumbo";
+  // En reposo el nudge vive dentro del cuadradito ensanchado (opción C).
+  enIsla?: boolean;
   onResponder: (respuesta: RespuestaNudge) => void;
   // Lectura biónica (3f · 9): también en el nudge, nunca en el código.
   bionica?: number | null;
@@ -22,7 +26,7 @@ function campoConTexto(objetivo: EventTarget | null): boolean {
   );
 }
 
-export function Nudge({ voz, onResponder, bionica }: Props) {
+export function Nudge({ voz, tipo = "cuerpo", enIsla = false, onResponder, bionica }: Props) {
   useEffect(() => {
     function alTeclado(evento: KeyboardEvent) {
       const respuesta = respuestaDeTecla(evento.key, campoConTexto(evento.target));
@@ -35,7 +39,7 @@ export function Nudge({ voz, onResponder, bionica }: Props) {
   }, [onResponder]);
 
   return (
-    <div className="nudge" role="status">
+    <div className={`nudge${enIsla ? " nudge--isla" : ""}`} data-tipo={tipo} role="status">
       <p className="display-it nudge__voz">
         {bionica != null
           ? partirBionica(voz).map((trozo, i) =>

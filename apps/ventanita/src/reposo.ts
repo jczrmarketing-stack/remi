@@ -4,6 +4,10 @@
 // encima vuelve a mostrarse, sin importar el reloj.
 export const TAMANO_ISLA_MINIMA = { width: 72, height: 72 };
 export const TAMANO_ISLA_CON_TEXTO = { width: 200, height: 72 };
+// El nudge en reposo (decisión: opción C): el mismo objeto crece en su sitio,
+// dice una frase y se encoge. No abre el chat.
+export const TAMANO_ISLA_NUDGE = { width: 320, height: 148 };
+export const MS_NUDGE_VISIBLE = 8000;
 export const MS_ISLA_VISIBLE = 4000;
 export const MS_ISLA_ENCOGER = 200;
 
@@ -14,6 +18,7 @@ export function mostrarTextoIsla(msDesdeReposo: number, hover: boolean, hayConte
   return msDesdeReposo < MS_ISLA_VISIBLE;
 }
 
-export function tamanoIsla(mostrarTexto: boolean) {
+export function tamanoIsla(mostrarTexto: boolean, conNudge = false) {
+  if (conNudge) return TAMANO_ISLA_NUDGE;
   return mostrarTexto ? TAMANO_ISLA_CON_TEXTO : TAMANO_ISLA_MINIMA;
 }

@@ -98,7 +98,7 @@ import {
   type Tamano,
 } from "./ventana";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
-import { mostrarTextoIsla, MS_ISLA_ENCOGER, MS_ISLA_VISIBLE, tamanoIsla, TAMANO_ISLA_MINIMA } from "./reposo";
+import { mostrarTextoIsla, MS_NUDGE_VISIBLE, MS_ISLA_ENCOGER, MS_ISLA_VISIBLE, tamanoIsla, TAMANO_ISLA_MINIMA } from "./reposo";
 import "./estilos.css";
 import "./App.css";
 
@@ -139,8 +139,8 @@ async function tamanoActual(): Promise<Tamano> {
   return { width: fisico.width / f, height: fisico.height / f };
 }
 
-function tamanoReposo(mostrarTexto: boolean) {
-  return tamanoIsla(mostrarTexto);
+function tamanoReposo(mostrarTexto: boolean, conNudge = false) {
+  return tamanoIsla(mostrarTexto, conNudge);
 }
 
 // Qué es un control (nunca un gesto de la píldora) y qué es el campo.
@@ -256,8 +256,10 @@ export default function App() {
   const [hoverIsla, setHoverIsla] = useState(false);
   const [vencioIsla, setVencioIsla] = useState(false);
   const mostrarTextoReposo = mostrarTextoIsla(vencioIsla ? MS_ISLA_VISIBLE : 0, hoverIsla, hayContenidoReposo);
-  const reposoRef = useRef({ mostrarTextoReposo });
-  reposoRef.current = { mostrarTextoReposo };
+  // El nudge en reposo: la isla se ensancha y lo dice ahí, sin abrir el chat.
+  const nudgeEnReposo = nudgePendiente !== null && estado === "reposo";
+  const reposoRef = useRef({ mostrarTextoReposo, nudgeEnReposo });
+  reposoRef.current = { mostrarTextoReposo, nudgeEnReposo };
 
   useEffect(() => {
     if (estado !== "reposo") return;
@@ -278,7 +280,7 @@ export default function App() {
   // Al arrancar: la píldora del tamaño justo y en el lugar donde la dejaste.
   useEffect(() => {
     const ventana = getCurrentWindow();
-    const reposo = tamanoReposo(reposoRef.current.mostrarTextoReposo);
+    const reposo = tamanoReposo(reposoRef.current.mostrarTextoReposo, reposoRef.current.nudgeEnReposo);
     registrar("tamaño", { motivo: "montar", w: reposo.width, h: reposo.height });
     cambioDeTamanoRef.current = performance.now();
     void (async () => {
@@ -302,7 +304,7 @@ export default function App() {
     if (expandidoAnteriorRef.current === expandido) return;
     expandidoAnteriorRef.current = expandido;
     const ventana = getCurrentWindow();
-    const reposo = tamanoReposo(reposoRef.current.mostrarTextoReposo);
+    const reposo = tamanoReposo(reposoRef.current.mostrarTextoReposo, reposoRef.current.nudgeEnReposo);
     void (async () => {
       animandoRef.current = true;
       cambioDeTamanoRef.current = performance.now();
@@ -366,31 +368,32 @@ export default function App() {
   }, []);
 
   // La isla se agranda o se encoge (200 ms) según haya texto para mostrar.
-  const tamanoIslaAnteriorRef = useRef(mostrarTextoReposo);
+  const claveIsla = `${mostrarTextoReposo}-${nudgeEnReposo}`;
+  const tamanoIslaAnteriorRef = useRef(claveIsla);
   useEffect(() => {
     // Durante la animación de cerrar, el tamaño lo pone ella.
     if (expandido || animandoRef.current) return;
-    if (tamanoIslaAnteriorRef.current === mostrarTextoReposo) {
+    if (tamanoIslaAnteriorRef.current === claveIsla) {
       // Primer paint en reposo (o cambio de contenido sin cambio de tamaño):
       // fija el tamaño ya, sin animar.
-      const { width, height } = tamanoReposo(mostrarTextoReposo);
+      const { width, height } = tamanoReposo(mostrarTextoReposo, nudgeEnReposo);
       cambioDeTamanoRef.current = performance.now();
       void getCurrentWindow().setSize(new LogicalSize(width, height));
       return;
     }
-    tamanoIslaAnteriorRef.current = mostrarTextoReposo;
+    tamanoIslaAnteriorRef.current = claveIsla;
     const ventana = getCurrentWindow();
-    const hasta = tamanoReposo(mostrarTextoReposo);
+    const hasta = tamanoReposo(mostrarTextoReposo, nudgeEnReposo);
     void (async () => {
       animandoRef.current = true;
       cambioDeTamanoRef.current = performance.now();
       const desde = await tamanoActual();
-      registrar("tamaño", { motivo: mostrarTextoReposo ? "isla:mostrar" : "isla:encoger", w: hasta.width, h: hasta.height });
+      registrar("tamaño", { motivo: nudgeEnReposo ? "isla:nudge" : mostrarTextoReposo ? "isla:mostrar" : "isla:encoger", w: hasta.width, h: hasta.height });
       await animarTamano(ventana, desde, hasta, MS_ISLA_ENCOGER);
       cambioDeTamanoRef.current = performance.now();
       animandoRef.current = false;
     })();
-  }, [expandido, mostrarTextoReposo]);
+  }, [expandido, claveIsla, mostrarTextoReposo, nudgeEnReposo]);
 
   useEffect(() => {
     if (expandido || !hayHace) return;
@@ -640,8 +643,12 @@ export default function App() {
       if (!vivo) return;
       obtenerNudgePendiente().then((nudge) => {
         if (!vivo || !nudge) return;
-        setNudgePendiente((actual) => (actual?.id === nudge.id ? actual : nudge));
-        if (accionesRef.current.estado === "reposo") abrirChat();
+        // Uno a la vez, y nunca mientras escribes o hablas. Si ya lo dejaste
+        // pasar (se fue solo a los 8 s), no vuelve a salir.
+        if (nudgesVistosRef.current.has(nudge.id)) return;
+        const { estado: actual, texto } = accionesRef.current;
+        if (actual === "pensando" || actual === "hablando" || (actual === "escuchando" && texto.trim() !== "")) return;
+        setNudgePendiente((previo) => previo ?? nudge);
       });
     };
     consultar();
@@ -650,11 +657,34 @@ export default function App() {
       vivo = false;
       window.clearInterval(id);
     };
-  }, [abrirChat]);
+  }, []);
+
+  // En reposo el nudge se va solo a los 8 s, sin responderlo: ni «Listo» ni
+  // «Ahora no», y no queda como fallo (ley 5). Con el mouse encima espera.
+  const nudgesVistosRef = useRef(new Set<string>());
+  const hoverIslaRef = useRef(false);
+  hoverIslaRef.current = hoverIsla;
+  useEffect(() => {
+    if (!nudgeEnReposo || !nudgePendiente) return;
+    const id = nudgePendiente.id;
+    let temporizador = 0;
+    const armar = (ms: number) => {
+      temporizador = window.setTimeout(() => {
+        if (hoverIslaRef.current) return armar(2000);
+        nudgesVistosRef.current.add(id);
+        setNudgePendiente((actual) => (actual?.id === id ? null : actual));
+      }, ms);
+    };
+    armar(MS_NUDGE_VISIBLE);
+    return () => window.clearTimeout(temporizador);
+  }, [nudgeEnReposo, nudgePendiente]);
 
   const responderAlNudge = useCallback((respuesta: RespuestaNudge) => {
     setNudgePendiente((actual) => {
-      if (actual) void responderNudge(actual.id, respuesta);
+      if (actual) {
+        nudgesVistosRef.current.add(actual.id);
+        void responderNudge(actual.id, respuesta);
+      }
       return null;
     });
   }, []);
@@ -1263,16 +1293,26 @@ export default function App() {
         onMouseLeave={() => setHoverIsla(false)}
       >
         <Semaforo enPildora onVerde={abrirChat} />
-        <div className="punto-zona">
-          <StatusDot estado="reposo" />
-        </div>
-        {mostrarTextoReposo && recordatorio !== null && (
+        {nudgeEnReposo && nudgePendiente ? (
+          <Nudge
+            voz={nudgePendiente.voz}
+            tipo={nudgePendiente.tipo}
+            enIsla
+            onResponder={responderAlNudge}
+            bionica={lectura.bionica ? lectura.intensidad : null}
+          />
+        ) : (
+          <div className="punto-zona">
+            <StatusDot estado="reposo" />
+          </div>
+        )}
+        {!nudgeEnReposo && mostrarTextoReposo && recordatorio !== null && (
           <p className="num hace recordatorio-motor">{recordatorio}</p>
         )}
-        {mostrarTextoReposo && recordatorio === null && ultimaVezDeHoy !== null && (
+        {!nudgeEnReposo && mostrarTextoReposo && recordatorio === null && ultimaVezDeHoy !== null && (
           <p className="num hace">la última vez: {formatearDuracion(ultimaVezDeHoy)}</p>
         )}
-        {mostrarTextoReposo && recordatorio === null && ultimaVezDeHoy === null && ultimaInteraccionMs !== null && (
+        {!nudgeEnReposo && mostrarTextoReposo && recordatorio === null && ultimaVezDeHoy === null && ultimaInteraccionMs !== null && (
           <p className="num hace">{formatearHace(ultimaInteraccionMs, ahoraMs)}</p>
         )}
       </div>
@@ -1341,6 +1381,7 @@ export default function App() {
       {nudgePendiente && (
         <Nudge
           voz={nudgePendiente.voz}
+          tipo={nudgePendiente.tipo}
           onResponder={responderAlNudge}
           bionica={lectura.bionica ? lectura.intensidad : null}
         />

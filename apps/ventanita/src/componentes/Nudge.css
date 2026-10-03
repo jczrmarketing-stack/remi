@@ -1,11 +1,13 @@
 /* Nudge (3f · 6): un mensaje de Remi, borde izquierdo brasa (prioridad en
    borde, nunca relleno de tarjeta — DS), dos píldoras. */
 .nudge {
+  --nudge-color: var(--brasa);
+  --nudge-sobre: var(--on-brasa);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border-left: 2px solid var(--brasa);
+  border-left: 2px solid var(--nudge-color);
   background: var(--surface-2);
   /* radius-lg: el DS se lo asigna al Nudge y a la celebración. */
   border-radius: var(--radius-lg);
@@ -24,18 +26,18 @@
   appearance: none;
   min-height: 32px;
   padding: 0 var(--space-4);
-  border: 1px solid var(--brasa);
+  border: 1px solid var(--nudge-color);
   border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--brasa);
+  color: var(--nudge-color);
   font-family: var(--font-sans);
   cursor: pointer;
   transition: background-color var(--dur-estado) var(--curva), color var(--dur-estado) var(--curva);
 }
 
 .nudge__pildora:hover {
-  background: var(--brasa);
-  color: var(--on-brasa);
+  background: var(--nudge-color);
+  color: var(--nudge-sobre);
 }
 
 /* «Ahora no» (ley 5, salida amable): nunca se marca como urgente ni error;
@@ -48,4 +50,50 @@
 .nudge__pildora--suave:hover {
   background: var(--line);
   color: var(--ink);
+}
+
+/* El color dice de qué se trata (ley 4: calmado, nunca urgente): el cuerpo
+   en brasa, el ritual en luz, encoger en pensar, que es Remi trabajando. */
+.nudge[data-tipo="ritual"],
+.nudge[data-tipo="rumbo"] {
+  --nudge-color: var(--luz);
+  --nudge-sobre: var(--on-luz);
+}
+
+.nudge[data-tipo="encoger"] {
+  --nudge-color: var(--pensar);
+  --nudge-sobre: var(--ground);
+}
+
+/* En reposo: dentro del cuadradito ensanchado, que llena la ventana. Sale
+   con un solo movimiento de 250 ms. */
+.nudge--isla {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  margin-top: var(--space-2);
+  text-align: left;
+  animation: nudge-sale var(--dur-aparecer) var(--curva) both;
+}
+
+.nudge--isla .nudge__voz {
+  font-size: 20px;
+  line-height: 24px;
+}
+
+@keyframes nudge-sale {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nudge--isla {
+    animation: none;
+  }
 }
