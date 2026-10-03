@@ -25,6 +25,7 @@ from typing import Any, Generator, Callable
 
 import httpx
 
+import concreto
 import db
 import libros
 import precarga
@@ -1054,6 +1055,10 @@ def pensar_en_frases(
     abre_conversacion_nueva = not turnos  # toda conversación vigente tiene al menos un turno
     mensaje = mensaje_con_historia(frase, turnos, resumen, contexto)
     elegido = motor(motor_pedido)
+    # Un prompt pedido no se dice en vivo hasta tener la respuesta entera.
+    # Si el modelo abre con una pregunta, la regla deja el prompt primero y
+    # esa es la única versión que se muestra y se habla.
+    pedir_entero = en_vivo and concreto.pide_prompt(frase)
     if buscar:
         # Solo Claude tiene WebSearch: una búsqueda va por Claude aunque el
         # chip diga Venice u Ollama, y queda dicho en el log.
@@ -1062,7 +1067,7 @@ def pensar_en_frases(
         elegido = "claude"
         instrucciones = f"{instrucciones}\n\n{INSTRUCCIONES_BUSQUEDA}"
     try:
-        if en_vivo:
+        if en_vivo and not pedir_entero:
             pensado = yield from _frases_del_motor(
                 elegido, mensaje, instrucciones, indice, modo_pedido, nivel, buscar, modelo_ollama, modelo_venice
             )
@@ -1077,16 +1082,21 @@ def pensar_en_frases(
             file=sys.stderr,
         )
         pensado = _respaldo_de_charla(mensaje, instrucciones, len(indice))
-        if pensado is not None and en_vivo:
+        if pensado is not None and en_vivo and not pedir_entero:
             yield from _en_frases(_un_solo_delta(pensado.paso_minimo))
 
     # El turno de Juan Camilo se guarda siempre que se pensó; el de Remi,
     # solo si contestó. El voseo se quita acá, en la salida: lo que se
     # guarda, se muestra y (en el camino sin stream) se dice ya es de tú.
     # Cada frase del stream se convierte en `_en_frases`, antes de salir.
+    # Si pidieron un prompt y el modelo solo preguntó, el prompt va primero
+    # y es lo único que se llega a decir.
     conversacion_id = _guardar_turno("juan", frase)
     if pensado is not None:
-        pensado = replace(pensado, paso_minimo=voseo.voseo_a_tu(pensado.paso_minimo))
+        paso = voseo.voseo_a_tu(concreto.concreto_primero(frase, pensado.paso_minimo))
+        pensado = replace(pensado, paso_minimo=paso)
+        if pedir_entero:
+            yield from _en_frases(_un_solo_delta(paso))
         conversacion_id = _guardar_turno("remi", pensado.paso_minimo)
     _actualizar_resumen_en_segundo_plano(conversacion_id)
     if abre_conversacion_nueva:
