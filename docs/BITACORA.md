@@ -20,6 +20,50 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-03 · la Biblia en la bóveda, preguntar si es ambiguo, lo viejo con fecha · construido · 41443ad
+
+Escribe la terminal, por encargo de Claude en la app, tras la respuesta de Remi del 2-oct
+23:36 (contestó de Malik cuando le preguntaban por su propia Biblia).
+
+- **Qué cambió:**
+  1. `2497753` — `docs/BIBLIA.md` (la exportación v3.9, sin editar) en el repo y copia idéntica
+     en la bóveda, `referencia/biblia.md` (`37343bb` allá), nivel 1 en la mente; línea nueva
+     en `caracter.md` (`8182c5b`). Va en `referencia/` y no en `proyectos/` porque trae
+     `tema: remi` como el libro de remi y el sembrador las habría pisado entre sí; ahora
+     reconoce por tema y título. Además, regla sin IA: si la frase nombra la Biblia, entra la
+     sección que coincide («ley 3» = «LEY 03 · SIN CADENA DE CULPA»), literal.
+  2. `5c625a0` — `precarga.tema_dudoso`: sin tema propio + algo que existe en varios libros +
+     commit o sesión de hace menos de 15 min (y sin bloque abierto) → no se precarga nada y
+     entra «No sé si habla de X o de Y: pregunta cuál en una frase antes de contestar.»
+  3. `41443ad` — fecha corta visible en asociados de episodios y lecciones, en el Estado
+     precargado y en los «Ojo:». Regla en `caracter.md` (`bfa78a5`).
+  4. Dos lecciones con `anotar_leccion` (tema remi, clase error): la precarga que eligió
+     Malik y el 401 del 30-sep contado como de hoy.
+- **Decisiones que tomé sin preguntar:**
+  1. La regla de la tarea 1 que mete la sección literal: con solo poner la Biblia en el
+     índice, ni Haiku ni Sonnet la bajaban con `leer` (0 de 3 y 0 de 2), contestaban con el
+     resumen de las leyes del carácter y decían que la habían leído.
+  2. Tarea 2: también se exige que la frase nombre algo compartido; y con duda tampoco entra
+     la referencia (con la Biblia de Remi delante, no preguntaba: 0 de 3).
+- **Dudas abiertas:**
+  1. En la tarea 2, Remi pregunta en 3 de 3, pero solo una vez nombra los dos candidatos.
+  2. En la tarea 3, la fecha sale en 3 de 3 pero «como pasado» solo en 1 de 3 («falla desde
+     el 30 de septiembre» en las otras dos).
+  3. La copia de la Biblia en la bóveda no se re-exporta sola: cuando cambie de versión, se
+     copia `docs/BIBLIA.md` a `referencia/biblia.md` y se reinicia el núcleo.
+- **Números** (núcleo de prueba con copias de base y bóveda, Haiku, 3 corridas cada uno):
+
+  | prueba | antes | después |
+  |---|---|---|
+  | «¿qué dice tu Biblia de la ley 3?» cita la Biblia | 0/3 | 3/3 |
+  | frase de Juan Camilo con un commit de malik de hace 1 min: pregunta, no contesta de Malik | contestó de Malik | 3/3 |
+  | «¿qué pasa con el agente de investigar…?» da la fecha del 401 | — | 3/3 (como pasado 1/3) |
+
+  pytest 747, mypy 134 módulos. Instalada la de `41443ad`; el núcleo real sembró la Biblia
+  al arrancar (`[referencia] creadas=1`); `doctor.sh` 10/10.
+
+---
+
 ## 2026-10-02 · tres arreglos después del cierre · construido · 02ac66d
 
 Escribe la terminal, por encargo de Claude en la app.
