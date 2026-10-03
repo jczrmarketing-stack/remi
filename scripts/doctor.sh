@@ -95,11 +95,38 @@ else
   falla "ollama" "no responde en 127.0.0.1:11434 (ollama serve, o brew services start ollama)"
 fi
 
-# — 6. LaunchAgents com.remi.* cargados —
+# — 6. LaunchAgents com.remi.* cargados, y los ganchos que alimentan a Remi —
+# (F4.6: los ganchos van dentro de esta pieza para no renumerar las 10.)
+# git: core.hooksPath con post-commit enlazado a scripts/hooks/git-gancho.
+# Claude Code: SessionStart y SessionEnd hacia scripts/hooks/claude-sesion.py.
 cargados="$(launchctl list 2>/dev/null | grep -c 'com\.remi\.' || true)"
 cargados="${cargados:-0}"
-if [[ "$cargados" -gt 0 ]]; then
-  ok "LaunchAgents com.remi.* ($cargados cargados)"
+ganchos_faltan=""
+DIR_GANCHOS="$(git config --global core.hooksPath 2>/dev/null || true)"
+DIR_GANCHOS="${DIR_GANCHOS/#\~/$HOME}"
+if [[ -z "$DIR_GANCHOS" ]] || [[ "$(python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$DIR_GANCHOS/post-commit" 2>/dev/null)" != "$RAIZ/scripts/hooks/git-gancho" ]]; then
+  ganchos_faltan="git post-commit (scripts/hooks/instalar-git.sh)"
+fi
+claude_falta="$(python3 - "$HOME/.claude/settings.json" <<'PY' 2>/dev/null || echo "settings.json ilegible"
+import json, sys
+try:
+    hooks = json.load(open(sys.argv[1])).get("hooks", {})
+except OSError:
+    hooks = {}
+faltan = [
+    evento for evento in ("SessionStart", "SessionEnd")
+    if not any("claude-sesion.py" in str(h.get("command", "")) for g in hooks.get(evento, []) for h in g.get("hooks", []))
+]
+print(", ".join(faltan))
+PY
+)"
+if [[ -n "$claude_falta" ]]; then
+  ganchos_faltan="${ganchos_faltan:+$ganchos_faltan; }Claude Code $claude_falta (python3 scripts/hooks/instalar-claude.py)"
+fi
+if [[ "$cargados" -gt 0 && -z "$ganchos_faltan" ]]; then
+  ok "LaunchAgents com.remi.* ($cargados cargados) y ganchos (git, Claude Code)"
+elif [[ "$cargados" -gt 0 ]]; then
+  falla "LaunchAgents y ganchos" "falta: $ganchos_faltan"
 else
   falla "LaunchAgents com.remi.*" "ninguno cargado (./scripts/instalar.sh)"
 fi
