@@ -43,7 +43,9 @@ Lo que salió de la prueba en la app del 3-oct (Juan Camilo):
 |---|---|---|---|
 | 26 | Al minimizar, cerrar con la X o reabrir, parecía que Remi se olvidaba de la charla (volvían 3 mensajes en gris) | `fb43d87`: vuelve la conversación entera | arreglado, por ver en la app |
 | 27 | La conversación se cortaba sola a los 60 min | `990f579`: sigue hasta que él la cambie (decisión suya; cambia la Biblia) | arreglado, por ver en la app |
-| 28 | En la conversación por voz no había cómo parar el micrófono (más de 20 clicks ignorados) | `e04fef4`: botón «Parar» al lado del chip del modelo | arreglado, por ver en la app |
+| 28 | En la conversación por voz no había cómo apagar el micrófono (más de 20 clicks ignorados) | `e04fef4` lo hizo mal (paraba la conversación, otro color). `57ac91d`: interruptor «Silenciar», la conversación sigue; mismo aspecto que los otros chips | arreglado, por ver en la app |
+| 30 | Minimizar mientras escuchaba dejaba el micrófono grabando por detrás; cada click en la bolita fallaba («ya había una grabación activa») | `057e8ca`: volver a reposo apaga la grabación; si queda una colgada, se descarta y reintenta | arreglado, por ver en la app |
+| 31 | El doble y el triple click dejaron de funcionar (lo rompió `fb43d87`: el chat lleno quedaba bajo el mouse) | `ef770ec`: un click sobre el chat cuenta si sigue una racha | arreglado, por ver en la app |
 | 29 | «no pude reproducir el audio del núcleo» en el log | No es falla: el audio sonó entero; el aviso sale de más al pasar a la frase siguiente | pendiente menor (solo el log) |
 
 Otras cosas que salieron del guion:
