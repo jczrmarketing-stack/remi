@@ -20,3 +20,14 @@ describe("dividirEnFrases", () => {
     ]);
   });
 });
+
+describe("repartirVelocidad", () => {
+  it("hasta 1,5× la hace el modelo; el 2× completa estirando solo el resto", async () => {
+    const { repartirVelocidad } = await import("./voz");
+    expect(repartirVelocidad(1)).toEqual({ modelo: 1, reproductor: 1 });
+    expect(repartirVelocidad(1.5)).toEqual({ modelo: 1.5, reproductor: 1 });
+    const dos = repartirVelocidad(2);
+    expect(dos.modelo).toBe(1.5);
+    expect(dos.modelo * dos.reproductor).toBeCloseTo(2);
+  });
+});

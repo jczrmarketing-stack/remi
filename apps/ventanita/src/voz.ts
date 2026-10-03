@@ -73,16 +73,18 @@ export async function obtenerVoces(): Promise<VozDisponible[]> {
   return (await respuesta.json()) as VozDisponible[];
 }
 
-async function pedirAudio(texto: string, voz: PreferenciaVoz): Promise<Blob | null> {
+async function pedirAudio(texto: string, voz: PreferenciaVoz, velocidadModelo = 1): Promise<Blob | null> {
   const controlador = new AbortController();
   const limite = window.setTimeout(() => controlador.abort(), limiteDeVoz(texto));
   try {
     const respuesta = await fetch(`${URL_NUCLEO}/tts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // La velocidad NO va acá: el modelo generaría con otra prosodia. El
-      // reproductor la estira conservando el tono.
-      body: JSON.stringify({ text: texto, voice: voz === VOZ_AUTOMATICA ? null : voz }),
+      body: JSON.stringify({
+        text: texto,
+        voice: voz === VOZ_AUTOMATICA ? null : voz,
+        ...(velocidadModelo !== 1 ? { speed: velocidadModelo } : {}),
+      }),
       signal: controlador.signal,
     });
     if (!respuesta.ok) {
@@ -96,6 +98,16 @@ async function pedirAudio(texto: string, voz: PreferenciaVoz): Promise<Blob | nu
   } finally {
     window.clearTimeout(limite);
   }
+}
+
+// La velocidad la hace el propio modelo hasta 1,5×: estirar el audio en el
+// reproductor (WebKit) se come fonemas y a 1,5× se perdían palabras. Lo que
+// pase de 1,5× (el 2×) sí se completa estirando, pero solo el resto.
+const VELOCIDAD_MAXIMA_DEL_MODELO = 1.5;
+
+export function repartirVelocidad(velocidad: Velocidad): { modelo: number; reproductor: number } {
+  const modelo = Math.min(velocidad, VELOCIDAD_MAXIMA_DEL_MODELO);
+  return { modelo, reproductor: velocidad / modelo };
 }
 
 // — El volumen de la voz, para que el punto lata con ella —
@@ -183,7 +195,7 @@ type FinDeReproduccion = "terminó" | "cancelada" | "falló";
 // termina de verdad, no cuando lo adivina un temporizador. `mia` es la
 // generación de quien llama: si otra la pisó, lo que pase con este audio
 // es una cancelación, no un fallo.
-function reproducir(audio: Blob, velocidad: Velocidad, mia: number): Promise<FinDeReproduccion> {
+function reproducir(audio: Blob, velocidad: number, mia: number): Promise<FinDeReproduccion> {
   return new Promise((resolve) => {
     liberarAudio();
     const url = URL.createObjectURL(audio);
@@ -355,7 +367,7 @@ function pararMuletilla(): void {
 }
 
 /** Suena una muletilla ya guardada, sin esperar nada. Si no hay, no hace nada. */
-export function decirMuletilla(velocidad: Velocidad = 1, voz: PreferenciaVoz = VOZ_AUTOMATICA): void {
+export function decirMuletilla(voz: PreferenciaVoz = VOZ_AUTOMATICA): void {
   const blobs = muletillasListas.get(String(voz));
   if (!blobs || blobs.length === 0) {
     void precalentarMuletillas(voz);
@@ -368,8 +380,7 @@ export function decirMuletilla(velocidad: Velocidad = 1, voz: PreferenciaVoz = V
   const url = URL.createObjectURL(blobs[i]);
   const elemento = new Audio(url);
   elemento.preservesPitch = true;
-  elemento.playbackRate = velocidad;
-  muletillaAudio = elemento;
+  muletillaAudio = elemento; // siempre a 1×: son dos palabras y así no hay que guardarlas por velocidad
   console.info("[voz] muletilla");
   muletillaFin = new Promise<void>((resolver) => {
     const terminar = () => {
@@ -427,9 +438,10 @@ async function hablarSinMarca(
   // generan mientras tanto. Una respuesta de 30 palabras tardaba ~3 s en
   // generarse entera antes de que sonara nada; la primera frase, ~1 s.
   const frases = dividirEnFrases(texto);
+  const { modelo: velocidadModelo, reproductor: velocidadReproductor } = repartirVelocidad(velocidad);
   const pedidos: Array<Promise<Blob | null> | undefined> = [];
   const pedir = (i: number) => {
-    if (i < frases.length && pedidos[i] === undefined) pedidos[i] = pedirAudio(frases[i], voz);
+    if (i < frases.length && pedidos[i] === undefined) pedidos[i] = pedirAudio(frases[i], voz, velocidadModelo);
   };
   pedir(0);
   pedir(1);
@@ -452,7 +464,7 @@ async function hablarSinMarca(
         return;
       }
     }
-    const fin = await reproducir(audio, velocidad, mia);
+    const fin = await reproducir(audio, velocidadReproductor, mia);
     if (fin === "cancelada") {
       console.info(`[voz] #${mia} cancelada`);
       return;

@@ -586,7 +586,7 @@ export default function App() {
       setEstado("pensando");
       // Hablándole en voz alta: «mmm, a ver…» al instante, mientras piensa.
       if (origen === "voz" && !accionesRef.current.silenciado) {
-        decirMuletilla(accionesRef.current.velocidad, accionesRef.current.vozElegida);
+        decirMuletilla(accionesRef.current.vozElegida);
       }
       const elegido = paraEnviar(accionesRef.current.cerebro);
       const arranque = performance.now();

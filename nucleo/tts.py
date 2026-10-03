@@ -18,8 +18,9 @@ from typing import Any
 
 # Frecuencia de salida de Kokoro. La ventanita recibe wav 24 kHz mono.
 FRECUENCIA = 24000
-# La velocidad la hace el reproductor de la ventanita (1×, 1.5×, 2×), que
-# preserva el tono. Pedirle otra al modelo le cambia la prosodia.
+# Por defecto el modelo habla a 1×. La ventanita le pide 1,5× cuando Juan
+# Camilo lo elige: estirar el audio en el reproductor se comía palabras, y
+# el modelo acelera sin perderlas.
 VELOCIDAD_GENERACION = 1.0
 
 
