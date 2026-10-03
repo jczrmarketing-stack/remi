@@ -80,3 +80,59 @@ def test_la_frase_personal_va_al_modelo_y_no_a_la_regla_de_preguntas(tmp_path, m
 
     assert llamadas == [frase]
     assert respuesta["texto"] == "Bien, con todo en verde."
+
+
+# — «¿qué falta en el panel web y en la ventanita?» (3-oct) —
+
+FRASE_PANEL = "te dije que que falta en el panel web y en ventanita"
+
+
+def test_que_falta_en_el_panel_no_es_la_regla_de_t8():
+    assert not trabajo.es_que_falta(FRASE_PANEL)
+    assert precarga.pregunta_por_remi(FRASE_PANEL)
+    assert precarga.pregunta_por_remi("¿qué le falta a Remi para estar terminado?")
+
+
+def test_el_estado_trae_lo_pendiente_de_la_revision(tmp_path, monkeypatch):
+    revision = tmp_path / "REVISION.md"
+    revision.write_text(
+        "| # | Promesa | Código | App | Estado |\n|---|---|---|---|---|\n"
+        "| 1 | Flota encima | x | — | **difiere** |\n"
+        "| 2 | Doble click | x | probar | por ver en la app |\n"
+        "| 3 | Atajo | x | ok | **pasa** |\n"
+        "| 32 | Hilos abiertos | x | — | **no existe** |\n"
+    )
+    monkeypatch.setattr(precarga, "RUTA_REVISION", revision)
+    monkeypatch.setattr(precarga, "_correr_doctor", lambda: "doctor: 10/10 OK")
+    texto = precarga.estado_propio()
+    assert "Doble click" in texto and "Hilos abiertos" in texto and "Flota encima" in texto
+    assert "Atajo" not in texto  # lo que pasa no es pendiente
+
+
+FRASE_DORMIR = (
+    "Quiero saber qué te falta para dejarlo haciendo mientras duermo para terminar por completo "
+    "todo el apartado de Remy, tanto el panel web como ventanita"
+)
+
+
+def test_la_frase_de_dormir_y_remy_cuentan_como_preguntas_por_remi():
+    assert precarga.pregunta_por_remi(FRASE_DORMIR)
+    assert not trabajo.es_que_falta(FRASE_DORMIR)
+
+
+def test_preguntar_por_remi_no_es_un_tema_dudoso(monkeypatch):
+    # Aunque haya commits recientes de otro proyecto y nombre el panel.
+    monkeypatch.setattr(precarga, "_tema_de_bloque_abierto", lambda: None)
+    from datetime import datetime, timezone
+
+    assert precarga.tema_dudoso(FRASE_DORMIR, datetime.now(timezone.utc)) is None
+    assert precarga.tema_dudoso(FRASE_PANEL, datetime.now(timezone.utc)) is None
+
+
+def test_por_ver_en_la_app_no_se_lee_como_que_falla(tmp_path, monkeypatch):
+    revision = tmp_path / "REVISION.md"
+    revision.write_text("| 2 | Doble click | x | probar | por ver en la app |\n")
+    monkeypatch.setattr(precarga, "RUTA_REVISION", revision)
+    monkeypatch.setattr(precarga, "_correr_doctor", lambda: "doctor: 10/10 OK")
+    texto = precarga.estado_propio()
+    assert "falta que Juan Camilo lo pruebe en la app (no quiere decir que falle)" in texto

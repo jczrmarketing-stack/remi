@@ -214,8 +214,14 @@ def donde_quede(texto: str) -> str | None:
     return "\n\n".join(_tres_lineas(libro))
 
 
+# «¿qué falta en el panel web y en la ventanita?» no es la pregunta de T8 (las
+# preguntas pendientes de Remi): nombra una parte de la app (3-oct).
+_PARTE_DE_LA_APP = re.compile(r"\b(?:panel|ventanita|remi|remy|app)\b")
+
+
 def es_que_falta(texto: str) -> bool:
-    return bool(_QUE_FALTA.search(clasificar.normalizar(texto)))
+    limpio = clasificar.normalizar(texto)
+    return bool(_QUE_FALTA.search(limpio)) and not _PARTE_DE_LA_APP.search(limpio)
 
 
 def que_falta(texto: str) -> str | None:

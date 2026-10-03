@@ -226,6 +226,9 @@ def tema_dudoso(frase: str, ahora: datetime) -> tuple[str, str] | None:
 
     if temas.tema_de_texto(frase) is not None:
         return None
+    # Si pregunta por Remi mismo, el tema es Remi: no hay nada que preguntar.
+    if pregunta_por_remi(frase) or re.search(r"\b(?:remi|remy)\b", _normal(frase)):
+        return None
     if not (_fichas(frase) & COMPARTIDOS):
         return None
     if _tema_de_bloque_abierto():
@@ -269,6 +272,9 @@ _SOBRE_REMI = re.compile(
     # Cómo se siente (3-oct: «¿cómo te sientes, te sientes vivo, o qué te
     # falta?» lo contestaba la regla de T8 con «Tengo 3 preguntas pendientes»).
     r"|te sientes|te siente|como te sientes|estas vivo|sientes vivo"
+    # Lo que le falta a Remi como app (3-oct: «¿qué falta en el panel web y
+    # en la ventanita?» lo contestaba la regla de T8).
+    r"|falta (?:en|a|para) (?:el panel|la ventanita|ventanita|remi)|le falta a remi"
     r"|estas completo|estas complet[ao]|que tan completo|cumples|estas listo|como estas de salud"
     r"|tu estado|estas bien hecho|ya estas terminad[ao])\b"
 )
@@ -277,10 +283,21 @@ ENCABEZADO_ESTADO_PROPIO = (
     "lo que no está aquí no lo sabes y no lo supones:\n"
 )
 RUTA_DOCTOR = Path(__file__).resolve().parent.parent / "scripts" / "doctor.sh"
+# La revisión contra la Biblia (docs/REVISION.md): lo que todavía no «pasa».
+RUTA_REVISION = Path(__file__).resolve().parent.parent / "docs" / "REVISION.md"
+MAX_PENDIENTES_DE_REVISION = 15
+
+
+_PARTE_DE_REMI = re.compile(r"\b(?:panel|ventanita|remi|remy)\b")
 
 
 def pregunta_por_remi(frase: str) -> bool:
-    return bool(_SOBRE_REMI.search(_normal(frase)))
+    limpio = _normal(frase)
+    if _SOBRE_REMI.search(limpio):
+        return True
+    # «¿qué te falta… el panel web como ventanita?», «…el apartado de Remy»
+    # (Whisper escribe Remy): lo que le falta a Remi como app (3-oct).
+    return "falta" in limpio.split() and bool(_PARTE_DE_REMI.search(limpio))
 
 
 def _correr_doctor() -> str | None:
@@ -303,6 +320,39 @@ def _preguntas_pendientes() -> int | None:
         return None
 
 
+def _estado_en_palabras(estado: str) -> str:
+    """El estado de la tabla, dicho sin que se pueda leer al revés (3-oct:
+    «por ver en la app» se leyó como «no funciona»)."""
+    e = estado.lower()
+    if "por ver" in e:
+        return "hecho en el código, falta que Juan Camilo lo pruebe en la app (no quiere decir que falle)"
+    if "difiere" in e:
+        return "cambiado a propósito respecto a la Biblia; decide Juan Camilo cuál manda"
+    if "no existe" in e:
+        return "no está construido"
+    if "falla" in e:
+        return "falla, por arreglar"
+    return estado
+
+
+def _pendientes_de_la_revision() -> list[str]:
+    """Las filas de la revisión que no pasan: «#. promesa — estado»."""
+    try:
+        lineas = RUTA_REVISION.read_text().splitlines()
+    except OSError:
+        return []
+    pendientes = []
+    for linea in lineas:
+        celdas = [c.strip() for c in linea.strip().strip("|").split("|")]
+        if len(celdas) < 3 or not celdas[0].isdigit():
+            continue
+        estado = celdas[-1].replace("*", "").strip()
+        if estado.startswith("pasa"):
+            continue
+        pendientes.append(f"{celdas[0]}. {celdas[1]} — {_estado_en_palabras(estado)}")
+    return pendientes[:MAX_PENDIENTES_DE_REVISION]
+
+
 def estado_propio() -> str:
     medido = _correr_doctor()
     cuerpo = medido if medido is not None else "(no pude medir mi estado ahora: dilo así, sin suponer nada)"
@@ -310,4 +360,10 @@ def estado_propio() -> str:
     # Lo que le falta a Remi que no es técnico (T8): los datos que solo sabe
     # Juan Camilo, que pregunta de a uno.
     extra = f"\nPreguntas tuyas pendientes para Juan Camilo: {pendientes}." if pendientes is not None else ""
+    revision = _pendientes_de_la_revision()
+    if revision:
+        extra += (
+            "\nLo que todavía no está cerrado según la revisión contra tu Biblia (docs/REVISION.md):\n"
+            + "\n".join(f"- {fila}" for fila in revision)
+        )
     return ENCABEZADO_ESTADO_PROPIO + cuerpo + extra + "\n"
