@@ -31,7 +31,7 @@ falta probarlo contigo) · *pendiente*.
 | 18 | Ley 6: una idea enfría 48 h | `enfria_hasta` = +48 h ✓ | — | pasa |
 | 19 | Ordenar lo dictado en un prompt | Preguntaba en vez de armar el encargo. **Arreglado** en `b42c350`: seis secciones en 6 de 6 en el banco (antes 0 de 3 y 1 de 3) | dictar un encargo | arreglado, por ver en la app |
 | 20 | «Me escribió X» → lectura, riesgos, respuesta; nunca envía | Sale con LECTURA…; **16,6 s** | — | pasa (lento) |
-| 21 | Pregunta lo que le falta, de a una | Con pruebas; 8 preguntas reales en el núcleo | ver una | por ver en la app |
+| 21 | Pregunta lo que le falta, de a una | 3-oct, Juan Camilo: «no puede tener ninguna pregunta sin responder» en el chat. Ya no pregunta en la ventanita ni por Telegram; las preguntas esperan solo en el panel, en la página del proyecto | — | **difiere** (decisión suya; cambia la Biblia, Parte VII) |
 | 22 | Sabe en qué estado está | Inventaba fallas. **Arreglado** en `b638761`: contesta con `doctor.sh` medido; 3 de 3 en el banco | preguntarle «¿estás funcionando bien?» | arreglado, por ver en la app |
 | 23 | Ley 5: nudge de cuerpo al cerrar un bloque largo | Bloque largo = más de 90 min | cerrar uno largo | por ver en la app |
 | 24 | Ley 3: «Ahora no» encoge, nunca crece, no se cuenta | Con pruebas en `test_nudges.py` | responder «Ahora no» | por ver en la app |
@@ -52,6 +52,7 @@ Lo que salió de la prueba en la app del 3-oct (Juan Camilo):
 | 35 | «Esta es una nueva conversación» → Remi decía «Borro todo» sin hacerlo | `7621ff2`: la empieza de verdad | probar | arreglado, por ver en la app |
 | 36 | Una frase de la ventanita quedó escrita como el cliente de BeaM (pregunta de Telegram de las 4:00 «en el aire») | Reparado en la bóveda (`15be8c4`); `f76261d`: canal, vencimiento, respuestas cortas, confirmación que dice qué guardó | probar | arreglado, por ver en la app |
 | 37 | «¿qué falta en el panel y la ventanita?» → la regla de las 3 preguntas, o «¿de qué proyecto?» | Pregunta por Remi: contesta con doctor + esta tabla | probar | arreglado, por ver en la app |
+| 38 | «Tengo 3 preguntas pendientes» en el chat, aunque ya hablaban de otra cosa | Las preguntas salen del chat (ver la 21); «¿qué te falta?» lo contesta el modelo | probar | arreglado, por ver en la app |
 | 29 | «no pude reproducir el audio del núcleo» en el log | No es falla: el audio sonó entero; el aviso sale de más al pasar a la frase siguiente | pendiente menor (solo el log) |
 
 Otras cosas que salieron del guion:
