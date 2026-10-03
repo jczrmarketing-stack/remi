@@ -20,6 +20,65 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · F3 · los libros y F3.5 · construido · 972f5a2
+
+Escribe la terminal. Repo: `fc9d8af` (F3.3), `d1a9b0b` (F3.5), `972f5a2` (F3.2 en la noche).
+Bóveda: `4f6de6a` (F3.1), `453fcf6` (F3.2), y las dos lecciones anotadas.
+
+- **Qué cambió:**
+  1. **F3.1** — las rutas de los siete libros ya existían todas en disco. Faltaba
+     `~/Organic-Cash-Brain` en `organic-cash.md`: agregada. `omniway`, `shopify-cliente` y
+     `upvisuals` siguen sin `ruta:`: no hay carpeta obvia, queda como pregunta de Remi.
+  2. **F3.2** — en `episodios/` (34 notas) solo había un par repetido: los dos del 401 de malik.
+     El `-2` quedó `fusionado_en:` el original. **1 fusionado.** La noche borraba el repetido
+     (`unlink`); ahora lo marca `fusionado_en:` y lo deja en disco.
+  3. **F3.3** — `preguntas.py` no veía «(Completar con mensajes reales.)» de `mi-voz.md` ni
+     «Piso de precio por fase: (completar; …)» de `clientes.md`. Ahora sí. Y al responder se
+     escribe en el archivo del tema de la pregunta: `aprender.md` y `salud.md` tienen su
+     «(Completar …)» en la misma línea, y antes la respuesta de una iba a la otra.
+  4. **F3.4** — `experiencia.py --reindexar` contra la base real: 21 vectores.
+     `GET /experiencia?tema=remi&q=EADDRINUSE` trae primero «EADDRINUSE :4498 por dos
+     ayudantes recargar.sh a la vez».
+  5. **F3.5** — los commits «episodio …precio-de-la-fase-1… al cerrar una conversación» que
+     solo tocaban `upvisuals.md` **no venían del núcleo real ni de la deduplicación: venían de
+     la suite.** `test_cerrar_al_abrir_conversacion.py` aislaba `REMI_BOVEDA` (adonde va el
+     episodio) y no `REMI_CONOCIMIENTO` (libros, Estado y git de la bóveda). El episodio caía
+     en la carpeta temporal y el Estado real se reescribía con el redactor de la trastienda de
+     verdad (de ahí la paráfrasis nueva cada vez). «Hablamos del precio de la Fase 1 de
+     UpVisuals.» es el texto fijo de la prueba. Cada `pytest` dejaba un commit: 1 y 2 de
+     octubre, más de quince. Arreglo: `conftest` pone por defecto una copia de la bóveda por
+     corrida, sin `.git`; `boveda_git` revienta si una prueba intenta commitear la bóveda real
+     (encontró cinco pruebas más, en `test_chat_y_episodios` y `test_claves`). Y lo pedido:
+     (a) cerrar dos veces deja un episodio y un solo cambio de Estado; (b) `episodio_hecho`
+     queda en 1 aunque escribir el episodio falle; (c) el commit solo nombra un episodio que
+     quedó dentro de esa bóveda. Dos lecciones con `anotar_leccion` (tema remi, clase error):
+     esta y la del núcleo de prueba contra la bóveda real.
+- **Decisiones que tomé sin preguntar:**
+  1. F3.5: el diagnóstico de Claude en la app (deduplicación sin marcar `episodio_hecho`) no
+     era la causa; arreglé la causa real y además (a), (b) y (c) tal como se pidieron.
+  2. F3.2: la fusión de la noche ya no borra (la regla lo prohíbe; el plan no lo nombraba).
+  3. F3.1: `~/Organic-Cash-Brain` va a organic-cash por el nombre. No agregué más rutas.
+- **Dudas abiertas:**
+  1. El Estado de `upvisuals.md` hoy es una paráfrasis escrita por la prueba sobre «el precio
+     de la Fase 1», no por una conversación real. Se deja como está (decisión de Claude en la
+     app); Juan Camilo lo corrige en Obsidian.
+  2. `fusionado_en`/`archivada` tampoco borran el vector viejo de `notas_vector` (no se poda,
+     se salta al leer).
+- **Cómo probarlo a mano:** `GET /preguntas?tema=<cada uno>` contra el núcleo real, las ocho:
+
+  | tema | pregunta |
+  |---|---|
+  | aprender, finanzas, negocios-y-planes, salud | «¿lo que Remi tiene que saber de esto de …?» |
+  | beam | «¿para quién es, precio, próximo paso de BeaM…?» |
+  | shopify-cliente | «¿cliente, alcance, estado, fechas de Software para Shopify…?» |
+  | oficio-mi-voz | «¿mensajes reales de Mi voz…?» |
+  | oficio-clientes | «¿Piso de precio por fase de Clientes…?» |
+
+  `GET /preguntas` sin tema muestra tres (beam cliente, omniway ruta, shopify cliente). pytest
+  724, mypy 130 módulos; el HEAD de `remi-mente` es el mismo antes y después de `pytest`.
+
+---
+
 ## 2026-10-02 · F2 · el carácter v1 · construido · bfb9f62
 
 Escribe la terminal. Bóveda: `d0e1b11` (F2.1), `a23ffd4` (F2.1b), `6163f6e` (F2.2),
