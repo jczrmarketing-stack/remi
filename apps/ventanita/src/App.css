@@ -287,6 +287,13 @@
   pointer-events: none;
 }
 
+/* Lo pegado en la conversación por voz (3-oct): el campo aparece mientras
+   tiene texto, para leerlo y mandarlo con Enter. */
+.ventanita--baja.ventanita--pegado .campo {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* La flecha para volver al texto: el mismo lugar y tamaño que el triángulo
    del historial, que en esta pantalla se esconde. */
 .volver-texto {

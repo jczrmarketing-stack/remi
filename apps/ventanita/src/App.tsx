@@ -937,6 +937,24 @@ export default function App() {
   }, []);
   empezarAEscucharRef.current = empezarAEscuchar;
 
+  // Pegar en la conversación por voz (3-oct, Juan Camilo): ⌘V pone el texto en
+  // el campo, que aparece solo mientras tiene algo, y Enter lo manda como un
+  // turno de la conversación. Sin esto, el campo está escondido en esa pantalla.
+  useEffect(() => {
+    if (modo !== "dialogo") return;
+    function alPegar(evento: ClipboardEvent) {
+      if ((evento.target as HTMLElement | null)?.closest?.("textarea, input")) return;
+      const pegado = evento.clipboardData?.getData("text") ?? "";
+      if (!pegado.trim()) return;
+      evento.preventDefault();
+      registrar("pegado:conversacion", { caracteres: pegado.length });
+      setTexto((actual) => (actual ? `${actual}\n${pegado}` : pegado));
+      window.setTimeout(() => campoRef.current?.enfocar(), 0);
+    }
+    window.addEventListener("paste", alPegar);
+    return () => window.removeEventListener("paste", alPegar);
+  }, [modo]);
+
   // El silencio es solo de la conversación por voz: al salir de ella, el
   // micrófono vuelve a estar activo (si no, el dictado quedaría bloqueado sin
   // que se vea por qué).
@@ -1631,7 +1649,7 @@ export default function App() {
   return (
     <div
       ref={ventanaRef}
-      className={`ventanita ventanita--chat ventanita--${estado}${bajada ? " ventanita--baja" : ""}`}
+      className={`ventanita ventanita--chat ventanita--${estado}${bajada ? " ventanita--baja" : ""}${modo === "dialogo" && texto.trim() !== "" ? " ventanita--pegado" : ""}`}
       onMouseDown={alPresionar}
     >
       <Semaforo
@@ -1718,6 +1736,21 @@ export default function App() {
         valor={texto}
         onCambio={setTexto}
         onEnviar={() => {
+          // En la conversación por voz (3-oct): lo pegado va como un turno más
+          // y Remi contesta por voz. Si el micrófono escuchaba, esa escucha se
+          // descarta: el turno es el texto.
+          if (accionesRef.current.modo === "dialogo" && texto.trim() !== "") {
+            if (accionesRef.current.grabando) {
+              grabacionIdRef.current += 1;
+              grabacionDesdeRef.current = null;
+              window.clearTimeout(rearmeRef.current);
+              void cancelarEscucha("x").catch(() => undefined);
+              setGrabando(false);
+            }
+            registrar("pegado:enviar", { caracteres: texto.length });
+            void enviar(texto, "voz");
+            return;
+          }
           // Enter mientras dictás: para, transcribe lo último y manda todo.
           if (accionesRef.current.grabando && accionesRef.current.modo === "voz") {
             enviarAlTranscribirRef.current = true;
