@@ -136,6 +136,7 @@ const NOMBRE_VENICE: Record<ModeloVenice, string> = {
 export type EleccionCerebro =
   | { motor: "claude"; modelo: ModeloClaude; nivel: Nivel }
   | { motor: "ollama"; modelo: string }
+  | { motor: "groq" }
   | { motor: "venice"; modelo: ModeloVenice };
 
 export const CEREBRO_POR_DEFECTO: EleccionCerebro = { motor: "claude", modelo: "sonnet", nivel: "bajo" };
@@ -148,6 +149,7 @@ export const NOMBRE_NIVEL: Record<Nivel, string> = { bajo: "bajo", medio: "medio
 export function valorDe(e: EleccionCerebro): string {
   if (e.motor === "claude") return `claude:${e.modelo}:${e.nivel}`;
   if (e.motor === "ollama") return `ollama:${e.modelo}`;
+  if (e.motor === "groq") return "groq";
   return `venice:${e.modelo}`;
 }
 
@@ -157,6 +159,7 @@ function esModeloVenice(valor: string): valor is ModeloVenice {
 
 export function deValor(valor: string | null): EleccionCerebro | null {
   if (!valor) return null;
+  if (valor === "groq") return { motor: "groq" };
   // «venice» a secas es una preferencia vieja: cae al económico.
   if (valor === "venice" || valor.startsWith("venice:")) {
     const id = valor === "venice" ? MODELOS_VENICE[0] : valor.slice("venice:".length);
@@ -180,6 +183,7 @@ export function deValor(valor: string | null): EleccionCerebro | null {
 export function etiquetaDe(e: EleccionCerebro): string {
   if (e.motor === "claude") return `${NOMBRE_MODELO[e.modelo]} · ${NOMBRE_NIVEL[e.nivel]}`;
   if (e.motor === "ollama") return e.modelo;
+  if (e.motor === "groq") return "Groq · rápido";
   return NOMBRE_VENICE[e.modelo];
 }
 
@@ -196,6 +200,9 @@ export function paraEnviar(e: EleccionCerebro): {
   }
   if (e.motor === "ollama") {
     return { motor: "ollama", modo: MODO_POR_DEFECTO, nivel: null, modeloOllama: e.modelo, modeloVenice: null };
+  }
+  if (e.motor === "groq") {
+    return { motor: "groq", modo: MODO_POR_DEFECTO, nivel: null, modeloOllama: null, modeloVenice: null };
   }
   return { motor: "venice", modo: MODO_POR_DEFECTO, nivel: null, modeloOllama: null, modeloVenice: e.modelo };
 }

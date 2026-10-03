@@ -30,6 +30,7 @@ export function ChipCerebro({ eleccion, motores, modelosOllama, onElegir }: Prop
   const motor = (id: string) => motores.find((m) => m.id === id);
   const claudeOk = motor("claude")?.disponible ?? true;
   const veniceOk = motor("venice")?.disponible ?? false;
+  const groqOk = motor("groq")?.disponible ?? false;
   const valor = valorDe(eleccion);
   // Si el guardado es un modelo de Ollama que ya no está, igual se muestra.
   const ollama = eleccion.motor === "ollama" && !modelosOllama.includes(eleccion.modelo)
@@ -68,6 +69,11 @@ export function ChipCerebro({ eleccion, motores, modelosOllama, onElegir }: Prop
               {modelo}
             </option>
           ))}
+        </optgroup>
+        <optgroup label={groqOk ? "Groq · gratis, el más rápido" : "Groq (sin clave)"}>
+          <option value={valorDe({ motor: "groq" })} disabled={!groqOk}>
+            {etiquetaDe({ motor: "groq" })}
+          </option>
         </optgroup>
         <optgroup label={veniceOk ? "Venice · pago" : "Venice · pago (no disponible)"}>
           {MODELOS_VENICE.map((modelo) => {

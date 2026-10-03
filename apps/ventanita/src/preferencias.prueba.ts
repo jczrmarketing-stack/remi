@@ -37,6 +37,7 @@ describe("el chip de cerebro", () => {
     for (const e of [
       { motor: "claude", modelo: "opus", nivel: "extra" },
       { motor: "ollama", modelo: "gemma3:4b" },
+      { motor: "groq" },
       { motor: "venice", modelo: "z-ai-glm-5-3-flash" },
       { motor: "venice", modelo: "grok-4-7" },
     ] as const) {
