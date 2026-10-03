@@ -356,7 +356,11 @@ def sistema_encargo() -> str:
     con la forma fija de `encargo.md`, sino con los oficios `prompting` y
     `claude-code` de verdad cargados (nivel 2, el cuerpo entero) más el
     libro del proyecto activo, si hay uno. Sin ellos, cae al `encargo.md`
-    solo — nunca se rompe por faltar un oficio."""
+    solo — nunca se rompe por faltar un oficio.
+
+    F2.5 (2/10/2026): el registro de trabajo es la misma persona que el de
+    charla — el carácter va primero, y recién después la forma del encargo
+    y los oficios. Antes el encargo salía sin carácter (3b)."""
     try:
         base = RUTA_ENCARGO.read_text().strip()
     except OSError:
@@ -365,7 +369,7 @@ def sistema_encargo() -> str:
             "Devolvé lo que te dicen como UN encargo de UNA tarea para Claude Code, "
             "en español y sin markdown, con las secciones QUÉ, DÓNDE, LISTO CUANDO y NO TOCAR."
         )
-    piezas = [base]
+    piezas = [caracter(), base]
 
     prompting = _cuerpo_oficio("prompting")
     if prompting:

@@ -282,7 +282,8 @@ def test_el_encargo_usa_su_system_prompt_con_la_mente(monkeypatch):
     pensar = _pensar()
     prompt = pensar.instrucciones_con_indice([], pensar.sistema_encargo())
     assert "LISTO CUANDO" in prompt and "QUÉ NO HACER" in prompt
-    assert pensar.caracter()[:40] not in prompt
+    # F2.5: el registro de trabajo lleva el carácter (antes, en 3b, no).
+    assert pensar.caracter()[:40] in prompt
 
 
 
