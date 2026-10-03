@@ -1071,7 +1071,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandido]);
 
-  // Cada media hora, en reposo: «pensás con X», y se va a los 4 s.
+  // Cada media hora, en reposo: «piensas con X», y se va a los 4 s.
   useEffect(() => {
     const id = window.setInterval(() => {
       const ahora = Date.now();
@@ -1079,7 +1079,7 @@ export default function App() {
       ultimoRecordatorioRef.current = ahora;
       const etiqueta = etiquetaDe(accionesRef.current.cerebro);
       registrar("recordatorio:motor", { cerebro: etiqueta });
-      setRecordatorio(`pensás con ${etiqueta}`);
+      setRecordatorio(`piensas con ${etiqueta}`);
       window.setTimeout(() => setRecordatorio(null), MS_RECORDATORIO_VISIBLE);
     }, 60 * 1000);
     return () => window.clearInterval(id);
