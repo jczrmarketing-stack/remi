@@ -635,21 +635,50 @@ fn transcribir(ruta_wav: &Path, bytes_confirmados: usize, texto_confirmado: &str
         }
     }
 
-    // Lo que queda por transcribir: desde lo confirmado. Si no hay nada
-    // confirmado, el archivo entero, como siempre.
-    let (ruta_a_transcribir, trozo_temporal) = if bytes_confirmados > 0 {
+    // Sin voz sostenida en lo que falta, no se le pasa a Whisper (alucina
+    // «Gracias.» con ruido): queda lo confirmado, o «no se entendió».
+    {
         let mut bytes = fs::read(ruta_wav).map_err(|e| format!("no pude leer lo grabado: {e}"))?;
-        let inicio_datos = cabecera_completa(&mut bytes).ok_or("el wav no tiene datos")?;
-        let desde = (inicio_datos + bytes_confirmados).min(bytes.len());
-        let trozo = escribir_trozo(&bytes[..inicio_datos], &bytes[desde..])?;
-        log::info!(
-            "[voz] confirmados {} s antes de parar: transcribo solo los últimos {} s",
-            bytes_confirmados as u64 / BYTES_POR_SEGUNDO,
-            (bytes.len() - desde) as u64 / BYTES_POR_SEGUNDO
-        );
-        (trozo.clone(), Some(trozo))
-    } else {
-        (ruta_wav.to_path_buf(), None)
+        if let Some(inicio_datos) = cabecera_completa(&mut bytes) {
+            let datos = &bytes[inicio_datos..];
+            let desde = bytes_confirmados.min(datos.len());
+            if !hay_voz_sostenida(&niveles_por_ventana(&datos[desde..]), umbral_de(datos)) {
+                log::info!("[voz] lo que falta transcribir no tiene voz sostenida: no va a Whisper");
+                let texto = texto_confirmado.trim().to_string();
+                if texto.chars().count() >= LARGO_MINIMO_TRANSCRIPCION {
+                    return Ok(texto);
+                }
+                return Err("no se entendió nada de lo grabado".to_string());
+            }
+        }
+    }
+
+    // Lo que queda por transcribir: desde lo confirmado (o el archivo entero
+    // si no había nada confirmado), y de eso solo el tramo con voz: el
+    // silencio de los bordes no va a Whisper (3-oct, palabras inventadas al
+    // final). Si el wav no tiene cabecera legible, el archivo entero.
+    let mut bytes = fs::read(ruta_wav).map_err(|e| format!("no pude leer lo grabado: {e}"))?;
+    let (ruta_a_transcribir, trozo_temporal) = match cabecera_completa(&mut bytes) {
+        Some(inicio_datos) => {
+            let datos = &bytes[inicio_datos..];
+            let desde = bytes_confirmados.min(datos.len());
+            let voz = solo_la_voz(&datos[desde..], umbral_de(datos));
+            let trozo = escribir_trozo(&bytes[..inicio_datos], voz)?;
+            if bytes_confirmados > 0 {
+                log::info!(
+                    "[voz] confirmados {} s antes de parar: transcribo solo los últimos {} s",
+                    bytes_confirmados as u64 / BYTES_POR_SEGUNDO,
+                    (datos.len() - desde) as u64 / BYTES_POR_SEGUNDO
+                );
+            }
+            log::info!(
+                "[voz] a Whisper van {} ms de voz (de {} ms grabados)",
+                voz.len() as u64 * 1000 / BYTES_POR_SEGUNDO,
+                (datos.len() - desde) as u64 * 1000 / BYTES_POR_SEGUNDO
+            );
+            (trozo.clone(), Some(trozo))
+        }
+        None => (ruta_wav.to_path_buf(), None),
     };
 
     let arranque = Instant::now();
@@ -810,6 +839,75 @@ fn niveles_por_ventana(datos: &[u8]) -> Vec<f32> {
         .collect()
 }
 
+// 3-oct: «gracias, gracias, gracias». Whisper alucina frases cortas
+// («Gracias.», «¡Vamos!», «¿Qué?») con ruido o silencio, y desde V1 cada
+// trozo de dictado se transcribe aparte: cada trozo de puro ruido (teclas,
+// respiración) daba otra alucinación, y en la conversación entraba como un
+// turno. Un trozo va a Whisper solo si tiene voz sostenida: al menos
+// MIN_VENTANAS_DE_VOZ ventanas sobre el umbral, contadas solo en tramos de
+// dos o más seguidas (una sílaba dura 0,2–0,3 s; un click de tecla, una).
+const MIN_VENTANAS_DE_VOZ: usize = 3;
+
+/// Cuántas ventanas de voz hay en tramos de al menos dos seguidas.
+fn ventanas_de_voz(niveles: &[f32], umbral: f32) -> usize {
+    let mut total = 0;
+    let mut tramo = 0;
+    for &nivel in niveles.iter().chain(std::iter::once(&0.0)) {
+        if nivel >= umbral {
+            tramo += 1;
+        } else {
+            if tramo >= 2 {
+                total += tramo;
+            }
+            tramo = 0;
+        }
+    }
+    total
+}
+
+fn hay_voz_sostenida(niveles: &[f32], umbral: f32) -> bool {
+    ventanas_de_voz(niveles, umbral) >= MIN_VENTANAS_DE_VOZ
+}
+
+/// El tramo con voz de `datos`: desde MARGEN_DE_VOZ antes de la primera
+/// ventana de voz sostenida hasta MARGEN_DE_VOZ después de la última. El
+/// silencio de los bordes no va a Whisper: sobre la cola callada (los 1,4 s
+/// que espera la conversación para cortar) inventaba palabras al final
+/// («Gracias.»), que Juan Camilo no había dicho (3-oct).
+const MARGEN_DE_VOZ: Duration = Duration::from_millis(300);
+
+fn solo_la_voz(datos: &[u8], umbral: f32) -> &[u8] {
+    let niveles = niveles_por_ventana(datos);
+    let mut con_voz = vec![false; niveles.len()];
+    let mut i = 0;
+    while i < niveles.len() {
+        if niveles[i] >= umbral {
+            let inicio = i;
+            while i < niveles.len() && niveles[i] >= umbral {
+                i += 1;
+            }
+            if i - inicio >= 2 {
+                con_voz[inicio..i].iter_mut().for_each(|v| *v = true);
+            }
+        } else {
+            i += 1;
+        }
+    }
+    let (Some(primera), Some(ultima)) = (con_voz.iter().position(|&v| v), con_voz.iter().rposition(|&v| v)) else {
+        return datos;
+    };
+    let margen = ventanas_de(MARGEN_DE_VOZ);
+    let ventana = bytes_de(VENTANA_CORTE);
+    let desde = primera.saturating_sub(margen) * ventana;
+    let hasta = ((ultima + 1 + margen) * ventana).min(datos.len());
+    &datos[desde..hasta]
+}
+
+/// El umbral de toda la grabación (su piso), para medir un pedazo de ella.
+fn umbral_de(datos: &[u8]) -> f32 {
+    umbral_para(piso_de(&niveles_por_ventana(datos)).unwrap_or(0.0))
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct Corte {
     // Cuántas ventanas del pendiente quedan confirmadas (el corte es al final
@@ -830,7 +928,7 @@ fn decidir_corte(niveles: &[f32]) -> Option<Corte> {
     }
     let piso = piso_de(niveles)?;
     let umbral = umbral_para(piso);
-    let con_voz_hasta = |n: usize| niveles[..n].iter().any(|&p| p >= umbral);
+    let con_voz_hasta = |n: usize| hay_voz_sostenida(&niveles[..n], umbral);
 
     // Las rachas bajo el umbral: (inicio, largo), en orden.
     let mut rachas: Vec<(usize, usize)> = Vec::new();
@@ -905,7 +1003,7 @@ fn avanzar_parcial(
         let fin = confirmados + corte.ventanas * bytes_de(VENTANA_CORTE);
         if corte.con_voz {
             let arranque = Instant::now();
-            let trozo = escribir_trozo(cabecera, &datos[confirmados..fin])?;
+            let trozo = escribir_trozo(cabecera, solo_la_voz(&datos[confirmados..fin], umbral_de(datos)))?;
             let texto = transcribir_con_servidor(url, &trozo);
             let _ = fs::remove_file(&trozo);
             let texto = texto?;
@@ -925,10 +1023,12 @@ fn avanzar_parcial(
     }
 
     let pendiente = &datos[confirmados..];
-    let nuevo = if pendiente.len() < PARCIAL_MINIMO_BYTES {
+    let nuevo = if pendiente.len() < PARCIAL_MINIMO_BYTES
+        || !hay_voz_sostenida(&niveles_por_ventana(pendiente), umbral_de(datos))
+    {
         String::new()
     } else {
-        let trozo = escribir_trozo(cabecera, pendiente)?;
+        let trozo = escribir_trozo(cabecera, solo_la_voz(pendiente, umbral_de(datos)))?;
         let texto = transcribir_con_servidor(url, &trozo);
         let _ = fs::remove_file(&trozo);
         let texto = texto?;
@@ -1372,6 +1472,63 @@ mod pruebas {
         let hablando = escribir_wav("gracias-hablando", &muestras);
         assert!(!silencio_al_final(&hablando));
         let _ = fs::remove_file(hablando);
+    }
+
+    // — 3-oct: «gracias, gracias, gracias» —
+    // Whisper alucina frases cortas («Gracias.», «¡Vamos!») con ruido o
+    // silencio. Un trozo va a Whisper solo si tiene voz sostenida.
+
+    #[test]
+    fn clicks_de_teclado_sueltos_no_son_voz() {
+        // Una ventana alta cada tanto (teclas): nunca dos seguidas.
+        let mut n = niveles(&[(40, 0.03)]);
+        for i in (2..40).step_by(4) {
+            n[i] = 0.6;
+        }
+        assert_eq!(ventanas_de_voz(&n, 0.1), 0);
+        assert!(!hay_voz_sostenida(&n, 0.1));
+    }
+
+    #[test]
+    fn una_palabra_corta_si_es_voz() {
+        // «Gracias» dicha de verdad: ~0,4 s seguidos.
+        let n = niveles(&[(10, 0.03), (4, 0.4), (10, 0.03)]);
+        assert_eq!(ventanas_de_voz(&n, 0.1), 4);
+        assert!(hay_voz_sostenida(&n, 0.1));
+    }
+
+    #[test]
+    fn un_respiro_de_dos_ventanas_no_alcanza() {
+        let n = niveles(&[(10, 0.03), (2, 0.2), (10, 0.03)]);
+        assert!(!hay_voz_sostenida(&n, 0.1));
+    }
+
+    #[test]
+    fn un_trozo_sin_voz_sostenida_no_se_confirma_como_voz() {
+        // Doce segundos de teclas: se avanza sin transcribir.
+        let mut n = niveles(&[(120, 0.03)]);
+        for i in (1..120).step_by(5) {
+            n[i] = 0.5;
+        }
+        assert_eq!(decidir_corte(&n), Some(Corte { ventanas: 120, con_voz: false }));
+    }
+
+    #[test]
+    fn a_whisper_va_la_voz_sin_los_bordes_callados() {
+        // 1 s callado, 1 s de voz, 1,5 s callado (la espera de la conversación).
+        let ventana = bytes_de(VENTANA_CORTE);
+        let mut datos = Vec::new();
+        for (n, nivel) in [(10usize, 300i16), (10, 12000), (15, 300)] {
+            for _ in 0..n * ventana / 2 {
+                datos.extend_from_slice(&nivel.to_le_bytes());
+            }
+        }
+        let voz = solo_la_voz(&datos, umbral_de(&datos));
+        // La voz más 0,3 s de cada lado: 1,6 s, no 3,5.
+        assert_eq!(voz.len(), 16 * ventana);
+        // Sin voz sostenida, se deja todo (lo decide hay_voz_sostenida).
+        let callado = vec![0u8; 20 * ventana];
+        assert_eq!(solo_la_voz(&callado, 0.1).len(), callado.len());
     }
 
     #[test]
