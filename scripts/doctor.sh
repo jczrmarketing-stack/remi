@@ -197,7 +197,7 @@ else
 fi
 
 # — 10. disco con más de 10 GB libres —
-libre_gb="$(df -g "$RAIZ" 2>/dev/null | awk 'NR==2{print $3}')"
+libre_gb="$(df -g "$RAIZ" 2>/dev/null | awk 'NR==2{print $4}')"
 if [[ -n "${libre_gb:-}" && "$libre_gb" =~ ^[0-9]+$ && "$libre_gb" -ge 10 ]]; then
   ok "disco (${libre_gb} GB libres)"
 else
