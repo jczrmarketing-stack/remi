@@ -20,6 +20,73 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-02 · F1 · velocidad (V3, V1, V2) e instalación · construido · 2e2a86b
+
+Escribe la terminal. Orden real: V4 (`2248162`, ya estaba), V3 (`0155c6a`), V1 (`2e2a86b`),
+V2 (medida, sin cambio de código). Detalle largo en cada mensaje de commit.
+
+- **Qué cambió:**
+  1. **V3 · streaming** — núcleo: `pensar_en_frases()` (mismo camino que `pensar()`, rinde
+     cada oración al terminarla; Claude por `--output-format stream-json
+     --include-partial-messages`, los OpenAI-compatibles con `stream: true`) y
+     `POST /mensaje/stream` (NDJSON: `{"frase","voz"}` por oración, `{"fin": …}` al final).
+     Ventanita: `envivo.ts` + `enviarMensajeEnVivo()`; `empezarLocucion()` en `voz.ts`
+     (frases que se van agregando; `hablar()` quedó encima); el chat crece frase a frase y
+     la voz arranca con la primera; si el chorro se corta sin `fin`, cae a `/mensaje` sin
+     decir nada (probado: `test_mensaje_stream_si_revienta_se_cierra_sin_fin` y
+     `enviarMensajeEnVivo` devuelve null). Línea de log por turno de voz:
+     `[gesto] latencia fin_habla→transcrito=… →primera_frase=… →primer_sonido=…`.
+  2. **V1 · dictado por trozos** — `voz.rs`: `bytes_confirmados` / `texto_confirmado` en
+     `Grabacion`; cada parcial confirma hasta la mitad de la última pausa (≥ 400 ms bajo el
+     umbral adaptativo) y la parada transcribe solo el resto. Sin solape: un solape de 300 ms
+     repetía la cola de la palabra («acces os»).
+  3. **V2 · micrófono** — solo medición, **sin cambio**: la opción (a) no mejora nada (abajo).
+  4. `scripts/actualizar.sh` desde `main`: instalada la de `1e4efd4`, agentes de vuelta,
+     `/salud` `{"ok":true,"db":true}`.
+- **Decisiones que tomé sin preguntar:**
+  1. V4: no quité el estante ni las herramientas para los turnos de voz. Medido: con la caché
+     leída, sin herramientas ni MCP la API tarda lo mismo (2295 vs 2123 ms); quitarlos solo
+     ahorra tokens y le quita a Remi la posibilidad de bajar un libro.
+  2. V3: en vivo, un motor que ya soltó una frase y después falla no cae a otro modo (lo
+     dicho ya se oyó); devuelve None y la respuesta sale sin IA.
+  3. V1: el corte va en la **mitad** de la pausa y sin solape (el encargo decía «al final,
+     con 300 ms de solape»): probado contra el clip, el solape repetía sílabas.
+  4. V2: no cambié los flags de ffmpeg porque el número no mejora.
+- **Dudas abiertas:**
+  1. Los «listo cuando» de V3 (`fin_habla→primer_sonido` ≤ 2000 ms con Groq, ≤ 4500 con
+     Haiku) **se leen del log en turnos reales**: eso solo lo puede generar Juan Camilo
+     hablándole a la app instalada. Mi estimación con Haiku da ~4800 ms (Whisper ~1000 +
+     primera frase ~2800 + TTS de esa frase ~1000), al borde. Groq dio 429 en 4 de 5
+     llamadas (límite del plan gratis): el número real de Groq está por ver.
+  2. Lo mismo para «probar los tres a mano en la app instalada» (F1.4): la app quedó
+     instalada y el permiso de micrófono reseteado (lo hace `actualizar.sh`); al abrirla pide
+     el micrófono de nuevo.
+- **Cómo probarlo a mano / números medidos:**
+
+  | tramo | antes | después | dónde se midió |
+  |---|---|---|---|
+  | Haiku, caché leída | 0 de 12 llamadas (10 de 12 en el log; 4 de 5 por `pensar()` sobre copia de la base) | 9 de 10 (la primera es fría) | `medir.py`, 5 frases × 2 |
+  | Haiku, `ms` total por llamada | mediana ≈ 4400 (log 21:00–21:25) | mediana 3367 (de eso ~1,5 s es el arranque de la CLI, `api=` en el log) | ídem |
+  | Haiku, primera frase lista | = fin entero (3971 mediana; 10 350 con 315 tokens) | mediana 2821 ms (1974–3637) | `/mensaje/stream` en un núcleo de prueba (:4499, copia de la base) |
+  | Groq, primera frase | — | 1201 ms (n=1; 4 llamadas dieron 429) | ídem |
+  | dictado 57,3 s, Whisper al parar | 4179–4346 ms (todo el wav) | 991 ms (último trozo de 3,4 s; 53,9 s ya confirmados) | `cargo test medir_dictado_largo -- --ignored` con `REMI_CLIP_WAV` |
+  | dictado, parciales cada 1,5 s | todo el wav cada vez | mediana 1006 ms, máx 2074 ms | ídem |
+  | micrófono, «el wav apareció» (log de la app, 72 arranques) | 64 en «250 ms» (= < 250, es el paso del vigilante); **8 entre 1000 y 2000 ms, todos la primera grabación de cada proceso de la app** (`remi-voz-<pid>-0.wav`) | sin cambio | `ventanita.log` |
+  | micrófono, 20 arranques desde la terminal, muestreo de 10 ms | flags de hoy: min 176 · mediana 202 · máx 386 · 20/20 ≤ 400 | opción (a) `-fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 0`: min 208 · mediana 226 · máx 295 · 20/20 ≤ 400 | `medir_mic.sh` |
+
+  V2, lectura: en caliente ya se cumple 19/20 ≤ 400 (20/20). El hueco de 1–2 s es solo la
+  **primera** apertura del micrófono después de arrancar la app (AVFoundation/TCC frío); los
+  flags no lo tocan y la opción (b) no está autorizada. Queda así.
+
+  Transcripción del clip, a ojo: igual palabra por palabra salvo «apagada» (por «pagada») y
+  «acces os»; transcribiendo ese mismo trozo de 7 s suelto, Whisper escribe lo mismo — es su
+  varianza con menos contexto, no el corte. El entero tiene las suyas («Al fonso», «almor
+  zar») en los dos casos.
+
+  Pruebas: pytest 707 (+15 de V3), mypy 127 módulos, vitest 108 (+6), cargo 19 (+8).
+
+---
+
 ## 2026-10-02 · F0 · arranque del plan de cierre · construido · f8b56de
 
 Escribe la terminal (Claude Code, `~/proyectos/remi`, `main`, única mano en el código).
