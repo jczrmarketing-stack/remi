@@ -435,3 +435,33 @@ describe("la bolita del chat", () => {
     expect(decidirBolita({ ...base, ahora: 1030, toqueAnterior: 1000 }).tipo).toBe("nada");
   });
 });
+
+describe("el chat lleno debajo del mouse (3-oct, 01:58:08)", () => {
+  // Desde que al volver se ve la conversación entera, el 2.º y el 3.º click
+  // caen sobre el chat, no sobre un cuadro vacío.
+  function clickEnChat(ahora: number, racha: Racha, estado: Partial<Entrada>) {
+    return decidir({
+      estado: "escuchando", modo: "texto", grabando: false, textoVacio: true, grabacionDesde: null,
+      ...estado,
+      dentroDeControl: true, dentroDelChat: true, dentroDelCuadro: false, msDesdeCambioDeTamano: 900, ahora, racha,
+    });
+  }
+
+  it("el 2.º click sobre el chat, pegado al 1.º, graba (antes: «dentro de un control»)", () => {
+    const primero = decidir({
+      estado: "reposo", modo: "texto", grabando: false, textoVacio: true, grabacionDesde: null,
+      dentroDeControl: false, dentroDelCuadro: false, msDesdeCambioDeTamano: 1029, ahora: 0, racha: RACHA_VACIA,
+    });
+    expect(primero.accion.tipo).toBe("abrirTexto");
+    expect(clickEnChat(259, primero.racha, {}).accion.tipo).toBe("grabarVoz");
+  });
+
+  it("el 3.º sobre el chat pasa a diálogo", () => {
+    const racha: Racha = { n: 2, primero: 0, ultimo: 259 };
+    expect(clickEnChat(500, racha, { modo: "voz", grabando: true, grabacionDesde: 259 }).accion.tipo).toBe("pasarADialogo");
+  });
+
+  it("un click suelto sobre el chat sigue sin ser un gesto (para seleccionar texto)", () => {
+    expect(clickEnChat(5000, RACHA_VACIA, {}).accion.tipo).toBe("nada");
+  });
+});

@@ -160,7 +160,10 @@ function clasificarObjetivo(objetivo: EventTarget | null) {
   const dentroDeControl = Boolean(elemento?.closest(SELECTOR_CONTROLES));
   const dentroDelCuadro = !dentroDeControl && Boolean(elemento?.closest(SELECTOR_CUADRO));
   const enBolita = Boolean(elemento?.closest(".bolita"));
-  return { dentroDeControl, dentroDelCuadro, enBolita };
+  // Sobre los mensajes del chat, pero no sobre un botón, un selector o un
+  // enlace de adentro (copiar, reintentar…).
+  const dentroDelChat = Boolean(elemento?.closest(".chat")) && !elemento?.closest("button, select, a");
+  return { dentroDeControl, dentroDelCuadro, enBolita, dentroDelChat };
 }
 
 // Ley 3: sin cadena de culpa. Si el núcleo no responde, Remi lo dice con calma.
@@ -1294,7 +1297,7 @@ export default function App() {
       const { estado: estadoActual, grabando: grabandoActual, modo: modoActual, texto: textoActual } =
         accionesRef.current;
       const rachaAnterior = rachaRef.current;
-      const { dentroDeControl, dentroDelCuadro, enBolita } = clasificarObjetivo(evento.target);
+      const { dentroDeControl, dentroDelCuadro, enBolita, dentroDelChat } = clasificarObjetivo(evento.target);
 
       // Con el chat abierto y sin racha de la píldora en curso, solo la
       // bolita es un gesto: el resto de los clicks son para leer, elegir
@@ -1313,6 +1316,7 @@ export default function App() {
         grabando: grabandoActual,
         textoVacio: textoActual.trim() === "",
         dentroDeControl: dentroDeControl && !enBolita,
+        dentroDelChat,
         dentroDelCuadro,
         grabacionDesde: grabacionDesdeRef.current,
         msDesdeCambioDeTamano,

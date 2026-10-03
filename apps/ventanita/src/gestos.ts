@@ -69,6 +69,12 @@ export interface Entrada {
    */
   dentroDeControl: boolean;
   /**
+   * El click cayó sobre el chat (los mensajes), que cuenta como control. Si
+   * sigue una racha viva, sí es un gesto: desde el 3-oct al volver se ve la
+   * conversación entera, y el 2.º y el 3.º click caen encima de ella.
+   */
+  dentroDelChat?: boolean;
+  /**
    * El click cayó dentro del cuadro de texto. Con el cuadro vacío y la racha
    * viva, ES un gesto: el 1.er click hace crecer la ventana y el cuadro
    * aparece justo debajo del mouse, así que el 2.º y el 3.º caen adentro sí
@@ -137,7 +143,7 @@ export function decidir(entrada: Entrada): Decision {
 
   // Un click sobre un control no es un gesto y tampoco corta la racha: el
   // usuario puede estar tocando el toggle entre clicks.
-  if (dentroDeControl) {
+  if (dentroDeControl && !(entrada.dentroDelChat && rachaSigueViva(entrada.racha, ahora))) {
     return { accion: { tipo: "nada", razon: "dentro de un control" }, racha: entrada.racha };
   }
 
