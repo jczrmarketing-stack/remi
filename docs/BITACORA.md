@@ -3851,3 +3851,41 @@ verdad no contestó.
   2. `grep -rn "bandeja\|Bandeja" nucleo apps/ventanita/src` no devuelve nada: no hay 2f.
   3. `git status --short` muestra `?? nucleo/clasificar.py`, sin trackear.
   4. `cd nucleo && uv run pytest -q && uv run mypy .` pasa en verde.
+
+## 2026-10-03 · revisión R2 a R6 · construido · 9bfefc9
+
+- **Qué pedí:** seguir `docs/PLAN-REVISION.md` de R2 a R6 sin parar entre partes, todo en el
+  banco (nunca contra la base, la bóveda, Telegram o Notion reales), cerrando antes dos cosas
+  de R1: el voseo con Haiku y el Estado de un libro escrito por la máquina.
+- **Qué se hizo:**
+  1. **R1, dos cierres:** 0 formas de voseo en 10 charlas del banco. `proyectos/upvisuals.md`
+     tenía el Estado corrompido por una fuga de un núcleo de prueba (1 al 2-oct, 17 escrituras
+     reales) — nunca hubo esa charla con Alfonso sobre el precio; corregido sin borrar nada
+     (`c97bf0c`).
+  2. **R2 — cerebro y memoria (13 ítems): 11 pasan, 1 no existe (hilos por tema), 1 falló y se
+     arregló.** Había un `DELETE /memoria/{id}` real, sin UI ni prueba que lo llamara —
+     contra la ley de «nunca borrar» (`2cdf868`). De paso, voseo colado en
+     `prompts/cliente.md» («Sos Remi») — `48f5ba7`.
+  3. **R3 — núcleo e indestructible (10 ítems): 6 pasan, 1 falló y se arregló, 3 no existen.**
+     Probado de verdad: `doctor.sh` falla bien si se rompe un chequeo; `kill` al núcleo real
+     y volvió solo en 3 s; `restaurar.sh` restauró de verdad a una carpeta aparte
+     (`integrity_check=ok`). El vigía avisaba con voseo real por notificación de macOS
+     (`e6d60eb`). Sin tope de gasto, sin Accesibilidad macOS, sin Google Calendar: no existen.
+  4. **R4 — panel web (12 ítems): 10 pasan, 1 falló y se arregló, 1 pendiente de ti.** 63
+     pruebas de Playwright contra un núcleo falso, todas en verde. El modelo `Conexion`
+     nunca devuelve el valor guardado; el endpoint de llaves da 403 simulando el túnel. A la
+     PWA le faltaba el ícono que iOS pide para «Añadir a inicio» (`66d5ac9`). Access para
+     exponerla afuera queda de tu lado.
+  5. **R5 — Telegram y Notion (3 ítems + silencio nocturno): los 4 pasan**, con 46 pruebas que
+     ya usaban dobles de transporte y de API — nada tocó el bot ni el espacio reales.
+- **Decisiones que tomé sin preguntar:** ninguna de fondo — toda falla chica se probó primero
+  y se arregló con su commit; lo que no existe fue a la lista «por construir»; lo que difiere
+  de la Biblia (R1.1, R1.6, R1.25) se deja para que Juan Camilo decida.
+- **Dudas abiertas:** R1.25, el presupuesto de silencio, es un error de la Biblia contra sí
+  misma (90 min en «Actuar», 45 en la Parte VII) — no es un cambio suyo, hay que resolverlo.
+  R4.59 (Access) y R4.58 (instalar la PWA) quedan a mano, de él.
+- **Cómo probarlo a mano:**
+  1. `docs/REVISION.md`, secciones R2 a R6: cada fila con su evidencia o su hash.
+  2. `cd nucleo && uv run pytest -q && uv run mypy .` → 810 pasan, limpio.
+  3. `cd apps/panel && npx playwright test` → 63 pasan.
+  4. `./scripts/doctor.sh` → 10/10 tras `actualizar.sh`.
