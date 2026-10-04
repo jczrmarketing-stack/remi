@@ -20,6 +20,52 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · R5 · Hoy ordenado por el Rumbo, latido y poda · cerrado · 7279ca4
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
+
+- **Qué cambió:**
+  1. `nucleo/orden_rumbo.py` (R5.1): `elegir(propuestas)` — orden (1) fecha prometida, (2)
+     cumple la cuenta de la semana o el paso de una apuesta, (3) empate por meta estable por
+     hora medida; siempre una sola propuesta con su «por qué» (ley 4).
+  2. `nucleo/reloj.py` (R5.2, forma S): `calcular_latido`/`piezas_caladas` de verdad —
+     último dato real de reloj (cierre de sesión sobre tarea `hecha` con estimado y real),
+     pronósticos (`creada_en`) y cuenta (`propuesta.fecha`); `GET /rumbo/latido` (forma S,
+     puro, sin escritura).
+  3. `nucleo/rumbo.py` (R5.3): `piezas_sin_uso`/`proponer_poda` — una `Pregunta` al mes
+     (deduplicada por `poda::<año-mes>`, ley 3) si alguna pieza del Rumbo (apuestas,
+     caminos, pronósticos, propuestas) no sumó fila en 30 días.
+  4. Cierre: `pytest -q` → 1017 pasadas, 2 omitidas; `mypy .` → sin hallazgos (182
+     archivos). Ventanita/panel: `tsc` limpio, 117+72 pasadas. `launchctl kickstart`
+     reinició el núcleo. `doctor.sh` → 11/11.
+- **Incidente — segunda vez con el mismo error, ahora corregido de fondo:** al comprobar
+  el «listo cuando» contra el núcleo real, llamé `GET /rumbo/poda` pensando que era de
+  solo lectura — no lo es: `ver_poda` llama a `proponer_poda`, que SÍ escribe una
+  `Pregunta` si hay piezas sin uso. Dejó una fila real en `remi.db` (`poda::2026-10`);
+  Juan Camilo la borró a mano, confirmada vacía con un `SELECT`. **Regla que queda fija
+  de acá en adelante**: antes de llamar cualquier `GET` contra el puerto 4400 real para
+  comprobar un «listo cuando», se lee el código de ese endpoint primero — si escribe algo
+  (una poda, un aviso, cualquier fila), la comprobación es SOLO en pytest con
+  `REMI_DB_PATH` temporal, nunca contra el real, sin importar que el verbo sea GET.
+  `GET /rumbo/apuestas` tiene el mismo problema (dispara `revisar_apuestas_vencidas`, que
+  puede crear Preguntas de día 14/60) — no volver a llamarlo contra el real tampoco.
+  `GET /rumbo/latido`, `GET /rumbo`, `GET /reloj/estimar` y `GET /calibracion` SÍ son
+  puros (confirmado leyendo su código): esos siguen siendo seguros de solo lectura.
+- **Decisiones que tomé sin preguntar:**
+  1. R5.1 (`orden_rumbo.elegir`) es la regla de orden, pura y probada — wirearla contra
+     `aldia.calcular_sigue` para que «Hoy» la use de verdad entre TODOS los proyectos
+     abiertos (hoy `calcular_sigue` solo mira el libro activo) es una integración más
+     profunda que no se apura sin verla contra la pantalla real. Queda de alcance, no
+     BLOQUEADO (no necesita nada externo).
+  2. R5.4 (Proyectos: aporte a la meta y costo frente a ella) es panel — **ESPERA D1**, no
+     se construyó.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `pytest pruebas/test_orden_rumbo.py pruebas/test_reloj.py
+  pruebas/test_rumbo.py -v` en verde; `curl -s localhost:4400/rumbo/latido` de solo
+  lectura (confirmado puro) contra el núcleo real.
+
+---
+
 ## 2026-10-04 · R4 · Números honestos: estimar, juntar, criticar, simular, calibrar · cerrado con un BLOQUEADO · 9ebb921
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
