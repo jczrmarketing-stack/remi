@@ -20,6 +20,23 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B4 · La pantalla nueva de Hoy · construido · e8f365a
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Tableros 1 a 3 del canvas.
+
+- **Qué cambió:**
+  1. `85023df` — `AlDiaStrip` en Hoy (arriba de todo, tras `MoneyRow`): tres líneas mono (ESTAMOS EN · LO ÚLTIMO · SIGUE), «Mientras no estabas» cuando trae algo, y «Copiar mensaje» cuando `sigue.borrador` existe. `nucleo.alDia()` y `nucleo.deshacerHito()` nuevos en `lib/nucleo.ts`; `cargarHoy()` lo suma a `DatosHoy`.
+  2. `85023df` — en la pantalla del proyecto, `CaminoDelProyecto` ahora también lee `hito.cerrado_por` del servidor (forma K): una tarjeta persistente «Lo cerré por…» con su «Deshacer» real (`POST .../deshacer`), que sobrevive a un recargo — a diferencia de la tarjeta de cierre a mano, que es solo de esa visita.
+  3. `e8f365a` — «Además hoy» pasa a decir «Después, si queda tiempo» (el aria-label interno no cambió, para no romper selectores); en la tarjeta del bloque, «Cerrar hito» deja de ser la acción primaria (ya no es `btn-luz`): ahora dice «Cerrar hito a mano» y «Modo foco» es la acción destacada — Al día cierra solo con evidencia, esto es el respaldo. El «Paso mínimo» lleva su etiqueta («lo más chico que mueve esto») en vez de aparecer sin explicación.
+- **Decisiones que tomé sin preguntar:**
+  1. La tarjeta de «hito cerrado solo» (B4.3) la puse en la pantalla del proyecto, no en Hoy: la forma J (`lo_ultimo.evidencia`) no trae el índice del hito, solo su `ref` — sin eso no hay a qué hito aplicarle «deshacer» desde Hoy. La pantalla del proyecto sí tiene el índice (de `GET /libros/{tema}`), así que ahí es donde el «deshacer siempre está» puede funcionar de verdad.
+  2. No toqué el botón «Cerrar hito» de la pantalla del proyecto ni el de la vista de foco de Hoy (ventanita de una sola cosa): el plan dice que el botón de cerrar a mano «queda en la pantalla del proyecto» — ahí sigue igual.
+- **Revisión con otro modelo (5689189):** tres hallazgos graves, arreglados. 1) Faltaba la frase en serif de «ponerse al día» (Biblia): la armé en el cliente con lo que la forma J ya trae (lo más viejo de `mientras_no_estabas` + `sigue.texto`), sin agregar un campo nuevo al contrato. 2) «Copiar mensaje» decía «Copiado» aunque el navegador negara el permiso: ahora solo lo dice si `writeText` de verdad resolvió, y si falla avisa «selecciónalo y copia a mano». 3) La celebración de un hito cerrado solo (900 ms, una vez) no existía en Hoy — vivía solo como una tarjeta sin animación en la pantalla del proyecto. Ahora Al día también celebra una vez (con las chispas de siempre) cuando `lo_ultimo` es un cierre («encargo»/«mensaje»/«cobro»), recordado en `localStorage` para no repetir con el mismo `ref`; el «deshacer siempre está» sigue solo en la pantalla del proyecto, que es la única con el índice del hito. Medio, arreglados: `ESTAMOS EN` ya muestra la fase (`tema · fase N · paso`, como pide la Biblia); el botón «Copiar mensaje» ya no se queda en «Copiado» si Remi redacta un borrador distinto después. Medio, no atendido (decisión, no bug): «Cerrar hito a mano» sigue en Hoy junto al botón de la pantalla del proyecto — son dos acciones distintas (cierra el bloque/tarea abierto, no el hito del camino del SOP), aunque un bloque con el mismo título que un hito puede cerrar ambos a la vez por el mecanismo que ya existía antes de B3.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** abrir `/` con el núcleo real — si hay un libro con actividad reciente, Al día muestra sus tres líneas; sin nada, no se ve la tarjeta. En `/proyectos/<tema>`, si un hito se cerró solo, la tarjeta y el deshacer siguen ahí después de recargar la página.
+
+---
+
 ## 2026-10-04 · B3 · Los hitos se cierran solos · construido · dea40b8
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Forma K.
