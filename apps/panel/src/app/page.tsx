@@ -194,28 +194,92 @@ export default function PaginaHoy() {
   );
 }
 
+// Los tres tipos de evidencia que cierran un hito solo (forma K) — si lo
+// último que pasó es uno de estos, vale una celebración, una vez.
+const EVIDENCIA_DE_CIERRE = new Set(["encargo", "mensaje", "cobro"]);
+const VISTOS_LOCALSTORAGE = "remi.aldia.celebrados";
+
+function yaSeCelebro(ref: string): boolean {
+  try {
+    const vistos = JSON.parse(localStorage.getItem(VISTOS_LOCALSTORAGE) ?? "[]");
+    return Array.isArray(vistos) && vistos.includes(ref);
+  } catch {
+    return false;
+  }
+}
+
+function marcarCelebrado(ref: string): void {
+  try {
+    const vistos = JSON.parse(localStorage.getItem(VISTOS_LOCALSTORAGE) ?? "[]");
+    const lista = Array.isArray(vistos) ? vistos : [];
+    // Hasta 50: esto es solo para no repetir la animación, no un historial.
+    localStorage.setItem(VISTOS_LOCALSTORAGE, JSON.stringify([...lista, ref].slice(-50)));
+  } catch {
+    // Sin localStorage (privado, bloqueado): se vuelve a celebrar. No rompe nada.
+  }
+}
+
 // B2/B4 (forma J): tres líneas en mono, como el contexto de Claude Code —
 // en qué vas, lo último que pasó y el paso que sigue, sin que lo marques.
 function AlDiaStrip({ alDia }: { alDia: AlDia | null }) {
   const [copiado, setCopiado] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [celebrando, setCelebrando] = useState(false);
+  const ref = alDia?.lo_ultimo?.evidencia.ref ?? null;
+  const tipo = alDia?.lo_ultimo?.evidencia.tipo ?? null;
+
+  useEffect(() => {
+    setCopiado(false);
+  }, [alDia?.sigue?.borrador]);
+
+  useEffect(() => {
+    if (!ref || !tipo || !EVIDENCIA_DE_CIERRE.has(tipo) || yaSeCelebro(ref)) return;
+    marcarCelebrado(ref);
+    setCelebrando(true);
+    const id = setTimeout(() => setCelebrando(false), 900);
+    return () => clearTimeout(id);
+  }, [ref, tipo]);
+
   if (!alDia) return null;
   const { estamos_en, lo_ultimo, sigue, mientras_no_estabas } = alDia;
   if (!estamos_en && !lo_ultimo && !sigue && mientras_no_estabas.length === 0) return null;
 
   async function copiarBorrador() {
     if (!sigue?.borrador) return;
-    await navigator.clipboard.writeText(sigue.borrador).catch(() => undefined);
-    setCopiado(true);
+    try {
+      await navigator.clipboard.writeText(sigue.borrador);
+      setCopiado(true);
+      setAviso(null);
+    } catch {
+      setAviso("No pude copiarlo. Selecciónalo y copia a mano.");
+    }
   }
 
+  // La frase en serif de «ponerse al día»: lo más viejo de lo que pasó
+  // mientras no estabas, y a qué vuelves ahora — sin inventar un campo
+  // nuevo en la forma J, armada acá con lo que ya trae.
+  const masViejo = mientras_no_estabas[0] ?? null;
+  const fraseDeVuelta =
+    masViejo && sigue
+      ? `Quedaste en algo más. Pasó a las ${horaDeISO(masViejo.hora)}. Hoy toca ${sigue.texto.toLowerCase()}.`
+      : null;
+
   return (
-    <section aria-label="Al día" className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <section
+      aria-label="Al día"
+      className={`card ${celebrando ? "celebrando" : ""}`}
+      style={{ display: "flex", flexDirection: "column", gap: 12, overflow: "hidden", position: "relative" }}
+    >
+      {celebrando ? CHISPAS.map((c, i) => (
+        <i key={i} aria-hidden className="chispa" style={{ left: c.left, top: c.top, "--dx": `${c.dx}px`, "--dy": `${c.dy}px`, animationDelay: `${c.espera}ms` } as CSSProperties} />
+      )) : null}
       <div className="label">Al día</div>
       <div className="mono-sm" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {estamos_en ? <div>ESTAMOS EN · {estamos_en.tema} · {estamos_en.paso}</div> : null}
+        {estamos_en ? <div>ESTAMOS EN · {estamos_en.tema} · fase {estamos_en.fase_n} · {estamos_en.paso}</div> : null}
         {lo_ultimo ? <div>LO ÚLTIMO · {lo_ultimo.texto} · hace {lo_ultimo.hace_min} min</div> : null}
         {sigue ? <div>SIGUE · {sigue.texto}</div> : null}
       </div>
+      {fraseDeVuelta ? <p className="voz" style={{ margin: 0 }}>{fraseDeVuelta}</p> : null}
       {sigue?.borrador ? (
         <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 12 }}>
           <p className="voz" style={{ margin: 0, flexGrow: 1, minWidth: 200 }}>{sigue.borrador}</p>
@@ -224,11 +288,12 @@ function AlDiaStrip({ alDia }: { alDia: AlDia | null }) {
           </button>
         </div>
       ) : null}
+      {aviso ? <p className="voz" role="status" style={{ margin: 0 }}>{aviso}</p> : null}
       {mientras_no_estabas.length > 0 ? (
         <div aria-label="Mientras no estabas" style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
           <p className="voz" style={{ margin: "0 0 8px" }}>Mientras no estabas</p>
-          {mientras_no_estabas.map((e, i) => (
-            <div className="fila" key={i}>
+          {mientras_no_estabas.map((e) => (
+            <div className="fila" key={e.evidencia.ref}>
               <i className="punto" style={{ background: "var(--brasa)" }} />
               <span style={{ flexGrow: 1 }}>{e.texto}</span>
               <span className="mono-sm">{horaDeISO(e.hora)}</span>

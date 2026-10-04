@@ -101,6 +101,11 @@ const PASOS_PROPIO = [
 // K, B3.4, para probar la tarjeta «lo cerré por…» y su deshacer).
 let hitosUpvisuals = hitosDe(PASOS_UPVISUALS, 2);
 
+// B4 (forma J): qué responde GET /hoy/aldia. `null` es el de siempre;
+// "borrador" trae un mensaje para copiar; "cierre" trae un hito recién
+// cerrado solo, para probar la celebración (revisión de B4).
+let alDiaEscenario = null;
+
 // La idea destacada de la semana: una sola (POST /idea/:id/destacar la cambia).
 const DESTACADA_DE_ENTRADA = "99999999-9999-9999-9999-999999999992";
 let destacadaId = DESTACADA_DE_ENTRADA;
@@ -314,6 +319,7 @@ const servidor = createServer(async (req, res) => {
       2,
       cuerpo.cerradoSolo ? { 0: { tipo: "encargo", ref: "s1", en: iso(-60 * 60000) } } : {},
     );
+    alDiaEscenario = cuerpo.alDia ?? null;
     destacadaId = DESTACADA_DE_ENTRADA;
     preguntas = preguntasDeEntrada();
     listoCuandoFase2 = "";
@@ -345,6 +351,22 @@ const servidor = createServer(async (req, res) => {
     });
   }
   if (req.method === "GET" && ruta === "/hoy/aldia") {
+    if (alDiaEscenario === "borrador") {
+      return enviarJSON(res, 200, {
+        estamos_en: { tema: "upvisuals", fase_n: 5, paso: "Cobro y cierre" },
+        lo_ultimo: { texto: "Cobraste a Alfonso (1500)", hace_min: 5, evidencia: { tipo: "cobro", ref: "c2" } },
+        sigue: { texto: "Cobro y cierre", borrador: "Alfonso, te mando la factura de esta fase. Quedamos al día." },
+        mientras_no_estabas: [],
+      });
+    }
+    if (alDiaEscenario === "cierre") {
+      return enviarJSON(res, 200, {
+        estamos_en: { tema: "upvisuals", fase_n: 4, paso: "Seguridad crítica" },
+        lo_ultimo: { texto: "Cerraste el paso Distribución con un encargo", hace_min: 1, evidencia: { tipo: "encargo", ref: "s-cierre-1" } },
+        sigue: { texto: "Seguridad crítica", borrador: null },
+        mientras_no_estabas: [],
+      });
+    }
     return enviarJSON(res, 200, {
       estamos_en: { tema: "upvisuals", fase_n: 3, paso: "Distribución" },
       lo_ultimo: { texto: "Diste un commit: ajustar el flujo de distribución", hace_min: 12, evidencia: { tipo: "commit", ref: "e1" } },

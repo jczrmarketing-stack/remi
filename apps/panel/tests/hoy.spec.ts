@@ -107,12 +107,14 @@ test("sin nada abierto, Remi propone por el orden del líder y el botón abre el
 });
 
 // B2/B4 (forma J): la tira «Al día», arriba de todo.
-test("Al día trae sus tres líneas y mientras no estabas", async ({ page }) => {
+test("Al día trae sus tres líneas, la frase de vuelta y mientras no estabas", async ({ page }) => {
   await page.goto("/");
   const alDia = page.locator('section[aria-label="Al día"]');
-  await expect(alDia.getByText("ESTAMOS EN · upvisuals · Distribución")).toBeVisible();
+  await expect(alDia.getByText("ESTAMOS EN · upvisuals · fase 3 · Distribución")).toBeVisible();
   await expect(alDia.getByText(/^LO ÚLTIMO · Diste un commit/)).toBeVisible();
   await expect(alDia.getByText("SIGUE · Distribución")).toBeVisible();
+  // La frase en serif de «ponerse al día», armada con lo que ya trae la forma J.
+  await expect(alDia.getByText(/^Quedaste en algo más\. Pasó a las .+\. Hoy toca distribución\.$/)).toBeVisible();
   await expect(alDia.getByText("Mientras no estabas")).toBeVisible();
   await expect(alDia.getByText("Cobraste a Alfonso (1500)")).toBeVisible();
 });
@@ -125,4 +127,31 @@ test("Al día en el teléfono no se sale de la pantalla", async ({ page }) => {
   await expect(alDia.getByText("Mientras no estabas")).toBeVisible();
   const desborde = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(desborde).toBeLessThanOrEqual(0);
+});
+
+test("el borrador se copia de verdad, con su botón, incluso a 375 px", async ({ page, request }) => {
+  await request.post(`${NUCLEO_FALSO}/__escenario`, { data: { bloque: true, alDia: "borrador" } });
+  await page.setViewportSize(TELEFONO);
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  const alDia = page.locator('section[aria-label="Al día"]');
+  await expect(alDia.getByText("Alfonso, te mando la factura de esta fase. Quedamos al día.")).toBeVisible();
+  await alDia.getByRole("button", { name: "Copiar mensaje" }).click();
+  await expect(alDia.getByRole("button", { name: "Copiado" })).toBeVisible();
+  const copiado = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copiado).toBe("Alfonso, te mando la factura de esta fase. Quedamos al día.");
+  const desborde = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(desborde).toBeLessThanOrEqual(0);
+});
+
+test("un hito cerrado solo celebra una vez, nunca dos", async ({ page, request }) => {
+  await request.post(`${NUCLEO_FALSO}/__escenario`, { data: { bloque: true, alDia: "cierre" } });
+  await page.goto("/");
+  const alDia = page.locator('section[aria-label="Al día"]');
+  await expect(alDia).toHaveClass(/celebrando/);
+  await expect(alDia).not.toHaveClass(/celebrando/, { timeout: 2000 });
+
+  await page.reload();
+  // El mismo ref (s-cierre-1) ya quedó anotado en localStorage: no vuelve a celebrar.
+  await expect(page.locator('section[aria-label="Al día"]')).not.toHaveClass(/celebrando/);
 });
