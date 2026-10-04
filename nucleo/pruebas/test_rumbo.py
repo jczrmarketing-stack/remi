@@ -73,7 +73,7 @@ def test_partida_trae_horas_medidas_reales(tmp_path, monkeypatch):
     conexion = db.conectar()
     tarea = Tarea(
         id=uuid4(), titulo="algo", proyecto_id=None, estado="hoy", paso_minimo="paso",
-        estimado_min=None, real_min=None, hora=None, fecha_limite=None,
+        estimado_min=None, real_min=None, hora=None, fecha_limite=None, tipo=None,
     )
     db.crear_tarea(conexion, tarea)
     ahora = datetime.now(timezone.utc)

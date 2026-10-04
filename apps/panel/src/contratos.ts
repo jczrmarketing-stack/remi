@@ -14,6 +14,7 @@ export interface Tarea {
   real_min: number | null;
   hora: string | null;
   fecha_limite: ISODateString | null;
+  tipo: string | null;
   compartible: boolean;
 }
 

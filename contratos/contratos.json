@@ -11,6 +11,7 @@
     "real_min": "int|null",
     "hora": "string|null",
     "fecha_limite": "iso|null",
+    "tipo": "string|null",
     "compartible": false
   },
   "Idea": {

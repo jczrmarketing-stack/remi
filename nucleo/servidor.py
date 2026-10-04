@@ -1035,6 +1035,7 @@ def _abrir_bloque(mensaje: MensajeEntrante) -> RespuestaMensaje:
         real_min=None,
         hora=None,
         fecha_limite=None,
+        tipo=None,
         compartible=False,
     )
     sesion = Sesion(
@@ -1125,6 +1126,7 @@ def abrir_bloque_del_panel(cuerpo: BloqueNuevo) -> BloqueAbierto:
                 real_min=None,
                 hora=None,
                 fecha_limite=None,
+                tipo=None,
                 compartible=False,
             )
             db.crear_tarea(conexion, tarea)
@@ -1187,6 +1189,9 @@ class TareaPlaneada(BaseModel):
     hora: str | None = Field(default=None, pattern=PATRON_HORA)
     # El día (YYYY-MM-DD). Se guarda como las fechas de Entrega: 00:00 UTC.
     fecha_limite: date | None = None
+    # R2 (forma S): para que el Reloj agrupe velocidad por tipo de tarea.
+    # None = Remi no la clasifica; el Reloj la cuenta en el historial amplio.
+    tipo: str | None = None
 
 
 class AgendaNueva(BaseModel):
@@ -1214,6 +1219,7 @@ def planear_tarea(cuerpo: TareaPlaneada) -> Tarea:
         real_min=None,
         hora=cuerpo.hora,
         fecha_limite=_a_medianoche_utc(cuerpo.fecha_limite),
+        tipo=cuerpo.tipo,
         compartible=False,
     )
     conexion = db.conectar()

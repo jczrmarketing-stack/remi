@@ -35,7 +35,7 @@ def _tarea(conexion, estado="hoy"):
     tarea = Tarea(
         id=uuid4(), titulo="hola", proyecto_id=None, estado=estado,
         paso_minimo="x", estimado_min=None, real_min=None, hora=None,
-        fecha_limite=None, compartible=False,
+        fecha_limite=None, tipo=None, compartible=False,
     )
     conexion.execute(
         "INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, "

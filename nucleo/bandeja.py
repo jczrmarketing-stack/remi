@@ -151,6 +151,7 @@ def revisar(
         real_min=None,
         hora=None,
         fecha_limite=None,
+        tipo=None,
         compartible=False,
     )
     conexion.execute(

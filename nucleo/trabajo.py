@@ -148,6 +148,12 @@ def minutos_totales(tema: str, ahora: datetime | None = None) -> int:
     return _minutos_entre(tema, datetime(1970, 1, 1, tzinfo=timezone.utc), momento)
 
 
+def minutos_entre_rango(tema: str, desde: datetime, hasta: datetime) -> int:
+    """R2 (forma O): lo medido de un libro entre dos fechas — para el
+    `gastado_horas` de una apuesta, nunca desde siempre."""
+    return _minutos_entre(tema, desde, hasta)
+
+
 def _primero_del_mes(momento: datetime) -> datetime:
     local = momento.astimezone(BOGOTA)
     return local.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)

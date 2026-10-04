@@ -18,6 +18,7 @@ def test_tarea_rechaza_campo_fuera_de_contrato():
             real_min=None,
             hora=None,
             fecha_limite=None,
+            tipo=None,
             compartible=False,
             urgente=True,  # campo inventado: no está en contratos.json
         )

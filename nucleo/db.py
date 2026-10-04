@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from modelos import Escalon, Idea, Memoria, Meta, Pregunta, Sesion, Tarea, Vision
+from modelos import Apuesta, Escalon, Idea, Memoria, Meta, Pregunta, Propuesta, Sesion, Tarea, Vision
 
 RUTA_DB_POR_DEFECTO = Path(__file__).resolve().parent / "remi.db"
 
@@ -316,6 +316,30 @@ CREATE TABLE IF NOT EXISTS partida (
     dominio TEXT,
     calculada_en TEXT NOT NULL
 );
+
+-- R2 (forma R): «le mandé la propuesta a X por 1.500» registra una fila;
+-- la tasa de cierre es cerrada / (cerrada + perdida), nunca inventada.
+CREATE TABLE IF NOT EXISTS propuesta (
+    id TEXT PRIMARY KEY,
+    cliente TEXT NOT NULL,
+    monto REAL NOT NULL,
+    fecha TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'pendiente'
+);
+
+-- R2 (forma O): una apuesta nace de un camino analizado (R3) o a mano;
+-- gastado_horas/gastado_plata y las señales se calculan en vivo sobre
+-- sesiones y gastos del mismo `camino`, nunca se guardan (igual que la
+-- partida medida: un cálculo no es una nota que archivar).
+CREATE TABLE IF NOT EXISTS apuesta (
+    id TEXT PRIMARY KEY,
+    camino TEXT NOT NULL,
+    inicio TEXT NOT NULL,
+    fin TEXT NOT NULL,
+    tope_horas REAL NOT NULL,
+    tope_plata REAL NOT NULL,
+    resultado TEXT
+);
 """
 
 
@@ -365,6 +389,11 @@ _COLUMNAS_NUEVAS = (
     # inactiva 60 min) — nunca se vuelve a mirar, sea cual fuere el
     # resultado.
     ("conversaciones", "episodio_hecho", "INTEGER NOT NULL DEFAULT 0"),
+    # R2 (forma S): el Reloj agrupa por `tipo` — no existía. Nulo en toda
+    # tarea vieja; sin `creada_en` en el contrato, el Reloj no puede acotar
+    # a «últimos 6 meses» todavía y usa siempre el historial amplio
+    # (CAMBIO DE FORMA, anotado en la bitácora de cierre de R2).
+    ("tareas", "tipo", "TEXT"),
 )
 
 
@@ -387,8 +416,8 @@ def conectar(ruta: Path | None = None) -> sqlite3.Connection:
 def crear_tarea(conexion: sqlite3.Connection, tarea: Tarea) -> None:
     conexion.execute(
         """
-        INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible, hora, fecha_limite)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible, hora, fecha_limite, tipo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(tarea.id),
@@ -401,6 +430,7 @@ def crear_tarea(conexion: sqlite3.Connection, tarea: Tarea) -> None:
             int(tarea.compartible),
             tarea.hora,
             tarea.fecha_limite.isoformat() if tarea.fecha_limite else None,
+            tarea.tipo,
         ),
     )
     conexion.commit()
@@ -418,6 +448,7 @@ def _fila_a_tarea(fila: sqlite3.Row) -> Tarea:
         hora=fila["hora"],
         fecha_limite=fila["fecha_limite"],
         compartible=bool(fila["compartible"]),
+        tipo=fila["tipo"] if "tipo" in fila.keys() else None,
     )
 
 
@@ -1347,3 +1378,74 @@ def listar_escalera(conexion: sqlite3.Connection) -> list[Escalon]:
         Escalon(id=fila["id"], n=fila["n"], texto=fila["texto"], criterio=fila["criterio"], estado=fila["estado"])
         for fila in filas
     ]
+
+
+def crear_propuesta(conexion: sqlite3.Connection, propuesta: Propuesta) -> None:
+    conexion.execute(
+        "INSERT INTO propuesta (id, cliente, monto, fecha, estado) VALUES (?, ?, ?, ?, ?)",
+        (str(propuesta.id), propuesta.cliente, propuesta.monto, propuesta.fecha.isoformat(), propuesta.estado),
+    )
+    conexion.commit()
+
+
+def listar_propuestas(conexion: sqlite3.Connection, desde: str | None = None) -> list[Propuesta]:
+    if desde is None:
+        filas = conexion.execute("SELECT * FROM propuesta ORDER BY fecha").fetchall()
+    else:
+        filas = conexion.execute("SELECT * FROM propuesta WHERE fecha >= ? ORDER BY fecha", (desde,)).fetchall()
+    return [
+        Propuesta(id=fila["id"], cliente=fila["cliente"], monto=fila["monto"], fecha=fila["fecha"], estado=fila["estado"])
+        for fila in filas
+    ]
+
+
+def crear_apuesta(conexion: sqlite3.Connection, apuesta: Apuesta) -> None:
+    conexion.execute(
+        "INSERT INTO apuesta (id, camino, inicio, fin, tope_horas, tope_plata, resultado) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            str(apuesta.id),
+            apuesta.camino,
+            apuesta.inicio.isoformat(),
+            apuesta.fin.isoformat(),
+            apuesta.tope_horas,
+            apuesta.tope_plata,
+            apuesta.resultado,
+        ),
+    )
+    conexion.commit()
+
+
+def listar_apuestas(conexion: sqlite3.Connection) -> list[Apuesta]:
+    filas = conexion.execute("SELECT * FROM apuesta ORDER BY inicio").fetchall()
+    return [
+        Apuesta(
+            id=fila["id"],
+            camino=fila["camino"],
+            inicio=fila["inicio"],
+            fin=fila["fin"],
+            tope_horas=fila["tope_horas"],
+            tope_plata=fila["tope_plata"],
+            resultado=fila["resultado"],
+        )
+        for fila in filas
+    ]
+
+
+def apuesta_por_id(conexion: sqlite3.Connection, apuesta_id: str) -> Apuesta | None:
+    fila = conexion.execute("SELECT * FROM apuesta WHERE id = ?", (apuesta_id,)).fetchone()
+    if fila is None:
+        return None
+    return Apuesta(
+        id=fila["id"],
+        camino=fila["camino"],
+        inicio=fila["inicio"],
+        fin=fila["fin"],
+        tope_horas=fila["tope_horas"],
+        tope_plata=fila["tope_plata"],
+        resultado=fila["resultado"],
+    )
+
+
+def cerrar_apuesta(conexion: sqlite3.Connection, apuesta_id: str, resultado: str) -> None:
+    conexion.execute("UPDATE apuesta SET resultado = ? WHERE id = ?", (resultado, apuesta_id))
+    conexion.commit()

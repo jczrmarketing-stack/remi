@@ -24,6 +24,7 @@ class Tarea(BaseModel):
     real_min: int | None
     hora: str | None
     fecha_limite: datetime | None
+    tipo: str | None
     compartible: bool = False
 
 
