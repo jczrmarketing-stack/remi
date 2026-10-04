@@ -721,13 +721,6 @@ def editar_memoria(
     return nueva
 
 
-def borrar_memoria(conexion: sqlite3.Connection, memoria_id: UUID) -> bool:
-    """True si había algo que borrar."""
-    cursor = conexion.execute("DELETE FROM memoria WHERE id = ?", (str(memoria_id),))
-    conexion.commit()
-    return cursor.rowcount > 0
-
-
 # — La conversación —
 
 

@@ -1370,15 +1370,11 @@ def editar_una_memoria(memoria_id: UUID, cambios: MemoriaEditada) -> Memoria:
         conexion.close()
 
 
-@app.delete("/memoria/{memoria_id}", status_code=204)
-def borrar_una_memoria(memoria_id: UUID) -> Response:
-    conexion = db.conectar()
-    try:
-        if not db.borrar_memoria(conexion, memoria_id):
-            raise HTTPException(status_code=404, detail="no tengo nada con ese id")
-    finally:
-        conexion.close()
-    return Response(status_code=204)
+# No hay DELETE /memoria/{id}: la Biblia es dura acá («cero acciones destructivas:
+# Remi no borra notas, filas ni archivos») y este endpoint, sin UI que lo llame,
+# era la única puerta para borrar una fila real. Si algún día hace falta
+# retirar una nota, que sea archivarla o marcarla fusionado_en, nunca DELETE
+# (revisión R2.38, 3-oct).
 
 
 @app.get("/hoy", response_model=list[TareaConHistorial])

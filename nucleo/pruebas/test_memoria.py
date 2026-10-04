@@ -356,9 +356,9 @@ def test_endpoints_del_estante(tmp_path, monkeypatch):
         "/memoria", json={"titulo": "", "resumen": "R", "cuerpo": "C", "tema": "t"}
     ).status_code == 422
 
-    assert cliente.delete(f"/memoria/{memoria_id}").status_code == 204
-    assert cliente.delete(f"/memoria/{memoria_id}").status_code == 404
-    assert cliente.get(f"/memoria/{memoria_id}").status_code == 404
+    # No hay DELETE /memoria/{id} (R2.38, 3-oct): «nunca borra notas, filas ni
+    # archivos». Cualquier método que no sea GET/POST/PATCH da 405, no 204.
+    assert cliente.delete(f"/memoria/{memoria_id}").status_code == 405
 
 
 def test_el_indice_del_mcp_da_los_ids_fuera_de_remi(tmp_path, monkeypatch):
