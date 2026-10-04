@@ -62,7 +62,10 @@ const bloqueAbierto = () => ({
 });
 
 // Los caminos: cada hito con la línea del SOP que lo explica (`detalle`).
-const hitosDe = (pasos, hechos) => pasos.map(([texto, detalle], i) => ({ texto, hecho: i < hechos, detalle }));
+// `cerrados`: { indice: {tipo, ref, en} } — forma K (B3.4), un hito que se
+// cerró solo, no a mano.
+const hitosDe = (pasos, hechos, cerrados = {}) =>
+  pasos.map(([texto, detalle], i) => ({ texto, hecho: i < hechos, detalle, cerrado_por: cerrados[i] ?? null }));
 
 const PASOS_UPVISUALS = [
   ["Contrato firmado", "Corto, amable, y que protege a Omniway."],
@@ -93,7 +96,9 @@ const PASOS_PROPIO = [
 ];
 
 // Lo único que cambia entre pruebas: cuántos hitos de UpVisuals están hechos
-// (POST /libros/upvisuals/camino/:n lo mueve; /__escenario lo devuelve a 2).
+// (POST /libros/upvisuals/camino/:n lo mueve; /__escenario lo devuelve a 2,
+// o a 2 con el hito 0 cerrado solo si manda `{ cerradoSolo: true }` — forma
+// K, B3.4, para probar la tarjeta «lo cerré por…» y su deshacer).
 let hitosUpvisuals = hitosDe(PASOS_UPVISUALS, 2);
 
 // La idea destacada de la semana: una sola (POST /idea/:id/destacar la cambia).
@@ -304,7 +309,11 @@ const servidor = createServer(async (req, res) => {
     tituloDelBloque = "Terminar el flujo de distribución";
     nudgeRespuesta = null;
     ideaFriaEstado = "enfriando";
-    hitosUpvisuals = hitosDe(PASOS_UPVISUALS, 2);
+    hitosUpvisuals = hitosDe(
+      PASOS_UPVISUALS,
+      2,
+      cuerpo.cerradoSolo ? { 0: { tipo: "encargo", ref: "s1", en: iso(-60 * 60000) } } : {},
+    );
     destacadaId = DESTACADA_DE_ENTRADA;
     preguntas = preguntasDeEntrada();
     listoCuandoFase2 = "";
@@ -321,6 +330,29 @@ const servidor = createServer(async (req, res) => {
     tituloDelBloque = cuerpo.titulo;
     const abierto = bloqueAbierto();
     return enviarJSON(res, 201, { tarea: abierto.tarea, sesion: abierto.sesiones[0] });
+  }
+  if (req.method === "POST" && ruta.match(/^\/libros\/[^/]+\/camino\/\d+\/deshacer$/)) {
+    const [, , temaCrudo, , nCrudo] = ruta.split("/");
+    const n = Number(nCrudo);
+    if (decodeURIComponent(temaCrudo) !== "upvisuals") return enviarJSON(res, 404, { detail: "no tengo un libro con ese tema" });
+    if (n < 1 || n > hitosUpvisuals.length) return enviarJSON(res, 404, { detail: `ese libro tiene ${hitosUpvisuals.length} hito(s)` });
+    hitosUpvisuals = hitosUpvisuals.map((h, i) => (i === n - 1 ? { ...h, hecho: false, cerrado_por: null } : h));
+    const libro = libros().find((l) => l.tema === "upvisuals");
+    return enviarJSON(res, 200, {
+      ...libro,
+      estado_completo: libro.quedaste ? `Quedaste: ${libro.quedaste}\nDecisiones: cuotas con cinco días de tolerancia.\nPróximo paso: ${libro.proximo_paso}` : "",
+      ultimo_episodio: null,
+    });
+  }
+  if (req.method === "GET" && ruta === "/hoy/aldia") {
+    return enviarJSON(res, 200, {
+      estamos_en: { tema: "upvisuals", fase_n: 3, paso: "Distribución" },
+      lo_ultimo: { texto: "Diste un commit: ajustar el flujo de distribución", hace_min: 12, evidencia: { tipo: "commit", ref: "e1" } },
+      sigue: { texto: "Distribución", borrador: null },
+      mientras_no_estabas: [
+        { texto: "Cobraste a Alfonso (1500)", tema: "upvisuals", hora: iso(-3 * 60 * 60000), evidencia: { tipo: "cobro", ref: "c1" } },
+      ],
+    });
   }
   if (req.method === "POST" && ruta.match(/^\/libros\/[^/]+\/camino\/\d+$/)) {
     const [, , temaCrudo, , nCrudo] = ruta.split("/");

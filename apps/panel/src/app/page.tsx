@@ -11,9 +11,9 @@ import { Bionica } from "@/components/Bionica";
 import { usePreferencias, type PielReloj } from "@/hooks/PreferenciasContext";
 import { useCargaNucleo } from "@/hooks/useCargaNucleo";
 import { cargarHoy, formatoDuracion, formatoMoneda, minutosDesde, type BloqueAbierto, type Propuesta } from "@/lib/hoy";
-import { cuandoEsLaRevision, diaDeLaSemana, fechaCorta, formatoHora, nombreCorto, venceTexto } from "@/lib/formato";
+import { cuandoEsLaRevision, diaDeLaSemana, fechaCorta, formatoHora, horaDeISO, nombreCorto, venceTexto } from "@/lib/formato";
 import { faseDe, hitoDe } from "@/lib/lider";
-import { nucleo, NucleoApagado, type AgendaDeHoy, type RevisionFria, type TareaConHistorial, type Vencimiento } from "@/lib/nucleo";
+import { nucleo, NucleoApagado, type AgendaDeHoy, type AlDia, type RevisionFria, type TareaConHistorial, type Vencimiento } from "@/lib/nucleo";
 import type { Tarea } from "@/contratos";
 
 const MINUTOS_PARA_FOCO = 20;
@@ -150,6 +150,8 @@ export default function PaginaHoy() {
       <div className="contenedor">
         <MoneyRow plata={datos.plata} />
 
+        <AlDiaStrip alDia={datos.alDia} />
+
         {cerrado ? (
           <PantallaCerrado cerrado={cerrado} celebrando={celebrando} />
         ) : datos.bloque ? (
@@ -189,6 +191,52 @@ export default function PaginaHoy() {
       </div>
       <TabBar />
     </div>
+  );
+}
+
+// B2/B4 (forma J): tres líneas en mono, como el contexto de Claude Code —
+// en qué vas, lo último que pasó y el paso que sigue, sin que lo marques.
+function AlDiaStrip({ alDia }: { alDia: AlDia | null }) {
+  const [copiado, setCopiado] = useState(false);
+  if (!alDia) return null;
+  const { estamos_en, lo_ultimo, sigue, mientras_no_estabas } = alDia;
+  if (!estamos_en && !lo_ultimo && !sigue && mientras_no_estabas.length === 0) return null;
+
+  async function copiarBorrador() {
+    if (!sigue?.borrador) return;
+    await navigator.clipboard.writeText(sigue.borrador).catch(() => undefined);
+    setCopiado(true);
+  }
+
+  return (
+    <section aria-label="Al día" className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="label">Al día</div>
+      <div className="mono-sm" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {estamos_en ? <div>ESTAMOS EN · {estamos_en.tema} · {estamos_en.paso}</div> : null}
+        {lo_ultimo ? <div>LO ÚLTIMO · {lo_ultimo.texto} · hace {lo_ultimo.hace_min} min</div> : null}
+        {sigue ? <div>SIGUE · {sigue.texto}</div> : null}
+      </div>
+      {sigue?.borrador ? (
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+          <p className="voz" style={{ margin: 0, flexGrow: 1, minWidth: 200 }}>{sigue.borrador}</p>
+          <button type="button" className="btn btn-secundario" onClick={copiarBorrador}>
+            {copiado ? "Copiado" : "Copiar mensaje"}
+          </button>
+        </div>
+      ) : null}
+      {mientras_no_estabas.length > 0 ? (
+        <div aria-label="Mientras no estabas" style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+          <p className="voz" style={{ margin: "0 0 8px" }}>Mientras no estabas</p>
+          {mientras_no_estabas.map((e, i) => (
+            <div className="fila" key={i}>
+              <i className="punto" style={{ background: "var(--brasa)" }} />
+              <span style={{ flexGrow: 1 }}>{e.texto}</span>
+              <span className="mono-sm">{horaDeISO(e.hora)}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 

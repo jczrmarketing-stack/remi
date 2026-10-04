@@ -5,6 +5,7 @@
 import {
   nucleo,
   type AgendaDeHoy,
+  type AlDia,
   type Camino,
   type EntregaCercana,
   type IdeaBandeja,
@@ -46,6 +47,8 @@ export type DatosHoy = {
   ideasFrias: IdeaBandeja[];
   nudge: Nudge | null;
   propuesta: Propuesta | null;
+  // B2/B4: Al día — se actualiza sola, sin que Juan Camilo marque nada.
+  alDia: AlDia | null;
 };
 
 // Por el orden del líder: primero la entrega con dinero más cercana; sin
@@ -89,12 +92,13 @@ export function proponer(libros: Libro[], plata: Plata): Propuesta | null {
 }
 
 export async function cargarHoy(): Promise<DatosHoy> {
-  const [tareas, plata, bandeja, nudge, agenda] = await Promise.all([
+  const [tareas, plata, bandeja, nudge, agenda, alDia] = await Promise.all([
     nucleo.hoy(),
     nucleo.plata(),
     nucleo.bandeja(),
     nucleo.nudgePendiente(),
     nucleo.agenda(),
+    nucleo.alDia(),
   ]);
 
   const conBloqueAbierto = tareas.find((t) => t.sesiones.some((s) => s.fin === null));
@@ -115,7 +119,7 @@ export async function cargarHoy(): Promise<DatosHoy> {
   const demasHoy = tareas.filter((t) => t !== conBloqueAbierto).slice(0, 3);
   const ideasFrias = bandeja.filter((f) => f.fria);
 
-  return { bloque, demasHoy, plata, agenda, ideasFrias, nudge, propuesta };
+  return { bloque, demasHoy, plata, agenda, ideasFrias, nudge, propuesta, alDia };
 }
 
 export function minutosDesde(iso: string, ahoraMs: number): number {

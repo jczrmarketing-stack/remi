@@ -20,6 +20,15 @@ export function formatoHora(hora: string): string {
   return `${h === 12 ? 12 : h - 12}:${minutos} p`;
 }
 
+// B4: la hora del reloj (local), de un datetime ISO completo con hora real
+// — a diferencia de `formatoHora`, que recibe «HH:MM» ya sueltos.
+export function horaDeISO(iso: string): string {
+  const fecha = new Date(iso);
+  const h = String(fecha.getHours()).padStart(2, "0");
+  const m = String(fecha.getMinutes()).padStart(2, "0");
+  return formatoHora(`${h}:${m}`);
+}
+
 // Las fechas de tareas y entregas se guardan a las 00:00 UTC del día que
 // nombran: el día es el de su parte de fecha, no el de la zona del teléfono.
 function diaDe(iso: string): Date {

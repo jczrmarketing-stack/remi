@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const NUCLEO_FALSO = "http://localhost:4498";
+const TELEFONO = { width: 375, height: 812 };
 
 // El núcleo falso guarda estado entre pruebas: cada una arranca con el
 // bloque abierto, que es el caso de siempre.
@@ -14,7 +15,7 @@ test.afterEach(async ({ request }) => {
 test("Hoy muestra el bloque abierto con datos reales del núcleo falso", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Terminar el flujo de distribución" })).toBeVisible();
-  await expect(page.getByText("upvisuals")).toBeVisible();
+  await expect(page.locator('section[aria-label="Lo único de ahora"]').getByText(/upvisuals/i)).toBeVisible();
   // El nudge pendiente del núcleo falso.
   await expect(page.getByText("Hay 1 idea fría. ¿La miramos 2 minutos?")).toBeVisible();
 });
@@ -103,4 +104,25 @@ test("sin nada abierto, Remi propone por el orden del líder y el botón abre el
 
   await vacio.getByRole("button", { name: "Empezar con eso" }).click();
   await expect(page.locator('section[aria-label="Lo único de ahora"]')).toBeVisible();
+});
+
+// B2/B4 (forma J): la tira «Al día», arriba de todo.
+test("Al día trae sus tres líneas y mientras no estabas", async ({ page }) => {
+  await page.goto("/");
+  const alDia = page.locator('section[aria-label="Al día"]');
+  await expect(alDia.getByText("ESTAMOS EN · upvisuals · Distribución")).toBeVisible();
+  await expect(alDia.getByText(/^LO ÚLTIMO · Diste un commit/)).toBeVisible();
+  await expect(alDia.getByText("SIGUE · Distribución")).toBeVisible();
+  await expect(alDia.getByText("Mientras no estabas")).toBeVisible();
+  await expect(alDia.getByText("Cobraste a Alfonso (1500)")).toBeVisible();
+});
+
+test("Al día en el teléfono no se sale de la pantalla", async ({ page }) => {
+  await page.setViewportSize(TELEFONO);
+  await page.goto("/");
+  const alDia = page.locator('section[aria-label="Al día"]');
+  await expect(alDia).toBeVisible();
+  await expect(alDia.getByText("Mientras no estabas")).toBeVisible();
+  const desborde = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(desborde).toBeLessThanOrEqual(0);
 });

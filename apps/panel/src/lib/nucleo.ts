@@ -128,8 +128,32 @@ export type ConfigGasto = {
   gastado_mes_usd: number;
 };
 
+// nucleo/aldia.py (B2, forma J): tampoco es un contrato — Al día se
+// actualiza sola, sin que Juan Camilo marque nada.
+export type Evidencia = { tipo: string; ref: string };
+export type EstamosEn = { tema: string; fase_n: number; paso: string };
+export type LoUltimo = { texto: string; hace_min: number; evidencia: Evidencia };
+export type Sigue = { texto: string; borrador: string | null };
+export type MientrasNoEstabas = { texto: string; tema: string | null; hora: string; evidencia: Evidencia };
+export type AlDia = {
+  estamos_en: EstamosEn | null;
+  lo_ultimo: LoUltimo | null;
+  sigue: Sigue | null;
+  mientras_no_estabas: MientrasNoEstabas[];
+};
+
 export const nucleo = {
   salud: () => pedir<Salud>("/salud"),
+  // Un núcleo que todavía no tiene esta ruta (B2) responde 404: null, no
+  // una excepción que tumbe toda la pantalla de Hoy.
+  alDia: async (): Promise<AlDia | null> => {
+    try {
+      return await pedir<AlDia>("/hoy/aldia");
+    } catch (error) {
+      if (error instanceof NucleoApagado && error.status === 404) return null;
+      throw error;
+    }
+  },
   hoy: () => pedir<TareaConHistorial[]>("/hoy"),
   ultimaVez: () => pedir<{ minutos: number | null }>("/ultima-vez"),
   entregas: () => pedir<Entrega[]>("/entregas"),
@@ -204,6 +228,10 @@ export const nucleo = {
   // El núcleo edita solo esa línea y deja un commit en la bóveda.
   marcarHito: (tema: string, n: number, hecho: boolean) =>
     pedir<Camino>(`/libros/${encodeURIComponent(tema)}/camino/${n}`, { method: "POST", body: JSON.stringify({ hecho }) }),
+
+  // Forma K (B3.4): un hito que se cerró solo, devuelto a abierto.
+  deshacerHito: (tema: string, n: number) =>
+    pedir<LibroDetalle>(`/libros/${encodeURIComponent(tema)}/camino/${n}/deshacer`, { method: "POST" }),
 
   pasoMinimo: (tareaId: string, paso_minimo: string) =>
     pedir<Tarea>(`/tarea/${tareaId}/paso-minimo`, { method: "POST", body: JSON.stringify({ paso_minimo }) }),

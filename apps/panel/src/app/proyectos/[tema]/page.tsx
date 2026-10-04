@@ -188,17 +188,46 @@ function FaseYPlata({ libro }: { libro: LibroDetalle }) {
   );
 }
 
+// B3.4 (forma K): nombre legible de quién cerró el hito solo.
+const NOMBRE_DE_CIERRE: Record<string, string> = {
+  encargo: "un encargo con pruebas en verde",
+  mensaje: "lo que dijiste",
+  cobro: "un cobro",
+};
+
 function CaminoDelProyecto({ libro, esElAbierto, recargar }: { libro: LibroDetalle; esElAbierto: boolean; recargar: () => void }) {
   const router = useRouter();
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
-  // El último hito que se cerró desde acá, para poder deshacerlo.
+  // El último hito que se cerró desde acá en ESTA visita, para poder
+  // deshacerlo aunque el núcleo no haya guardado cerrado_por (cierre a mano).
   const [recienCerrado, setRecienCerrado] = useState<{ n: number; texto: string } | null>(null);
   const nombre = nombreCorto(libro.titulo);
   const hito = hitoDe(libro);
   const actual = libro.hito_actual;
   const recorridos = libro.hitos.filter((h) => h.hecho).map((h) => enFrase(h.texto));
   const sop = libro.tipo === "cliente" ? " · SOP de cliente" : libro.tipo === "propio" ? " · SOP propio" : "";
+
+  // El hito que se cerró solo más recientemente (forma K): vive en el
+  // servidor, así que sigue ahí aunque se recargue la página — a
+  // diferencia de `recienCerrado`, que es solo de esta visita.
+  const cerradoSolo = libro.hitos
+    .map((h, i) => ({ ...h, n: i + 1 }))
+    .filter((h) => h.hecho && h.cerrado_por)
+    .sort((a, b) => new Date(b.cerrado_por!.en).getTime() - new Date(a.cerrado_por!.en).getTime())[0] ?? null;
+
+  async function deshacerAuto(n: number) {
+    setOcupado(true);
+    setAviso(null);
+    try {
+      await nucleo.deshacerHito(libro.tema, n);
+      recargar();
+    } catch {
+      setAviso("No pude deshacerlo ahora. Vuelve a tocar en un momento.");
+    } finally {
+      setOcupado(false);
+    }
+  }
 
   async function seguir() {
     if (!hito) return;
@@ -292,6 +321,23 @@ function CaminoDelProyecto({ libro, esElAbierto, recargar }: { libro: LibroDetal
             style={{ height: 32, padding: "0 12px", fontSize: 12 }}
             disabled={ocupado}
             onClick={() => marcar(recienCerrado.n, recienCerrado.texto, false)}
+          >
+            Deshacer
+          </button>
+        </p>
+      ) : cerradoSolo ? (
+        // B3.4/B4.3: Remi lo cerró sola, con evidencia — no un cierre a mano.
+        // Siempre con su «deshacer», sin importar cuánto haya pasado.
+        <p className="mono-sm" role="status" style={{ margin: 0, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span>
+            Lo cerré por {NOMBRE_DE_CIERRE[cerradoSolo.cerrado_por!.tipo] ?? cerradoSolo.cerrado_por!.tipo}: <span style={{ color: "var(--ink)" }}>{enFrase(cerradoSolo.texto)}</span>.
+          </span>
+          <button
+            type="button"
+            className="btn btn-secundario"
+            style={{ height: 32, padding: "0 12px", fontSize: 12 }}
+            disabled={ocupado}
+            onClick={() => deshacerAuto(cerradoSolo.n)}
           >
             Deshacer
           </button>

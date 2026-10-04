@@ -7,5 +7,5 @@ import { expect, test } from "@playwright/test";
 test("Hoy carga sin NEXT_PUBLIC_URL_NUCLEO, pasando por /nucleo", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Terminar el flujo de distribución" })).toBeVisible();
-  await expect(page.getByText("upvisuals")).toBeVisible();
+  await expect(page.locator('section[aria-label="Lo único de ahora"]').getByText(/upvisuals/i)).toBeVisible();
 });
