@@ -159,3 +159,15 @@ export interface Fuente {
   verificada: boolean;
   tipo: string | null;
 }
+
+export interface Pronostico {
+  id: UUID;
+  que: string;
+  p: number;
+  vence: ISODateString;
+  regla_si_no: string;
+  tipo: "mundo" | "conducta";
+  origen: string;
+  resultado: boolean | null;
+  creada_en: ISODateString;
+}

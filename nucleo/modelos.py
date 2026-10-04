@@ -196,3 +196,17 @@ class Fuente(BaseModel):
     fragmento: str
     verificada: bool = False
     tipo: str | None
+
+
+class Pronostico(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    que: str
+    p: float
+    vence: datetime
+    regla_si_no: str
+    tipo: Literal["mundo", "conducta"]
+    origen: str
+    resultado: bool | None
+    creada_en: datetime

@@ -141,5 +141,16 @@
     "fragmento": "string",
     "verificada": false,
     "tipo": "string|null"
+  },
+  "Pronostico": {
+    "id": "uuid",
+    "que": "string",
+    "p": "number",
+    "vence": "iso",
+    "regla_si_no": "string",
+    "tipo": "mundo|conducta",
+    "origen": "string",
+    "resultado": "bool|null",
+    "creada_en": "iso"
   }
 }

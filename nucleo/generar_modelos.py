@@ -18,6 +18,7 @@ TIPOS_BASE = {
     "string": "str",
     "int": "int",
     "number": "float",
+    "bool": "bool",
 }
 
 RANGO = re.compile(r"^(\d+)-(\d+)$")

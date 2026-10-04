@@ -14,6 +14,7 @@ const TIPOS_BASE = {
   string: "string",
   int: "number",
   number: "number",
+  bool: "boolean",
 };
 
 const RANGO = /^(\d+)-(\d+)$/;
