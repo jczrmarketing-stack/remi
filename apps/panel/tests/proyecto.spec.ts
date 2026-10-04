@@ -155,3 +155,32 @@ test("en el teléfono: tramos en vez del camino largo, y «qué falta» antes qu
   const desborde = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(desborde).toBeLessThanOrEqual(0);
 });
+
+// B6 (tablero 5): la ficha de cliente — cuatro números y gastos corregibles.
+test("la ficha trae cobrado, gastado, tiempo y por hora, y el gasto se corrige a mano", async ({ page }) => {
+  await page.goto("/proyectos/upvisuals");
+  const ficha = page.locator('section[aria-label="Ficha"]');
+  await expect(ficha.getByText("Cobrado")).toBeVisible();
+  await expect(ficha.getByText("$1.500")).toBeVisible();
+  await expect(ficha.getByText("Gastado")).toBeVisible();
+  await expect(ficha.getByText("$40").first()).toBeVisible();
+  await expect(ficha.getByText("Tiempo")).toBeVisible();
+  await expect(ficha.getByText("Por hora")).toBeVisible();
+  await expect(ficha.getByText("servidor")).toBeVisible();
+
+  await ficha.getByRole("button", { name: "Corregir" }).click();
+  await ficha.getByLabel("Corregir servidor").fill("55");
+  await ficha.getByRole("button", { name: "Guardar" }).click();
+
+  await expect(ficha.getByText("$55").first()).toBeVisible();
+});
+
+test("en el teléfono, la ficha no se sale de la pantalla", async ({ page }) => {
+  await page.setViewportSize(TELEFONO);
+  await page.goto("/proyectos/upvisuals");
+  const ficha = page.locator('section[aria-label="Ficha"]');
+  await expect(ficha).toBeVisible();
+  await expect(ficha.getByText("Gastado")).toBeVisible();
+  const desborde = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(desborde).toBeLessThanOrEqual(0);
+});

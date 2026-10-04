@@ -79,7 +79,7 @@ export type Libro = {
 export type UltimoEpisodio = { titulo: string; resumen: string; archivo: string };
 // B6 (tablero 5, la ficha de cliente): gastado agrupado por concepto
 // (incluye la parte de los comunes), minutos desde siempre y por_hora.
-export type GastoDeLibro = { concepto: string; monto: number };
+export type GastoDeLibro = { concepto: string; monto: number; id?: string | null };
 // GET /libros/{tema}: lo mismo, más el Estado entero, el último episodio
 // y la ficha.
 export type LibroDetalle = Libro & {
@@ -245,6 +245,10 @@ export const nucleo = {
   // Forma K (B3.4): un hito que se cerró solo, devuelto a abierto.
   deshacerHito: (tema: string, n: number) =>
     pedir<LibroDetalle>(`/libros/${encodeURIComponent(tema)}/camino/${n}/deshacer`, { method: "POST" }),
+
+  // B6.5: la ficha de cliente — un gasto que se corrige a mano.
+  corregirGasto: (gastoId: string, monto: number) =>
+    pedir<GastoDeLibro>(`/gastos/${encodeURIComponent(gastoId)}`, { method: "PATCH", body: JSON.stringify({ monto }) }),
 
   pasoMinimo: (tareaId: string, paso_minimo: string) =>
     pedir<Tarea>(`/tarea/${tareaId}/paso-minimo`, { method: "POST", body: JSON.stringify({ paso_minimo }) }),

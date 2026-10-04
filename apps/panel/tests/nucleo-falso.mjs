@@ -101,6 +101,10 @@ const PASOS_PROPIO = [
 // K, B3.4, para probar la tarjeta «lo cerré por…» y su deshacer).
 let hitosUpvisuals = hitosDe(PASOS_UPVISUALS, 2);
 
+// B6 (tablero 5, la ficha de cliente): los gastos de upvisuals, mutables
+// (PATCH /gastos/:id los corrige a mano).
+let gastosUpvisuals = [{ id: "gasto-servidor-1", concepto: "servidor", monto: 40 }];
+
 // B4 (forma J): qué responde GET /hoy/aldia. `null` es el de siempre;
 // "borrador" trae un mensaje para copiar; "cierre" trae un hito recién
 // cerrado solo, para probar la celebración (revisión de B4).
@@ -281,7 +285,7 @@ function enviarJSON(res, estado, cuerpo) {
   res.writeHead(estado, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   });
   res.end(cuerpo === undefined ? "" : JSON.stringify(cuerpo));
@@ -320,6 +324,7 @@ const servidor = createServer(async (req, res) => {
       cuerpo.cerradoSolo ? { 0: { tipo: "encargo", ref: "s1", en: iso(-60 * 60000) } } : {},
     );
     alDiaEscenario = cuerpo.alDia ?? null;
+    gastosUpvisuals = [{ id: "gasto-servidor-1", concepto: "servidor", monto: 40 }];
     destacadaId = DESTACADA_DE_ENTRADA;
     preguntas = preguntasDeEntrada();
     listoCuandoFase2 = "";
@@ -389,11 +394,26 @@ const servidor = createServer(async (req, res) => {
     const tema = decodeURIComponent(ruta.split("/")[2] || "");
     const libro = libros().find((l) => l.tema === tema);
     if (!libro) return enviarJSON(res, 404, { detail: "no tengo un libro con ese tema" });
+    const gastos = tema === "upvisuals" ? gastosUpvisuals : [];
+    const gastado = gastos.reduce((s, g) => s + g.monto, 0);
     return enviarJSON(res, 200, {
       ...libro,
       estado_completo: libro.quedaste ? `Quedaste: ${libro.quedaste}\nDecisiones: cuotas con cinco días de tolerancia.\nPróximo paso: ${libro.proximo_paso}` : "",
       ultimo_episodio: null,
+      gastado,
+      gastos,
+      minutos_total: 300,
+      por_hora: gastado ? Math.round(((1500 - gastado) / (300 / 60)) * 100) / 100 : null,
     });
+  }
+  if (req.method === "PATCH" && ruta.match(/^\/gastos\/[^/]+$/)) {
+    const id = decodeURIComponent(ruta.split("/")[2]);
+    const cuerpo = await leerCuerpo(req);
+    const gasto = gastosUpvisuals.find((g) => g.id === id);
+    if (!gasto) return enviarJSON(res, 404, { detail: "no tengo ese gasto" });
+    if (typeof cuerpo.monto !== "number" || cuerpo.monto < 0) return enviarJSON(res, 422, { detail: "monto inválido" });
+    gasto.monto = cuerpo.monto;
+    return enviarJSON(res, 200, gasto);
   }
   if (req.method === "GET" && ruta === "/ultima-vez") return enviarJSON(res, 200, { minutos: 80 });
   if (req.method === "GET" && ruta === "/entregas") return enviarJSON(res, 200, []);

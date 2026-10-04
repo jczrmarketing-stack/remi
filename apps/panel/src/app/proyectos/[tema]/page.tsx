@@ -16,11 +16,11 @@ import { ProjectPath } from "@/components/ProjectPath";
 import { Tramo } from "@/components/Tramo";
 import { Bionica } from "@/components/Bionica";
 import { useCargaNucleo } from "@/hooks/useCargaNucleo";
-import { nucleo, NucleoApagado, type Fase, type LibroDetalle } from "@/lib/nucleo";
+import { nucleo, NucleoApagado, type Fase, type GastoDeLibro, type LibroDetalle } from "@/lib/nucleo";
 import { hitoDe } from "@/lib/lider";
 import { diaDelInstante, enFrase, fechaCorta, nombreCorto } from "@/lib/formato";
 import { enlaceObsidian, partesDelEstado, tonoDeFase } from "@/lib/proyecto";
-import { formatoMoneda } from "@/lib/hoy";
+import { formatoDuracion, formatoMoneda } from "@/lib/hoy";
 
 type Datos = { libro: LibroDetalle | null; hayBloque: boolean; abiertoTema: string | null };
 
@@ -75,6 +75,7 @@ export default function PaginaProyecto() {
         <Titulo libro={libro} />
         <PreguntaDeRemi tema={libro.tema} nombre={nombreCorto(libro.titulo)} onAnotado={recargar} />
         <FaseYPlata libro={libro} />
+        {libro.tipo === "cliente" ? <FichaDeCliente libro={libro} recargar={recargar} /> : null}
         {libro.hitos.length > 0 ? <CaminoDelProyecto libro={libro} esElAbierto={esElAbierto} recargar={recargar} /> : null}
         {libro.fases.length > 0 || libro.siguientes.length > 0 ? (
           <div className="rejilla-dos" style={{ gap: "var(--space-6)", alignItems: "start" }}>
@@ -124,6 +125,95 @@ function ChipDeFase({ estado }: { estado: string }) {
 
 // La fase en la que está el proyecto y su plata. Sin fases (un proyecto
 // propio, o un libro que todavía no las tiene) queda el paso del camino.
+// B6 (tablero 5): la ficha de cliente — cuatro números y los gastos que
+// se pueden corregir a mano. Solo para libros de cliente.
+function FichaDeCliente({ libro, recargar }: { libro: LibroDetalle; recargar: () => void }) {
+  const cobrado = libro.fases.reduce((s, f) => s + (f.cobrado ?? 0), 0);
+  const faseActual = libro.fase_actual_n ? libro.fases[libro.fase_actual_n - 1] : null;
+  const estimados = faseActual?.minutos_estimados ?? null;
+
+  return (
+    <section aria-label="Ficha" className="card" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="label">Ficha</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 16 }}>
+        <NumeroDeFicha etiqueta="Cobrado" valor={formatoMoneda(cobrado)} color="var(--dinero)" />
+        <NumeroDeFicha etiqueta="Gastado" valor={formatoMoneda(libro.gastado)} />
+        <NumeroDeFicha
+          etiqueta="Tiempo"
+          valor={formatoDuracion(libro.minutos_total)}
+          sub={estimados ? `de ${formatoDuracion(estimados)} estimados` : undefined}
+        />
+        <NumeroDeFicha etiqueta="Por hora" valor={libro.por_hora != null ? formatoMoneda(libro.por_hora) : "—"} />
+      </div>
+      {libro.gastos.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+          <div className="label">Gastos</div>
+          {libro.gastos.map((g) => (
+            <FilaGasto key={g.concepto} gasto={g} recargar={recargar} />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function NumeroDeFicha({ etiqueta, valor, sub, color }: { etiqueta: string; valor: string; sub?: string; color?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+      <span className="mono-sm" style={{ color: "var(--ink-muted)" }}>{etiqueta}</span>
+      <span className="num-lg" style={color ? { color, fontSize: 28, lineHeight: "32px" } : { fontSize: 28, lineHeight: "32px" }}>{valor}</span>
+      {sub ? <span className="mono-sm" style={{ color: "var(--ink-faint)" }}>{sub}</span> : null}
+    </div>
+  );
+}
+
+function FilaGasto({ gasto, recargar }: { gasto: GastoDeLibro; recargar: () => void }) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(String(gasto.monto));
+  const [ocupado, setOcupado] = useState(false);
+
+  async function guardar() {
+    if (!gasto.id) return;
+    const numero = Number(valor);
+    if (!(numero >= 0)) return;
+    setOcupado(true);
+    try {
+      await nucleo.corregirGasto(gasto.id, numero);
+      setEditando(false);
+      recargar();
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <div className="fila" style={{ gap: 10 }}>
+      <span style={{ flexGrow: 1 }}>{gasto.concepto}</span>
+      {editando ? (
+        <>
+          <input
+            type="number" min={0} value={valor} onChange={(e) => setValor(e.target.value)}
+            aria-label={`Corregir ${gasto.concepto}`}
+            style={{ width: 90, height: 36, borderRadius: "var(--radius-pill)", padding: "0 10px", border: "1px solid var(--line)", background: "var(--surface-2)", color: "var(--ink)", fontFamily: "var(--font-mono)" }}
+          />
+          <button type="button" className="btn btn-secundario" style={{ height: 32, padding: "0 12px", fontSize: 12 }} disabled={ocupado} onClick={guardar}>
+            Guardar
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="mono-sm">{formatoMoneda(gasto.monto)}</span>
+          {gasto.id ? (
+            <button type="button" className="btn btn-secundario" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => setEditando(true)}>
+              Corregir
+            </button>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 function FaseYPlata({ libro }: { libro: LibroDetalle }) {
   const n = libro.fase_actual_n;
   const fase = n ? libro.fases[n - 1] : null;
