@@ -178,6 +178,17 @@ def test_paso_remi_de_encuentra_el_hito_en_su_plantilla():
     assert caminos.paso_remi_de("cliente", "no existe") == ""
 
 
+def test_cierra_con_de_cada_hito(tmp_path):
+    import caminos
+
+    assert caminos.cierra_con_de("cliente", "Intake") == "pregunta"
+    assert caminos.cierra_con_de("cliente", "Cobro y cierre") == "cobro"
+    assert caminos.cierra_con_de("cliente", "Entrega y capacitación") == "mensaje"
+    assert caminos.cierra_con_de("cliente", "Propuesta por fases") == "encargo"
+    assert caminos.cierra_con_de("propio", "Biblia corta") == "encargo"
+    assert caminos.cierra_con_de("cliente", "no existe") is None
+
+
 def test_marcar_por_indice_cambia_solo_esa_linea(tmp_path):
     import caminos
 
