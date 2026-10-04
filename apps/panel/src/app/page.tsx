@@ -270,12 +270,19 @@ function BloqueActivo({ bloque, minutos, piel, cerrando, onCerrar, onFoco }: {
           {bloque.tarea.ultima_vez_min != null ? <Chip mono>la última vez: {formatoDuracion(bloque.tarea.ultima_vez_min)}</Chip> : null}
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
-          <button type="button" className="btn btn-luz" disabled={cerrando} onClick={onCerrar}>Cerrar hito</button>
+          <button type="button" className="btn btn-brasa" onClick={onFoco}>Modo foco</button>
           <button type="button" className="btn btn-secundario" aria-expanded={pasoVisible} onClick={() => setPasoVisible((v) => !v)}>Paso mínimo</button>
-          <button type="button" className="btn btn-secundario" onClick={onFoco}>Modo foco</button>
+          {/* B4.5: ya no es la acción principal de Hoy — Al día cierra solo
+              con evidencia; esto sigue disponible para cuando hace falta. */}
+          <button type="button" className="btn btn-secundario" disabled={cerrando} onClick={onCerrar}>Cerrar hito a mano</button>
         </div>
-        {/* Ley 3: lo que no arranca se encoge. El paso mínimo es la voz de Remi. */}
-        {pasoVisible ? <p className="voz">{tarea.paso_minimo}</p> : null}
+        {/* Ley 3: lo que no arranca se encoge. */}
+        {pasoVisible ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div className="label">Paso mínimo · lo más chico que mueve esto</div>
+            <p className="voz">{tarea.paso_minimo}</p>
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -437,7 +444,7 @@ function ListaDemasHoy({ tareas, manana }: { tareas: TareaConHistorial[]; manana
   const asoma = manana[0] ?? null;
   return (
     <section className="card" aria-label="Además hoy">
-      <div className="label">Además hoy · máximo tres</div>
+      <div className="label">Después, si queda tiempo · máximo tres</div>
       <div style={{ marginTop: 12 }}>
         {tareas.length === 0 && !asoma ? (
           <p className="body-muted" style={{ marginTop: 12 }}>Nada más por hoy.</p>

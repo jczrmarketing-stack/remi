@@ -82,7 +82,7 @@ test("las ideas frías dicen cuándo es la revisión", async ({ page }) => {
 
 test("cerrar el bloque celebra una vez y dice cuánto tomó", async ({ page }) => {
   await page.goto("/");
-  await page.locator('section[aria-label="Lo único de ahora"]').getByRole("button", { name: "Cerrar hito" }).click();
+  await page.locator('section[aria-label="Lo único de ahora"]').getByRole("button", { name: "Cerrar hito a mano" }).click();
   const cerrado = page.locator('section[aria-label="Hito cerrado"]');
   await expect(cerrado.getByText("Cerrada. 42 min.")).toBeVisible();
   await expect(cerrado.getByText(/^Eso tomó .+\. Lo anoto para la próxima\.$/)).toBeVisible();
