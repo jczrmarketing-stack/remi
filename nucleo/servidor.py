@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from collections.abc import AsyncIterator, Callable, Iterator
@@ -22,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
 import agenda
+import aldia
 import bandeja
 import boveda_git
 import caminos
@@ -374,7 +376,10 @@ NO_ENTRA = "Así no entra: el título va hasta 80 caracteres y el resumen hasta 
 
 
 class EventoEntrante(BaseModel):
-    tipo: Literal["commit", "sesion_inicio", "sesion_fin"]
+    # B2.1: "pruebas" es una corrida de la suite (verde o roja) — entra como
+    # cualquier otro evento, sin un side-effect propio (trabajo.recibir ya
+    # inserta en trabajo_eventos para cualquier tipo).
+    tipo: Literal["commit", "sesion_inicio", "sesion_fin", "pruebas"]
     ruta: str
     datos: dict[str, object] = Field(default_factory=dict)
 
@@ -1417,6 +1422,89 @@ class AgendaDeHoy(BaseModel):
 
 
 MAXIMO_VENCIMIENTOS = 5
+
+
+class EvidenciaVista(BaseModel):
+    tipo: str
+    ref: str
+
+
+class EstamosEnVista(BaseModel):
+    tema: str
+    fase_n: int
+    paso: str
+
+
+class LoUltimoVista(BaseModel):
+    texto: str
+    hace_min: int
+    evidencia: EvidenciaVista
+
+
+class SigueVista(BaseModel):
+    texto: str
+    borrador: str | None
+
+
+class MientrasNoEstabasVista(BaseModel):
+    texto: str
+    tema: str | None
+    hora: datetime
+    evidencia: EvidenciaVista
+
+
+class AlDiaVista(BaseModel):
+    estamos_en: EstamosEnVista | None
+    lo_ultimo: LoUltimoVista | None
+    sigue: SigueVista | None
+    mientras_no_estabas: list[MientrasNoEstabasVista]
+
+
+def _evidencia_vista(e: aldia.Evidencia) -> EvidenciaVista:
+    return EvidenciaVista(tipo=e.tipo, ref=e.ref)
+
+
+@app.get("/hoy/aldia", response_model=AlDiaVista)
+def al_dia() -> AlDiaVista:
+    """B2: forma J. Remi no espera que Juan Camilo marque nada — lee los
+    eventos que otras piezas ya guardan solas (commits, pruebas, sesiones
+    de Claude Code, cobros, decisiones) y arma en qué va."""
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    try:
+        anterior = aldia.marcar_visto(conexion, ahora)
+        forma = aldia.calcular(conexion, ahora, anterior)
+        libro_activo = next((l for l in libros.listar() if forma.estamos_en and l.tema == forma.estamos_en.tema), None)
+        if (
+            forma.sigue is not None
+            and forma.sigue.borrador is None
+            and forma.estamos_en is not None
+            and aldia.avisa_hito(libro_activo.tipo if libro_activo else None, forma.sigue.texto)
+        ):
+            pensado = pensar.pensar(
+                f"Redacta el mensaje para el cliente de «{forma.estamos_en.tema}» en el paso «{forma.sigue.texto}».",
+                None,
+                "equilibrio",
+                pensar.sistema_cliente(),
+            )
+            if pensado is not None:
+                aldia.guardar_borrador(conexion, forma.estamos_en.tema, forma.sigue.texto, pensado.paso_minimo)
+                forma = replace(forma, sigue=replace(forma.sigue, borrador=pensado.paso_minimo))
+    finally:
+        conexion.close()
+    return AlDiaVista(
+        estamos_en=EstamosEnVista(**forma.estamos_en.__dict__) if forma.estamos_en else None,
+        lo_ultimo=(
+            LoUltimoVista(texto=forma.lo_ultimo.texto, hace_min=forma.lo_ultimo.hace_min, evidencia=_evidencia_vista(forma.lo_ultimo.evidencia))
+            if forma.lo_ultimo
+            else None
+        ),
+        sigue=SigueVista(texto=forma.sigue.texto, borrador=forma.sigue.borrador) if forma.sigue else None,
+        mientras_no_estabas=[
+            MientrasNoEstabasVista(texto=e.texto, tema=e.tema, hora=e.hora, evidencia=_evidencia_vista(e.evidencia))
+            for e in forma.mientras_no_estabas
+        ],
+    )
 
 
 @app.get("/hoy/agenda", response_model=AgendaDeHoy)
