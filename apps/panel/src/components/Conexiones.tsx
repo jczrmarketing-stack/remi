@@ -151,6 +151,11 @@ function CampoGasto({ config, onGuardado }: { config: ConfigGasto; onGuardado: (
   const [guardando, setGuardando] = useState(false);
 
   async function guardar(cambios: Partial<{ tope_dia_usd: number; tope_mes_usd: number; activo: boolean }>) {
+    // Un campo vacío (borrado a mano) no es un tope de 0 — se ignora el
+    // guardado hasta que vuelva a tener un número, para no bloquear todo
+    // sin que nadie lo haya pedido.
+    if (cambios.tope_dia_usd == null && topeDia.trim() === "") return;
+    if (cambios.tope_mes_usd == null && topeMes.trim() === "") return;
     const nuevo = {
       tope_dia_usd: cambios.tope_dia_usd ?? Number(topeDia),
       tope_mes_usd: cambios.tope_mes_usd ?? Number(topeMes),

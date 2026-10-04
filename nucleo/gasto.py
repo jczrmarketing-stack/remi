@@ -85,7 +85,8 @@ def _precios() -> dict[str, Any]:
 def calcular_usd(motor: str, modelo: str, tokens_entrada: int, tokens_salida: int) -> float:
     """0.0 si no hay precio para ese motor/modelo en config/motores.json —
     nunca inventa un costo."""
-    precio = _precios().get(motor, {}).get(modelo) if isinstance(_precios().get(motor), dict) else None
+    precios_del_motor = _precios().get(motor)
+    precio = precios_del_motor.get(modelo) if isinstance(precios_del_motor, dict) else None
     if not isinstance(precio, dict):
         return 0.0
     usd_entrada = float(precio.get("usd_1k_entrada", 0.0))
