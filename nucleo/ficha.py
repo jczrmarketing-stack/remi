@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import aldia
+import caminos
 import db
 import entregas
+import libros
 import trabajo
 
 BOGOTA = ZoneInfo("America/Bogota")
@@ -107,3 +110,80 @@ def ficha_de(conexion: sqlite3.Connection, tema: str, todos_los_temas: list[str]
         minutos_total=minutos,
         por_hora=por_hora(cobrado, gastado, minutos),
     )
+
+
+@dataclass(frozen=True)
+class LineaDeEvidencia:
+    texto: str
+    origen: str
+    hace_min: int
+
+
+VENTANA_LO_QUE_PASO = timedelta(days=90)
+MAXIMO_LO_QUE_PASO = 6
+
+
+def lo_que_paso(conexion: sqlite3.Connection, tema: str, ahora: datetime | None = None) -> list[LineaDeEvidencia]:
+    """B6.3: las últimas líneas de evidencia de este libro (cobro, hito,
+    decisión, demora), la más nueva primero — reutiliza los mismos
+    eventos de Al día (aldia.py), filtrados a este tema."""
+    momento = ahora or datetime.now(timezone.utc)
+    eventos = [e for e in aldia.eventos_entre(conexion, momento - VENTANA_LO_QUE_PASO, momento) if e.tema == tema]
+    recientes = eventos[-MAXIMO_LO_QUE_PASO:]
+    return [
+        LineaDeEvidencia(
+            texto=e.texto, origen=e.evidencia.tipo,
+            hace_min=max(0, int((momento - e.fecha).total_seconds() // 60)),
+        )
+        for e in reversed(recientes)
+    ]
+
+
+@dataclass(frozen=True)
+class Acordado:
+    decisiones: list[str]
+    entregas_futuras: list[str]
+
+
+def lo_acordado(conexion: sqlite3.Connection, tema: str, ahora: datetime | None = None) -> Acordado:
+    """B6.3: decisiones (`memoria.tipo = "decision"`) y entregas futuras
+    de este libro."""
+    momento = ahora or datetime.now(timezone.utc)
+    decisiones = [m.resumen for m in db.decisiones_desde(conexion, momento - timedelta(days=365)) if m.tema == tema]
+    proyecto_id = entregas._proyecto_id_de_tema(tema)
+    futuras = [
+        e for e in entregas.listar_entregas(conexion)
+        if e.proyecto_id == proyecto_id and e.estado != "pagada"
+    ]
+    return Acordado(
+        decisiones=decisiones,
+        entregas_futuras=[
+            f"{e.cliente}: {e.monto:.0f} el {e.fecha.date().isoformat()}" if e.monto is not None
+            else f"{e.cliente}: {e.fecha.date().isoformat()}"
+            for e in futuras
+        ],
+    )
+
+
+_ESTADOS_DE_FASE_CERRADA = frozenset({"entregada", "cobrada", "cerrada", "hecha", "pagada"})
+
+
+def atento_a(libro: libros.Libro, minutos_total: int) -> list[str]:
+    """B6.4: una línea por regla — sin IA, nunca inventa. Horas contra
+    estimado, hitos que faltan, y el alcance nuevo cuando la fase actual
+    ya está lista (la que sigue)."""
+    lineas: list[str] = []
+    n = next(
+        (i for i, f in enumerate(libro.fases, start=1) if f.estado.strip().lower() not in _ESTADOS_DE_FASE_CERRADA),
+        None,
+    )
+    fase_actual = libro.fases[n - 1] if n else None
+    if fase_actual is not None and fase_actual.minutos_estimados and minutos_total > fase_actual.minutos_estimados:
+        exceso = minutos_total - fase_actual.minutos_estimados
+        lineas.append(f"{exceso} min más de lo estimado en {fase_actual.nombre}.")
+    abiertos = [h for h in caminos.leer_hitos(libro.archivo) if not h.hecho]
+    if abiertos:
+        lineas.append(f"Quedan {len(abiertos)} paso(s) del camino.")
+    if n is not None and n < len(libro.fases):
+        lineas.append(f"{fase_actual.nombre if fase_actual else ''} lista: sigue {libro.fases[n].nombre}.")
+    return lineas

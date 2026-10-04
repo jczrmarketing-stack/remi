@@ -54,6 +54,14 @@ def test_gasto_sin_proyecto_ni_comun_claro_queda_dudoso(tmp_path, monkeypatch):
     assert parseado.tema is None
 
 
+def test_alguien_pagandome_no_es_un_gasto(tmp_path, monkeypatch):
+    """«pagó»/«pagaron» es alguien pagándoME — eso es un cobro
+    (cobros.py), nunca un gasto, aunque no se reconozca el cliente."""
+    gastos = _gastos(tmp_path, monkeypatch)
+    assert gastos.parsear("Alfonso pagó 1500") is None
+    assert gastos.parsear("me pagaron 1500") is None
+
+
 def test_sin_verbo_ni_dos_puntos_no_es_un_gasto(tmp_path, monkeypatch):
     gastos = _gastos(tmp_path, monkeypatch)
     assert gastos.parsear("el servidor cuesta 40 al mes") is None

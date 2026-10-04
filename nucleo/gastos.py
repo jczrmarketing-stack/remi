@@ -15,7 +15,11 @@ from dataclasses import dataclass
 
 import temas
 
-_VERBO = re.compile(r"\b(?:gast[eé]|pagu[eé]|pag[oóaó])\b", re.IGNORECASE)
+# Solo primera persona («gasté», «pagué»): «pagó»/«pagaron»/«me pagaron»
+# es alguien pagándoME — eso es un cobro (cobros.py), no un gasto. Sin
+# esta frontera, «Alfonso pagó 1.500» caería acá si no se reconoce el
+# cliente, y Remi preguntaría si es un gasto en vez de anotarlo como cobro.
+_VERBO = re.compile(r"\b(?:gast[eé]|pagu[eé])\b", re.IGNORECASE)
 _MONTO = re.compile(r"\$?\s*(\d[\d.,]*)")
 _COMUN = re.compile(
     r"\b(?:membres[ií]a|suscripci[oó]n|herramienta|dominio|hosting|servidor)\b", re.IGNORECASE

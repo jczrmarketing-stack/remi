@@ -2040,6 +2040,12 @@ class GastoVisible(BaseModel):
     id: str | None = None
 
 
+class LineaDeEvidenciaVisible(BaseModel):
+    texto: str
+    origen: str
+    hace_min: int
+
+
 class LibroDetalle(LibroVisible):
     # Solo en el detalle de un libro: el Estado entero (no solo quedaste/
     # próximo paso) y el último episodio — el resumen de la constelación
@@ -2053,6 +2059,12 @@ class LibroDetalle(LibroVisible):
     gastos: list[GastoVisible]
     minutos_total: int
     por_hora: float | None
+    # B6.3/B6.4: lo acordado (decisiones y entregas futuras), lo que pasó
+    # (hasta 6 líneas de evidencia) y a qué está atento Remi — sin IA.
+    decisiones: list[str]
+    entregas_futuras: list[str]
+    lo_que_paso: list[LineaDeEvidenciaVisible]
+    atento_a: list[str]
 
 
 def _quedaste_de(estado_texto: str) -> str:
@@ -2201,6 +2213,7 @@ def _libro_detalle(libro: libros.Libro, conexion: Any) -> LibroDetalle:
     visible = _libro_visible(libro, conexion)
     todos_los_temas = [l.tema for l in libros.listar()]
     numeros = ficha.ficha_de(conexion, libro.tema, todos_los_temas)
+    acordado = ficha.lo_acordado(conexion, libro.tema)
     return LibroDetalle(
         **visible.model_dump(),
         estado_completo=estado_libro.leer_estado(libro.archivo),
@@ -2209,6 +2222,13 @@ def _libro_detalle(libro: libros.Libro, conexion: Any) -> LibroDetalle:
         gastos=[GastoVisible(concepto=g.concepto, monto=g.monto, id=g.id) for g in numeros.gastos],
         minutos_total=numeros.minutos_total,
         por_hora=numeros.por_hora,
+        decisiones=acordado.decisiones,
+        entregas_futuras=acordado.entregas_futuras,
+        lo_que_paso=[
+            LineaDeEvidenciaVisible(texto=e.texto, origen=e.origen, hace_min=e.hace_min)
+            for e in ficha.lo_que_paso(conexion, libro.tema)
+        ],
+        atento_a=ficha.atento_a(libro, numeros.minutos_total),
     )
 
 

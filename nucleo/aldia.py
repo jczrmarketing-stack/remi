@@ -34,7 +34,7 @@ class Evidencia:
 
 
 @dataclass(frozen=True)
-class _Evento:
+class Evento:
     texto: str
     tema: str | None
     fecha: datetime
@@ -88,14 +88,14 @@ def _texto_pruebas(datos: dict[str, object]) -> str:
     return "Las pruebas quedaron en verde."
 
 
-def _eventos_de_trabajo(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[_Evento]:
+def _eventos_de_trabajo(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[Evento]:
     filas = conexion.execute(
         "SELECT id, tipo, tema, datos, fecha FROM trabajo_eventos "
         "WHERE fecha >= ? AND fecha <= ? AND tipo IN ('commit', 'pruebas', 'sesion_fin') "
         "ORDER BY fecha",
         (desde.isoformat(), hasta.isoformat()),
     ).fetchall()
-    eventos: list[_Evento] = []
+    eventos: list[Evento] = []
     for fila in filas:
         try:
             datos = json.loads(fila["datos"])
@@ -110,18 +110,18 @@ def _eventos_de_trabajo(conexion: sqlite3.Connection, desde: datetime, hasta: da
             texto, ev_tipo = _texto_pruebas(datos), "pruebas"
         else:
             texto, ev_tipo = "Cerraste una sesión de Claude Code.", "sesion"
-        eventos.append(_Evento(texto=texto, tema=fila["tema"], fecha=fecha, evidencia=Evidencia(ev_tipo, str(fila["id"]))))
+        eventos.append(Evento(texto=texto, tema=fila["tema"], fecha=fecha, evidencia=Evidencia(ev_tipo, str(fila["id"]))))
     return eventos
 
 
-def _eventos_de_cobros(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[_Evento]:
+def _eventos_de_cobros(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[Evento]:
     temas_por_proyecto = {entregas._proyecto_id_de_tema(libro.tema): libro.tema for libro in libros.listar()}
     filas = conexion.execute(
         "SELECT id, cliente, proyecto_id, fecha, monto FROM entregas "
         "WHERE estado = 'pagada' AND fecha >= ? AND fecha <= ? ORDER BY fecha",
         (desde.isoformat(), hasta.isoformat()),
     ).fetchall()
-    eventos: list[_Evento] = []
+    eventos: list[Evento] = []
     for fila in filas:
         fecha = datetime.fromisoformat(fila["fecha"])
         if fecha.tzinfo is None:
@@ -131,7 +131,7 @@ def _eventos_de_cobros(conexion: sqlite3.Connection, desde: datetime, hasta: dat
         tema = temas_por_proyecto.get(UUID(fila["proyecto_id"]))
         monto = f" ({fila['monto']:.0f})" if fila["monto"] else ""
         eventos.append(
-            _Evento(
+            Evento(
                 texto=f"Cobraste a {fila['cliente']}{monto}.",
                 tema=tema,
                 fecha=fecha,
@@ -141,14 +141,14 @@ def _eventos_de_cobros(conexion: sqlite3.Connection, desde: datetime, hasta: dat
     return eventos
 
 
-def _eventos_de_decisiones(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[_Evento]:
-    eventos: list[_Evento] = []
+def _eventos_de_decisiones(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[Evento]:
+    eventos: list[Evento] = []
     for memoria in db.decisiones_desde(conexion, desde):
         fecha = memoria.fecha if memoria.fecha.tzinfo else memoria.fecha.replace(tzinfo=timezone.utc)
         if fecha > hasta:
             continue
         eventos.append(
-            _Evento(
+            Evento(
                 texto=f"Decidiste: {memoria.resumen}",
                 tema=memoria.tema,
                 fecha=fecha,
@@ -158,7 +158,7 @@ def _eventos_de_decisiones(conexion: sqlite3.Connection, desde: datetime, hasta:
     return eventos
 
 
-def eventos_entre(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[_Evento]:
+def eventos_entre(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -> list[Evento]:
     """Todos los eventos (commit, pruebas, sesión, cobro, decisión) en la
     ventana, del más viejo al más nuevo."""
     eventos = (
@@ -169,14 +169,14 @@ def eventos_entre(conexion: sqlite3.Connection, desde: datetime, hasta: datetime
     return sorted(eventos, key=lambda e: e.fecha)
 
 
-def _tema_mas_activo(eventos: list[_Evento], ahora: datetime) -> str | None:
+def _tema_mas_activo(eventos: list[Evento], ahora: datetime) -> str | None:
     recientes = [e for e in eventos if e.tema and ahora - e.fecha <= VENTANA_ESTAMOS_EN]
     if not recientes:
         return None
     return max(recientes, key=lambda e: e.fecha).tema
 
 
-def calcular_estamos_en(conexion: sqlite3.Connection, eventos: list[_Evento], ahora: datetime) -> EstamosEn | None:
+def calcular_estamos_en(conexion: sqlite3.Connection, eventos: list[Evento], ahora: datetime) -> EstamosEn | None:
     tema = _tema_mas_activo(eventos, ahora)
     if tema is None:
         return None
@@ -190,7 +190,7 @@ def calcular_estamos_en(conexion: sqlite3.Connection, eventos: list[_Evento], ah
     return EstamosEn(tema=tema, fase_n=fase_n, paso=siguiente.texto)
 
 
-def calcular_lo_ultimo(eventos: list[_Evento], ahora: datetime) -> LoUltimo | None:
+def calcular_lo_ultimo(eventos: list[Evento], ahora: datetime) -> LoUltimo | None:
     if not eventos:
         return None
     ultimo = eventos[-1]
@@ -248,7 +248,7 @@ def guardar_borrador(conexion: sqlite3.Connection, tema: str, hito: str, texto: 
 
 
 def calcular_mientras_no_estabas(
-    eventos: list[_Evento], desde_ultima_apertura: datetime, ahora: datetime
+    eventos: list[Evento], desde_ultima_apertura: datetime, ahora: datetime
 ) -> list[MientrasNoEstabas]:
     """Vacío si la última apertura fue hace menos de 2 h (Ley 04: no hay
     nada que anunciar de algo tan reciente)."""
