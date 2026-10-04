@@ -912,3 +912,108 @@ def test_la_cli_corre_siempre_en_la_misma_carpeta_vacia(monkeypatch, tmp_path):
     pensar.pensar("otra")
     assert cwds[0] == cwds[1] == tmp_path / "cwd-fijo"
     assert (tmp_path / "cwd-fijo").is_dir() and not any((tmp_path / "cwd-fijo").iterdir())
+
+
+# — B1: el tope de gasto (docs/PLAN-FINAL.md) —
+
+
+def _capar_tope(monkeypatch, pensar, tope_dia_usd=0.01):
+    """El tope ya pasado, sin tocar el reloj: gasto.gasto_dia_usd() falso."""
+    import gasto
+
+    monkeypatch.setattr(gasto, "leer_config", lambda: gasto.ConfigGasto(tope_dia_usd=tope_dia_usd, tope_mes_usd=50.0, activo=True))
+    monkeypatch.setattr(gasto, "gasto_dia_usd", lambda hoy=None: tope_dia_usd)
+    monkeypatch.setattr(gasto, "gasto_mes_usd", lambda hoy=None: 0.0)
+    assert pensar.gasto.excede_tope() is True
+
+
+def test_openrouter_con_tope_pasado_no_llama_y_contesta_groq(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("GROQ_API_KEY", "clave-groq")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "clave-or")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    _capar_tope(monkeypatch, pensar)
+    llamadas = []
+
+    def falsa_llamada(url, clave, nombre_modelo, instrucciones, frase, timeout):
+        llamadas.append(url)
+        return {"model": nombre_modelo, "choices": [{"message": {"content": "Respuesta de Groq."}}], "usage": {}}
+
+    monkeypatch.setattr(pensar, "_llamar_openai_compatible", falsa_llamada)
+    pensado = pensar.pensar("algo", "openrouter")
+    assert pensado is not None
+    assert pensado.motor_usado == "groq"
+    assert len(llamadas) == 1 and "openrouter" not in llamadas[0]
+
+
+def test_venice_con_tope_pasado_no_llama_y_contesta_groq(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("GROQ_API_KEY", "clave-groq")
+    monkeypatch.setenv("VENICE_API_KEY", "clave-venice")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    _capar_tope(monkeypatch, pensar)
+    venice_llamado = []
+    monkeypatch.setattr(pensar, "_llamar_venice", lambda *a, **k: venice_llamado.append(1))
+    monkeypatch.setattr(
+        pensar,
+        "_llamar_openai_compatible",
+        lambda *a, **k: {"model": "x", "choices": [{"message": {"content": "Respuesta de Groq."}}], "usage": {}},
+    )
+    pensado = pensar.pensar("algo", "venice")
+    assert pensado is not None
+    assert pensado.motor_usado == "groq"
+    assert venice_llamado == []
+
+
+def test_openrouter_bajo_el_tope_llama_normal_y_registra_el_gasto(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    monkeypatch.setenv("OPENROUTER_API_KEY", "clave-or")
+    monkeypatch.setattr(pensar, "RUTA_ENV", tmp_path / ".env")
+    monkeypatch.setattr(pensar, "_indice", lambda: [])
+    ruta_motores = tmp_path / "motores.json"
+    ruta_motores.write_text(
+        json.dumps(
+            {
+                "charla": {"openrouter": {"rapido": "deepseek/deepseek-v4-flash", "equilibrio": "deepseek/deepseek-v4-flash", "inteligente": "deepseek/deepseek-v4-flash"}},
+                "precios": {"openrouter": {"deepseek/deepseek-v4-flash": {"usd_1k_entrada": 1.0, "usd_1k_salida": 1.0}}},
+            }
+        )
+    )
+    monkeypatch.setenv("REMI_MOTORES", str(ruta_motores))
+    ruta_gasto = tmp_path / "gasto.json"
+    ruta_gasto.write_text(json.dumps({"tope_dia_usd": 50.0, "tope_mes_usd": 50.0, "activo": True}))
+    monkeypatch.setenv("REMI_GASTO", str(ruta_gasto))
+    monkeypatch.setattr(
+        pensar,
+        "_llamar_openai_compatible",
+        lambda *a, **k: {
+            "model": "deepseek/deepseek-v4-flash",
+            "choices": [{"message": {"content": "Listo."}}],
+            "usage": {"prompt_tokens": 1000, "completion_tokens": 1000},
+        },
+    )
+    pensado = pensar.pensar("algo", "openrouter")
+    assert pensado is not None and pensado.motor_usado == "openrouter"
+    assert pensar.gasto.gasto_dia_usd() == 2.0
+
+
+def test_trastienda_con_tope_pasado_salta_openrouter(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    ruta_motores = tmp_path / "motores.json"
+    ruta_motores.write_text(
+        json.dumps({"trastienda": ["openrouter/deepseek/deepseek-v4-flash", "ollama/gemma3:4b"]})
+    )
+    monkeypatch.setenv("REMI_MOTORES", str(ruta_motores))
+    _capar_tope(monkeypatch, pensar)
+    vistos = []
+
+    def falsa_llamada(proveedor, modelo, instrucciones, frase):
+        vistos.append(proveedor)
+        return {"model": modelo, "choices": [{"message": {"content": "Listo."}}], "usage": {}}
+
+    monkeypatch.setattr(pensar, "_llamar_proveedor", falsa_llamada)
+    pensado = pensar.pensar_con_trastienda("algo", "instrucciones")
+    assert pensado is not None
+    assert vistos == ["ollama"]

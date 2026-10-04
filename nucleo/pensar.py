@@ -27,6 +27,7 @@ import httpx
 
 import concreto
 import db
+import gasto
 import libros
 import precarga
 import voseo
@@ -1112,6 +1113,29 @@ def pensar_en_frases(
     return pensado
 
 
+def _motor_sin_pasar_el_tope(elegido: str) -> str:
+    """B1: Venice y OpenRouter cobran por token. Si el día o el mes ya
+    llegaron al tope de `config/gasto.json`, esa llamada no sale — el
+    turno lo contesta el respaldo gratis, Groq. Claude, Groq y Ollama
+    nunca cuentan contra el tope."""
+    if elegido in gasto.MOTORES_PAGADOS and gasto.excede_tope():
+        print(f"[gasto] tope alcanzado: {elegido} no sale, uso groq", file=sys.stderr)
+        return "groq"
+    return elegido
+
+
+def _respaldo_gratis_del_tope(
+    mensaje: str, instrucciones: str, entradas: int, modo_pedido: str | None, modelo_ollama: str | None
+) -> Pensado | None:
+    """Groq y, si no contesta, Ollama — los dos motores que no cobran
+    aparte. Solo se usa cuando el motor pedido era pagado y ya pasó el
+    tope de B1."""
+    pensado = _pensar_con_charla("groq", "GROQ_API_KEY", mensaje, instrucciones, entradas, modo_pedido)
+    if pensado is not None:
+        return pensado
+    return _pensar_con_ollama(mensaje, instrucciones, entradas, modelo_ollama)
+
+
 def _respuesta_entera_del_motor(
     elegido: str,
     mensaje: str,
@@ -1124,6 +1148,10 @@ def _respuesta_entera_del_motor(
     modelo_venice: str | None,
 ) -> Pensado | None:
     """El motor elegido, de una vez (sin público)."""
+    pedido = elegido
+    elegido = _motor_sin_pasar_el_tope(elegido)
+    if elegido == "groq" and pedido in gasto.MOTORES_PAGADOS:
+        return _respaldo_gratis_del_tope(mensaje, instrucciones, len(indice), modo_pedido, modelo_ollama)
     if elegido == "venice":
         return _pensar_con_venice(mensaje, instrucciones, len(indice), modelo_venice)
     if elegido == "groq":
@@ -1133,6 +1161,17 @@ def _respuesta_entera_del_motor(
     if elegido == "ollama":
         return _pensar_con_ollama(mensaje, instrucciones, len(indice), modelo_ollama)
     return _pensar_con_claude(mensaje, instrucciones, indice, modo(modo_pedido), nivel, buscar)
+
+
+def _frases_respaldo_gratis_del_tope(
+    mensaje: str, instrucciones: str, entradas: int, modo_pedido: str | None, modelo_ollama: str | None
+) -> Frases:
+    pensado = yield from _en_frases(
+        _charla("groq", "GROQ_API_KEY", mensaje, instrucciones, entradas, modo_pedido, en_vivo=True)
+    )
+    if pensado is not None:
+        return pensado
+    return (yield from _en_frases(_charla_ollama(mensaje, instrucciones, entradas, modelo_ollama, en_vivo=True)))
 
 
 def _frases_del_motor(
@@ -1147,6 +1186,10 @@ def _frases_del_motor(
     modelo_venice: str | None,
 ) -> Frases:
     """El motor elegido, en frases y en vivo."""
+    pedido = elegido
+    elegido = _motor_sin_pasar_el_tope(elegido)
+    if elegido == "groq" and pedido in gasto.MOTORES_PAGADOS:
+        return (yield from _frases_respaldo_gratis_del_tope(mensaje, instrucciones, len(indice), modo_pedido, modelo_ollama))
     if elegido == "venice":
         return (yield from _en_frases(_charla_venice(mensaje, instrucciones, len(indice), modelo_venice, en_vivo=True)))
     if elegido == "groq":
@@ -1365,6 +1408,7 @@ def _charla_venice(
     if pensado is None:
         print("[venice] respuesta vacía: sigo sin IA", file=sys.stderr)
         return None
+    gasto.registrar("venice", nombre_modelo, pensado.tokens_entrada, pensado.tokens_salida)
     print(
         f"[venice] modelo={pensado.modelo} tokens entrada={pensado.tokens_entrada} "
         f"salida={pensado.tokens_salida} memoria={entradas} leyó=no (sin herramientas)",
@@ -1434,6 +1478,8 @@ def _charla(
     if pensado is None:
         print(f"[{proveedor}] respuesta vacía: sigo sin IA", file=sys.stderr)
         return None
+    if proveedor in gasto.MOTORES_PAGADOS:
+        gasto.registrar(proveedor, nombre_modelo, pensado.tokens_entrada, pensado.tokens_salida)
     print(
         f"[{proveedor}] modelo={pensado.modelo} ms={ms:.0f} tokens entrada={pensado.tokens_entrada} "
         f"salida={pensado.tokens_salida} memoria={entradas} leyó=no (sin herramientas)",
@@ -1486,6 +1532,9 @@ def pensar_con_trastienda(
     Para tareas de fondo (resumen vivo, claves, títulos de episodios,
     consolidación nocturna): nunca la charla, que va por `pensar()`."""
     for proveedor, modelo in trastienda():
+        if proveedor in gasto.MOTORES_PAGADOS and gasto.excede_tope():
+            print(f"[trastienda] tope de gasto alcanzado: {proveedor} no sale, sigo con el siguiente", file=sys.stderr)
+            continue
         try:
             datos = _llamar_proveedor(proveedor, modelo, instrucciones, pedido)
         except httpx.HTTPError as error:
@@ -1502,6 +1551,8 @@ def pensar_con_trastienda(
         if aceptar is not None and not aceptar(pensado):
             print(f"[trastienda] {proveedor}/{modelo} rechazado: sigo con el siguiente", file=sys.stderr)
             continue
+        if proveedor in gasto.MOTORES_PAGADOS:
+            gasto.registrar(proveedor, modelo, pensado.tokens_entrada, pensado.tokens_salida)
         return pensado
     return None
 
