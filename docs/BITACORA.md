@@ -20,6 +20,62 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · R2 · Reloj, cuenta hacia atrás, apuestas · cerrado · 0dceed4
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Formas S, R, O.
+
+- **Qué cambió:**
+  1. `994223a` — `Tarea.tipo` (contrato + migración `ALTER TABLE`) para que el Reloj agrupe
+     velocidad por tipo de tarea; tocó 5 sitios de construcción en `bandeja.py`/`servidor.py`
+     y 6 archivos de pruebas (todos con `tipo=None`, nunca inventado).
+  2. `b7f44b6` — `nucleo/reloj.py` (forma S): `GET /reloj/estimar?tipo=&min=` — EBS de
+     Spolsky, simulación sembrada (2000 muestras, `random.Random(semilla)`) sobre las
+     velocidades reales (`estimado_min / real_min`) de tareas hechas de ese tipo; con menos
+     de 6 propias, usa el historial amplio. `excede_90_min` (función pura, sin wirear todavía
+     al flujo de crear tareas — ver limitación abajo).
+  3. `5f7fc2b` — `nucleo/rumbo.py` (forma R): `parsear_propuesta` («le mandé la propuesta a
+     X por 1.500», sin IA) wireado en `/mensaje`; `POST /rumbo/propuestas`; `GET
+     /rumbo/cuenta` (meta÷ticket, tasa de cierre propia con ≥5 propuestas o general de
+     `config/rumbo.json` con menos, propuestas/hechas de la semana, horas por camino).
+     `plata.cobrado_mes` nuevo, público, para el «tienes».
+  4. `3ff69e1` — `nucleo/rumbo.py` (forma O): `POST`/`GET /rumbo/apuestas`, `POST
+     /rumbo/apuestas/{id}/cerrar`; `gastado_horas`/`gastado_plata` y las señales se calculan
+     en vivo (nunca guardadas); `revisar_apuestas_vencidas` dispara, al leer `GET
+     /rumbo/apuestas`, una `Pregunta` de tres salidas al día 14 y «¿la volverías a hacer?» a
+     los 60, deduplicadas por `campo` (ley 3).
+  5. Cierre: `pytest -q` → 976 pasadas, 2 omitidas; `mypy .` → sin hallazgos (170 archivos).
+     Ventanita: `tsc --noEmit` limpio (arregladas 2 construcciones de `Tarea` sin `tipo` en
+     `App.tsx` y `bloqueAbierto.prueba.ts`), `vitest` 117 pasadas. Panel: `tsc --noEmit`
+     limpio, `test:e2e` 72 pasadas. `launchctl kickstart` reinició el núcleo. `doctor.sh` →
+     11/11. `GET /rumbo/cuenta`, `GET /reloj/estimar`, `GET /rumbo/apuestas` contra el
+     núcleo real confirmados de lectura (nunca una escritura de prueba contra el real).
+- **Decisiones que tomé sin preguntar:**
+  1. Sin `creada_en` en el contrato de Tarea, el Reloj no puede acotar a «últimos 6 meses»:
+     usa siempre todo el historial disponible. **CAMBIO DE FORMA** respecto al punto 1 de
+     R2 — queda anotado para cuando el contrato lo permita, no se inventó el campo porque
+     agregar `creada_en` además de `tipo` hubiera tocado los mismos 10+ sitios dos veces
+     por una ventana de tiempo que hoy no cambia el resultado de las pruebas.
+  2. «Ningún paso de Hoy pasa de ~90 min: si el estimado es mayor, Remi lo parte» (R2.1,
+     última frase) quedó solo como función pura (`reloj.excede_90_min`), sin wirear al
+     flujo de crear/planear tareas — el «listo cuando» de R2 no lo exige, y wirearlo bien
+     (pregunta o encargo, cuál de los dos) es una decisión de forma que toca `servidor.py`
+     en más de un lugar; lo dejo anotado para no improvisar un camino a medias.
+  3. `ticket` en `GET /rumbo/cuenta` es el promedio de TODAS las propuestas registradas
+     (no solo las cerradas) — con pocos datos, promediar solo cerradas da `None` casi
+     siempre y la cuenta queda inútil; es una lectura razonable del plan, no literal.
+  4. `horas_semana` por camino viene de `trabajo.minutos_entre_rango(camino, …)`, tratando
+     `Apuesta.camino` como el mismo `tema` que usan libros/sesiones — no hay todavía un
+     camino de R3 que lo generara distinto.
+- **ESPERA D1:** la parte de panel de R2 (pestaña Rumbo, tablero 6, revisión del domingo en
+  Semana) no se construyó — D1 no está aprobado en el canvas. El núcleo de las tres formas
+  (S, R, O) está completo y probado; falta solo la pantalla.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `pytest pruebas/test_reloj.py pruebas/test_rumbo.py -v` en
+  verde; `curl -s localhost:4400/rumbo/cuenta`, `.../reloj/estimar?tipo=x&min=30`,
+  `.../rumbo/apuestas` de solo lectura contra el núcleo real.
+
+---
+
 ## 2026-10-04 · R1 · Rumbo: visión, meta, escalera y punto de partida · cerrado · dd1b70d
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Forma N.
