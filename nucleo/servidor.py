@@ -1925,6 +1925,8 @@ class FaseVisible(BaseModel):
     estado: str
     # Forma A (T2): lo pagado del proyecto, repartido en cascada.
     cobrado: float
+    # B6.2: cuánto se esperaba que tomara. None hasta que se pregunta.
+    minutos_estimados: int | None
 
 
 class CerradoPor(BaseModel):
@@ -2102,7 +2104,7 @@ def _libro_visible(libro: libros.Libro, conexion: Any) -> LibroVisible:
         fases=[
             FaseVisible(
                 nombre=f.nombre, alcance=f.alcance, monto=f.monto, listo_cuando=f.listo_cuando,
-                estado=f.estado, cobrado=cobrado,
+                estado=f.estado, cobrado=cobrado, minutos_estimados=f.minutos_estimados,
             )
             for f, cobrado in zip(libro.fases, cobrados)
         ],

@@ -208,6 +208,19 @@ def _detectar_listo_cuando(libro: libros.Libro) -> list[Detectada]:
     ]
 
 
+def _detectar_minutos_estimados(libro: libros.Libro) -> list[Detectada]:
+    """B6.2: cuánto se esperaba que tomara esta fase — solo si ya tiene
+    `listo_cuando` (sin eso, ni se sabe qué se está estimando)."""
+    return [
+        Detectada(
+            libro.tema, f"fase.{n}.minutos_estimados",
+            f"¿Cuánto esperabas que tomara la {fase.nombre} de {libro.titulo}?",
+        )
+        for n, fase in enumerate(libro.fases, start=1)
+        if fase.listo_cuando and fase.minutos_estimados is None
+    ]
+
+
 def _detectar_cobrado(libro: libros.Libro, conexion: sqlite3.Connection) -> list[Detectada]:
     """Una fase `pagando` sin ningún cobro del proyecto todavía."""
     proyecto_id = entregas._proyecto_id_de_tema(libro.tema)
@@ -301,6 +314,7 @@ def detectar(conexion: sqlite3.Connection) -> list[Detectada]:
         resultado += _detectar_tipo(libro)
         resultado += _detectar_cliente(libro)
         resultado += _detectar_listo_cuando(libro)
+        resultado += _detectar_minutos_estimados(libro)
         resultado += _detectar_cobrado(libro, conexion)
         resultado += _detectar_ruta(libro)
     resultado += _detectar_completar()
@@ -390,7 +404,16 @@ def _escribir_campo_fase(archivo: Path, n: int, campo: str, valor: str) -> bool:
             lineas[i] = f"{coincidencia.group(1)}{campo}: {valor}"
             archivo.write_text("---".join([antes, "\n".join(lineas) + "\n", despues]))
             return True
-    return False
+    # El campo no existía todavía en esta fase (p. ej. minutos_estimados,
+    # B6.2): se agrega al final de su bloque, con la misma sangría que
+    # «nombre:» de esa fase — nunca pisa un campo existente.
+    sangria = re.match(r"^(\s*)-\s*nombre:", lineas[inicio_fase])
+    if sangria is None:
+        return False
+    indentacion = sangria.group(1) + "  "
+    lineas.insert(fin_fase, f"{indentacion}{campo}: {valor}")
+    archivo.write_text("---".join([antes, "\n".join(lineas) + "\n", despues]))
+    return True
 
 
 _PATRON_SI_CLIENTE = re.compile(r"\bcliente\b", re.IGNORECASE)
@@ -406,6 +429,22 @@ def _monto_de(texto: str) -> float | None:
         return float(coincidencia.group(1).replace(".", "").replace(",", "."))
     except ValueError:
         return None
+
+
+_PATRON_MINUTOS_RESPUESTA = re.compile(r"(\d+(?:[.,]\d+)?)\s*(hora|hrs?|min)", re.IGNORECASE)
+
+
+def _minutos_de(texto: str) -> int | None:
+    """«20 horas», «1200 min» — None si no se entiende (nunca adivina)."""
+    coincidencia = _PATRON_MINUTOS_RESPUESTA.search(texto)
+    if coincidencia is None:
+        return None
+    try:
+        numero = float(coincidencia.group(1).replace(",", "."))
+    except ValueError:
+        return None
+    unidad = coincidencia.group(2).lower()
+    return round(numero * 60) if unidad.startswith("hor") else round(numero)
 
 
 def responder(conexion: sqlite3.Connection, pregunta: Pregunta, texto: str) -> bool:
@@ -470,6 +509,20 @@ def responder(conexion: sqlite3.Connection, pregunta: Pregunta, texto: str) -> b
         if not escrito:
             return False
         boveda_git.snapshot_despues(f"{libro.archivo.stem}: listo_cuando de la fase {n}, respondido")
+        return True
+
+    if pregunta.campo.startswith("fase.") and pregunta.campo.endswith(".minutos_estimados"):
+        if libro is None:
+            return False
+        minutos = _minutos_de(texto)
+        if minutos is None:
+            return False
+        n = int(pregunta.campo.split(".")[1])
+        boveda_git.snapshot_antes(f"responder minutos_estimados de la fase {n} de {libro.archivo.name}")
+        escrito = _escribir_campo_fase(libro.archivo, n, "minutos_estimados", str(minutos))
+        if not escrito:
+            return False
+        boveda_git.snapshot_despues(f"{libro.archivo.stem}: minutos_estimados de la fase {n}, respondido")
         return True
 
     if pregunta.campo.startswith("fase.") and pregunta.campo.endswith(".cobrado"):

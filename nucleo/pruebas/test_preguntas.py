@@ -147,6 +147,27 @@ def test_fase_sin_listo_cuando_pregunta_y_la_respuesta_queda_en_el_archivo(tmp_p
     assert libro["fases"][1]["listo_cuando"] == "Demo aprobada"  # la otra fase no se tocó
 
 
+def test_fase_con_listo_cuando_pero_sin_minutos_estimados_pregunta(tmp_path, monkeypatch):
+    """B6.2: solo se pregunta minutos_estimados si la fase YA tiene
+    listo_cuando — Fase 1 (sin listo_cuando) no pregunta, Fase 2 sí."""
+    servidor, carpeta = _arrancar(tmp_path, monkeypatch)
+    (carpeta / "upvisuals.md").write_text(CLIENTE_CON_FASES_Y_RUTA_VACIA)
+    cliente = TestClient(servidor.app)
+    preguntas = cliente.get("/preguntas", params={"tema": "upvisuals"}).json()
+    campos = [p["campo"] for p in preguntas]
+    assert "fase.1.minutos_estimados" not in campos
+    assert "fase.2.minutos_estimados" in campos
+
+    pregunta = next(p for p in preguntas if p["campo"] == "fase.2.minutos_estimados")
+    respuesta = cliente.post(f"/preguntas/{pregunta['id']}/respuesta", json={"texto": "unas 20 horas"})
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["pregunta"]["estado"] == "respondida"
+    libro = {l["tema"]: l for l in cliente.get("/libros").json()}["upvisuals"]
+    assert libro["fases"][1]["minutos_estimados"] == 1200
+    assert libro["fases"][0]["minutos_estimados"] is None  # la otra fase no se tocó
+
+
 def test_fase_pagando_sin_cobro_pregunta_y_la_respuesta_crea_la_entrega(tmp_path, monkeypatch):
     servidor, carpeta = _arrancar(tmp_path, monkeypatch)
     (carpeta / "upvisuals.md").write_text(CLIENTE_CON_FASES_Y_RUTA_VACIA)
@@ -166,7 +187,14 @@ def test_fase_pagando_sin_cobro_pregunta_y_la_respuesta_crea_la_entrega(tmp_path
 
 def test_ruta_vacia_pregunta_y_la_respuesta_agrega_sin_borrar(tmp_path, monkeypatch):
     servidor, carpeta = _arrancar(tmp_path, monkeypatch)
-    (carpeta / "upvisuals.md").write_text(CLIENTE_CON_FASES_Y_RUTA_VACIA)
+    # Con minutos_estimados ya puesto en la Fase 2: evita competir con
+    # «ruta» por los MAXIMO_VISIBLES=3 cupos de este libro (B6.2).
+    (carpeta / "upvisuals.md").write_text(
+        CLIENTE_CON_FASES_Y_RUTA_VACIA.replace(
+            "    listo_cuando: Demo aprobada\n    estado: propuesta",
+            "    listo_cuando: Demo aprobada\n    estado: propuesta\n    minutos_estimados: 600",
+        )
+    )
     cliente = TestClient(servidor.app)
     pregunta = next(
         p for p in cliente.get("/preguntas", params={"tema": "upvisuals"}).json() if p["campo"] == "ruta"

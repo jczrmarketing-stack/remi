@@ -178,6 +178,7 @@ def test_libros_trae_tipo_fases_hito_actual_siguientes_y_paso_remi(tmp_path, mon
             "listo_cuando": "Demo aprobada por Alfonso",
             "estado": "camino",
             "cobrado": 0.0,
+            "minutos_estimados": None,
         }
     ]
     assert upvisuals["hito_actual"]["texto"] == "Propuesta por fases"

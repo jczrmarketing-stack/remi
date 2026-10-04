@@ -48,7 +48,7 @@ export type EntregaCercana = { cliente: string; fecha: string; monto: number };
 // Una fase de la propuesta, tal como está en el frontmatter del libro.
 // `cobrado`: lo pagado del proyecto repartido en cascada entre las fases
 // (forma A); sin definir mientras el núcleo no lo sirva.
-export type Fase = { nombre: string; alcance: string; monto: number | null; listo_cuando: string; estado: string; cobrado?: number };
+export type Fase = { nombre: string; alcance: string; monto: number | null; listo_cuando: string; estado: string; cobrado?: number; minutos_estimados?: number | null };
 export type Libro = {
   tema: string;
   titulo: string;
