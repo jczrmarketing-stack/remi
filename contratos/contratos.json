@@ -98,5 +98,21 @@
     "origen": "medido|dicho|pregunta",
     "dominio": "cirujano|sabe|aprendiz|null",
     "calculada_en": "iso"
+  },
+  "Propuesta": {
+    "id": "uuid",
+    "cliente": "string",
+    "monto": "number",
+    "fecha": "iso",
+    "estado": "pendiente|cerrada|perdida"
+  },
+  "Apuesta": {
+    "id": "uuid",
+    "camino": "string",
+    "inicio": "iso",
+    "fin": "iso",
+    "tope_horas": "number",
+    "tope_plata": "number",
+    "resultado": "sigue|pausa|extender|null"
   }
 }

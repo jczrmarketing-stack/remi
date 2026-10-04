@@ -141,3 +141,25 @@ class Partida(BaseModel):
     origen: Literal["medido", "dicho", "pregunta"]
     dominio: Literal["cirujano", "sabe", "aprendiz"] | None
     calculada_en: datetime
+
+
+class Propuesta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    cliente: str
+    monto: float
+    fecha: datetime
+    estado: Literal["pendiente", "cerrada", "perdida"]
+
+
+class Apuesta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    camino: str
+    inicio: datetime
+    fin: datetime
+    tope_horas: float
+    tope_plata: float
+    resultado: Literal["sigue", "pausa", "extender"] | None

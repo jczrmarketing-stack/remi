@@ -112,3 +112,21 @@ export interface Partida {
   dominio: "cirujano" | "sabe" | "aprendiz" | null;
   calculada_en: ISODateString;
 }
+
+export interface Propuesta {
+  id: UUID;
+  cliente: string;
+  monto: number;
+  fecha: ISODateString;
+  estado: "pendiente" | "cerrada" | "perdida";
+}
+
+export interface Apuesta {
+  id: UUID;
+  camino: string;
+  inicio: ISODateString;
+  fin: ISODateString;
+  tope_horas: number;
+  tope_plata: number;
+  resultado: "sigue" | "pausa" | "extender" | null;
+}
