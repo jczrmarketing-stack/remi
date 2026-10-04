@@ -94,3 +94,39 @@ Dos puntos de R1 que quedaron abiertos, cerrados antes de seguir a R2 (3-oct):
 
 De paso, dos cosas chicas que salieron de mirar el código de R2 (arregladas):
 - `prompts/cliente.md` tenía «Sos Remi» (voseo) en el system prompt — `48f5ba7`.
+
+## R3 · Núcleo e «indestructible»
+
+| # | La Biblia dice | Código / prueba (3-oct) | Estado |
+|---|---|---|---|
+| 39 | `doctor.sh` revisa las 10 piezas | 10/10 real; copia del script contra ollama en puerto muerto → FALLA y exit 1 | **pasa** |
+| 40 | Copia nocturna cifrada | `scripts/copia.sh`: restic, remi.db por la API de backup de SQLite, `.env` incluido | **pasa** |
+| 41 | Restaurar: un script, probado de verdad | `scripts/restaurar.sh --en <carpeta>` corrido de verdad: remi.db restaurado, `integrity_check=ok`, 47 filas en memoria, bóveda y `.env` completos | **pasa** |
+| 42 | Se cura solo: KeepAlive | `kill` al proceso real del núcleo (puerto 4400): arriba de nuevo en 3 s, `doctor.sh` 10/10 después | **pasa** |
+| 43 | Vigía: si Remi cae 5 min, aviso | Copia aislada de `vigia.sh` contra puerto muerto, 5 corridas: avisa a los 5 min y avisa que volvió al recuperarse. **Encontrado y arreglado** (`e6d60eb`): el aviso real de macOS decía «corré» (voseo) | **falló, arreglado** |
+| 44 | Reporte de la noche con diff | `~/Library/Logs/Remi/noche.log`: corrida de esta madrugada (3-oct 04:00), `reporte libros_cambiados=0` | **pasa** |
+| 45 | Tope de gasto en `config/motores.json` con interruptor | No existe ningún campo de tope ni contador de gasto en el código | **no existe** (por construir, S) |
+| 46 | Secretos en `nucleo/.env` con permisos 600, fuera de git | `-rw-------`; entra cifrado a la copia nocturna | **pasa** |
+| 47 | Accesibilidad macOS: contexto de la app activa | Nada en el código (`apps/ventanita/src-tauri`, `nucleo/`) lee la app activa por Accesibilidad | **no existe** (por construir, M) |
+| 48 | Google Calendar: bloques y citas | Solo mencionado como destino posible en un comentario; sin integración | **no existe** (por construir, M) |
+
+De paso, R3 encontró voseo real (arreglado, `e6d60eb`) en `vigia.sh` (una notificación real de macOS), `desinstalar.sh` y `tunel.sh`.
+
+## R4 · El panel web
+
+| # | La Biblia dice | Código / prueba (3-oct) | Estado |
+|---|---|---|---|
+| 49 | Hoy: una sola cosa en serif, el Reloj contra la última vez, máx. tres filas más | `tests/hoy.spec.ts`, 8 pruebas con el núcleo falso de Playwright | **pasa** |
+| 50 | Hoy: el número de la semana ($X de $Y, faltan $Z), nunca un porcentaje solo | `tests/hoy.spec.ts:29` | **pasa** |
+| 51 | Bandeja: lavanda enfriando, ámbar a las 48 h, revisión en frío | `tests/bandeja.spec.ts` | **pasa** |
+| 52 | Proyectos: camino lineal, un solo paso encendido, nunca árbol | `tests/proyecto.spec.ts`, `tests/proyectos.spec.ts` | **pasa** |
+| 53 | Metas: meta, número del mes, brecha y qué la cierra; la segunda duerme hasta el 50 % | `tests/metas.spec.ts` (incluye «duerme hasta que la primera pase de 50 %») | **pasa** |
+| 54 | Revisión semanal: cinco preguntas, lo aplazado sin contador | `tests/semana.spec.ts` | **pasa** |
+| 55 | Lista de cierre al cerrar un hito | `tests/proyecto.spec.ts:67` («cerrar el hito lo anota en el libro, y se puede deshacer») | **pasa** |
+| 56 | Temas Noche y Día, lectura biónica con sus perillas | `globals.css` (`[data-tema="dia"]`), `Bionica.tsx` con perillas de intensidad; capturas visuales — a mano | **pasa** (código); capturas a tu criterio |
+| 57 | Ajustes → Conexiones: guardar, probar, nunca leer de vuelta; bloqueado desde el túnel | El modelo `Conexion` nunca serializa el valor (solo `puesta: bool`); `curl` real con `Cf-Connecting-Ip` → 403, sin la cabecera → 200 | **pasa** |
+| 58 | PWA en el iPhone | **Arreglado** (`66d5ac9`): faltaba el `apple-touch-icon` que iOS pide para «Añadir a inicio» (el manifest no le sirve). A mano: instalarla desde Safari en el iPhone | **falló, arreglado**; instalar es tuyo |
+| 59 | Panel afuera solo detrás de Access | Hoy no está expuesto (`remi.inv3rza.com` no responde); `doctor.sh` ya tiene el chequeo que falla si quedara público sin Access | **pendiente de Juan Camilo** — cuando lo publiques, pasa por Access antes de abrir el DNS |
+| 60 | Design System: sin azul, sin verde menta, sin gradientes, sin negro puro, sin hex a mano | Único hex fuera de `tokens.css` es el `themeColor` del navegador (inevitable); sin gradientes; `--ground` es carbón cálido, no negro puro; mismo resultado en la ventanita | **pasa** |
+
+Las 63 pruebas de Playwright del panel (núcleo falso, puerto 4498) pasan completas.
