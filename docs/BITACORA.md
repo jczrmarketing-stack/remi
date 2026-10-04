@@ -20,6 +20,58 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · R3 · Ábreme el juego y análisis de un camino · cerrado con un BLOQUEADO · 05c871a
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
+
+- **Qué cambió:**
+  1. `05c54e0` — contratos: `Idea.origen` suma `rumbo` (no rompe nada: las dos opciones
+     viejas siguen igual); `AnalisisCamino` y `Fuente` nuevos (forma Q).
+  2. `c431b13` — `nucleo/analisis_camino.py`: `POST /rumbo/caminos {idea_id}` → 202, deja
+     la fila `investigando`; `GET /rumbo/caminos/{id}`; `ejecutar_investigacion` (la pieza
+     real, sincrónica, pura en sus efectos) recibe un `investigador` y un `confirmador`
+     inyectados — nunca llama a un modelo de pago. `verificar_fuentes`: sin fragmento
+     literal, una fuente NUNCA se verifica (ni se le pregunta al confirmador); con
+     fragmento, el confirmador decide. Un investigador que lanza deja el análisis en
+     `fallo`, nunca a medias.
+  3. `05c871a` — `nucleo/juego.py`: «Ábreme el juego». `filtrar_jugadas` descarta por
+     similitud (>82%) y por `config/rumbo.json.palabras_de_moda`; si ninguna sobreviviente
+     cuestiona la meta, agrega la fija que lo hace (ley 6 intacta: todas nacen `enfriando`,
+     48h). `jugadas_a_ideas` las deja como `Idea(origen="rumbo")` para la Bandeja.
+  4. Cierre: `pytest -q` → 987 pasadas, 2 omitidas; `mypy .` → sin hallazgos (174
+     archivos). Ventanita: `tsc` limpio, `vitest` 117 pasadas. Panel: `tsc` limpio,
+     `test:e2e` 72 pasadas. `launchctl kickstart` reinició el núcleo. `doctor.sh` → 11/11.
+     `GET /rumbo/caminos/<uuid-falso>` contra el núcleo real responde 404 (ruta viva, sin
+     escribir nada).
+- **BLOQUEADO: el investigador y el generador reales (R3.1 y R3.2)** — por qué: ambos
+  necesitan una llamada real a un modelo con la herramienta de búsqueda web de Claude
+  (STORM-style para el camino; muestreo verbalizado con los lentes de la Parte IX para
+  «Ábreme el juego»), y el propio plan pide primero «comprobar en la documentación de
+  Claude Code cómo se habilita [la búsqueda] en `claude -p`» — diseñar ese prompt y
+  confirmarlo en vivo contra un caso real, con el tope de B1 de por medio, es trabajo de
+  una sesión dedicada, no algo que se decide de forma en el camino sin verlo funcionar. Qué
+  hace falta: una sesión aparte que (a) confirme cómo activar la búsqueda en `claude -p`,
+  (b) diseñe y pruebe el prompt STORM y el de muestreo verbalizado contra un caso real,
+  (c) conecte el resultado a `Investigador`/`Generador` — las dos interfaces ya existen,
+  tipadas y probadas con dobles, listas para recibir la implementación real sin tocar nada
+  del pipeline, la verificación de fuentes, ni el filtro de jugadas.
+- **Decisiones que tomé sin preguntar:**
+  1. `POST /rumbo/caminos` no dispara ninguna investigación real (no hay investigador
+     real todavía): solo crea la fila `investigando`. No expuse un endpoint que simule
+     o invente una investigación — preferí dejarlo honestamente a medio camino, anotado,
+     en vez de fabricar contenido que parezca investigación real.
+  2. No agregué un endpoint `POST /rumbo/juego` por la misma razón: sin generador real,
+     un endpoint ahí no haría nada útil. `juego.py` queda como módulo puro, probado,
+     listo para que un endpoint lo use en cuanto el generador exista.
+  3. `verificada` en `Fuente` es un booleano simple (no un campo `supuesto` separado):
+     "supuesto" = `verificada == false`, que es exactamente lo que pide el contrato.
+- **Dudas abiertas:** ninguna más allá del BLOQUEADO de arriba.
+- **Cómo probarlo a mano:** `pytest pruebas/test_analisis_camino.py pruebas/test_juego.py
+  -v` en verde (todo con dobles); `curl -s -o /dev/null -w '%{http_code}'
+  localhost:4400/rumbo/caminos/00000000-0000-0000-0000-000000000000` → 404, de solo lectura.
+
+---
+
 ## 2026-10-04 · R2 · Reloj, cuenta hacia atrás, apuestas · cerrado · 0dceed4
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Formas S, R, O.
