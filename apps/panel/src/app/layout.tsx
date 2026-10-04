@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: "Panel de Remi",
   description: "Hoy, Proyectos, Metas y Bandeja — el panel de Remi.",
   manifest: "/manifest.json",
+  // iOS ignora los íconos del manifest al "Añadir a inicio": necesita este
+  // link con el mismo ícono ya aprobado, en PNG (revisión R4.58, 3-oct).
+  icons: { apple: "/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
