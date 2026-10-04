@@ -254,6 +254,24 @@ CREATE TABLE IF NOT EXISTS aldia_borrador (
     texto TEXT NOT NULL,
     PRIMARY KEY (tema, hito)
 );
+
+-- B7: lo que quedó a medias en un tema cuando la charla saltó a otro —
+-- se devuelve una sola vez al volver a ese tema, y entonces se borra.
+CREATE TABLE IF NOT EXISTS hilos (
+    tema TEXT PRIMARY KEY,
+    texto TEXT NOT NULL,
+    creado_en TEXT NOT NULL
+);
+
+-- B7: el último tema que mencionó un mensaje (de cualquier conversación) y
+-- lo que decía — una sola fila, para notar el salto al siguiente mensaje
+-- que mencione un tema distinto.
+CREATE TABLE IF NOT EXISTS ultimo_tema_visto (
+    clave TEXT PRIMARY KEY,
+    tema TEXT NOT NULL,
+    texto TEXT NOT NULL,
+    visto_en TEXT NOT NULL
+);
 """
 
 
@@ -1179,3 +1197,43 @@ def actualizar_estado_pregunta(
     )
     conexion.commit()
     return leer_pregunta(conexion, pregunta_id)
+
+
+# — B7: hilos por tema —
+
+
+def ultimo_tema_visto(conexion: sqlite3.Connection) -> tuple[str, str] | None:
+    """(tema, texto) del último mensaje que mencionó un tema, de cualquier
+    conversación. None si todavía no ha pasado ninguno."""
+    fila = conexion.execute("SELECT tema, texto FROM ultimo_tema_visto WHERE clave = 'actual'").fetchone()
+    return (fila["tema"], fila["texto"]) if fila else None
+
+
+def poner_ultimo_tema_visto(conexion: sqlite3.Connection, tema: str, texto: str, ahora: datetime) -> None:
+    conexion.execute(
+        "INSERT INTO ultimo_tema_visto (clave, tema, texto, visto_en) VALUES ('actual', ?, ?, ?) "
+        "ON CONFLICT(clave) DO UPDATE SET tema = excluded.tema, texto = excluded.texto, visto_en = excluded.visto_en",
+        (tema, texto, ahora.isoformat()),
+    )
+    conexion.commit()
+
+
+def guardar_hilo(conexion: sqlite3.Connection, tema: str, texto: str, ahora: datetime) -> None:
+    """Lo que quedó a medias en `tema`. Si ya había un hilo sin recoger
+    para ese tema, este lo reemplaza — es lo último que se dijo ahí."""
+    conexion.execute(
+        "INSERT INTO hilos (tema, texto, creado_en) VALUES (?, ?, ?) "
+        "ON CONFLICT(tema) DO UPDATE SET texto = excluded.texto, creado_en = excluded.creado_en",
+        (tema, texto, ahora.isoformat()),
+    )
+    conexion.commit()
+
+
+def recoger_hilo(conexion: sqlite3.Connection, tema: str) -> str | None:
+    """El hilo pendiente de `tema`, UNA sola vez — lo borra al leerlo."""
+    fila = conexion.execute("SELECT texto FROM hilos WHERE tema = ?", (tema,)).fetchone()
+    if fila is None:
+        return None
+    conexion.execute("DELETE FROM hilos WHERE tema = ?", (tema,))
+    conexion.commit()
+    return str(fila["texto"])

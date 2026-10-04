@@ -41,6 +41,7 @@ import estado_libro
 import experiencia
 import ficha
 import gasto
+import hilos
 import iniciativa
 import libros
 import mensaje_cliente
@@ -592,6 +593,14 @@ def _atender(mensaje: MensajeEntrante, emisor: Emisor | None) -> RespuestaMensaj
         if clasificar.es_cortesia_o_muy_corta(mensaje.texto) or _hay_conversacion_vigente():
             tipo = "pregunta"
 
+    # B7: el hilo del tema al que se vuelve, antes de que esta charla deje
+    # su propio rastro para EL SIGUIENTE salto.
+    conexion_hilo = db.conectar()
+    try:
+        hilo_pendiente = hilos.rastrear(conexion_hilo, mensaje.texto, datetime.now(timezone.utc))
+    finally:
+        conexion_hilo.close()
+
     if tipo == "idea":
         respuesta = _guardar_idea(mensaje, texto_idea=contenido_explicito, emisor=emisor)
     elif tipo == "pregunta":
@@ -600,6 +609,15 @@ def _atender(mensaje: MensajeEntrante, emisor: Emisor | None) -> RespuestaMensaj
         respuesta = _cerrar_lo_abierto()
     else:
         respuesta = _abrir_bloque(mensaje)
+
+    if hilo_pendiente is not None:
+        tema_de_vuelta = temas.tema_de_texto(mensaje.texto)
+        if tema_de_vuelta is not None:
+            anuncio = hilos.voz_del_hilo(tema_de_vuelta, hilo_pendiente)
+            respuesta = respuesta.model_copy(update={
+                "texto": f"{anuncio}. {respuesta.texto}",
+                "voz": f"{anuncio}. {respuesta.voz}" if respuesta.voz else anuncio,
+            })
 
     # Una línea por mensaje, para poder cruzarla con el log de la ventanita:
     # qué tipo salió, cuánto tardó y si se gastó un token.
