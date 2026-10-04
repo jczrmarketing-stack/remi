@@ -130,7 +130,10 @@ function ChipDeFase({ estado }: { estado: string }) {
 function FichaDeCliente({ libro, recargar }: { libro: LibroDetalle; recargar: () => void }) {
   const cobrado = libro.fases.reduce((s, f) => s + (f.cobrado ?? 0), 0);
   const faseActual = libro.fase_actual_n ? libro.fases[libro.fase_actual_n - 1] : null;
-  const estimados = faseActual?.minutos_estimados ?? null;
+  // minutos_total es del libro entero: el estimado de la fase actual solo
+  // se muestra junto a él cuando hay una sola fase (ahí son lo mismo) —
+  // con más de una, mezclaría tiempo de otras fases (hallazgo de revisión, B6).
+  const estimados = libro.fases.length === 1 ? faseActual?.minutos_estimados ?? null : null;
 
   return (
     <section aria-label="Ficha" className="card" style={{ display: "flex", flexDirection: "column", gap: 20 }}>

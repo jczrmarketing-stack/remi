@@ -27,7 +27,15 @@ _COMUN = re.compile(
 # «la membresía de Claude: 100 al mes» — sin verbo, con dos puntos y un
 # número después: una forma de gasto igual de válida, siempre común (no
 # tiene sentido que un gasto fijo mensual sea "del proyecto X" sin decirlo).
+# Exige además una palabra de gasto recurrente (_COMUN) — sin eso, «UpVisuals:
+# 3 bugs pendientes» o «Reunión: 3 pm» no son gastos, son cualquier frase con
+# dos puntos y un número (hallazgo de revisión, B6).
 _SIN_VERBO_CON_DOSPUNTOS = re.compile(r"^(.+?):\s*\$?\s*\d[\d.,]*")
+# Un número dentro de una fecha hablada («el 15 de octubre») nunca es el
+# monto — se descarta antes de buscar el monto y antes de armar el
+# concepto (hallazgo de revisión, B6).
+_MESES = "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre"
+_FECHA = re.compile(rf"\d{{1,2}}\s+de\s+(?:{_MESES})\b", re.IGNORECASE)
 
 _CONECTORES_INICIALES = ("en", "de", "del", "la", "el", "los", "las", "un", "una")
 
@@ -44,11 +52,24 @@ class GastoParseado:
     claro: bool
 
 
+def _monto_de(numero: str) -> float:
+    """"1.500" son mil quinientos (punto de miles, como en el resto de la
+    app); "40.50" son cuarenta con cincuenta (un solo punto con dos
+    decimales se lee como decimal, no como miles)."""
+    if "," in numero:
+        return float(numero.replace(".", "").replace(",", "."))
+    partes = numero.split(".")
+    if len(partes) == 2 and len(partes[1]) == 2:
+        return float(numero)
+    return float(numero.replace(".", ""))
+
+
 def _concepto_de(texto: str, antes_de_dos_puntos: str | None) -> str:
     if antes_de_dos_puntos is not None:
         return antes_de_dos_puntos.strip()
     sin_verbo = _VERBO.sub("", texto, count=1)
-    sin_monto = _MONTO.sub("", sin_verbo, count=1)
+    sin_fechas = _FECHA.sub("", sin_verbo)
+    sin_monto = _MONTO.sub("", sin_fechas, count=1)
     palabras = sin_monto.strip().split()
     while palabras and palabras[0].lower() in _CONECTORES_INICIALES:
         palabras.pop(0)
@@ -57,15 +78,18 @@ def _concepto_de(texto: str, antes_de_dos_puntos: str | None) -> str:
 
 def parsear(texto: str) -> GastoParseado | None:
     con_dos_puntos = _SIN_VERBO_CON_DOSPUNTOS.match(texto.strip())
+    es_comun_de_dos_puntos = con_dos_puntos is not None and bool(_COMUN.search(texto))
+    if con_dos_puntos is not None and not es_comun_de_dos_puntos:
+        con_dos_puntos = None
     tiene_verbo = bool(_VERBO.search(texto))
     if not tiene_verbo and con_dos_puntos is None:
         return None
-    coincidencia = _MONTO.search(texto)
+    sin_fechas = _FECHA.sub("", texto)
+    coincidencia = _MONTO.search(sin_fechas)
     if coincidencia is None:
         return None
-    monto_texto = coincidencia.group(1).replace(".", "").replace(",", ".")
     try:
-        monto = float(monto_texto)
+        monto = _monto_de(coincidencia.group(1))
     except ValueError:
         return None
     tema = temas.tema_de_texto(texto)

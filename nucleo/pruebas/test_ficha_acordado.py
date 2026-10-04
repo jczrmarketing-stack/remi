@@ -109,10 +109,14 @@ def test_lo_acordado_trae_decisiones_y_entregas_futuras(tmp_path, monkeypatch):
 
 def test_atento_a_avisa_cuando_se_pasa_del_estimado(tmp_path, monkeypatch):
     ficha, db = _arrancar(tmp_path, monkeypatch)
+    import dataclasses
+
     import libros
 
     libro = next(l for l in libros.listar() if l.tema == "upvisuals")
-    lineas = ficha.atento_a(libro, minutos_total=90)  # estimado: 60
+    # Una sola fase: ahí minutos_total SÍ es el tiempo de esa fase.
+    libro_una_fase = dataclasses.replace(libro, fases=(libro.fases[0],))
+    lineas = ficha.atento_a(libro_una_fase, minutos_total=90)  # estimado: 60
     assert any("30 min más" in l for l in lineas)
 
 
@@ -132,3 +136,31 @@ def test_atento_a_sin_pasarse_del_estimado_no_avisa_nada_de_horas(tmp_path, monk
     libro = next(l for l in libros.listar() if l.tema == "upvisuals")
     lineas = ficha.atento_a(libro, minutos_total=30)
     assert not any("más de lo estimado" in l for l in lineas)
+
+
+# Hallazgo de revisión (grave, B6): minutos_total es del libro entero, no
+# de la fase actual. Con dos fases, comparar inventaba un exceso falso.
+def test_atento_a_con_mas_de_una_fase_no_inventa_horas_de_mas(tmp_path, monkeypatch):
+    ficha, db = _arrancar(tmp_path, monkeypatch)
+    import dataclasses
+
+    import libros
+
+    libro = next(l for l in libros.listar() if l.tema == "upvisuals")
+    # Fase 1 (60 min estimados) ya cerrada; Fase 2 (sin estimado) abierta.
+    # minutos_total (90) supera el estimado de la Fase 1, pero esa fase
+    # ya terminó — no hay "exceso" real que avisar.
+    cerrada = dataclasses.replace(libro.fases[0], estado="cobrada")
+    libro_dos_fases = dataclasses.replace(libro, fases=(cerrada, libro.fases[1]))
+    lineas = ficha.atento_a(libro_dos_fases, minutos_total=90)
+    assert not any("más de lo estimado" in l for l in lineas)
+    assert any("Alcance nuevo: Fase 2" in l for l in lineas)
+
+
+def test_atento_a_no_dice_que_la_fase_actual_ya_esta_lista(tmp_path, monkeypatch):
+    ficha, db = _arrancar(tmp_path, monkeypatch)
+    import libros
+
+    libro = next(l for l in libros.listar() if l.tema == "upvisuals")
+    lineas = ficha.atento_a(libro, minutos_total=10)
+    assert not any("lista" in l and "sigue" in l for l in lineas)

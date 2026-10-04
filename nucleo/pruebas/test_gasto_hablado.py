@@ -159,6 +159,34 @@ def test_corregir_un_gasto_con_monto_negativo_es_422(tmp_path, monkeypatch):
     assert respuesta.status_code == 422
 
 
+def test_dos_gastos_dudosos_iguales_dejan_dos_preguntas(tmp_path, monkeypatch):
+    """Hallazgo de revisión (grave, B6): el segundo gasto hablado, igual
+    al primero, se perdía en silencio porque la pregunta se deduplicaba
+    por (tema, campo) — y el campo venía solo de monto+concepto."""
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    cliente.post("/mensaje", json={"texto": "gasté 15 en el almuerzo"})
+    cliente.post("/mensaje", json={"texto": "gasté 15 en el almuerzo"})
+    preguntas = cliente.get("/preguntas", params={"tema": "_gastos"}).json()
+    assert len(preguntas) == 2
+
+
+def test_responder_no_es_comun_no_se_confunde_con_comun(tmp_path, monkeypatch):
+    """Hallazgo de revisión (medio, B6): "comun" como subcadena también
+    está en "comunicación", y "no es comun" se leía igual que "es comun"."""
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    cliente.post("/mensaje", json={"texto": "gasté 15 en algo"})
+    pregunta = cliente.get("/preguntas", params={"tema": "_gastos"}).json()[0]
+
+    respuesta = cliente.post(f"/preguntas/{pregunta['id']}/respuesta", json={"texto": "no es comun, es de upvisuals"})
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["pregunta"]["estado"] == "respondida"
+    libro = cliente.get("/libros/upvisuals").json()
+    assert libro["gastado"] == 15.0
+
+
 def test_un_cobro_no_se_confunde_con_un_gasto(tmp_path, monkeypatch):
     servidor = _arrancar(tmp_path, monkeypatch)
     cliente = TestClient(servidor.app)

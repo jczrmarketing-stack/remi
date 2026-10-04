@@ -170,20 +170,29 @@ _ESTADOS_DE_FASE_CERRADA = frozenset({"entregada", "cobrada", "cerrada", "hecha"
 
 def atento_a(libro: libros.Libro, minutos_total: int) -> list[str]:
     """B6.4: una línea por regla — sin IA, nunca inventa. Horas contra
-    estimado, hitos que faltan, y el alcance nuevo cuando la fase actual
-    ya está lista (la que sigue)."""
+    estimado, hitos que faltan, y el alcance nuevo (cuando ya hay una
+    fase anterior cerrada, el alcance vigente es esta)."""
     lineas: list[str] = []
     n = next(
         (i for i, f in enumerate(libro.fases, start=1) if f.estado.strip().lower() not in _ESTADOS_DE_FASE_CERRADA),
         None,
     )
     fase_actual = libro.fases[n - 1] if n else None
-    if fase_actual is not None and fase_actual.minutos_estimados and minutos_total > fase_actual.minutos_estimados:
+    # `minutos_total` es del LIBRO entero (no hay minutos por fase) — solo
+    # se compara contra el estimado cuando hay una sola fase, donde total
+    # y "de esta fase" son lo mismo. Con más de una fase comparar inventaría
+    # datos (hallazgo de revisión, B6): mezclaría tiempo de otras fases.
+    if (
+        fase_actual is not None
+        and len(libro.fases) == 1
+        and fase_actual.minutos_estimados
+        and minutos_total > fase_actual.minutos_estimados
+    ):
         exceso = minutos_total - fase_actual.minutos_estimados
         lineas.append(f"{exceso} min más de lo estimado en {fase_actual.nombre}.")
     abiertos = [h for h in caminos.leer_hitos(libro.archivo) if not h.hecho]
     if abiertos:
         lineas.append(f"Quedan {len(abiertos)} paso(s) del camino.")
-    if n is not None and n < len(libro.fases):
-        lineas.append(f"{fase_actual.nombre if fase_actual else ''} lista: sigue {libro.fases[n].nombre}.")
+    if n is not None and n > 1 and fase_actual is not None:
+        lineas.append(f"Alcance nuevo: {fase_actual.nombre}.")
     return lineas

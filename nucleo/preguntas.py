@@ -457,13 +457,17 @@ def responder(conexion: sqlite3.Connection, pregunta: Pregunta, texto: str) -> b
         # reconocer solo. El monto y el concepto viajan en el `campo`
         # mismo (no hay dónde más guardarlos entre la pregunta y la
         # respuesta).
-        _, monto_gasto_texto, concepto_gasto = pregunta.campo.split("::", 2)
+        _, monto_gasto_texto, concepto_gasto, *_nonce = pregunta.campo.split("::", 3)
         try:
             monto_gasto = float(monto_gasto_texto)
         except ValueError:
             return False
         limpio = clasificar.normalizar(texto)
-        if "comun" in limpio:
+        # Palabra exacta, no subcadena: "comun" también está dentro de
+        # "comunicación", y "no es comun" se leía igual que "es comun"
+        # (hallazgo de revisión, B6).
+        palabras = limpio.split()
+        if "comun" in palabras and not any(p in palabras for p in ("no", "nunca", "tampoco")):
             tema_resuelto: str | None = None
         else:
             encontrado = next(

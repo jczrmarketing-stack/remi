@@ -715,20 +715,26 @@ def _registrar_gasto_hablado(mensaje: MensajeEntrante) -> RespuestaMensaje | Non
     conexion = db.conectar()
     try:
         if not parseada.claro:
-            campo = f"gasto::{parseada.monto}::{parseada.concepto}"
-            if db.pregunta_de_tema_campo(conexion, "_gastos", campo) is None:
-                db.crear_pregunta(
-                    conexion,
-                    Pregunta(
-                        id=uuid4(),
-                        tema="_gastos",
-                        campo=campo,
-                        voz=f"{parseada.concepto} ({parseada.monto:.0f}): ¿de algún proyecto, o común?",
-                        estado="pendiente",
-                        creada_en=ahora,
-                        disponible_desde=ahora,
-                    ),
-                )
+            # Un nonce al final (no al dedupe por tema+campo): dos gastos
+            # hablados iguales ("gasté 15 en el almuerzo" dos veces) son dos
+            # transacciones reales, cada una con su propia pregunta — sin
+            # esto, la segunda se perdía en silencio (hallazgo de revisión,
+            # B6): la pregunta ya existía por la primera y nunca se creaba
+            # la segunda, así que ese segundo gasto no quedaba anotado
+            # en ningún lado.
+            campo = f"gasto::{parseada.monto}::{parseada.concepto}::{ahora.timestamp()}"
+            db.crear_pregunta(
+                conexion,
+                Pregunta(
+                    id=uuid4(),
+                    tema="_gastos",
+                    campo=campo,
+                    voz=f"{parseada.concepto} ({parseada.monto:.0f}): ¿de algún proyecto, o común?",
+                    estado="pendiente",
+                    creada_en=ahora,
+                    disponible_desde=ahora,
+                ),
+            )
             voz = "No sé de qué proyecto es ese gasto. Te pregunto en el panel."
             return RespuestaMensaje(tipo="idea", texto=voz, voz=voz)
         db.crear_gasto(conexion, parseada.tema, parseada.concepto, parseada.monto, ahora)

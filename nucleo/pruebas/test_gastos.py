@@ -70,3 +70,36 @@ def test_sin_verbo_ni_dos_puntos_no_es_un_gasto(tmp_path, monkeypatch):
 def test_sin_monto_no_es_un_gasto(tmp_path, monkeypatch):
     gastos = _gastos(tmp_path, monkeypatch)
     assert gastos.parsear("gasté en el servidor de upvisuals") is None
+
+
+# Hallazgo de revisión (grave, B6): "algo: número" sin palabra de gasto
+# recurrente se leía como un gasto, sin preguntar nunca.
+def test_dos_puntos_sin_palabra_de_gasto_no_es_un_gasto(tmp_path, monkeypatch):
+    gastos = _gastos(tmp_path, monkeypatch)
+    assert gastos.parsear("llamo a Alfonso a las 10:30") is None
+    assert gastos.parsear("Reunión: 3 pm con el equipo") is None
+    assert gastos.parsear("UpVisuals: 3 bugs pendientes") is None
+
+
+# Hallazgo de revisión (medio, B6): un punto decimal se leía como miles.
+def test_monto_con_un_punto_y_dos_decimales_es_decimal(tmp_path, monkeypatch):
+    gastos = _gastos(tmp_path, monkeypatch)
+    parseado = gastos.parsear("pagué 40.50 del dominio")
+    assert parseado is not None
+    assert parseado.monto == 40.50
+
+
+def test_monto_con_puntos_de_miles_sigue_funcionando(tmp_path, monkeypatch):
+    gastos = _gastos(tmp_path, monkeypatch)
+    parseado = gastos.parsear("pagué 1.500 del dominio")
+    assert parseado is not None
+    assert parseado.monto == 1500.0
+
+
+# Hallazgo de revisión (medio, B6): el número de una fecha hablada se leía
+# como el monto.
+def test_fecha_hablada_no_se_confunde_con_el_monto(tmp_path, monkeypatch):
+    gastos = _gastos(tmp_path, monkeypatch)
+    parseado = gastos.parsear("pagué el 15 de octubre 40 del dominio")
+    assert parseado is not None
+    assert parseado.monto == 40.0
