@@ -13,6 +13,7 @@ from __future__ import annotations
 import random
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -89,8 +90,54 @@ def excede_90_min(minutos: int) -> bool:
 @dataclass(frozen=True)
 class Latido:
     pieza: str
-    ultimo_dato: str | None
+    ultimo_dato: datetime | None
     callado_dias: int | None
+
+
+DIAS_CALLADO_PARA_AVISO = 2
+
+
+def _ultimo_dato_reloj(conexion: sqlite3.Connection) -> datetime | None:
+    """El dato del Reloj nace cuando una sesión cierra sobre una tarea
+    `hecha` con estimado y real — ahí es cuando `estimar` tiene algo
+    nuevo para masticar."""
+    fila = conexion.execute(
+        "SELECT MAX(s.fin) AS ultimo FROM sesiones s JOIN tareas t ON t.id = s.tarea_id "
+        "WHERE t.estado = 'hecha' AND t.estimado_min IS NOT NULL AND t.real_min IS NOT NULL AND s.fin IS NOT NULL"
+    ).fetchone()
+    return fila["ultimo"] if fila and fila["ultimo"] else None
+
+
+def _ultimo_dato_pronosticos(conexion: sqlite3.Connection) -> datetime | None:
+    fila = conexion.execute("SELECT MAX(creada_en) AS ultimo FROM pronostico").fetchone()
+    return fila["ultimo"] if fila and fila["ultimo"] else None
+
+
+def _ultimo_dato_cuenta(conexion: sqlite3.Connection) -> datetime | None:
+    fila = conexion.execute("SELECT MAX(fecha) AS ultimo FROM propuesta").fetchone()
+    return fila["ultimo"] if fila and fila["ultimo"] else None
+
+
+def calcular_latido(conexion: sqlite3.Connection, ahora: datetime) -> list[Latido]:
+    """R5.2: si el reloj, los pronósticos o la cuenta no reciben datos en
+    `DIAS_CALLADO_PARA_AVISO` días, acá es donde se nota — `callado_dias`
+    es `None` si esa pieza nunca tuvo un dato (no hay desde cuándo
+    contar), no un número inventado."""
+    piezas = {"reloj": _ultimo_dato_reloj, "pronosticos": _ultimo_dato_pronosticos, "cuenta": _ultimo_dato_cuenta}
+    resultado = []
+    for nombre, obtener in piezas.items():
+        crudo = obtener(conexion)
+        ultimo = datetime.fromisoformat(crudo) if isinstance(crudo, str) else crudo
+        if ultimo is not None and ultimo.tzinfo is None:
+            ultimo = ultimo.replace(tzinfo=timezone.utc)
+        callado_dias = (ahora - ultimo).days if ultimo is not None else None
+        resultado.append(Latido(pieza=nombre, ultimo_dato=ultimo, callado_dias=callado_dias))
+    return resultado
+
+
+def piezas_caladas(latidos: list[Latido]) -> list[Latido]:
+    """Las que merecen el aviso callado (R5.2): 2 días o más sin dato."""
+    return [l for l in latidos if l.callado_dias is not None and l.callado_dias >= DIAS_CALLADO_PARA_AVISO]
 
 
 class EstimacionVista(BaseModel):
@@ -111,3 +158,9 @@ def ver_estimacion(tipo: str, min: int) -> EstimacionVista:
         )
     finally:
         conexion.close()
+
+
+class LatidoVista(BaseModel):
+    pieza: str
+    ultimo_dato: datetime | None
+    callado_dias: int | None

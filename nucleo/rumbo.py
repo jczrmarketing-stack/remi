@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 import db
 import plata
+import reloj
 import trabajo
 from modelos import Apuesta, Escalon, Meta, Pregunta, Propuesta, Vision
 
@@ -540,3 +541,72 @@ def revisar_apuestas_vencidas(conexion: sqlite3.Connection, ahora: datetime) -> 
                         estado="pendiente", creada_en=ahora, disponible_desde=ahora,
                     ),
                 )
+
+
+# --- R5.2 (forma S): latido -------------------------------------------
+
+
+@router.get("/latido", response_model=list[reloj.LatidoVista])
+def ver_latido() -> list[reloj.LatidoVista]:
+    conexion = db.conectar()
+    try:
+        latidos = reloj.calcular_latido(conexion, datetime.now(timezone.utc))
+        return [reloj.LatidoVista(pieza=l.pieza, ultimo_dato=l.ultimo_dato, callado_dias=l.callado_dias) for l in latidos]
+    finally:
+        conexion.close()
+
+
+# --- R5.3: poda mensual --------------------------------------------------
+
+DIAS_PODA = 30
+
+
+def piezas_sin_uso(conexion: sqlite3.Connection, ahora: datetime, dias: int = DIAS_PODA) -> list[str]:
+    """Qué partes del Rumbo no sumaron ninguna fila en los últimos
+    `dias` — candidatas a que Remi proponga quitarlas. Nunca decide
+    sola: solo las nombra, la `Pregunta` la hace quien llama."""
+    desde = (ahora - timedelta(days=dias)).isoformat()
+    consultas = {
+        "apuestas": "SELECT COUNT(*) AS n FROM apuesta WHERE inicio >= ?",
+        "caminos": "SELECT COUNT(*) AS n FROM analisis_camino WHERE creada_en >= ?",
+        "pronosticos": "SELECT COUNT(*) AS n FROM pronostico WHERE creada_en >= ?",
+        "propuestas": "SELECT COUNT(*) AS n FROM propuesta WHERE fecha >= ?",
+    }
+    sin_uso = []
+    for pieza, sql in consultas.items():
+        n = conexion.execute(sql, (desde,)).fetchone()["n"]
+        if n == 0:
+            sin_uso.append(pieza)
+    return sin_uso
+
+
+def proponer_poda(conexion: sqlite3.Connection, ahora: datetime) -> Pregunta | None:
+    """Una `Pregunta` al mes (deduplicada por año-mes, ley 3) si hay
+    alguna pieza sin uso. None si todas se usaron, o si ya se preguntó
+    este mes."""
+    sin_uso = piezas_sin_uso(conexion, ahora)
+    if not sin_uso:
+        return None
+    campo = f"poda::{ahora:%Y-%m}"
+    existente = db.pregunta_de_tema_campo(conexion, "_rumbo", campo)
+    if existente is not None:
+        return None
+    lista = ", ".join(sin_uso)
+    pregunta = Pregunta(
+        id=uuid4(), tema="_rumbo", campo=campo,
+        voz=f"No usaste {lista} en 30 días. ¿Las quito del Rumbo?",
+        estado="pendiente", creada_en=ahora, disponible_desde=ahora,
+    )
+    db.crear_pregunta(conexion, pregunta)
+    return pregunta
+
+
+@router.get("/poda")
+def ver_poda() -> dict:
+    conexion = db.conectar()
+    try:
+        ahora = datetime.now(timezone.utc)
+        pregunta = proponer_poda(conexion, ahora)
+        return {"pregunta": pregunta.voz if pregunta else None}
+    finally:
+        conexion.close()

@@ -254,3 +254,50 @@ def test_apuesta_al_dia_14_produce_pregunta_de_tres_salidas(tmp_path, monkeypatc
     finally:
         conexion.close()
     assert preguntas_dia14 == 1
+
+
+# --- R5.3: poda mensual --------------------------------------------------
+
+
+def test_todo_sin_uso_en_30_dias_propone_quitarlas(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    try:
+        pregunta = rumbo.proponer_poda(conexion, ahora)
+    finally:
+        conexion.close()
+    assert pregunta is not None
+    assert "apuestas" in pregunta.voz
+
+
+def test_con_actividad_reciente_no_propone_nada(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    try:
+        db.crear_apuesta(
+            conexion,
+            Apuesta(id=uuid4(), camino="x", inicio=ahora, fin=ahora + timedelta(days=60), tope_horas=10, tope_plata=10, resultado=None),
+        )
+        db.crear_propuesta(conexion, Propuesta(id=uuid4(), cliente="x", monto=100.0, fecha=ahora, estado="pendiente"))
+        pregunta = rumbo.proponer_poda(conexion, ahora)
+    finally:
+        conexion.close()
+    # apuestas y propuestas tuvieron actividad; caminos y pronósticos no.
+    assert pregunta is not None
+    assert "apuestas" not in pregunta.voz
+    assert "caminos" in pregunta.voz
+
+
+def test_poda_no_se_repite_el_mismo_mes(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    try:
+        primera = rumbo.proponer_poda(conexion, ahora)
+        segunda = rumbo.proponer_poda(conexion, ahora + timedelta(hours=1))
+    finally:
+        conexion.close()
+    assert primera is not None
+    assert segunda is None
