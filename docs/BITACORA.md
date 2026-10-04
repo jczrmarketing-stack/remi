@@ -20,6 +20,25 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B2 · Al día: Remi sabe en qué vas · construido · 5aa0649
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Forma J.
+
+- **Qué cambió:**
+  1. `e8affab` / `cc1ac2c` — contrato `Memoria` suma `tipo: decision|null`; `memoria_mcp.guardar(tipo="decision")` entra para Al día y la ficha; `docs/INSTRUCCION-CLAUDE-ESCRITORIO.md` para pegar en los proyectos de Claude en el escritorio.
+  2. `5aa0649` — `nucleo/aldia.py`: función pura que junta commits, pruebas (`tipo: "pruebas"` nuevo en `POST /evento`), cierres de sesión, cobros (`entregas`) y decisiones (`memoria.tipo = "decision"`) en una ventana, y arma `estamos_en` (el libro más activo en 3 h y su hito actual), `lo_ultimo` (el evento más reciente con su evidencia), `sigue` (el próximo hito, con `borrador` si avisa a un cliente) y `mientras_no_estabas` (hasta 5, vacío si la última apertura fue hace menos de 2 h).
+  3. «Terminal trabajando» (B2.2): una sesión de Claude Code todavía abierta (`trabajo_claude`, `fin IS NULL`) gana sobre cualquier evento ya cerrado — `lo_ultimo` pasa a «La terminal está en esto desde hace N min.» y `estamos_en` apunta a ese libro aunque todavía no haya ni un commit.
+  4. `GET /hoy/aldia`: marca «visto» (tabla `aldia_visto`), arma la forma J y, si el hito que sigue avisa a un cliente y no tiene borrador guardado, pide uno a `pensar.sistema_cliente()` una sola vez (`aldia_borrador`), nunca en cada GET.
+- **Decisiones que tomé sin preguntar:**
+  1. `evidencia.ref` es el id de la fila (de `trabajo_eventos`, `entregas` o `memoria`), no un hash de git — el gancho de commit no manda el hash hoy.
+  2. Qué hito «avisa a un cliente» (para el borrador) lo decidí por `paso_remi`: los tres hitos del SOP cuyo `paso_remi` es «Recuerda fechas y promesas; avisa el día antes.» (Pago antes de arrancar, Cobro y cierre, Mensualidad) — el plan nombraba «avisar»/«mandar avance»/«cobrar» como ejemplos, no como hitos literales del SOP de hoy.
+  3. «Terminal trabajando» no es un campo nuevo de la forma J (eso violaría «nunca un campo que no esté en el plan»): es `lo_ultimo` tomando ese texto cuando hay una sesión abierta, que es justo lo que Hoy (B4) va a mostrar en su línea en vivo.
+- **Revisión con otro modelo (28eb113):** dos hallazgos graves, arreglados. 1) «Terminal trabajando» tapaba un commit con pruebas en verde más reciente que el inicio de la sesión, violando el «listo cuando» en un caso real (sesión abierta + commit durante la sesión) — ahora solo gana si no hay un evento cerrado más nuevo que el inicio de la sesión. 2) El borrador se armaba con `pensar.sistema_cliente()` solo, que mete el proyecto que esté activo AHORA en la ventanita (pueda no ser el mismo tema) y nunca pasaba monto/cliente reales — riesgo de mezclar proyectos o inventar una cifra; ahora el pedido lleva Cliente, Proyecto, Paso y Monto pendiente explícitos, con la instrucción de no inventar lo que falte. Medio, arreglado: `marcar_visto` se reiniciaba en cada GET (el sondeo del panel nunca dejaría acumular las 2 h de «mientras no estabas») — ahora una visita de hasta 10 min repetidos no mueve el reloj. Medio, no atendido: `evidencia.tipo == "sesion"` no distingue una sesión cerrada de una viva; la forma J no tiene más valores de `tipo` que los del contrato, así que no se puede separar sin romperlo. Menor, no atendido: un `aldia_borrador` queda huérfano si el texto del hito cambia al editar el libro a mano (fila muerta, no rompe nada).
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `curl localhost:4400/hoy/aldia` (vacío sin eventos, 200); abrir un libro en Claude Code sin commitear nada todavía y volver a pedirlo — `lo_ultimo` ya dice «La terminal está en esto desde hace N min.».
+
+---
+
 ## 2026-10-04 · B1 · tope de gasto · construido · e68fa86
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
