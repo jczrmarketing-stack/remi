@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from modelos import Idea, Memoria, Pregunta, Sesion, Tarea
+from modelos import Escalon, Idea, Memoria, Meta, Pregunta, Sesion, Tarea, Vision
 
 RUTA_DB_POR_DEFECTO = Path(__file__).resolve().parent / "remi.db"
 
@@ -271,6 +271,50 @@ CREATE TABLE IF NOT EXISTS ultimo_tema_visto (
     tema TEXT NOT NULL,
     texto TEXT NOT NULL,
     visto_en TEXT NOT NULL
+);
+
+-- R1 (forma N): lo que Juan Camilo contó, literal, cada vez que cuenta su
+-- visión. No cambia la meta por sí sola — eso solo lo hace `meta`.
+CREATE TABLE IF NOT EXISTS vision (
+    id TEXT PRIMARY KEY,
+    texto TEXT NOT NULL,
+    creada_en TEXT NOT NULL
+);
+
+-- R1 (forma N): la meta vigente nace de una `vision` pero solo existe acá
+-- con `confirmada = 1`. Varias filas quedan como historial; la vigente es
+-- la última confirmada.
+CREATE TABLE IF NOT EXISTS meta (
+    id TEXT PRIMARY KEY,
+    monto_min REAL,
+    monto_max REAL,
+    meses_seguidos INTEGER,
+    limites TEXT,
+    confirmada INTEGER NOT NULL DEFAULT 0,
+    creada_en TEXT NOT NULL
+);
+
+-- R1 (forma N): la escalera la dice Juan Camilo; Remi solo la lee y,
+-- cuando el escalón `ahora` se sostiene 3 meses, propone el siguiente.
+CREATE TABLE IF NOT EXISTS escalon (
+    id TEXT PRIMARY KEY,
+    n INTEGER NOT NULL,
+    texto TEXT NOT NULL,
+    criterio TEXT NOT NULL,
+    estado TEXT NOT NULL
+);
+
+-- R1 (forma N): el punto de partida. `origen = medido` se recalcula solo
+-- desde sesiones/entregas; `dicho` lo dice Juan Camilo; `pregunta` queda
+-- para que Remi la pregunte en el panel (ley 9, nunca se inventa).
+CREATE TABLE IF NOT EXISTS partida (
+    id TEXT PRIMARY KEY,
+    tipo TEXT NOT NULL,
+    texto TEXT NOT NULL,
+    valor TEXT NOT NULL,
+    origen TEXT NOT NULL,
+    dominio TEXT,
+    calculada_en TEXT NOT NULL
 );
 """
 
@@ -1237,3 +1281,69 @@ def recoger_hilo(conexion: sqlite3.Connection, tema: str) -> str | None:
     conexion.execute("DELETE FROM hilos WHERE tema = ?", (tema,))
     conexion.commit()
     return str(fila["texto"])
+
+
+# — R1: Rumbo (visión, meta, escalera, partida) —
+
+
+def crear_vision(conexion: sqlite3.Connection, vision: Vision) -> None:
+    conexion.execute(
+        "INSERT INTO vision (id, texto, creada_en) VALUES (?, ?, ?)",
+        (str(vision.id), vision.texto, vision.creada_en.isoformat()),
+    )
+    conexion.commit()
+
+
+def ultima_vision(conexion: sqlite3.Connection) -> Vision | None:
+    fila = conexion.execute("SELECT * FROM vision ORDER BY creada_en DESC LIMIT 1").fetchone()
+    if fila is None:
+        return None
+    return Vision(id=fila["id"], texto=fila["texto"], creada_en=fila["creada_en"])
+
+
+def crear_meta(conexion: sqlite3.Connection, meta: Meta) -> None:
+    """Cada llamada deja una fila nueva — nunca se pisa una meta anterior
+    (se archiva sola al dejar de ser la última confirmada)."""
+    conexion.execute(
+        "INSERT INTO meta (id, monto_min, monto_max, meses_seguidos, limites, confirmada, creada_en) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            str(meta.id),
+            meta.monto_min,
+            meta.monto_max,
+            meta.meses_seguidos,
+            meta.limites,
+            int(meta.confirmada),
+            meta.creada_en.isoformat(),
+        ),
+    )
+    conexion.commit()
+
+
+def _fila_a_meta(fila: sqlite3.Row) -> Meta:
+    return Meta(
+        id=fila["id"],
+        monto_min=fila["monto_min"],
+        monto_max=fila["monto_max"],
+        meses_seguidos=fila["meses_seguidos"],
+        limites=fila["limites"],
+        confirmada=bool(fila["confirmada"]),
+        creada_en=fila["creada_en"],
+    )
+
+
+def meta_vigente(conexion: sqlite3.Connection) -> Meta | None:
+    """La última meta CONFIRMADA — una propuesta sin confirmar nunca
+    cambia lo que devuelve GET /rumbo."""
+    fila = conexion.execute(
+        "SELECT * FROM meta WHERE confirmada = 1 ORDER BY creada_en DESC LIMIT 1"
+    ).fetchone()
+    return _fila_a_meta(fila) if fila else None
+
+
+def listar_escalera(conexion: sqlite3.Connection) -> list[Escalon]:
+    filas = conexion.execute("SELECT * FROM escalon ORDER BY n").fetchall()
+    return [
+        Escalon(id=fila["id"], n=fila["n"], texto=fila["texto"], criterio=fila["criterio"], estado=fila["estado"])
+        for fila in filas
+    ]
