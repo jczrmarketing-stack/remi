@@ -20,6 +20,57 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · R4 · Números honestos: estimar, juntar, criticar, simular, calibrar · cerrado con un BLOQUEADO · 9ebb921
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
+
+- **Qué cambió:**
+  1. `eb33c0b` — contrato `Pronostico` (forma P); tipo `bool` nuevo en los dos generadores
+     (Python y TS, antes solo tenían uuid/string/int/number — nunca había hecho falta un
+     booleano nullable); `LICENCIAS-TERCEROS.md` con el aviso MIT completo de
+     Metaculus/forecasting-tools.
+  2. `7813472` — `nucleo/calibracion.py`: `POST /pronosticos`, `POST
+     /pronosticos/{id}/resolver`, `GET /calibracion`. El recalibrador adapta la matemática
+     de `logistic_recalibration_adjuster.py` (Platt-style, BIA/CON vía regresión logística
+     sin regularizar) pero reescribí el fit con Newton-Raphson y solo `numpy` — no sumé
+     `pandas`/`scikit-learn` como dependencias por un ajuste de dos parámetros; la
+     matemática es la misma, la capa de datos no. **Bug real que agarré con las propias
+     pruebas**: `db.crear_pronostico` tenía `None` escrito a mano en vez del `resultado` de
+     verdad — sin `test_muestra_grafica_desde_20_resueltos` hubiera quedado así.
+  3. `9ebb921` — `nucleo/simulacion.py` (R4.4): seis meses, `numpy.random.default_rng`
+     sembrado, bandas probable/posible/techo (percentiles 50/80/95 de 10.000 corridas), «N
+     de 10» y ruina de una muestra chica de 10, cada mes recortado en 0 antes de sumar;
+     `kelly_tope` (solo tope de tamaño, nunca decide, con la probabilidad ya recalibrada).
+     `nucleo/estimacion.py` (R4.1-R4.3): `combinar_a_ciegas` (mediana, nunca promedio),
+     `mezclar` (pesos fijos de `config/rumbo.json.pesos_mezcla`, normalizados si no suman
+     1), `estimar_a_ciegas`/`Critica`/`necesita_segunda_ronda` (segunda ronda SOLO si la
+     crítica toca un supuesto real de la primera).
+  4. Cierre: `pytest -q` → 1005 pasadas, 2 omitidas; `mypy .` → sin hallazgos (180
+     archivos). Ventanita/panel: `tsc` limpio, 117+72 pasadas. `launchctl kickstart`
+     reinició el núcleo. `doctor.sh` → 11/11. `GET /calibracion` contra el núcleo real, de
+     solo lectura: `{"resueltos":0,...}`, sin inventar nada.
+- **BLOQUEADO (mismo de R3): los tres modelos reales de R4.1 y la crítica real de R4.3** —
+  por qué: necesitan llamadas reales a Claude/Groq/OpenRouter sin que sepan qué prefiere
+  Juan Camilo, y eso es la misma sesión dedicada de prompt-design que el investigador de
+  R3 (comparten la necesidad de wirear llamadas reales con costo contra el tope de B1).
+  `estimacion.py` ya tiene las interfaces (`EstimadorCiego`, `Critica`) tipadas y probadas
+  con dobles — listas para recibir la implementación real.
+- **Decisiones que tomé sin preguntar:**
+  1. Las bandas/frecuencia/ruina de `simulacion.py` NO están wireadas todavía a `GET
+     /rumbo/caminos/{id}` (forma Q las lista en su forma): un `AnalisisCamino` real todavía
+     no produce números estructurados (media/desviación mensual) de los que la simulación
+     pueda partir — eso depende del investigador real del mismo BLOQUEADO de R3. Quedan
+     como funciones de librería reusables, probadas, esperando esa pieza.
+  2. `pesos_mezcla` por defecto `[0.5, 0.3, 0.2]` (modelos, tasa base, propio) es un valor
+     razonable sin que Juan Camilo lo haya fijado todavía — lo puede cambiar en
+     `config/rumbo.json` sin tocar código.
+- **Dudas abiertas:** ninguna más allá del BLOQUEADO.
+- **Cómo probarlo a mano:** `pytest pruebas/test_calibracion.py pruebas/test_simulacion.py
+  pruebas/test_estimacion.py -v` en verde; `curl -s localhost:4400/calibracion` de solo
+  lectura.
+
+---
+
 ## 2026-10-04 · R3 · Ábreme el juego y análisis de un camino · cerrado con un BLOQUEADO · 05c871a
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
