@@ -20,6 +20,46 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · R1 · Rumbo: visión, meta, escalera y punto de partida · cerrado · dd1b70d
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Forma N.
+
+- **Qué cambió:**
+  1. `e9b5f93` — `contratos/contratos.json` suma `Vision`, `Meta`, `Escalon`, `Partida`;
+     tipos regenerados en `nucleo/modelos.py`, `apps/ventanita/src/contratos.ts`,
+     `apps/panel/src/contratos.ts` (nunca a mano).
+  2. `dd1b70d` — `nucleo/rumbo.py`: `parsear_vision` (función pura, regex, sin IA) extrae
+     monto y plazo de un texto suelto; `calcular_partida_medida` saca horas reales de
+     sesiones y proyectos entregados en vivo (sin guardar snapshot: nada que archivar
+     después). `POST /rumbo/vision` guarda el texto y devuelve una propuesta + voz; la
+     meta solo cambia con `POST /rumbo/meta {..., confirmada: true}`. `GET /rumbo` junta
+     visión, meta vigente, escalera y partida. Tablas `vision`, `meta`, `escalon`,
+     `partida` en `nucleo/db.py`. Pruebas en `nucleo/pruebas/test_rumbo.py`.
+  3. Cierre: `pytest -q` → 962 pasadas, 2 omitidas; `mypy .` → sin hallazgos (168 archivos).
+     Ventanita: `tsc --noEmit` limpio, `vitest` 117 pasadas. Panel: `tsc --noEmit` limpio,
+     `test:e2e` (Playwright) 72 pasadas. `launchctl kickstart` reinició el núcleo.
+     `doctor.sh` → 11/11. `GET /rumbo` contra el núcleo real confirmado de lectura.
+- **Decisiones que tomé sin preguntar:**
+  1. La partida medida (`origen: medido`) se calcula en vivo en cada `GET /rumbo`, nunca
+     se guarda como fila — así nunca hay una fila vieja que archivar cuando el número
+     cambia; es un cálculo, no una nota de Juan Camilo.
+  2. `limites` de la visión queda `null` por ahora: no hay todavía un patrón reconocible
+     de qué cuenta como «límite» en el texto; se pregunta en el panel cuando haga falta,
+     en vez de inventar un patrón débil.
+- **Incidente y cómo se resolvió:** en una corrida anterior de esta misma fase, antes de
+  este cierre, se probó `POST /rumbo/vision` contra el núcleo real (puerto 4400) con un
+  texto sintético («quiero 10 a 15 mil al mes, seis meses seguidos») para ver que
+  respondiera — eso violó la regla de no meter datos de prueba en la base real. Juan
+  Camilo borró esa fila a mano de `remi.db`; confirmado con un `SELECT` que la tabla
+  `vision` real queda vacía. De ahora en más, el «listo cuando» contra el sistema real se
+  comprueba SOLO con `GET`; cualquier escritura de prueba va contra `REMI_DB_PATH`
+  temporal de pytest, nunca contra el archivo real.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `pytest pruebas/test_rumbo.py -v` en verde; `curl -s
+  localhost:4400/rumbo` de solo lectura trae la partida medida real y `vision: null`.
+
+---
+
 ## 2026-10-04 · B7 · Hilos por tema · cerrado · cd6dd7d
 
 Escribe la terminal. El computador se apagó a mitad de B7 en la sesión anterior; este cierre
