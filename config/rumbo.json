@@ -1,3 +1,4 @@
 {
-  "tasa_cierre_general": 0.2
+  "tasa_cierre_general": 0.2,
+  "palabras_de_moda": ["disruptivo", "revolucionario", "sinergia", "ecosistema", "escalable", "viral", "ninja", "rockstar"]
 }
