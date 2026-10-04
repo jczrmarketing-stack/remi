@@ -113,12 +113,7 @@ def cuanto_le_meti(texto: str, ahora: datetime | None = None) -> str | None:
     return f"A {nombre} esta semana: {_formato(minutos)}."
 
 
-def minutos_esta_semana(tema: str, ahora: datetime | None = None) -> int:
-    """Claude Code más los bloques de Remi, de lunes a ahora, hora de Bogotá."""
-    momento = ahora or datetime.now(timezone.utc)
-    if momento.tzinfo is None:
-        momento = momento.replace(tzinfo=timezone.utc)
-    desde = _lunes(momento)
+def _minutos_entre(tema: str, desde: datetime, hasta: datetime) -> int:
     conexion = db.conectar()
     try:
         filas = list(
@@ -133,7 +128,38 @@ def minutos_esta_semana(tema: str, ahora: datetime | None = None) -> int:
         )
     finally:
         conexion.close()
-    return sum(_solape(fila["inicio"], fila["fin"], desde, momento) for fila in filas)
+    return sum(_solape(fila["inicio"], fila["fin"], desde, hasta) for fila in filas)
+
+
+def minutos_esta_semana(tema: str, ahora: datetime | None = None) -> int:
+    """Claude Code más los bloques de Remi, de lunes a ahora, hora de Bogotá."""
+    momento = ahora or datetime.now(timezone.utc)
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return _minutos_entre(tema, _lunes(momento), momento)
+
+
+def minutos_totales(tema: str, ahora: datetime | None = None) -> int:
+    """B6.2: todo el tiempo medido de este libro, desde siempre — para la
+    ficha de cliente (tiempo contra lo estimado)."""
+    momento = ahora or datetime.now(timezone.utc)
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return _minutos_entre(tema, datetime(1970, 1, 1, tzinfo=timezone.utc), momento)
+
+
+def _primero_del_mes(momento: datetime) -> datetime:
+    local = momento.astimezone(BOGOTA)
+    return local.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+
+def minutos_esta_mes(tema: str, ahora: datetime | None = None) -> int:
+    """B6: para repartir los gastos comunes entre proyectos por lo que
+    cada uno se trabajó este mes."""
+    momento = ahora or datetime.now(timezone.utc)
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return _minutos_entre(tema, _primero_del_mes(momento), momento)
 
 
 def tema_activo() -> str | None:

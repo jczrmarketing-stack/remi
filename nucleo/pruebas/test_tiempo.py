@@ -135,6 +135,8 @@ def test_la_semana_pasada_no_entra_y_un_bloque_abierto_si(tmp_path, monkeypatch)
         conexion.close()
 
     assert trabajo.minutos_esta_semana("malik", ahora) == 30
+    # B6.2: minutos_totales suma TODO, incluida la sesión de la semana pasada.
+    assert trabajo.minutos_totales("malik", ahora) == 180 + 30
 
 
 def test_un_bloque_nuevo_queda_en_el_proyecto_activo(tmp_path, monkeypatch) -> None:
