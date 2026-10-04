@@ -2035,6 +2035,9 @@ class LibroVisible(BaseModel):
 class GastoVisible(BaseModel):
     concepto: str
     monto: float
+    # B6.5: el id de la fila, solo si una única fila forma este grupo —
+    # con eso el panel puede ofrecer "corregir" sobre esa línea.
+    id: str | None = None
 
 
 class LibroDetalle(LibroVisible):
@@ -2203,7 +2206,7 @@ def _libro_detalle(libro: libros.Libro, conexion: Any) -> LibroDetalle:
         estado_completo=estado_libro.leer_estado(libro.archivo),
         ultimo_episodio=_ultimo_episodio_de(libro.tema),
         gastado=numeros.gastado,
-        gastos=[GastoVisible(concepto=g.concepto, monto=g.monto) for g in numeros.gastos],
+        gastos=[GastoVisible(concepto=g.concepto, monto=g.monto, id=g.id) for g in numeros.gastos],
         minutos_total=numeros.minutos_total,
         por_hora=numeros.por_hora,
     )
@@ -2255,6 +2258,26 @@ def deshacer_hito(tema: str, n: int) -> LibroDetalle:
     try:
         db.deshacer_hito_cerrado(conexion, tema, n)
         return _libro_detalle(libro, conexion)
+    finally:
+        conexion.close()
+
+
+class MontoCorregido(BaseModel):
+    monto: float
+
+
+@app.patch("/gastos/{gasto_id}", response_model=GastoVisible)
+def corregir_gasto(gasto_id: str, cuerpo: MontoCorregido) -> GastoVisible:
+    """B6.5: «cada número se toca y se corrige» — un gasto que se anotó
+    mal se arregla a mano, sobre su propia fila."""
+    if cuerpo.monto < 0:
+        raise HTTPException(status_code=422, detail="el monto no puede ser negativo")
+    conexion = db.conectar()
+    try:
+        corregido = db.corregir_gasto(conexion, gasto_id, cuerpo.monto)
+        if corregido is None:
+            raise HTTPException(status_code=404, detail="no tengo ese gasto")
+        return GastoVisible(concepto=corregido.concepto, monto=corregido.monto, id=corregido.id)
     finally:
         conexion.close()
 

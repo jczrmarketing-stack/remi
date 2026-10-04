@@ -50,7 +50,10 @@ def test_gasto_claro_deja_gastado_en_el_libro(tmp_path, monkeypatch):
     assert respuesta.json()["tipo"] == "gasto"
     libro = cliente.get("/libros/upvisuals").json()
     assert libro["gastado"] == 40.0
-    assert libro["gastos"] == [{"concepto": "servidor de upvisuals", "monto": 40.0}]
+    assert len(libro["gastos"]) == 1
+    assert libro["gastos"][0]["concepto"] == "servidor de upvisuals"
+    assert libro["gastos"][0]["monto"] == 40.0
+    assert libro["gastos"][0]["id"] is not None
 
 
 def test_gasto_dudoso_deja_una_pregunta_no_adivina(tmp_path, monkeypatch):
@@ -119,6 +122,41 @@ def test_responder_la_pregunta_de_gasto_dudoso_lo_anota(tmp_path, monkeypatch):
     conexion.close()
     assert [c.concepto for c in comunes] == ["almuerzo"]
     assert comunes[0].monto == 15.0
+
+
+def test_corregir_un_gasto_a_mano_queda(tmp_path, monkeypatch):
+    """B6.5: «cada número se toca y se corrige» — el «listo cuando» del
+    plan final."""
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    cliente.post("/mensaje", json={"texto": "gasté 40 en el servidor de upvisuals"})
+    libro = cliente.get("/libros/upvisuals").json()
+    gasto_id = libro["gastos"][0]["id"]
+    assert gasto_id is not None
+
+    respuesta = cliente.patch(f"/gastos/{gasto_id}", json={"monto": 45.0})
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["monto"] == 45.0
+    libro_de_nuevo = cliente.get("/libros/upvisuals").json()
+    assert libro_de_nuevo["gastado"] == 45.0
+
+
+def test_corregir_un_gasto_que_no_existe_es_404(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    respuesta = cliente.patch("/gastos/no-existe", json={"monto": 10.0})
+    assert respuesta.status_code == 404
+
+
+def test_corregir_un_gasto_con_monto_negativo_es_422(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    cliente = TestClient(servidor.app)
+    cliente.post("/mensaje", json={"texto": "gasté 40 en el servidor de upvisuals"})
+    libro = cliente.get("/libros/upvisuals").json()
+    gasto_id = libro["gastos"][0]["id"]
+    respuesta = cliente.patch(f"/gastos/{gasto_id}", json={"monto": -5.0})
+    assert respuesta.status_code == 422
 
 
 def test_un_cobro_no_se_confunde_con_un_gasto(tmp_path, monkeypatch):

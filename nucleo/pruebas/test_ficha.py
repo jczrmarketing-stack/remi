@@ -41,7 +41,9 @@ def test_gastado_de_un_tema_sin_comunes(tmp_path, monkeypatch):
     gastado, gastos = ficha.gastado_de(conexion, "upvisuals", ["upvisuals"], ahora)
     conexion.close()
     assert gastado == 40.0
-    assert gastos == [ficha.GastoAgrupado(concepto="servidor", monto=40.0)]
+    assert len(gastos) == 1
+    assert gastos[0].concepto == "servidor" and gastos[0].monto == 40.0
+    assert gastos[0].id is not None  # una sola fila: se puede corregir a mano
 
 
 def test_gastos_del_mismo_concepto_se_agrupan(tmp_path, monkeypatch):
@@ -55,7 +57,9 @@ def test_gastos_del_mismo_concepto_se_agrupan(tmp_path, monkeypatch):
     gastado, gastos = ficha.gastado_de(conexion, "upvisuals", ["upvisuals"], ahora)
     conexion.close()
     assert gastado == 50.0
-    assert gastos == [ficha.GastoAgrupado(concepto="servidor", monto=50.0)]
+    assert len(gastos) == 1
+    assert gastos[0].concepto == "servidor" and gastos[0].monto == 50.0
+    assert gastos[0].id is None  # dos filas juntas: ambiguo, no se corrige desde acá
 
 
 def test_comunes_se_reparten_por_minutos_del_mes(tmp_path, monkeypatch):

@@ -22,6 +22,11 @@ BOGOTA = ZoneInfo("America/Bogota")
 class GastoAgrupado:
     concepto: str
     monto: float
+    # B6.5: el id de la fila de gasto_proyecto, SOLO si una única fila
+    # (propia, no un común repartido) forma este grupo — "corregir un
+    # número a mano" edita esa fila. None si el concepto junta más de una
+    # fila, o si es la parte de los comunes (no es una fila propia).
+    id: str | None = None
 
 
 def _inicio_de_mes(ahora: datetime) -> datetime:
@@ -52,14 +57,23 @@ def gastado_de(
     conexion: sqlite3.Connection, tema: str, todos_los_temas: list[str], ahora: datetime
 ) -> tuple[float, list[GastoAgrupado]]:
     """`gastado` (total) y `gastos` (agrupados por concepto) — forma M."""
-    agrupados: dict[str, float] = {}
+    montos: dict[str, float] = {}
+    ids_por_concepto: dict[str, list[str]] = {}
     for g in db.gastos_de_tema(conexion, tema):
-        agrupados[g.concepto] = agrupados.get(g.concepto, 0.0) + g.monto
+        montos[g.concepto] = montos.get(g.concepto, 0.0) + g.monto
+        ids_por_concepto.setdefault(g.concepto, []).append(g.id)
     parte_comun = _parte_de_comunes(conexion, tema, todos_los_temas, ahora)
     if parte_comun > 0:
-        agrupados["comunes"] = agrupados.get("comunes", 0.0) + parte_comun
-    total = sum(agrupados.values())
-    return total, [GastoAgrupado(concepto=c, monto=m) for c, m in agrupados.items()]
+        montos["comunes"] = montos.get("comunes", 0.0) + parte_comun
+    total = sum(montos.values())
+    agrupados = [
+        GastoAgrupado(
+            concepto=c, monto=m,
+            id=ids_por_concepto[c][0] if c in ids_por_concepto and len(ids_por_concepto[c]) == 1 else None,
+        )
+        for c, m in montos.items()
+    ]
+    return total, agrupados
 
 
 def por_hora(cobrado: float, gastado: float, minutos_total: int) -> float | None:
@@ -71,17 +85,25 @@ def por_hora(cobrado: float, gastado: float, minutos_total: int) -> float | None
     return (cobrado - gastado) / horas
 
 
-def ficha_de(conexion: sqlite3.Connection, tema: str, todos_los_temas: list[str], ahora: datetime | None = None) -> dict[str, object]:
+@dataclass(frozen=True)
+class Ficha:
+    gastado: float
+    gastos: list[GastoAgrupado]
+    minutos_total: int
+    por_hora: float | None
+
+
+def ficha_de(conexion: sqlite3.Connection, tema: str, todos_los_temas: list[str], ahora: datetime | None = None) -> Ficha:
     """Los cuatro números de la ficha (tablero 5): cobrado, gastado,
     tiempo y por_hora — más minutos_estimados, de la fase actual."""
     momento = ahora or datetime.now(timezone.utc)
     gastado, gastos = gastado_de(conexion, tema, todos_los_temas, momento)
-    minutos_total = trabajo.minutos_totales(tema, momento)
+    minutos = trabajo.minutos_totales(tema, momento)
     proyecto_id = entregas._proyecto_id_de_tema(tema)
     cobrado = entregas.total_pagado_proyecto(conexion, proyecto_id)
-    return {
-        "gastado": round(gastado, 2),
-        "gastos": gastos,
-        "minutos_total": minutos_total,
-        "por_hora": por_hora(cobrado, gastado, minutos_total),
-    }
+    return Ficha(
+        gastado=round(gastado, 2),
+        gastos=gastos,
+        minutos_total=minutos,
+        por_hora=por_hora(cobrado, gastado, minutos),
+    )
