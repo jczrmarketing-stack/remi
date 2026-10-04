@@ -30,7 +30,11 @@ CREATE TABLE IF NOT EXISTS avisos (
     texto TEXT NOT NULL,
     canal TEXT NOT NULL,
     creado TEXT NOT NULL,
-    respuesta TEXT
+    respuesta TEXT,
+    -- Revisión de B5: qué bloque o sesión ya avisó (el id de `sesiones` o
+    -- `trabajo_claude`) — para que foco_25/desvio no se repitan mientras
+    -- el mismo bloque sigue abierto. NULL en terminal_termino.
+    ref TEXT
 );
 """
 
@@ -80,11 +84,15 @@ class Aviso:
     canal: str
     creado: datetime
     respuesta: str | None
+    ref: str | None = None
 
 
 def _fila_a_aviso(fila: sqlite3.Row) -> Aviso:
     creado = datetime.fromisoformat(fila["creado"])
-    return Aviso(id=UUID(fila["id"]), tipo=fila["tipo"], texto=fila["texto"], canal=fila["canal"], creado=creado, respuesta=fila["respuesta"])
+    return Aviso(
+        id=UUID(fila["id"]), tipo=fila["tipo"], texto=fila["texto"], canal=fila["canal"], creado=creado,
+        respuesta=fila["respuesta"], ref=fila["ref"] if "ref" in fila.keys() else None,
+    )
 
 
 def _hoy(momento: datetime) -> str:
@@ -121,22 +129,35 @@ def _presupuesto_ok(conexion: sqlite3.Connection, config: ConfigAvisos, ahora: d
     return ahora - ultimo >= timedelta(minutes=config.entre_min)
 
 
-def registrar(conexion: sqlite3.Connection, tipo: str, texto: str, canal: str, ahora: datetime) -> Aviso | None:
-    """Crea el aviso SOLO si el presupuesto lo permite y ese tipo no está
-    silenciado hoy. None si no sale — nunca se fuerza ni se avisa dos
-    veces por lo mismo con otro nombre."""
+def _ya_avisado_ese_bloque(conexion: sqlite3.Connection, tipo: str, ref: str) -> bool:
+    """Revisión de B5: foco_25 y desvio avisan UNA vez por bloque/sesión
+    (su `ref`), no cada `entre_min` mientras siga abierto — y de paso,
+    una sesión de trabajo_claude huérfana (el gancho nunca cerró `fin`)
+    tampoco vuelve a avisar día tras día."""
+    fila = conexion.execute("SELECT 1 FROM avisos WHERE tipo = ? AND ref = ? LIMIT 1", (tipo, ref)).fetchone()
+    return fila is not None
+
+
+def registrar(
+    conexion: sqlite3.Connection, tipo: str, texto: str, canal: str, ahora: datetime, ref: str | None = None
+) -> Aviso | None:
+    """Crea el aviso SOLO si el presupuesto lo permite, ese tipo no está
+    silenciado hoy, y (con `ref`) ese mismo bloque no avisó ya. None si no
+    sale — nunca se fuerza ni se avisa dos veces por lo mismo."""
     _preparar(conexion)
     config = leer_config()
     if tipo not in config.suenan:
         return None
     if _silenciado_hoy(conexion, tipo, ahora):
         return None
+    if ref is not None and _ya_avisado_ese_bloque(conexion, tipo, ref):
+        return None
     if not _presupuesto_ok(conexion, config, ahora):
         return None
-    aviso = Aviso(id=uuid4(), tipo=tipo, texto=texto, canal=canal, creado=ahora, respuesta=None)
+    aviso = Aviso(id=uuid4(), tipo=tipo, texto=texto, canal=canal, creado=ahora, respuesta=None, ref=ref)
     conexion.execute(
-        "INSERT INTO avisos (id, tipo, texto, canal, creado, respuesta) VALUES (?, ?, ?, ?, ?, ?)",
-        (str(aviso.id), aviso.tipo, aviso.texto, aviso.canal, aviso.creado.isoformat(), aviso.respuesta),
+        "INSERT INTO avisos (id, tipo, texto, canal, creado, respuesta, ref) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (str(aviso.id), aviso.tipo, aviso.texto, aviso.canal, aviso.creado.isoformat(), aviso.respuesta, aviso.ref),
     )
     conexion.commit()
     return aviso
@@ -177,9 +198,9 @@ def pendiente(conexion: sqlite3.Connection) -> Aviso | None:
 # cerrar una sesión nacida de un encargo), no de mirar el reloj.
 
 
-def _regla_foco_25(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, str] | None:
+def _regla_foco_25(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, str, str] | None:
     fila = conexion.execute(
-        "SELECT inicio, app_contexto FROM sesiones WHERE fin IS NULL ORDER BY inicio DESC LIMIT 1"
+        "SELECT id, inicio, app_contexto FROM sesiones WHERE fin IS NULL ORDER BY inicio DESC LIMIT 1"
     ).fetchone()
     if fila is None:
         return None
@@ -187,10 +208,10 @@ def _regla_foco_25(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, 
     if (ahora - inicio).total_seconds() / 60 < MINUTOS_FOCO:
         return None
     tema = fila["app_contexto"]
-    return "foco_25", f"25 min de bloque{f' en {tema}' if tema else ''}. ¿Seguimos?"
+    return "foco_25", f"25 min de bloque{f' en {tema}' if tema else ''}. ¿Seguimos?", f"sesion:{fila['id']}"
 
 
-def _regla_desvio(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, str] | None:
+def _regla_desvio(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, str, str] | None:
     fila = conexion.execute(
         "SELECT s.app_contexto AS tema, t.fecha_limite AS fecha_limite FROM sesiones s "
         "JOIN tareas t ON t.id = s.tarea_id WHERE s.fin IS NULL ORDER BY s.inicio DESC LIMIT 1"
@@ -200,7 +221,7 @@ def _regla_desvio(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, s
     tema_bloque = fila["tema"]
     limite = ahora - timedelta(minutes=MINUTOS_DESVIO)
     otra = conexion.execute(
-        "SELECT tema, inicio FROM trabajo_claude WHERE fin IS NULL AND tema IS NOT NULL AND tema != ? "
+        "SELECT session_id, tema, inicio FROM trabajo_claude WHERE fin IS NULL AND tema IS NOT NULL AND tema != ? "
         "ORDER BY inicio ASC LIMIT 1",
         (tema_bloque,),
     ).fetchone()
@@ -208,7 +229,7 @@ def _regla_desvio(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, s
         return None
     if datetime.fromisoformat(otra["inicio"]) > limite:
         return None
-    return "desvio", f"Lleva un rato en {otra['tema']} con {tema_bloque} prometido. ¿Volvemos?"
+    return "desvio", f"Lleva un rato en {otra['tema']} con {tema_bloque} prometido. ¿Volvemos?", f"claude:{otra['session_id']}"
 
 
 _REGLAS = (_regla_foco_25, _regla_desvio)
@@ -216,13 +237,14 @@ _REGLAS = (_regla_foco_25, _regla_desvio)
 
 def evaluar(conexion: sqlite3.Connection, ahora: datetime, canal: str = "ventanita") -> Aviso | None:
     """El primer candidato de las reglas de reloj que de verdad sale —
-    presupuesto, silencio y noche ya filtrados por `registrar`."""
+    presupuesto, silencio, noche y «ya avisó este bloque» ya filtrados
+    por `registrar`."""
     for regla in _REGLAS:
         candidato = regla(conexion, ahora)
         if candidato is None:
             continue
-        tipo, texto = candidato
-        aviso = registrar(conexion, tipo, texto, canal, ahora)
+        tipo, texto, ref = candidato
+        aviso = registrar(conexion, tipo, texto, canal, ahora, ref=ref)
         if aviso is not None:
             return aviso
     return None
