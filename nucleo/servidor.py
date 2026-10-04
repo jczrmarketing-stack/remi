@@ -49,6 +49,7 @@ import notion
 import pensar
 import plata
 import precarga
+import reloj
 import rumbo
 import preguntas
 import semana
@@ -148,6 +149,7 @@ app.include_router(entregas.router_cobros)
 app.include_router(experiencia.router)
 app.include_router(notion.router)
 app.include_router(plata.router)
+app.include_router(reloj.router)
 app.include_router(rumbo.router)
 app.include_router(semana.router)
 app.include_router(telegram.router)
