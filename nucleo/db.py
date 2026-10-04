@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from modelos import Apuesta, Escalon, Idea, Memoria, Meta, Pregunta, Propuesta, Sesion, Tarea, Vision
+from modelos import AnalisisCamino, Apuesta, Escalon, Fuente, Idea, Memoria, Meta, Pregunta, Propuesta, Sesion, Tarea, Vision
 
 RUTA_DB_POR_DEFECTO = Path(__file__).resolve().parent / "remi.db"
 
@@ -339,6 +339,41 @@ CREATE TABLE IF NOT EXISTS apuesta (
     tope_horas REAL NOT NULL,
     tope_plata REAL NOT NULL,
     resultado TEXT
+);
+
+-- R3 (forma Q): el análisis de un camino. Una idea (48h en la Bandeja)
+-- puede tener varios análisis en el tiempo (re-investigación mensual,
+-- R3.4) — ninguno se borra, cada uno es una fila nueva.
+CREATE TABLE IF NOT EXISTS analisis_camino (
+    id TEXT PRIMARY KEY,
+    idea_id TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'investigando',
+    mercado TEXT,
+    competidores TEXT,
+    juego TEXT,
+    a_favor TEXT,
+    en_contra TEXT,
+    dominio TEXT,
+    base_texto TEXT,
+    base_fuente_id TEXT,
+    palancas TEXT,
+    objeciones TEXT,
+    prueba TEXT,
+    creada_en TEXT NOT NULL
+);
+
+-- R3.3: cada fuente de un análisis, con su fragmento literal — lo que
+-- `verificada` confirma es que el fragmento de VERDAD dice la cifra que
+-- se cita, nunca que la URL existe.
+CREATE TABLE IF NOT EXISTS fuente (
+    id TEXT PRIMARY KEY,
+    analisis_id TEXT NOT NULL,
+    url TEXT NOT NULL,
+    fecha TEXT NOT NULL,
+    fragmento TEXT NOT NULL,
+    verificada INTEGER NOT NULL DEFAULT 0,
+    tipo TEXT,
+    FOREIGN KEY (analisis_id) REFERENCES analisis_camino(id)
 );
 """
 
@@ -1449,3 +1484,61 @@ def apuesta_por_id(conexion: sqlite3.Connection, apuesta_id: str) -> Apuesta | N
 def cerrar_apuesta(conexion: sqlite3.Connection, apuesta_id: str, resultado: str) -> None:
     conexion.execute("UPDATE apuesta SET resultado = ? WHERE id = ?", (resultado, apuesta_id))
     conexion.commit()
+
+
+def _fila_a_analisis(fila: sqlite3.Row) -> AnalisisCamino:
+    return AnalisisCamino(
+        id=fila["id"], idea_id=fila["idea_id"], estado=fila["estado"], mercado=fila["mercado"],
+        competidores=fila["competidores"], juego=fila["juego"], a_favor=fila["a_favor"], en_contra=fila["en_contra"],
+        dominio=fila["dominio"], base_texto=fila["base_texto"], base_fuente_id=fila["base_fuente_id"],
+        palancas=fila["palancas"], objeciones=fila["objeciones"], prueba=fila["prueba"], creada_en=fila["creada_en"],
+    )
+
+
+def crear_analisis(conexion: sqlite3.Connection, idea_id: str, creada_en: datetime) -> AnalisisCamino:
+    analisis_id = str(uuid4())
+    conexion.execute(
+        "INSERT INTO analisis_camino (id, idea_id, estado, creada_en) VALUES (?, ?, 'investigando', ?)",
+        (analisis_id, idea_id, creada_en.isoformat()),
+    )
+    conexion.commit()
+    fila = conexion.execute("SELECT * FROM analisis_camino WHERE id = ?", (analisis_id,)).fetchone()
+    return _fila_a_analisis(fila)
+
+
+def leer_analisis(conexion: sqlite3.Connection, analisis_id: str) -> AnalisisCamino | None:
+    fila = conexion.execute("SELECT * FROM analisis_camino WHERE id = ?", (analisis_id,)).fetchone()
+    return _fila_a_analisis(fila) if fila else None
+
+
+def cerrar_analisis(
+    conexion: sqlite3.Connection, analisis_id: str, estado: str, campos: dict[str, str | None]
+) -> None:
+    columnas = ", ".join(f"{clave} = ?" for clave in campos)
+    conexion.execute(
+        f"UPDATE analisis_camino SET estado = ?, {columnas} WHERE id = ?",
+        (estado, *campos.values(), analisis_id),
+    )
+    conexion.commit()
+
+
+def crear_fuente(conexion: sqlite3.Connection, fuente: Fuente) -> None:
+    conexion.execute(
+        "INSERT INTO fuente (id, analisis_id, url, fecha, fragmento, verificada, tipo) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            str(fuente.id), str(fuente.analisis_id), fuente.url, fuente.fecha.isoformat(), fuente.fragmento,
+            int(fuente.verificada), fuente.tipo,
+        ),
+    )
+    conexion.commit()
+
+
+def fuentes_de_analisis(conexion: sqlite3.Connection, analisis_id: str) -> list[Fuente]:
+    filas = conexion.execute("SELECT * FROM fuente WHERE analisis_id = ? ORDER BY fecha", (analisis_id,)).fetchall()
+    return [
+        Fuente(
+            id=fila["id"], analisis_id=fila["analisis_id"], url=fila["url"], fecha=fila["fecha"],
+            fragmento=fila["fragmento"], verificada=bool(fila["verificada"]), tipo=fila["tipo"],
+        )
+        for fila in filas
+    ]

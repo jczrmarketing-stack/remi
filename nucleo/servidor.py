@@ -48,6 +48,7 @@ import mensaje_cliente
 import notion
 import pensar
 import plata
+import analisis_camino
 import precarga
 import reloj
 import rumbo
@@ -148,6 +149,7 @@ app.include_router(entregas.router)
 app.include_router(entregas.router_cobros)
 app.include_router(experiencia.router)
 app.include_router(notion.router)
+app.include_router(analisis_camino.router)
 app.include_router(plata.router)
 app.include_router(reloj.router)
 app.include_router(rumbo.router)
