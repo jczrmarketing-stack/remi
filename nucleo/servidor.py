@@ -40,6 +40,7 @@ import experiencia
 import gasto
 import iniciativa
 import libros
+import mensaje_cliente
 import notion
 import pensar
 import plata
@@ -272,7 +273,7 @@ class RespuestaMensaje(BaseModel):
     # ventanita (el panel no llama a /mensaje).
     tipo: clasificar.TipoMensaje | Literal[
         "encargo", "cliente", "correccion", "agenda", "cobro", "entrega", "pregunta_respondida",
-        "leccion", "conversacion_nueva",
+        "leccion", "conversacion_nueva", "hito_cerrado",
     ]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
@@ -554,6 +555,11 @@ def _atender(mensaje: MensajeEntrante, emisor: Emisor | None) -> RespuestaMensaj
         ms = (time.perf_counter() - arranque) * 1000
         print(f"[mensaje] tipo=cobro ms={ms:.0f}", file=sys.stderr, flush=True)
         return respuesta_cobro
+    respuesta_hito = _cerrar_por_mensaje(mensaje)
+    if respuesta_hito is not None:
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=hito_cerrado ms={ms:.0f}", file=sys.stderr, flush=True)
+        return respuesta_hito
     respuesta_agenda = _crear_agenda_hablada(mensaje)
     if respuesta_agenda is not None:
         ms = (time.perf_counter() - arranque) * 1000
@@ -670,6 +676,26 @@ def _crear_entrega_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
     return RespuestaMensaje(tipo="entrega", texto=voz, voz=voz)
 
 
+def _cerrar_por_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
+    """B3.1: «ya le mandé el avance a Alfonso» cierra el hito de ESE
+    cliente cuyo cierra_con es "mensaje". None si no nombra a un cliente
+    conocido o ese libro no tiene un hito abierto de esa clase: sigue el
+    camino normal (cae como idea, como cualquier frase suelta)."""
+    libro = mensaje_cliente.libro_nombrado(mensaje.texto)
+    if libro is None:
+        return None
+    conexion = db.conectar()
+    try:
+        n = caminos.cerrar_primer_hito_con(conexion, libro.tema, "mensaje")
+        if n is None:
+            return None
+        db.marcar_hito_cerrado(conexion, libro.tema, n, "mensaje", mensaje.texto[:200], datetime.now(timezone.utc))
+    finally:
+        conexion.close()
+    voz = f"Listo, cerré ese paso de {libro.cliente or libro.titulo}."
+    return RespuestaMensaje(tipo="hito_cerrado", texto=voz, voz=voz)
+
+
 def _registrar_cobro(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
     """T2.4: «Alfonso pagó 1.000», «me pagaron 1.500 de UpVisuals». Si no
     se reconoce de quién, no crea nada — queda para que lo pregunte Remi
@@ -695,6 +721,11 @@ def _registrar_cobro(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
     try:
         entregas.crear_entrega(conexion, entrega)
         total = entregas.total_pagado_proyecto(conexion, proyecto_id)
+        # B3.1: el cobro mismo es la evidencia de los hitos "Pago antes de
+        # arrancar" y "Cobro y cierre" — si hay uno abierto, se cierra solo.
+        n = caminos.cerrar_primer_hito_con(conexion, parseada.tema, "cobro")
+        if n is not None:
+            db.marcar_hito_cerrado(conexion, parseada.tema, n, "cobro", str(entrega.id), entrega.fecha)
     finally:
         conexion.close()
     n_objetivo = _fase_actual_n(libro.fases)

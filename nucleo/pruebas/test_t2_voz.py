@@ -90,6 +90,43 @@ def test_un_cobro_sin_de_quien_no_se_adivina(tmp_path, monkeypatch):
     assert respuesta.json()["tipo"] != "cobro"
 
 
+def test_un_cobro_cierra_el_hito_de_pago_abierto(tmp_path, monkeypatch):
+    """B3.1: el cobro mismo es la evidencia del hito «Pago antes de
+    arrancar» (cierra_con == "cobro") — se cierra solo, sin pedir nada más."""
+    carpeta = tmp_path / "libros"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    (carpeta / "upvisuals.md").write_text(
+        LIBRO_UPVISUALS.replace(
+            "---\n\nCuerpo.\n",
+            "---\n\n## Camino\n\n- [x] Intake\n- [x] Descubrimiento (5 preguntas)\n"
+            "- [x] Propuesta por fases\n- [x] Contrato\n- [ ] Pago antes de arrancar\n",
+        )
+    )
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(carpeta))
+    for nombre in ("servidor", "db", "modelos", "libros", "temas", "cobros", "agenda", "bandeja", "pensar", "clasificar", "caminos"):
+        sys.modules.pop(nombre, None)
+    import db
+    import servidor
+
+    importlib.reload(db)
+    importlib.reload(servidor)
+    cliente = TestClient(servidor.app)
+
+    respuesta = cliente.post("/mensaje", json={"texto": "Alfonso pagó 1500"})
+    assert respuesta.json()["tipo"] == "cobro"
+
+    import caminos
+    import libros
+
+    libro = next(l for l in libros.listar() if l.tema == "upvisuals")
+    assert caminos.leer_hitos(libro.archivo)[4].hecho is True
+    conexion = db.conectar()
+    cerrado = db.hito_cerrado_de(conexion, "upvisuals", 5)
+    conexion.close()
+    assert cerrado is not None and cerrado.tipo == "cobro"
+
+
 # — T2.5: agenda hablada —
 
 
