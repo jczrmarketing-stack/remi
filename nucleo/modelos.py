@@ -33,7 +33,7 @@ class Idea(BaseModel):
 
     id: UUID
     texto: str
-    origen: Literal["voz", "texto"]
+    origen: Literal["voz", "texto", "rumbo"]
     creada_en: datetime
     enfria_hasta: datetime
     estado: Literal["enfriando", "lista", "proyecto", "soltada", "archivada"]
@@ -164,3 +164,35 @@ class Apuesta(BaseModel):
     tope_horas: float
     tope_plata: float
     resultado: Literal["sigue", "pausa", "extender"] | None
+
+
+class AnalisisCamino(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    idea_id: UUID
+    estado: Literal["investigando", "listo", "fallo"]
+    mercado: str | None
+    competidores: str | None
+    juego: str | None
+    a_favor: str | None
+    en_contra: str | None
+    dominio: str | None
+    base_texto: str | None
+    base_fuente_id: UUID | None
+    palancas: str | None
+    objeciones: str | None
+    prueba: str | None
+    creada_en: datetime
+
+
+class Fuente(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    analisis_id: UUID
+    url: str
+    fecha: datetime
+    fragmento: str
+    verificada: bool = False
+    tipo: str | None

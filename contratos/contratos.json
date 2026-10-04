@@ -17,7 +17,7 @@
   "Idea": {
     "id": "uuid",
     "texto": "string",
-    "origen": "voz|texto",
+    "origen": "voz|texto|rumbo",
     "creada_en": "iso",
     "enfria_hasta": "iso(+48h)",
     "estado": "enfriando|lista|proyecto|soltada|archivada",
@@ -115,5 +115,31 @@
     "tope_horas": "number",
     "tope_plata": "number",
     "resultado": "sigue|pausa|extender|null"
+  },
+  "AnalisisCamino": {
+    "id": "uuid",
+    "idea_id": "uuid",
+    "estado": "investigando|listo|fallo",
+    "mercado": "string|null",
+    "competidores": "string|null",
+    "juego": "string|null",
+    "a_favor": "string|null",
+    "en_contra": "string|null",
+    "dominio": "string|null",
+    "base_texto": "string|null",
+    "base_fuente_id": "uuid|null",
+    "palancas": "string|null",
+    "objeciones": "string|null",
+    "prueba": "string|null",
+    "creada_en": "iso"
+  },
+  "Fuente": {
+    "id": "uuid",
+    "analisis_id": "uuid",
+    "url": "string",
+    "fecha": "iso",
+    "fragmento": "string",
+    "verificada": false,
+    "tipo": "string|null"
   }
 }

@@ -21,7 +21,7 @@ export interface Tarea {
 export interface Idea {
   id: UUID;
   texto: string;
-  origen: "voz" | "texto";
+  origen: "voz" | "texto" | "rumbo";
   creada_en: ISODateString;
   enfria_hasta: ISODateString;
   estado: "enfriando" | "lista" | "proyecto" | "soltada" | "archivada";
@@ -130,4 +130,32 @@ export interface Apuesta {
   tope_horas: number;
   tope_plata: number;
   resultado: "sigue" | "pausa" | "extender" | null;
+}
+
+export interface AnalisisCamino {
+  id: UUID;
+  idea_id: UUID;
+  estado: "investigando" | "listo" | "fallo";
+  mercado: string | null;
+  competidores: string | null;
+  juego: string | null;
+  a_favor: string | null;
+  en_contra: string | null;
+  dominio: string | null;
+  base_texto: string | null;
+  base_fuente_id: UUID | null;
+  palancas: string | null;
+  objeciones: string | null;
+  prueba: string | null;
+  creada_en: ISODateString;
+}
+
+export interface Fuente {
+  id: UUID;
+  analisis_id: UUID;
+  url: string;
+  fecha: ISODateString;
+  fragmento: string;
+  verificada: boolean;
+  tipo: string | null;
 }
