@@ -53,5 +53,5 @@ fi
 
 echo
 echo "Listo. La base NO se tocó: $RAIZ/nucleo/remi.db"
-echo "Los logs siguen en ~/Library/Logs/Remi/ por si querés mirarlos."
+echo "Los logs siguen en ~/Library/Logs/Remi/ por si quieres mirarlos."
 echo "Para volver: ./scripts/instalar.sh"

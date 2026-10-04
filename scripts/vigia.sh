@@ -36,7 +36,7 @@ else
   [[ $fallas -eq 1 ]] && anotar "no responde /salud"
   if [[ $fallas -ge $MINUTOS_PARA_AVISAR && $avisado -eq 0 ]]; then
     anotar "caído hace $fallas min: aviso"
-    avisar "No respondo hace $fallas minutos. Si no vuelvo solo, corré ./scripts/instalar.sh."
+    avisar "No respondo hace $fallas minutos. Si no vuelvo solo, corre ./scripts/instalar.sh."
     avisado=1
   fi
 fi

@@ -51,7 +51,7 @@ if [[ ! -f "$CLOUDFLARED_DIR/cert.pem" ]]; then
   cat <<MSG
 
 Falta el login de cloudflared en este Mac — es a mano, una sola vez.
-Corré esto y elegí el dominio inv3rza.com cuando el navegador lo pida:
+Corre esto y elige el dominio inv3rza.com cuando el navegador lo pida:
 
     cloudflared tunnel login
 
