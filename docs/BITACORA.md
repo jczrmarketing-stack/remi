@@ -20,6 +20,26 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B3 · Los hitos se cierran solos · construido · dea40b8
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Forma K.
+
+- **Qué cambió:**
+  1. `fa76a1a` — `caminos.py`: cada hito del SOP gana `cierra_con` («encargo» | «mensaje» | «cobro» | «pregunta»), a mano junto a `paso_remi`.
+  2. `24f6f20` — un encargo que puede cerrar un hito con código lleva `hito: <tema>#<n>` en su primera línea, calculado por `servidor._encabezado_de_hito` (nunca lo inventa el modelo: el número lo decide `caminos.hitos_de_tema`); `scripts/hooks/claude-sesion.py` lo lee del primer turno del transcript en `SessionEnd` y lo manda como `datos["hito"]`.
+  3. `7c21633` — `trabajo._cerrar_hito_por_encargo`: al cerrar la sesión, con ese header y commit + pruebas en verde de ese tema durante la sesión, marca el hito `[x]` y registra `hito_cerrado` (forma K). Con commit pero sin pruebas en verde: una `Pregunta` («¿Cierro el paso N?»), nunca un cierre a ciegas.
+  4. `87c3ffd` — `mensaje_cliente.py` (sin IA, como `cobros.py`): «ya le mandé el avance a Alfonso» cierra el primer hito abierto de ESE cliente cuyo `cierra_con` es «mensaje» (`caminos.cerrar_primer_hito_con`); el mismo cierre se usa dentro de `_registrar_cobro` para los hitos «cobro».
+  5. `dea40b8` — `GET /libros/{tema}` suma `cerrado_por: {tipo, ref, en} | null` por hito; `POST /libros/{tema}/camino/{n}/deshacer` lo vuelve a abrir y borra la fila de `hito_cerrado` (el commit que lo cerró en la bóveda queda, revertido con otro commit — nunca desaparece).
+- **Decisiones que tomé sin preguntar:**
+  1. El `cierra_con` de cada hito del SOP (10 de cliente, 7 de propio) lo asigné por lo que ese paso puede dejar probado: los rituales sin huella de código ni plata («Intake», «Bandeja 48 h», «Descubrimiento») van a «pregunta»; los que escriben código van a «encargo»; «Pago antes de arrancar» y «Cobro y cierre» van a «cobro»; «Entrega y capacitación» y «Mensualidad» van a «mensaje» (no dejan commit ni cobro, los cuenta una charla).
+  2. La categoría «pregunta» queda declarada en `cierra_con_de` pero **sin** un cierre automático wireado en esta fase: no hay todavía una `Pregunta` que nazca cuando un hito ritual está listo para cerrarse (eso pediría detectar «la Bandeja ya enfrió 48 h y se revisó», que es una pieza aparte, no de B3). Los hitos «pregunta» siguen cerrándose a mano, como siempre.
+  3. `evidencia.ref` en `hito_cerrado` es lo que haya a mano: el `session_id` para «encargo», el id de la `Entrega` para «cobro», los primeros 200 caracteres del mensaje para «mensaje» — nunca un hash de git (el gancho de commit no lo manda).
+- **Revisión con otro modelo (ab1456c):** un hallazgo grave, arreglado. `_registrar_cobro` cerraba «Pago antes de arrancar» con el primer abono, aunque el SOP dice que en cuotas «el trabajo empieza cuando el pago está completo» — ahora solo cierra si ya no queda otra entrega pendiente de ese proyecto. Medio, arreglado: `cerrar_primer_hito_con` podía cerrar el hito equivocado si un libro tenía dos hitos abiertos de la misma categoría («mensaje» en «Entrega y capacitación» y «Mensualidad») — ahora SOLO puede cerrar el que sigue ahora mismo en el camino, nunca uno de más adelante aunque sea de la misma categoría. Medio, arreglado: la voz de la Pregunta de cierre dudoso decía el slug técnico del tema («En upvisuals hubo un commit…») en vez del nombre del cliente. Medio, no atendido (riesgo bajo, documentado): dos sesiones de Claude Code casi simultáneas sobre el mismo tema podrían pisarse en `hito_cerrado` — «un Mac, una persona» lo hace improbable y no hay lock explícito.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** pegar un encargo con `hito: <tema>#<n>` como primer mensaje de una sesión nueva, commitear con pruebas en verde, cerrar la sesión — el libro trae ese hito `[x]` con `cerrado_por.tipo == "encargo"`; `curl -X POST localhost:4400/libros/<tema>/camino/<n>/deshacer` lo devuelve.
+
+---
+
 ## 2026-10-04 · B2 · Al día: Remi sabe en qué vas · construido · 5aa0649
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Forma J.
