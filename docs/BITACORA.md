@@ -20,6 +20,27 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B6 · La ficha de cliente · construido · 317a191
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Tablero 5, forma M.
+
+- **Qué cambió:**
+  1. `551501d`/`b253567` — `nucleo/gastos.py` (parseo de «gasté 40 en el servidor de UpVisuals», sin IA, como `cobros.py`); `nucleo/ficha.py` (`gastado_de` agrupado por concepto, comunes repartidos por minutos trabajados ESTE MES, `por_hora`); wireado en `/mensaje` (`_registrar_gasto_hablado`) y en `preguntas.responder` (campo `gasto::{monto}::{concepto}`) cuando no se reconoce ni proyecto ni común claro.
+  2. `54b5fc7`/`241a834` — `PATCH /gastos/{id}`: corrige el monto de una fila propia a mano. En el panel, `FichaDeCliente`/`FilaGasto` (`apps/panel/.../[tema]/page.tsx`) con edición inline, cubierto en escritorio y 375 px.
+  3. `ff24298`/`13ee892` — `ficha.lo_acordado` (decisiones `tipo: decision` + entregas futuras), `ficha.lo_que_paso` (hasta 6 líneas de evidencia, reusando `aldia.Evento` que pasó a público), `ficha.atento_a` (horas contra estimado, hitos que faltan, alcance nuevo — regla fija, sin IA). Tres bloques nuevos en la ficha del panel.
+  4. `317a191` — arreglos de la revisión (abajo).
+- **Decisiones que tomé sin preguntar:**
+  1. La corrección a mano («cada número se toca y se corrige») la limité a los gastos, sobre su propia fila — cobrado y tiempo salen de sesiones/cobros ya registrados en otro lado, no de una fila editable; corregirlos ahí sería duplicar la fuente de verdad.
+  2. Los comunes se reparten por minutos trabajados ESTE MES (no desde siempre), mientras que los gastos propios de un proyecto se acumulan desde siempre. Es la lectura literal del plan («se reparten entre proyectos por minutos trabajados ESTE MES»); la consecuencia es que `gastado` de un proyecto puede bajar el día 1 de cada mes cuando el común se reparte de nuevo — es el comportamiento esperado de un reparto mensual, no un error, pero queda anotado para que no sorprenda.
+  3. «Alcance nuevo = Fase siguiente» lo leí como: hay una fase anterior cerrada → el alcance vigente es la actual. No como «la fase actual está lista» (eso sería falso mientras sigue abierta).
+- **Revisión con otro modelo:** dos hallazgos graves, arreglados con prueba cada uno — `nucleo/pruebas/test_gastos.py`, `test_ficha_acordado.py`, `test_gasto_hablado.py`. (1) `gastos.py` leía cualquier «algo: número» como gasto sin palabra de gasto recurrente («Reunión: 3 pm», «UpVisuals: 3 bugs pendientes» se guardaban solos); ahora exige además `_COMUN`. (2) `ficha.atento_a` comparaba `minutos_total` (del libro entero) contra el estimado de una sola fase — con más de una fase inventaba un exceso de horas falso; ahora solo compara cuando el libro tiene una sola fase, y la línea de alcance ya no afirma que la fase abierta «está lista». También arreglé cuatro hallazgos medios: `40.50` se leía como 4050 (un punto con dos decimales ahora es decimal, no miles); el número de una fecha hablada («el 15 de octubre») ya no se confunde con el monto; `"comun"` como subcadena coincidía con «comunicación» y con «no es comun» (ahora es palabra exacta y reconoce la negación); dos gastos dudosos idénticos deduplicaban su pregunta y el segundo se perdía en silencio (el campo lleva un nonce).
+- **Dudas abiertas:**
+  1. Hipótesis de la revisión, sin confirmar: `por_hora` podría estar restando gastos en USD (p. ej. «membresía de Claude: 100») de cobros en COP, con todo pintado en `$` es-CO. No se pudo confirmar ni descartar sin ver montos reales de un proyecto con ambos tipos de gasto.
+  2. Pendiente de otra fase, no de B6: el reparto de comunes abre una conexión a la base por cada tema en cada GET (`trabajo._minutos_entre`) — funciona, pero no es el camino más barato si crecen mucho los libros.
+- **Cómo probarlo a mano:** `curl localhost:4400/libros/upvisuals` trae `gastado`, `gastos`, `minutos_total`, `por_hora`, `decisiones`, `entregas_futuras`, `lo_que_paso`, `atento_a` (verificado contra el sistema real, sin escribir nada). Para ver la ficha completa: panel → Proyectos → un cliente (p. ej. UpVisuals) → sección «Ficha».
+
+---
+
 ## 2026-10-04 · B5 · Avisos que jalan la atención · construido · 9e6c129
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Forma L.
