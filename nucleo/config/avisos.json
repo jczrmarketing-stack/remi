@@ -1,0 +1,8 @@
+{
+  "$comment": "B5 (docs/PLAN-FINAL.md): los únicos tres avisos con sonido. Lo demás —los nudges de iniciativa.py— es callado. 'noche' es [hora_inicio, hora_fin) en Bogotá, cruzando medianoche.",
+  "suenan": ["terminal_termino", "foco_25", "desvio"],
+  "max_dia": 5,
+  "entre_min": 45,
+  "noche": [23, 7],
+  "telegram": true
+}

@@ -51,7 +51,7 @@ def _libros(tmp_path) -> None:
 def _arrancar(tmp_path, monkeypatch):
     monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
     monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path / "libros"))
-    for nombre in ("trabajo", "caminos", "libros", "db"):
+    for nombre in ("trabajo", "caminos", "libros", "db", "avisos"):
         sys.modules.pop(nombre, None)
     import db
 
@@ -216,3 +216,42 @@ def test_deshacer_devuelve_el_hito(tmp_path, monkeypatch):
 
     assert hitos[4].hecho is False
     assert cerrado is None
+
+
+def test_cerrar_una_sesion_de_encargo_deja_el_aviso_terminal_termino(tmp_path, monkeypatch):
+    """B5: terminal_termino nace del evento (sesión con header), no de
+    mirar el reloj."""
+    _libros(tmp_path)
+    trabajo = _arrancar(tmp_path, monkeypatch)
+    import avisos
+    import db
+
+    inicio = datetime(2026, 10, 4, 15, 0, tzinfo=timezone.utc)  # 10am Bogotá
+    fin = inicio + timedelta(minutes=30)
+    conexion = db.conectar()
+    _abrir_sesion(conexion, "s1", "upvisuals", inicio)
+    _evento(conexion, "commit", "upvisuals", inicio + timedelta(minutes=10), {"mensaje": "x"})
+
+    trabajo.recibir("sesion_fin", "", {"session_id": "s1", "hito": "upvisuals#5"}, fin)
+
+    avisados = avisos.listar_de_hoy(conexion, fin)
+    conexion.close()
+    assert [a.tipo for a in avisados] == ["terminal_termino"]
+
+
+def test_cerrar_una_sesion_sin_header_no_deja_aviso(tmp_path, monkeypatch):
+    _libros(tmp_path)
+    trabajo = _arrancar(tmp_path, monkeypatch)
+    import avisos
+    import db
+
+    inicio = datetime(2026, 10, 4, 10, 0, tzinfo=timezone.utc)
+    fin = inicio + timedelta(minutes=30)
+    conexion = db.conectar()
+    _abrir_sesion(conexion, "s1", "upvisuals", inicio)
+
+    trabajo.recibir("sesion_fin", "", {"session_id": "s1"}, fin)
+
+    avisados = avisos.listar_de_hoy(conexion, fin)
+    conexion.close()
+    assert avisados == []

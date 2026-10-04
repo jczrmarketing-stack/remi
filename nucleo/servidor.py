@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 import agenda
 import aldia
+import avisos
 import bandeja
 import boveda_git
 import caminos
@@ -1820,6 +1821,63 @@ def responder_nudge(nudge_id: UUID, cuerpo: RespuestaNudge) -> Nudge:
         if nudge is None:
             raise HTTPException(status_code=404, detail="no tengo ese nudge")
         return nudge
+    finally:
+        conexion.close()
+
+
+# — B5: avisos que jalan la atención (forma L) —
+
+
+class AvisoVista(BaseModel):
+    id: UUID
+    tipo: str
+    texto: str
+    canal: str
+    creado: datetime
+    respuesta: str | None
+
+
+def _vista_aviso(a: avisos.Aviso) -> AvisoVista:
+    return AvisoVista(id=a.id, tipo=a.tipo, texto=a.texto, canal=a.canal, creado=a.creado, respuesta=a.respuesta)
+
+
+@app.get("/avisos/hoy", response_model=list[AvisoVista])
+def avisos_de_hoy() -> list[AvisoVista]:
+    """Solo para el panel — nunca se muestra como contador (ley 4)."""
+    conexion = db.conectar()
+    try:
+        return [_vista_aviso(a) for a in avisos.listar_de_hoy(conexion, datetime.now(timezone.utc))]
+    finally:
+        conexion.close()
+
+
+@app.get("/avisos/pendiente", response_model=AvisoVista | None)
+def aviso_pendiente() -> AvisoVista | None:
+    """Lo que la ventanita muestra: evalúa las reglas de reloj (foco_25,
+    desvio) y, si ya había uno sin contestar, ese."""
+    conexion = db.conectar()
+    try:
+        existente = avisos.pendiente(conexion)
+        if existente is not None:
+            return _vista_aviso(existente)
+        nuevo = avisos.evaluar(conexion, datetime.now(timezone.utc))
+        return _vista_aviso(nuevo) if nuevo is not None else None
+    finally:
+        conexion.close()
+
+
+class RespuestaAviso(BaseModel):
+    respuesta: Literal["volver", "ahora_no"]
+
+
+@app.post("/avisos/{aviso_id}/respuesta", response_model=AvisoVista)
+def responder_aviso(aviso_id: UUID, cuerpo: RespuestaAviso) -> AvisoVista:
+    conexion = db.conectar()
+    try:
+        aviso = avisos.responder(conexion, aviso_id, cuerpo.respuesta)
+        if aviso is None:
+            raise HTTPException(status_code=404, detail="no tengo ese aviso")
+        return _vista_aviso(aviso)
     finally:
         conexion.close()
 

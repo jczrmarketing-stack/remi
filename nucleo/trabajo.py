@@ -19,6 +19,7 @@ from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+import avisos
 import boveda_git
 import caminos
 import clasificar
@@ -208,6 +209,10 @@ def _cerrar_claude(conexion: sqlite3.Connection, datos: dict[str, object], ahora
         if inicio.tzinfo is None:
             inicio = inicio.replace(tzinfo=timezone.utc)
         _cerrar_hito_por_encargo(conexion, datos, inicio, ahora, sesion)
+        # B5: la terminal terminó — solo si esta sesión nació de un
+        # encargo (tiene el header `hito: tema#n`), no cualquier cierre.
+        if str(datos.get("hito") or "").strip():
+            avisos.registrar(conexion, "terminal_termino", "La terminal terminó. ¿Seguimos?", "ventanita", ahora)
 
 
 # B3.2: el encabezado que _armar_encargo (servidor.py) antepone a un
