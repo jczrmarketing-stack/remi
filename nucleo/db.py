@@ -193,6 +193,21 @@ CREATE TABLE IF NOT EXISTS preguntas (
 );
 
 CREATE INDEX IF NOT EXISTS idx_preguntas_tema_campo ON preguntas(tema, campo);
+
+-- Tope de gasto (B1, PLAN-FINAL.md): cada llamada pagada (Venice,
+-- OpenRouter) deja una fila. Groq, Ollama y Claude (membresía Max) no
+-- cobran aparte y no se registran acá.
+CREATE TABLE IF NOT EXISTS gasto_motor (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha TEXT NOT NULL,
+    motor TEXT NOT NULL,
+    modelo TEXT NOT NULL,
+    tokens_in INTEGER NOT NULL,
+    tokens_out INTEGER NOT NULL,
+    usd REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_gasto_motor_fecha ON gasto_motor(fecha);
 """
 
 

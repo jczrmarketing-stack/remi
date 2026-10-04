@@ -1,0 +1,6 @@
+{
+  "$comment": "Tope de gasto en los motores pagados (B1, docs/PLAN-FINAL.md). Antes de cada llamada a Venice u OpenRouter, pensar.py mira esto; si el día o el mes ya llegaron al tope, no llama y cae al respaldo gratis (Groq -> Ollama). Claude por la membresía Max no cuenta: no cobra aparte. Se edita desde Ajustes (PUT /config/gasto).",
+  "tope_dia_usd": 5.0,
+  "tope_mes_usd": 50.0,
+  "activo": true
+}

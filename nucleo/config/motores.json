@@ -13,5 +13,16 @@
       "equilibrio": "deepseek/deepseek-v4-flash",
       "inteligente": "deepseek/deepseek-v4-pro"
     }
+  },
+  "precios": {
+    "$comment": "B1: USD por 1000 tokens de entrada/salida, solo de los motores pagados (Venice, OpenRouter). Groq, Ollama y Claude no están acá: no cobran aparte. Precio de catálogo al 4-oct-2026; ajústalo en Ajustes → Conexiones si cambia. Un modelo sin precio acá cuenta usd=0 (nunca inventa un costo) — anótalo si pasa.",
+    "venice": {
+      "z-ai-glm-5-3-flash": {"usd_1k_entrada": 0.0002, "usd_1k_salida": 0.0008},
+      "grok-4-7": {"usd_1k_entrada": 0.003, "usd_1k_salida": 0.015}
+    },
+    "openrouter": {
+      "deepseek/deepseek-v4-flash": {"usd_1k_entrada": 0.0002, "usd_1k_salida": 0.0008},
+      "deepseek/deepseek-v4-pro": {"usd_1k_entrada": 0.0012, "usd_1k_salida": 0.0024}
+    }
   }
 }
