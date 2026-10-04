@@ -99,3 +99,45 @@ class Entrega(BaseModel):
     estado: Literal["camino", "entregada", "pagada"]
     linea: str | None
     compartible: bool = True
+
+
+class Vision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    texto: str
+    creada_en: datetime
+
+
+class Meta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    monto_min: float | None
+    monto_max: float | None
+    meses_seguidos: int | None
+    limites: str | None
+    confirmada: bool = False
+    creada_en: datetime
+
+
+class Escalon(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    n: int
+    texto: str
+    criterio: str
+    estado: Literal["conquistado", "ahora", "sigue", "luego", "norte"]
+
+
+class Partida(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    tipo: Literal["recurso", "habilidad", "cuesta", "preferencia"]
+    texto: str
+    valor: str
+    origen: Literal["medido", "dicho", "pregunta"]
+    dominio: Literal["cirujano", "sabe", "aprendiz"] | None
+    calculada_en: datetime

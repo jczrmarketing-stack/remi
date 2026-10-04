@@ -78,3 +78,37 @@ export interface Entrega {
   linea: string | null;
   compartible: boolean;
 }
+
+export interface Vision {
+  id: UUID;
+  texto: string;
+  creada_en: ISODateString;
+}
+
+export interface Meta {
+  id: UUID;
+  monto_min: number | null;
+  monto_max: number | null;
+  meses_seguidos: number | null;
+  limites: string | null;
+  confirmada: boolean;
+  creada_en: ISODateString;
+}
+
+export interface Escalon {
+  id: UUID;
+  n: number;
+  texto: string;
+  criterio: string;
+  estado: "conquistado" | "ahora" | "sigue" | "luego" | "norte";
+}
+
+export interface Partida {
+  id: UUID;
+  tipo: "recurso" | "habilidad" | "cuesta" | "preferencia";
+  texto: string;
+  valor: string;
+  origen: "medido" | "dicho" | "pregunta";
+  dominio: "cirujano" | "sabe" | "aprendiz" | null;
+  calculada_en: ISODateString;
+}
