@@ -54,6 +54,19 @@ def test_sin_transcript_path_es_none():
     assert claude_sesion.hito_del_primer_turno("") is None
 
 
+def test_un_tool_result_como_primer_type_user_no_rompe_y_sigue_buscando(tmp_path):
+    """Revisión de B3: en el JSONL real, un resultado de herramienta
+    también llega con type=="user" pero sin bloques de texto. El gancho
+    no debe leer eso como si fuera el primer turno humano con el header."""
+    archivo = tmp_path / "t.jsonl"
+    lineas = [
+        json.dumps({"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "x", "content": "ok"}]}}),
+        json.dumps({"type": "user", "message": {"role": "user", "content": "hito: upvisuals#5\n\nQUÉ\nArreglar X."}}),
+    ]
+    archivo.write_text("\n".join(lineas) + "\n")
+    assert claude_sesion.hito_del_primer_turno(str(archivo)) == "upvisuals#5"
+
+
 class _Responde(BaseHTTPRequestHandler):
     ultimo: dict[str, object] = {}
 

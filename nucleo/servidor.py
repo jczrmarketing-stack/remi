@@ -722,10 +722,13 @@ def _registrar_cobro(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
         entregas.crear_entrega(conexion, entrega)
         total = entregas.total_pagado_proyecto(conexion, proyecto_id)
         # B3.1: el cobro mismo es la evidencia de los hitos "Pago antes de
-        # arrancar" y "Cobro y cierre" — si hay uno abierto, se cierra solo.
-        n = caminos.cerrar_primer_hito_con(conexion, parseada.tema, "cobro")
-        if n is not None:
-            db.marcar_hito_cerrado(conexion, parseada.tema, n, "cobro", str(entrega.id), entrega.fecha)
+        # arrancar" y "Cobro y cierre" — pero solo si ya no queda otra
+        # entrega pendiente de ese proyecto: en cuotas, un primer abono no
+        # cierra "el trabajo empieza cuando el pago está completo" (SOP).
+        if entregas.entrega_del_proyecto(conexion, proyecto_id) is None:
+            n = caminos.cerrar_primer_hito_con(conexion, parseada.tema, "cobro")
+            if n is not None:
+                db.marcar_hito_cerrado(conexion, parseada.tema, n, "cobro", str(entrega.id), entrega.fecha)
     finally:
         conexion.close()
     n_objetivo = _fase_actual_n(libro.fases)

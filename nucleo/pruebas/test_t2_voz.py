@@ -127,6 +127,44 @@ def test_un_cobro_cierra_el_hito_de_pago_abierto(tmp_path, monkeypatch):
     assert cerrado is not None and cerrado.tipo == "cobro"
 
 
+def test_un_abono_parcial_no_cierra_pago_antes_de_arrancar(tmp_path, monkeypatch):
+    """Revisión de B3: en cuotas, el trabajo empieza cuando el pago está
+    COMPLETO (SOP) — un primer abono no puede cerrar el hito solo."""
+    carpeta = tmp_path / "libros"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    (carpeta / "upvisuals.md").write_text(
+        LIBRO_UPVISUALS.replace(
+            "---\n\nCuerpo.\n",
+            "---\n\n## Camino\n\n- [x] Intake\n- [x] Descubrimiento (5 preguntas)\n"
+            "- [x] Propuesta por fases\n- [x] Contrato\n- [ ] Pago antes de arrancar\n",
+        )
+    )
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(carpeta))
+    for nombre in ("servidor", "db", "modelos", "libros", "temas", "cobros", "agenda", "bandeja", "pensar", "clasificar", "caminos"):
+        sys.modules.pop(nombre, None)
+    import db
+    import servidor
+
+    importlib.reload(db)
+    importlib.reload(servidor)
+    cliente = TestClient(servidor.app)
+
+    # La segunda cuota, pendiente, registrada antes del primer abono.
+    cliente.post("/mensaje", json={"texto": "entrega para Alfonso el 18 de octubre por 2500"})
+    respuesta = cliente.post("/mensaje", json={"texto": "Alfonso pagó 1500"})
+    assert respuesta.json()["tipo"] == "cobro"
+
+    import caminos
+    import libros
+
+    libro = next(l for l in libros.listar() if l.tema == "upvisuals")
+    assert caminos.leer_hitos(libro.archivo)[4].hecho is False
+    conexion = db.conectar()
+    assert db.hito_cerrado_de(conexion, "upvisuals", 5) is None
+    conexion.close()
+
+
 # — T2.5: agenda hablada —
 
 

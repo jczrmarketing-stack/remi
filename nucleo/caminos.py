@@ -340,22 +340,23 @@ def marcar_hitos_cumplidos(conexion: sqlite3.Connection, libro: libros.Libro) ->
 
 
 def cerrar_primer_hito_con(conexion: sqlite3.Connection, tema: str, categoria: str) -> int | None:
-    """B3.1: el primer hito ABIERTO de `tema` cuyo `cierra_con` es
-    `categoria` ("mensaje" o "cobro") — lo marca [x] en el archivo y
-    devuelve su posición (1-indexed). None si no hay libro, o si ninguno
-    de sus hitos abiertos cierra con esa categoría: quien llama no
-    registra nada y el mensaje sigue su camino normal."""
+    """B3.1: SOLO el hito que sigue ahora mismo en el camino de `tema`
+    (el primero sin marcar) — nunca uno de más adelante, aunque también
+    sea de esa `categoria` ("mensaje" o "cobro"). Un libro con dos hitos
+    "mensaje" (Entrega y capacitación, Mensualidad) nunca confunde cuál es
+    cuál: si el que sigue ahora no es de esta categoría, no cierra nada —
+    no hay evidencia de que haya llegado hasta ahí. Devuelve su posición
+    (1-indexed), o None si no hay libro o el que sigue no cierra así."""
     libro = next((l for l in libros.listar() if l.tema == tema), None)
     if libro is None:
         return None
     hitos = marcar_hitos_cumplidos(conexion, libro)
-    for i, hito in enumerate(hitos):
-        if hito.hecho:
-            continue
-        if cierra_con_de(libro.tipo, hito.texto) == categoria:
-            marcar_por_indice(libro.archivo, i, True)
-            return i + 1
-    return None
+    siguiente = siguiente_abierto(hitos)
+    if siguiente is None or cierra_con_de(libro.tipo, siguiente.texto) != categoria:
+        return None
+    indice = next(i for i, h in enumerate(hitos) if h is siguiente)
+    marcar_por_indice(libro.archivo, indice, True)
+    return indice + 1
 
 
 def hitos_de_tema(conexion: sqlite3.Connection, tema: str) -> tuple[list[Hito], Hito | None] | None:

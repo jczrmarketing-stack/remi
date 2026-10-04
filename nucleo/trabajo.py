@@ -236,13 +236,15 @@ def _preguntar_cierre_dudoso(conexion: sqlite3.Connection, tema: str, n: int, ah
     campo = f"hito.{n}.cierre"
     if db.pregunta_de_tema_campo(conexion, tema, campo) is not None:
         return
+    libro = next((l for l in libros.listar() if l.tema == tema), None)
+    nombre = (libro.cliente or libro.titulo) if libro is not None else tema
     db.crear_pregunta(
         conexion,
         Pregunta(
             id=uuid4(),
             tema=tema,
             campo=campo,
-            voz=f"En {tema} hubo un commit pero no vi las pruebas en verde. ¿Cierro el paso {n}?",
+            voz=f"En {nombre} hubo un commit pero no vi las pruebas en verde. ¿Cierro el paso {n}?",
             estado="pendiente",
             creada_en=ahora,
             disponible_desde=ahora,

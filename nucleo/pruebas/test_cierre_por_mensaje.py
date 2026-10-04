@@ -92,6 +92,38 @@ def test_ya_le_mande_el_avance_cierra_solo_upvisuals(tmp_path, monkeypatch):
     assert cerrado is not None and cerrado.tipo == "mensaje"
 
 
+def test_no_cierra_un_hito_mensaje_que_todavia_no_es_el_que_sigue(tmp_path, monkeypatch):
+    """Revisión de B3: si el que sigue AHORA es «Producción» (encargo),
+    un «ya le mandé...» no puede saltar adelante y cerrar «Entrega y
+    capacitación» (mensaje) solo porque es la próxima de esa categoría."""
+    carpeta = tmp_path / "libros"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    (carpeta / "upvisuals.md").write_text(
+        LIBRO_UPVISUALS.replace("- [x] Producción\n", "- [ ] Producción\n")
+    )
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(carpeta))
+    for nombre in ("servidor", "caminos", "libros", "db", "mensaje_cliente"):
+        sys.modules.pop(nombre, None)
+    import db
+    import servidor
+
+    importlib.reload(db)
+    importlib.reload(servidor)
+    cliente = TestClient(servidor.app)
+
+    respuesta = cliente.post("/mensaje", json={"texto": "ya le mandé el avance a Alfonso"})
+
+    assert respuesta.json()["tipo"] != "hito_cerrado"
+    import caminos
+    import libros
+
+    libro = next(l for l in libros.listar() if l.tema == "upvisuals")
+    hitos = caminos.leer_hitos(libro.archivo)
+    assert hitos[7].hecho is False  # Producción, sigue abierto
+    assert hitos[8].hecho is False  # Entrega y capacitación, no se saltó
+
+
 def test_sin_cliente_reconocido_sigue_su_camino_normal(tmp_path, monkeypatch):
     _libros(tmp_path)
     servidor = _arrancar(tmp_path, monkeypatch)
