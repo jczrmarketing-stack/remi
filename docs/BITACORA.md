@@ -20,6 +20,24 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B5 · Avisos que jalan la atención · construido · 9e6c129
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Forma L.
+
+- **Qué cambió:**
+  1. `9e6c129` — `nucleo/avisos.py`: los tres únicos avisos con sonido. `foco_25` y `desvio` se evalúan por reloj (`evaluar`, como `iniciativa.pendiente_o_nuevo`); `terminal_termino` nace del EVENTO (una sesión con header `hito:` que cierra), no de mirar el reloj. `config/avisos.json` (forma L): `suenan`, `max_dia` (5), `entre_min` (45, global entre cualquier par de avisos, no por tipo), `noche` ([23,7) Bogotá, cruzando medianoche), `telegram`.
+  2. `trabajo.py`: al cerrar una sesión con header de hito, además de intentar cerrar el hito (B3), deja el aviso `terminal_termino`.
+  3. `servidor.py`: `GET /avisos/hoy` (para el panel, nunca como contador — ley 4), `GET /avisos/pendiente` (lo que la ventanita mostraría: si ya había uno sin contestar, ese; si no, evalúa las reglas de reloj), `POST /avisos/{id}/respuesta` («volver» | «ahora_no»).
+- **Decisiones que tomé sin preguntar:**
+  1. «Máximo 5 al día, 45 min entre dos» lo interpreté como un presupuesto GLOBAL (cualquier par de avisos, sin importar el tipo), no uno por tipo — así nunca se siente como cinco avisos distintos sonando casi juntos.
+  2. `canal` siempre sale `"ventanita"` en el código de hoy: no hasta que exista la integración de Telegram (punto 3 del plan), no hay otro canal real que mandar.
+- **BLOQUEADO:** el punto 2 (ventanita: sonido del sistema + tarjeta «Volver»/«Ahora no») y el punto 3 (Telegram: los mismos avisos, y lo que se contesta ahí cierra hitos) — el núcleo ya expone todo lo que esas dos piezas necesitan (`GET /avisos/pendiente`, `POST /avisos/{id}/respuesta`), pero construir la UI de la ventanita (Tauri/Rust/React) y el bot de Telegram es trabajo de otra superficie que esta fase no tocó; el «listo cuando» de B5 es enteramente de pytest con reloj falso y ya se cumple sin esas dos piezas. Falta: la tarjeta en `apps/ventanita` y el envío/recepción por Telegram (`telegram.py` ya existe para otros avisos — conectarlo es la próxima tarea).
+- **Revisión con otro modelo (90e3df6):** un hallazgo grave, arreglado. `foco_25` (y por el mismo motivo `desvio`) no tenían memoria de qué bloque ya avisó: mientras el bloque seguía abierto, cada evaluación después de `entre_min` volvía a calificar como candidato, y podía sonar hasta 5 veces el mismo día por el mismo bloque — se sentía a insistencia (ley 4). Ahora `avisos` lleva una columna `ref` (el id de la sesión o de `trabajo_claude`) y no vuelve a avisar ESE mismo bloque, nunca, lo que de paso resuelve el caso medio que señaló la revisión: una sesión de `trabajo_claude` huérfana (el gancho nunca cerró `fin`) ya no puede avisar `desvio` día tras día. También se agregaron las pruebas que faltaban en el borde exacto de la noche (23:00 y 7:00 en punto).
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `curl localhost:4400/avisos/hoy` (vacío sin nada); abrir un bloque y esperar 25 min reales, o `curl localhost:4400/avisos/pendiente` para forzar la evaluación — si no es de noche y el presupuesto lo permite, sale `foco_25`.
+
+---
+
 ## 2026-10-04 · B4 · La pantalla nueva de Hoy · construido · e8f365a
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Tableros 1 a 3 del canvas.
