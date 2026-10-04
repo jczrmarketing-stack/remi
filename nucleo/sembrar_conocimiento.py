@@ -160,6 +160,7 @@ def _sembrar_desde(
                             fuente="manual",
                             claves=ficha.claves,
                             nivel=nivel,
+                            tipo=None,
                         ),
                     )
                     cuenta["creadas"] += 1

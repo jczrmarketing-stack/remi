@@ -63,6 +63,7 @@ def sembrar() -> int:
                     fuente="manual",
                     claves=None,
                     nivel=None,
+                    tipo=None,
                 ),
             )
             print(f"sembrada · {semilla['titulo']}")

@@ -40,6 +40,7 @@ def _memoria(titulo="Una cosa", resumen="Con esto me quedé", tema="prueba", cue
         fuente="manual",
         claves=None,
         nivel=None,
+        tipo=None,
     )
 
 
@@ -86,6 +87,7 @@ def test_el_indice_viene_de_lo_mas_nuevo_a_lo_mas_viejo(tmp_path, monkeypatch):
                 fuente="manual",
                 claves=None,
                 nivel=None,
+                tipo=None,
             ),
         )
     titulos = [e.titulo for e in db.indice_memoria(conexion)]
@@ -147,6 +149,42 @@ def test_guardar_lo_que_si_entra_queda_en_el_estante(tmp_path, monkeypatch):
     indice = db.indice_memoria(conexion)
     conexion.close()
     assert [e.titulo for e in indice] == ["Un título"]
+
+
+def test_guardar_con_tipo_decision_queda_marcada(tmp_path, monkeypatch):
+    """B2.4: `tipo="decision"` es lo que Al día y la ficha de cliente leen."""
+    _arrancar(tmp_path, monkeypatch)
+    import db
+    import memoria_mcp
+    from datetime import datetime, timedelta, timezone
+
+    memoria_mcp.guardar("Fase 2 para noviembre", "Se deja para noviembre", "detalle", "upvisuals", tipo="decision")
+    memoria_mcp.guardar("Nota cualquiera", "Sin tipo", "detalle", "upvisuals")
+    conexion = db.conectar()
+    decisiones = db.decisiones_desde(conexion, datetime.now(timezone.utc) - timedelta(days=1))
+    conexion.close()
+    assert [d.titulo for d in decisiones] == ["Fase 2 para noviembre"]
+
+
+def test_guardar_con_tipo_invalido_no_entra(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    import memoria_mcp
+
+    respuesta = memoria_mcp.guardar("Un título", "Un resumen", "El cuerpo", "tema", tipo="otra-cosa")
+    assert "decision" in respuesta.lower()
+
+
+def test_decisiones_desde_no_trae_nada_antes_de_la_fecha(tmp_path, monkeypatch):
+    _arrancar(tmp_path, monkeypatch)
+    import db
+    import memoria_mcp
+    from datetime import datetime, timedelta, timezone
+
+    memoria_mcp.guardar("Vieja", "r", "c", "upvisuals", tipo="decision")
+    conexion = db.conectar()
+    decisiones = db.decisiones_desde(conexion, datetime.now(timezone.utc) + timedelta(days=1))
+    conexion.close()
+    assert decisiones == []
 
 
 # — La mente: el índice en el system prompt —
@@ -380,7 +418,7 @@ def test_el_indice_del_mcp_da_los_ids_fuera_de_remi(tmp_path, monkeypatch):
         db.guardar_memoria(
             conexion,
             Memoria(id=uuid4(), titulo="UpVisuals", resumen="Fase 2 USD 3.700", tema="upvisuals",
-                    fecha=datetime.now(timezone.utc), cuerpo="x", fuente="manual", claves=None, nivel=1),
+                    fecha=datetime.now(timezone.utc), cuerpo="x", fuente="manual", claves=None, nivel=1, tipo=None),
         )
     finally:
         conexion.close()

@@ -159,6 +159,7 @@ def guardar(texto: str, ahora: datetime, resumidor=None) -> Episodio:  # type: i
         fuente="ollama" if por.startswith("ollama") else "conversacion",
         claves=None,
         nivel=2,
+        tipo=None,
     )
     conexion = db.conectar()
     try:

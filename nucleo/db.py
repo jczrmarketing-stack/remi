@@ -237,6 +237,9 @@ def inicializar_esquema(ruta: Path | None = None) -> None:
 _COLUMNAS_NUEVAS = (
     ("memoria", "claves", "TEXT"),
     ("memoria", "nivel", "INTEGER"),
+    # B2.4: una decisión guardada por `memoria_mcp.guardar(tipo="decision")`
+    # entra como evento para Al día y para la ficha. Nulo: una nota normal.
+    ("memoria", "tipo", "TEXT"),
     ("turnos", "conversacion_id", "TEXT"),
     # Biblia v3.7: lo que el panel pedía y la base no guardaba. Solo se
     # agregan columnas; ninguna fila existente cambia.
@@ -598,8 +601,8 @@ class EntradaIndice:
 def guardar_memoria(conexion: sqlite3.Connection, memoria: Memoria) -> None:
     conexion.execute(
         """
-        INSERT INTO memoria (id, titulo, resumen, tema, fecha, cuerpo, fuente, claves, nivel)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO memoria (id, titulo, resumen, tema, fecha, cuerpo, fuente, claves, nivel, tipo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(memoria.id),
@@ -611,6 +614,7 @@ def guardar_memoria(conexion: sqlite3.Connection, memoria: Memoria) -> None:
             memoria.fuente,
             memoria.claves,
             memoria.nivel,
+            memoria.tipo,
         ),
     )
     conexion.commit()
@@ -677,6 +681,7 @@ def _fila_a_memoria(fila: sqlite3.Row) -> Memoria:
         fuente=fila["fuente"],
         claves=fila["claves"],
         nivel=fila["nivel"],
+        tipo=fila["tipo"],
     )
 
 
@@ -684,6 +689,16 @@ def memorias_por_tema(conexion: sqlite3.Connection, tema: str) -> list[Memoria]:
     """Las entradas de un tema, la más vieja primero."""
     filas = conexion.execute(
         "SELECT * FROM memoria WHERE tema = ? ORDER BY fecha", (tema,)
+    ).fetchall()
+    return [_fila_a_memoria(fila) for fila in filas]
+
+
+def decisiones_desde(conexion: sqlite3.Connection, desde: datetime) -> list[Memoria]:
+    """B2: las decisiones (`tipo = "decision"`) guardadas desde `desde`, la
+    más reciente primero — lo que Al día y la ficha de cliente leen."""
+    filas = conexion.execute(
+        "SELECT * FROM memoria WHERE tipo = 'decision' AND fecha >= ? ORDER BY fecha DESC",
+        (desde.isoformat(),),
     ).fetchall()
     return [_fila_a_memoria(fila) for fila in filas]
 
@@ -727,6 +742,7 @@ def editar_memoria(
         fuente=actual.fuente,
         claves=actual.claves if claves is None else claves,
         nivel=actual.nivel if nivel is None else nivel,
+        tipo=actual.tipo,
     )
     conexion.execute(
         "UPDATE memoria SET titulo = ?, resumen = ?, tema = ?, cuerpo = ?, claves = ?, nivel = ? WHERE id = ?",

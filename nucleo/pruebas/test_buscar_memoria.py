@@ -27,6 +27,7 @@ def _memoria(titulo, resumen, tema, cuerpo="x", fecha=None):
         fuente="manual",
         claves=None,
         nivel=None,
+        tipo=None,
     )
 
 

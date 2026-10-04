@@ -73,6 +73,7 @@ class Memoria(BaseModel):
     fuente: Literal["conversacion", "manual", "ollama"]
     claves: str | None
     nivel: int | None = Field(ge=0, le=3, default=None)
+    tipo: Literal["decision"] | None
 
 
 class Pregunta(BaseModel):

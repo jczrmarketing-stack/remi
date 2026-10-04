@@ -95,10 +95,14 @@ def leer(id: str) -> str:
         "Guarda algo nuevo en el estante. El título y el resumen son lo que vas a "
         "tener presente después, así que tienen que valerse solos: el título en "
         "hasta 80 caracteres y el resumen en hasta 240. El cuerpo es lo largo, lo "
-        "que solo se lee al bajarlo."
+        "que solo se lee al bajarlo. Al decidir algo de un proyecto (desde Claude en "
+        "el escritorio o en cualquier charla), pasa `tipo=\"decision\"` con su `tema`: "
+        "entra en Al día y en la ficha de ese proyecto."
     )
 )
-def guardar(titulo: str, resumen: str, cuerpo: str, tema: str) -> str:
+def guardar(titulo: str, resumen: str, cuerpo: str, tema: str, tipo: str | None = None) -> str:
+    if tipo is not None and tipo != "decision":
+        return 'tipo solo puede ser "decision" o quedarse vacío.'
     try:
         memoria = Memoria(
             id=uuid4(),
@@ -110,6 +114,7 @@ def guardar(titulo: str, resumen: str, cuerpo: str, tema: str) -> str:
             fuente="conversacion",
             claves=None,
             nivel=None,
+            tipo=tipo,  # type: ignore[arg-type]
         )
     except ValidationError:
         return (

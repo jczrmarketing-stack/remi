@@ -47,7 +47,8 @@
     "cuerpo": "string",
     "fuente": "conversacion|manual|ollama",
     "claves": "string|null",
-    "nivel": "0-3|null"
+    "nivel": "0-3|null",
+    "tipo": "decision|null"
   },
   "Pregunta": {
     "id": "uuid",

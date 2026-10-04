@@ -55,6 +55,7 @@ export interface Memoria {
   fuente: "conversacion" | "manual" | "ollama";
   claves: string | null;
   nivel: number | null;
+  tipo: "decision" | null;
 }
 
 export interface Pregunta {

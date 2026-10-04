@@ -23,7 +23,7 @@ def test_encuentra_lo_que_el_indice_no_trae(tmp_path, monkeypatch):
         conexion,
         Memoria(
             id=uuid4(), titulo="El 401 de malik", resumen="token vencido", tema="malik",
-            fecha=datetime.now(timezone.utc), cuerpo="x", fuente="manual", claves=None, nivel=None,
+            fecha=datetime.now(timezone.utc), cuerpo="x", fuente="manual", claves=None, nivel=None, tipo=None,
         ),
     )
 

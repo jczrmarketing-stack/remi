@@ -356,6 +356,7 @@ def _memoria(titulo: str, resumen: str, tema: str, ahora: datetime, cuerpo: str,
             fuente="conversacion",
             claves=None,
             nivel=2,
+            tipo=None,
         )
     except Exception as error:  # noqa: BLE001 — un título raro no deja la sesión sin episodio
         print(f"[cierre] la memoria no entró ({type(error).__name__})", file=sys.stderr)

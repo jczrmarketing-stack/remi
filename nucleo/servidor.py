@@ -1338,6 +1338,7 @@ def guardar_una_memoria(cuerpo: MemoriaNueva) -> Memoria:
             fuente=cuerpo.fuente,
             claves=None,
             nivel=None,
+            tipo=None,
         )
     except ValidationError:
         raise HTTPException(status_code=422, detail=NO_ENTRA) from None
