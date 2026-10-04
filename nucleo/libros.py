@@ -24,6 +24,9 @@ class Fase:
     monto: float | None
     listo_cuando: str
     estado: str
+    # B6.2: cuánto se esperaba que tomara, en minutos — T3 lo pregunta una
+    # vez por fase si falta. None hasta que alguien lo dice.
+    minutos_estimados: int | None = None
 
 
 @dataclass(frozen=True)
@@ -164,6 +167,11 @@ def _fases_de(bloque: str) -> tuple[Fase, ...]:
             monto = float(monto_crudo) if monto_crudo is not None else None
         except (TypeError, ValueError):
             monto = None
+        minutos_crudo = item.get("minutos_estimados")
+        try:
+            minutos_estimados = int(minutos_crudo) if minutos_crudo is not None else None
+        except (TypeError, ValueError):
+            minutos_estimados = None
         resultado.append(
             Fase(
                 nombre=str(item.get("nombre") or ""),
@@ -171,6 +179,7 @@ def _fases_de(bloque: str) -> tuple[Fase, ...]:
                 monto=monto,
                 listo_cuando=str(item.get("listo_cuando") or ""),
                 estado=str(item.get("estado") or ""),
+                minutos_estimados=minutos_estimados,
             )
         )
     return tuple(resultado)

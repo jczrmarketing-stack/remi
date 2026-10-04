@@ -106,6 +106,31 @@ def test_tipo_y_fases_del_frontmatter(tmp_path, monkeypatch):
     assert libro.fases[0].nombre == "Fase 1"
     assert libro.fases[0].monto == 5000.0
     assert libro.fases[1].estado == "sin_empezar"
+    # B6.2: sin minutos_estimados en el frontmatter, queda None.
+    assert libro.fases[0].minutos_estimados is None
+
+
+def test_minutos_estimados_de_una_fase(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_CONOCIMIENTO", str(tmp_path))
+    _libro(
+        tmp_path,
+        "upvisuals.md",
+        "---\n"
+        "titulo: UpVisuals\n"
+        "tema: upvisuals\n"
+        "resumen: Plataforma de Alfonso.\n"
+        "tipo: cliente\n"
+        "fases:\n"
+        "  - nombre: Fase 1\n"
+        "    alcance: Distribución de contenido\n"
+        "    monto: 5000\n"
+        "    listo_cuando: Demo aprobada\n"
+        "    estado: camino\n"
+        "    minutos_estimados: 1200\n"
+        "---\n",
+    )
+    (libro,) = libros.listar()
+    assert libro.fases[0].minutos_estimados == 1200
 
 
 def test_sin_tipo_ni_fases_quedan_vacios_no_rompe(tmp_path, monkeypatch):
