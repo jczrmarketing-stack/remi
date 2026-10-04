@@ -22,8 +22,8 @@ MAXIMO_MIENTRAS_NO_ESTABAS = 5
 
 # B2.3: los hitos del SOP que cierran avisando a un cliente — el paso_remi
 # que caminos.py ya les asigna es «Recuerda fechas y promesas; avisa el día
-# antes.» (Pago antes de arrancar, Cobro y cierre). Un hito con ese
-# paso_remi es el único caso en que `sigue` trae `borrador`.
+# antes.» (Pago antes de arrancar, Cobro y cierre, Mensualidad). Un hito
+# con ese paso_remi es el único caso en que `sigue` trae `borrador`.
 _PASO_REMI_DE_AVISO = "Recuerda fechas y promesas; avisa el día antes."
 
 
@@ -261,22 +261,48 @@ def calcular_mientras_no_estabas(
     ]
 
 
+MINUTOS_MISMA_APERTURA = 10
+
+
 def marcar_visto(conexion: sqlite3.Connection, ahora: datetime, clave: str = "panel") -> datetime:
-    """Devuelve CUÁNDO fue la apertura anterior (o `ahora`, la primera vez)
-    y deja esta como la nueva — el mismo patrón que trabajo._tomar_turno."""
-    fila = conexion.execute("SELECT fecha FROM aldia_visto WHERE clave = ?", (clave,)).fetchone()
-    anterior = ahora
-    if fila is not None:
-        anterior = datetime.fromisoformat(fila["fecha"])
-        if anterior.tzinfo is None:
-            anterior = anterior.replace(tzinfo=timezone.utc)
+    """Devuelve CUÁNDO fue la apertura anterior (o `ahora`, la primera vez).
+
+    GET /hoy/aldia puede pedirse muchas veces durante la misma visita (el
+    panel sondeando mientras está abierto); si cada pedido adelantara el
+    reloj, «mientras no estabas» nunca llegaría a acumular las 2 h porque
+    cada GET lo reinicia. Dentro de los `MINUTOS_MISMA_APERTURA` desde el
+    último toque, es la misma visita: ni se lee de nuevo el reloj viejo ni
+    se mueve — se sigue devolviendo lo que ya se devolvió. Solo después de
+    ese hueco se mueve, con el mismo patrón que trabajo._tomar_turno."""
+    fila = conexion.execute("SELECT fecha, visto_desde FROM aldia_visto WHERE clave = ?", (clave,)).fetchone()
+    if fila is None:
+        conexion.execute(
+            "INSERT INTO aldia_visto (clave, fecha, visto_desde) VALUES (?, ?, ?)",
+            (clave, ahora.isoformat(), ahora.isoformat()),
+        )
+        conexion.commit()
+        return ahora
+
+    ultimo_toque = datetime.fromisoformat(fila["fecha"])
+    if ultimo_toque.tzinfo is None:
+        ultimo_toque = ultimo_toque.replace(tzinfo=timezone.utc)
+    visto_desde = datetime.fromisoformat(fila["visto_desde"])
+    if visto_desde.tzinfo is None:
+        visto_desde = visto_desde.replace(tzinfo=timezone.utc)
+
+    if ahora - ultimo_toque < timedelta(minutes=MINUTOS_MISMA_APERTURA):
+        # Misma visita: no se mueve nada, pero sí se anota el toque más
+        # reciente, para que una visita larga no se corte sola a los 10 min.
+        conexion.execute("UPDATE aldia_visto SET fecha = ? WHERE clave = ?", (ahora.isoformat(), clave))
+        conexion.commit()
+        return visto_desde
+
     conexion.execute(
-        "INSERT INTO aldia_visto (clave, fecha) VALUES (?, ?) "
-        "ON CONFLICT(clave) DO UPDATE SET fecha = excluded.fecha",
-        (clave, ahora.isoformat()),
+        "UPDATE aldia_visto SET fecha = ?, visto_desde = ? WHERE clave = ?",
+        (ahora.isoformat(), ahora.isoformat(), clave),
     )
     conexion.commit()
-    return anterior
+    return visto_desde
 
 
 def calcular(conexion: sqlite3.Connection, ahora: datetime, desde_ultima_apertura: datetime) -> AlDia:
@@ -287,10 +313,13 @@ def calcular(conexion: sqlite3.Connection, ahora: datetime, desde_ultima_apertur
     lo_ultimo = calcular_lo_ultimo(eventos, ahora)
 
     # B2.2: una sesión de Claude Code todavía abierta es lo que está
-    # pasando AHORA — gana sobre cualquier evento ya cerrado, y basta para
-    # decir en qué libro estamos aunque todavía no haya ni un commit.
+    # pasando AHORA — pero solo gana si no hay ya un evento cerrado más
+    # nuevo que su inicio (un commit con pruebas en verde DURANTE la
+    # sesión es más fresco que «sigo en esto desde que empezó», y es
+    # justo lo que pide el «listo cuando» de B2).
     abierta = sesion_abierta(conexion)
-    if abierta is not None:
+    hay_evento_mas_nuevo = bool(eventos) and eventos[-1].fecha > (abierta[1] if abierta else ahora)
+    if abierta is not None and not hay_evento_mas_nuevo:
         tema_abierto, inicio, session_id = abierta
         minutos = max(0, int((ahora - inicio).total_seconds() // 60))
         lo_ultimo = LoUltimo(

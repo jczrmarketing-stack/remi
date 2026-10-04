@@ -222,6 +222,32 @@ def test_sesion_abierta_gana_como_lo_ultimo_y_pone_el_estamos_en(tmp_path, monke
     assert forma.estamos_en.paso == "Descubrimiento (5 preguntas)"
 
 
+def test_un_commit_durante_la_sesion_gana_sobre_terminal_trabajando(tmp_path, monkeypatch):
+    """Hallazgo de la revisión de B2: si ya hubo un commit con pruebas en
+    verde DESPUÉS de que la sesión abrió, eso es más fresco que «sigo en
+    esto desde que empecé» — nunca se tapa un logro real con un «trabajando»
+    genérico."""
+    _libro(tmp_path)
+    aldia = _arrancar(tmp_path, monkeypatch)
+    import db
+
+    ahora = datetime(2026, 10, 4, 15, 0, tzinfo=timezone.utc)
+    conexion = db.conectar()
+    conexion.execute(
+        "INSERT INTO trabajo_claude (session_id, tema, ruta, inicio, fin) VALUES ('s1', 'upvisuals', '', ?, NULL)",
+        ((ahora - timedelta(minutes=20)).isoformat(),),
+    )
+    _evento(conexion, "commit", "upvisuals", ahora - timedelta(minutes=10), {"mensaje": "x"})
+    _evento(conexion, "pruebas", "upvisuals", ahora - timedelta(minutes=2), {"verde": True})
+    anterior = aldia.marcar_visto(conexion, ahora - timedelta(minutes=30))
+
+    forma = aldia.calcular(conexion, ahora, anterior)
+    conexion.close()
+
+    assert forma.lo_ultimo.evidencia.tipo == "pruebas"
+    assert forma.lo_ultimo.hace_min == 2
+
+
 def test_sesion_cerrada_no_cuenta_como_abierta(tmp_path, monkeypatch):
     _libro(tmp_path)
     aldia = _arrancar(tmp_path, monkeypatch)

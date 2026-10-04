@@ -1481,12 +1481,24 @@ def al_dia() -> AlDiaVista:
             and forma.estamos_en is not None
             and aldia.avisa_hito(libro_activo.tipo if libro_activo else None, forma.sigue.texto)
         ):
-            pensado = pensar.pensar(
-                f"Redacta el mensaje para el cliente de «{forma.estamos_en.tema}» en el paso «{forma.sigue.texto}».",
-                None,
-                "equilibrio",
-                pensar.sistema_cliente(),
+            # Los hechos van explícitos en el pedido: lo que precarga mete
+            # en el system prompt (pensar.sistema_cliente()) es del proyecto
+            # que esté activo AHORA en la ventanita, que puede no ser este
+            # mismo tema. Sin esto, el modelo podía mezclar o inventar una
+            # cifra — acá se le da la que hay, o se le dice que no hay.
+            entrega = (
+                entregas.entrega_del_proyecto(conexion, entregas._proyecto_id_de_tema(forma.estamos_en.tema))
+                if libro_activo is not None
+                else None
             )
+            monto = f"{entrega.monto:.0f}" if entrega is not None and entrega.monto is not None else "sin monto registrado"
+            pedido = (
+                f"Cliente: {(libro_activo.cliente if libro_activo else None) or forma.estamos_en.tema}. "
+                f"Proyecto: {forma.estamos_en.tema}. Paso: «{forma.sigue.texto}». Monto pendiente: {monto}. "
+                "Redacta el mensaje breve para este cliente sobre este paso, usando solo estos datos. "
+                "Si falta un dato (monto, fecha), no lo inventes: redacta sin esa cifra."
+            )
+            pensado = pensar.pensar(pedido, None, "equilibrio", pensar.sistema_cliente())
             if pensado is not None:
                 aldia.guardar_borrador(conexion, forma.estamos_en.tema, forma.sigue.texto, pensado.paso_minimo)
                 forma = replace(forma, sigue=replace(forma.sigue, borrador=pensado.paso_minimo))

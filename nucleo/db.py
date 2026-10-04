@@ -210,11 +210,16 @@ CREATE TABLE IF NOT EXISTS gasto_motor (
 CREATE INDEX IF NOT EXISTS idx_gasto_motor_fecha ON gasto_motor(fecha);
 
 -- B2: cuándo se abrió el panel o la ventanita por última vez, para que
--- «mientras no estabas» sepa desde cuándo contar. Una sola fila, `clave`
--- fija («panel»); el mismo patrón que trabajo_estado_en.
+-- «mientras no estabas» sepa desde cuándo contar. `fecha` es el último
+-- GET /hoy/aldia (se mueve en cada toque, para saber si seguimos en la
+-- misma visita); `visto_desde` es el principio de esa visita — lo que
+-- `marcar_visto` devuelve, y lo único que usa calcular_mientras_no_estabas.
+-- Una sola fila, `clave` fija («panel»); el mismo patrón que
+-- trabajo_estado_en.
 CREATE TABLE IF NOT EXISTS aldia_visto (
     clave TEXT PRIMARY KEY,
-    fecha TEXT NOT NULL
+    fecha TEXT NOT NULL,
+    visto_desde TEXT NOT NULL
 );
 
 -- B2.3: el mensaje que Remi redactó para un hito que se cierra avisando a

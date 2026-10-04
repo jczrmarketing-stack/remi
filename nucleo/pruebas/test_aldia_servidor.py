@@ -98,7 +98,7 @@ def test_hito_de_aviso_pide_el_borrador_una_vez_no_en_cada_get(tmp_path, monkeyp
     monkeypatch.setattr(
         servidor.pensar,
         "pensar",
-        lambda *a, **k: (llamadas.append(1), servidor.pensar.Pensado(
+        lambda *a, **k: (llamadas.append(a), servidor.pensar.Pensado(
             paso_minimo="Te mando la factura de esta fase.", tokens_entrada=0, tokens_salida=0,
             modelo="claude", entradas_en_indice=0, leyo_memoria=False, motor_usado="claude",
         ))[1],
@@ -111,6 +111,12 @@ def test_hito_de_aviso_pide_el_borrador_una_vez_no_en_cada_get(tmp_path, monkeyp
     assert primero["sigue"]["borrador"] == "Te mando la factura de esta fase."
     assert segundo["sigue"]["borrador"] == "Te mando la factura de esta fase."
     assert len(llamadas) == 1
+    # Los hechos van explícitos en el pedido (B2, revisión): nunca depende
+    # solo de lo que precarga adivine como «proyecto activo».
+    pedido = llamadas[0][0]
+    assert "Cliente: UpVisuals" in pedido
+    assert "Proyecto: upvisuals" in pedido
+    assert "no lo inventes" in pedido
 
 
 def test_segunda_llamada_no_repite_mientras_no_estabas_de_lo_ya_visto(tmp_path, monkeypatch):
