@@ -115,6 +115,16 @@ export type Prueba = { ok: boolean; mensaje_humano: string };
 export type Conexion = { puesta: boolean; termina_en: string | null; ultima_prueba: Prueba | null };
 export type ConexionesEstado = Record<string, Conexion>;
 
+// nucleo/gasto.py (B1): tampoco es un contrato — el tope de gasto en los
+// motores pagados (Venice, OpenRouter).
+export type ConfigGasto = {
+  tope_dia_usd: number;
+  tope_mes_usd: number;
+  activo: boolean;
+  gastado_dia_usd: number;
+  gastado_mes_usd: number;
+};
+
 export const nucleo = {
   salud: () => pedir<Salud>("/salud"),
   hoy: () => pedir<TareaConHistorial[]>("/hoy"),
@@ -217,4 +227,9 @@ export const nucleo = {
       method: "PUT",
       body: JSON.stringify({ meta_mensual }),
     }),
+
+  // Ajustes → tope de gasto (B1).
+  configGasto: () => pedir<ConfigGasto>("/config/gasto"),
+  guardarConfigGasto: (config: { tope_dia_usd: number; tope_mes_usd: number; activo: boolean }) =>
+    pedir<ConfigGasto>("/config/gasto", { method: "PUT", body: JSON.stringify(config) }),
 };

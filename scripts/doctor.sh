@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # El doctor de Remi (Fase robustez, docs/ROBUSTEZ.md §2 y docs/ARQUITECTURA-CEREBRO.md §14):
-# 10 chequeos, cada uno imprime una línea OK o FALLA. Sale 1 si algo falló, 0 si
+# 11 chequeos, cada uno imprime una línea OK o FALLA. Sale 1 si algo falló, 0 si
 # todo OK. El vigía lo corre cada mañana (scripts/vigia.sh) y avisa por Telegram
-# solo si hay FALLA — doctor.sh en sí nunca avisa, solo diagnostica.
+# solo si hay FALLA — doctor.sh en sí nunca avisa, solo diagnostica (la única
+# excepción es el 11, que nunca falla y solo deja ver si el gasto está cerca).
 #
 #     ./scripts/doctor.sh
 #
@@ -10,14 +11,15 @@
 # llamada de red lleva --max-time 5 para no colgarse sin red. Pensado para
 # correr en menos de 10 s en total.
 #
-# Las 10 piezas (ajustadas a exactamente 10 líneas, fusionando «copia cifrada»
-# y «episodio» en un solo chequeo de frescura — las dos son «¿la tarea nocturna
-# corrió hace poco?» y comparten forma):
-#   1. núcleo (/salud)              6. LaunchAgents com.remi.*
-#   2. panel                         7. bóveda git limpia
-#   3. whisper                       8. llaves en nucleo/.env (solo nombres)
-#   4. kokoro                        9. frescura: copia cifrada + episodio
-#   5. ollama                       10. disco libre
+# Las 11 piezas (fusionando «copia cifrada» y «episodio» en un solo chequeo de
+# frescura — las dos son «¿la tarea nocturna corrió hace poco?» y comparten
+# forma; B1 suma el 11, tope de gasto):
+#   1. núcleo (/salud)              7. bóveda git limpia
+#   2. panel                        8. llaves en nucleo/.env (solo nombres)
+#   3. whisper                      9. frescura: copia cifrada + episodio
+#   4. kokoro                      10. disco libre
+#   5. ollama                      11. tope de gasto (B1, nunca falla)
+#   6. LaunchAgents com.remi.*
 set -uo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -204,9 +206,24 @@ else
   falla "disco" "${libre_gb:-no pude medir} GB libres (hace falta >=10)"
 fi
 
+# — 11. tope de gasto (B1): nunca falla, solo avisa al 80% —
+gasto_pct="$(cd "$NUCLEO" && uv run python3 -c "
+import gasto
+print(round(gasto.fraccion_usada() * 100))
+" 2>/dev/null)"
+if [[ -n "${gasto_pct:-}" && "$gasto_pct" =~ ^[0-9]+$ ]]; then
+  if [[ "$gasto_pct" -ge 80 ]]; then
+    ok "tope de gasto (${gasto_pct}% del tope del día o del mes — cerca)"
+  else
+    ok "tope de gasto (${gasto_pct}% del tope del día o del mes)"
+  fi
+else
+  ok "tope de gasto (no pude leerlo)"
+fi
+
 echo
 if [[ "$fallas" -eq 0 ]]; then
-  echo "doctor: 10/10 OK"
+  echo "doctor: 11/11 OK"
   exit 0
 else
   echo "doctor: $fallas chequeo(s) en FALLA"

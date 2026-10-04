@@ -271,11 +271,16 @@ function enviarJSON(res, estado, cuerpo) {
   res.writeHead(estado, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   });
   res.end(cuerpo === undefined ? "" : JSON.stringify(cuerpo));
 }
+
+// B1: el tope de gasto en Ajustes → Conexiones. En memoria, como el resto
+// del núcleo falso.
+let configGasto = { tope_dia_usd: 5.0, tope_mes_usd: 50.0, activo: true };
+const vistaGasto = () => ({ ...configGasto, gastado_dia_usd: 0, gastado_mes_usd: 0 });
 
 function leerCuerpo(req) {
   return new Promise((resolve) => {
@@ -382,6 +387,12 @@ const servidor = createServer(async (req, res) => {
     return enviarJSON(res, 200, fila);
   }
   if (req.method === "GET" && ruta === "/plata") return enviarJSON(res, 200, PLATA);
+  if (req.method === "GET" && ruta === "/config/gasto") return enviarJSON(res, 200, vistaGasto());
+  if (req.method === "PUT" && ruta === "/config/gasto") {
+    const cuerpo = await leerCuerpo(req);
+    configGasto = { tope_dia_usd: cuerpo.tope_dia_usd, tope_mes_usd: cuerpo.tope_mes_usd, activo: cuerpo.activo };
+    return enviarJSON(res, 200, vistaGasto());
+  }
   if (req.method === "GET" && ruta === "/libros") return enviarJSON(res, 200, libros());
   if (req.method === "GET" && ruta === "/nudges/pendiente") return enviarJSON(res, 200, nudge());
   if (req.method === "POST" && ruta.match(/^\/nudges\/.+\/respuesta$/)) {

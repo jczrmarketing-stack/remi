@@ -35,6 +35,7 @@ import entregas
 import episodios
 import estado_libro
 import experiencia
+import gasto
 import iniciativa
 import libros
 import notion
@@ -1976,6 +1977,12 @@ def probar_conexion(nombre: str, request: Request) -> conexiones.Prueba:
         raise HTTPException(status_code=400, detail="ese nombre no está en la lista blanca") from None
 
 
+class ConfigGastoNueva(BaseModel):
+    tope_dia_usd: float
+    tope_mes_usd: float
+    activo: bool
+
+
 class MetaMensualNueva(BaseModel):
     meta_mensual: float
 
@@ -1987,6 +1994,40 @@ def guardar_meta_mensual(cuerpo: MetaMensualNueva, request: Request) -> dict[str
         return conexiones.escribir_meta_mensual(cuerpo.meta_mensual)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
+
+
+class ConfigGastoVista(BaseModel):
+    tope_dia_usd: float
+    tope_mes_usd: float
+    activo: bool
+    gastado_dia_usd: float
+    gastado_mes_usd: float
+
+
+def _vista_gasto() -> ConfigGastoVista:
+    config = gasto.leer_config()
+    return ConfigGastoVista(
+        tope_dia_usd=config.tope_dia_usd,
+        tope_mes_usd=config.tope_mes_usd,
+        activo=config.activo,
+        gastado_dia_usd=gasto.gasto_dia_usd(),
+        gastado_mes_usd=gasto.gasto_mes_usd(),
+    )
+
+
+@app.get("/config/gasto", response_model=ConfigGastoVista)
+def leer_config_gasto(request: Request) -> ConfigGastoVista:
+    _si_es_del_tunel_lo_corta(request)
+    return _vista_gasto()
+
+
+@app.put("/config/gasto", response_model=ConfigGastoVista)
+def guardar_config_gasto(cuerpo: ConfigGastoNueva, request: Request) -> ConfigGastoVista:
+    _si_es_del_tunel_lo_corta(request)
+    if cuerpo.tope_dia_usd < 0 or cuerpo.tope_mes_usd < 0:
+        raise HTTPException(status_code=422, detail="el tope no puede ser negativo")
+    gasto.escribir_config(gasto.ConfigGasto(tope_dia_usd=cuerpo.tope_dia_usd, tope_mes_usd=cuerpo.tope_mes_usd, activo=cuerpo.activo))
+    return _vista_gasto()
 
 
 if __name__ == "__main__":

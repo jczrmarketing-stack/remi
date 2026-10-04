@@ -16,3 +16,16 @@ test("cambiar la piel del Reloj queda marcada", async ({ page }) => {
   await page.getByRole("button", { name: "Brasa" }).click();
   await expect(page.getByRole("button", { name: "Brasa" })).toHaveAttribute("aria-pressed", "true");
 });
+
+// B1: el tope de gasto, con el núcleo real.
+test("Ajustes: el tope de gasto se ve y el interruptor cambia", async ({ page }) => {
+  await page.goto("/ajustes");
+  const interruptor = page.locator('button[role="switch"][aria-label*="Tope de gasto"]');
+  await expect(interruptor).toBeVisible();
+  const estabaActivado = (await interruptor.getAttribute("aria-checked")) === "true";
+  await interruptor.click();
+  await expect(interruptor).toHaveAttribute("aria-checked", String(!estabaActivado));
+  // Lo deja como estaba, para no afectar otras pruebas que corran después.
+  await interruptor.click();
+  await expect(interruptor).toHaveAttribute("aria-checked", String(estabaActivado));
+});

@@ -1,7 +1,8 @@
-"""GET/PUT /config/conexiones y POST .../probar: nunca por el túnel."""
+"""GET/PUT /config/conexiones, /config/gasto y POST .../probar: nunca por el túnel."""
 from fastapi.testclient import TestClient
 
 import conexiones
+import gasto
 import servidor
 
 
@@ -130,3 +131,57 @@ def test_put_plata_cero_es_422(tmp_path, monkeypatch):
     _plata(tmp_path, monkeypatch)
     respuesta = cliente.put("/config/plata", json={"meta_mensual": 0})
     assert respuesta.status_code == 422
+
+
+# — B1: /config/gasto —
+
+
+def _gasto(tmp_path, monkeypatch):
+    ruta = tmp_path / "gasto.json"
+    monkeypatch.setattr(gasto, "RUTA_GASTO_POR_DEFECTO", ruta)
+    monkeypatch.delenv("REMI_GASTO", raising=False)
+    return ruta
+
+
+def test_get_gasto_sin_archivo_trae_los_valores_por_defecto(tmp_path, monkeypatch):
+    cliente = _cliente(tmp_path, monkeypatch)
+    _gasto(tmp_path, monkeypatch)
+    respuesta = cliente.get("/config/gasto")
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert cuerpo["tope_dia_usd"] == gasto.CONFIG_POR_DEFECTO.tope_dia_usd
+    assert cuerpo["activo"] is True
+    assert cuerpo["gastado_dia_usd"] == 0.0
+
+
+def test_put_gasto_guarda_y_se_puede_releer(tmp_path, monkeypatch):
+    cliente = _cliente(tmp_path, monkeypatch)
+    _gasto(tmp_path, monkeypatch)
+    respuesta = cliente.put("/config/gasto", json={"tope_dia_usd": 2.0, "tope_mes_usd": 20.0, "activo": False})
+    assert respuesta.status_code == 200
+    assert respuesta.json()["tope_dia_usd"] == 2.0
+    assert cliente.get("/config/gasto").json()["activo"] is False
+
+
+def test_put_gasto_negativo_es_422(tmp_path, monkeypatch):
+    cliente = _cliente(tmp_path, monkeypatch)
+    _gasto(tmp_path, monkeypatch)
+    respuesta = cliente.put("/config/gasto", json={"tope_dia_usd": -1.0, "tope_mes_usd": 20.0, "activo": True})
+    assert respuesta.status_code == 422
+
+
+def test_get_gasto_con_cabecera_cf_es_403(tmp_path, monkeypatch):
+    cliente = _cliente(tmp_path, monkeypatch)
+    _gasto(tmp_path, monkeypatch)
+    respuesta = cliente.get("/config/gasto", headers={"Cf-Ray": "x"})
+    assert respuesta.status_code == 403
+
+
+def test_put_gasto_con_cabecera_cf_es_403(tmp_path, monkeypatch):
+    cliente = _cliente(tmp_path, monkeypatch)
+    ruta = _gasto(tmp_path, monkeypatch)
+    respuesta = cliente.put(
+        "/config/gasto", json={"tope_dia_usd": 9.0, "tope_mes_usd": 20.0, "activo": True}, headers={"Cf-Ray": "x"}
+    )
+    assert respuesta.status_code == 403
+    assert not ruta.exists()

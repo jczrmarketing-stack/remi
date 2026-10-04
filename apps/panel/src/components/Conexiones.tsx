@@ -4,7 +4,7 @@
 // vacío; lo que se ve puesto es `termina_en` como marcador de posición.
 // Sin lectura biónica acá: ni en etiquetas, ni en campos, ni en botones.
 import { useEffect, useState } from "react";
-import { nucleo, type Conexion, type ConexionesEstado, type Prueba } from "@/lib/nucleo";
+import { nucleo, type Conexion, type ConexionesEstado, type ConfigGasto, type Prueba } from "@/lib/nucleo";
 
 type Definicion = { nombre: string; etiqueta: string; secreto: boolean; ayuda: string };
 
@@ -22,11 +22,13 @@ const DEFINICIONES: Definicion[] = [
 export function Conexiones() {
   const [estado, setEstado] = useState<ConexionesEstado | null>(null);
   const [metaMensual, setMetaMensual] = useState<number | null>(null);
+  const [configGasto, setConfigGasto] = useState<ConfigGasto | null>(null);
   const [error, setError] = useState(false);
 
   const cargar = () => {
     nucleo.conexiones().then(setEstado).catch(() => setError(true));
     nucleo.plata().then((p) => setMetaMensual(p.mes.meta)).catch(() => undefined);
+    nucleo.configGasto().then(setConfigGasto).catch(() => undefined);
   };
 
   useEffect(cargar, []);
@@ -61,6 +63,14 @@ export function Conexiones() {
           ayuda="La misma meta que usa /plata — ningún otro lugar la cambia."
           contenido={
             metaMensual != null ? <CampoMetaMensual valorInicial={metaMensual} onGuardado={cargar} /> : <span className="body-muted">Cargando…</span>
+          }
+        />
+
+        <FilaConexion
+          titulo="Tope de gasto"
+          ayuda="Antes de una llamada a Venice u OpenRouter: si el día o el mes ya llegaron al tope, Remi sigue con Groq. Claude por tu suscripción no cuenta."
+          contenido={
+            configGasto != null ? <CampoGasto config={configGasto} onGuardado={cargar} /> : <span className="body-muted">Cargando…</span>
           }
         />
       </div>
@@ -130,6 +140,68 @@ function CampoConexion({ definicion, conexion, onGuardado }: { definicion: Defin
           {prueba.ok ? "✓ " : "✗ "}{prueba.mensaje_humano}
         </span>
       ) : null}
+    </>
+  );
+}
+
+function CampoGasto({ config, onGuardado }: { config: ConfigGasto; onGuardado: () => void }) {
+  const [topeDia, setTopeDia] = useState(String(config.tope_dia_usd));
+  const [topeMes, setTopeMes] = useState(String(config.tope_mes_usd));
+  const [activo, setActivo] = useState(config.activo);
+  const [guardando, setGuardando] = useState(false);
+
+  async function guardar(cambios: Partial<{ tope_dia_usd: number; tope_mes_usd: number; activo: boolean }>) {
+    const nuevo = {
+      tope_dia_usd: cambios.tope_dia_usd ?? Number(topeDia),
+      tope_mes_usd: cambios.tope_mes_usd ?? Number(topeMes),
+      activo: cambios.activo ?? activo,
+    };
+    if (!(nuevo.tope_dia_usd >= 0) || !(nuevo.tope_mes_usd >= 0)) return;
+    setGuardando(true);
+    try {
+      await nucleo.guardarConfigGasto(nuevo);
+      onGuardado();
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <button
+          type="button" role="switch" aria-checked={activo} aria-label={activo ? "Tope de gasto activado" : "Tope de gasto desactivado"}
+          onClick={() => {
+            const nuevoActivo = !activo;
+            setActivo(nuevoActivo);
+            guardar({ activo: nuevoActivo });
+          }}
+          style={{ position: "relative", width: 56, height: 32, borderRadius: "var(--radius-pill)", border: 0, background: activo ? "var(--dinero)" : "var(--line)" }}
+        >
+          <span aria-hidden style={{ position: "absolute", top: 4, left: activo ? 28 : 4, width: 24, height: 24, borderRadius: "var(--radius-pill)", background: activo ? "var(--on-dinero)" : "var(--surface)", transition: "left 150ms" }} />
+        </button>
+        <input
+          type="number" min={0} step="0.5"
+          value={topeDia}
+          onChange={(e) => setTopeDia(e.target.value)}
+          onBlur={() => guardar({})}
+          aria-label="Tope de gasto por día, en dólares"
+          style={{ width: 100, height: 44, borderRadius: "var(--radius-pill)", padding: "0 16px", border: "1px solid var(--line)", background: "var(--surface-2)", color: "var(--ink)", fontFamily: "var(--font-mono)" }}
+        />
+        <span className="body-muted">USD / día</span>
+        <input
+          type="number" min={0} step="1"
+          value={topeMes}
+          onChange={(e) => setTopeMes(e.target.value)}
+          onBlur={() => guardar({})}
+          aria-label="Tope de gasto por mes, en dólares"
+          style={{ width: 100, height: 44, borderRadius: "var(--radius-pill)", padding: "0 16px", border: "1px solid var(--line)", background: "var(--surface-2)", color: "var(--ink)", fontFamily: "var(--font-mono)" }}
+        />
+        <span className="body-muted">USD / mes{guardando ? " · guardando…" : ""}</span>
+      </div>
+      <span className="mono-sm" style={{ color: "var(--ink-muted)" }}>
+        gastado: {config.gastado_dia_usd.toFixed(2)} hoy · {config.gastado_mes_usd.toFixed(2)} este mes
+      </span>
     </>
   );
 }
