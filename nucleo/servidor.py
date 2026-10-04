@@ -772,6 +772,32 @@ def _guardar_idea(
     )
 
 
+def _encabezado_de_hito() -> str | None:
+    """B3.2: `hito: <tema>#<n>` — nunca lo decide el modelo (inventar el
+    número cerraría el hito que no es). Lo calcula el código sobre el
+    libro del proyecto activo: solo si tiene un hito abierto y ese hito se
+    cierra con evidencia de código (cierra_con == "encargo"). El gancho
+    SessionEnd lo lee del primer turno del transcript."""
+    tema = trabajo.tema_activo()
+    if tema is None:
+        return None
+    libro = next((l for l in libros.listar() if l.tema == tema), None)
+    if libro is None:
+        return None
+    conexion = db.conectar()
+    try:
+        resultado = caminos.hitos_de_tema(conexion, tema)
+    finally:
+        conexion.close()
+    if resultado is None:
+        return None
+    hitos, siguiente = resultado
+    if siguiente is None or caminos.cierra_con_de(libro.tipo, siguiente.texto) != "encargo":
+        return None
+    n = next((i for i, h in enumerate(hitos, start=1) if h.texto == siguiente.texto), None)
+    return f"hito: {tema}#{n}" if n is not None else None
+
+
 def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
     """Modo Prompt: lo dicho vuelve ordenado como un encargo de UNA tarea
     para Claude Code. No se clasifica ni se guarda en la Bandeja: es un
@@ -786,9 +812,11 @@ def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
         return RespuestaMensaje(
             tipo="encargo", texto="No pude armar el encargo. Prueba de nuevo.", voz="No pude armar el encargo."
         )
+    encabezado = _encabezado_de_hito()
+    texto = f"{encabezado}\n\n{pensado.paso_minimo}" if encabezado else pensado.paso_minimo
     return RespuestaMensaje(
         tipo="encargo",
-        texto=pensado.paso_minimo,
+        texto=texto,
         # Un encargo no se lee en voz alta: se copia.
         voz="Listo, lo tienes para copiar.",
         tokens=TokensClaude(entrada=pensado.tokens_entrada, salida=pensado.tokens_salida, modelo=pensado.modelo),
