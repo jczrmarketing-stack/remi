@@ -58,7 +58,7 @@ import telegram
 import temas
 import trabajo
 import tts
-from modelos import Entrega, Idea, Memoria, Nudge, Pregunta, Sesion, Tarea
+from modelos import Entrega, Idea, Memoria, Nudge, Pregunta, Propuesta, Sesion, Tarea
 
 RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
 CONFIG = json.loads(RUTA_CONFIG.read_text())
@@ -281,7 +281,7 @@ class RespuestaMensaje(BaseModel):
     # ventanita (el panel no llama a /mensaje).
     tipo: clasificar.TipoMensaje | Literal[
         "encargo", "cliente", "correccion", "agenda", "cobro", "entrega", "pregunta_respondida",
-        "leccion", "conversacion_nueva", "hito_cerrado", "gasto",
+        "leccion", "conversacion_nueva", "hito_cerrado", "gasto", "propuesta",
     ]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
@@ -568,6 +568,11 @@ def _atender(mensaje: MensajeEntrante, emisor: Emisor | None) -> RespuestaMensaj
         ms = (time.perf_counter() - arranque) * 1000
         print(f"[mensaje] tipo=gasto ms={ms:.0f}", file=sys.stderr, flush=True)
         return respuesta_gasto
+    respuesta_propuesta = _registrar_propuesta_hablada(mensaje)
+    if respuesta_propuesta is not None:
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=propuesta ms={ms:.0f}", file=sys.stderr, flush=True)
+        return respuesta_propuesta
     respuesta_hito = _cerrar_por_mensaje(mensaje)
     if respuesta_hito is not None:
         ms = (time.perf_counter() - arranque) * 1000
@@ -765,6 +770,25 @@ def _registrar_gasto_hablado(mensaje: MensajeEntrante) -> RespuestaMensaje | Non
     donde = f"de {parseada.tema}" if parseada.tema else "común"
     voz = f"Anotado: {parseada.monto:.0f} en {parseada.concepto} ({donde})."
     return RespuestaMensaje(tipo="gasto", texto=voz, voz=voz)
+
+
+def _registrar_propuesta_hablada(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
+    """R2 (forma R): «le mandé la propuesta a X por 1.500» registra una
+    fila para la cuenta hacia atrás. Sin cliente Y sin monto, no es esto —
+    sigue su camino normal (cae como idea)."""
+    parseada = rumbo.parsear_propuesta(mensaje.texto)
+    if parseada is None:
+        return None
+    conexion = db.conectar()
+    try:
+        propuesta = Propuesta(
+            id=uuid4(), cliente=parseada.cliente, monto=parseada.monto, fecha=datetime.now(timezone.utc), estado="pendiente"
+        )
+        db.crear_propuesta(conexion, propuesta)
+    finally:
+        conexion.close()
+    voz = f"Anotada: la propuesta a {parseada.cliente} por {parseada.monto:.0f}."
+    return RespuestaMensaje(tipo="propuesta", texto=voz, voz=voz)
 
 
 def _registrar_cobro(mensaje: MensajeEntrante) -> RespuestaMensaje | None:

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 import db
 import rumbo
 import servidor
-from modelos import Sesion, Tarea
+from modelos import Propuesta, Sesion, Tarea
 
 
 def test_parsear_vision_extrae_rango_y_plazo():
@@ -86,3 +86,68 @@ def test_partida_trae_horas_medidas_reales(tmp_path, monkeypatch):
     horas = next(item for item in partida if item["texto"] == "Horas reales por semana")
     assert horas["valor"] == "2.0"
     assert horas["origen"] == "medido"
+
+
+# --- R2 (forma R): cuenta hacia atrás ---------------------------------
+
+
+def test_parsear_propuesta_reconoce_cliente_y_monto():
+    parseada = rumbo.parsear_propuesta("le mandé la propuesta a Alfonso por 1.500")
+    assert parseada is not None
+    assert parseada.cliente == "Alfonso"
+    assert parseada.monto == 1500.0
+
+
+def test_parsear_propuesta_sin_verbo_no_reconoce():
+    assert rumbo.parsear_propuesta("Alfonso me debe 1.500") is None
+
+
+def test_cuenta_con_ocho_propuestas_y_dos_cierres_da_cierre_025(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    cliente = TestClient(servidor.app)
+    cliente.post("/rumbo/meta", json={"monto_min": 10000, "monto_max": 15000, "meses_seguidos": 6, "confirmada": True})
+
+    conexion = db.conectar()
+    try:
+        for i in range(8):
+            estado = "cerrada" if i < 2 else "pendiente"
+            db.crear_propuesta(
+                conexion,
+                Propuesta(id=uuid4(), cliente=f"cliente{i}", monto=1000.0, fecha=datetime.now(timezone.utc), estado=estado),
+            )
+    finally:
+        conexion.close()
+
+    cuenta = cliente.get("/rumbo/cuenta").json()
+    assert cuenta["cierre"]["p"] == 0.25
+    assert cuenta["cierre"]["origen"] == "propia"
+    assert cuenta["cierre"]["base_n"] == 8
+    assert cuenta["meta_mes"] == 12500
+    assert cuenta["ticket"] == 1000
+    assert cuenta["necesarias"] == 12.5
+    assert cuenta["propuestas_semana"] == 8
+
+
+def test_cuenta_con_menos_de_cinco_usa_tasa_general(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    cliente = TestClient(servidor.app)
+    conexion = db.conectar()
+    try:
+        db.crear_propuesta(
+            conexion, Propuesta(id=uuid4(), cliente="x", monto=500.0, fecha=datetime.now(timezone.utc), estado="pendiente")
+        )
+    finally:
+        conexion.close()
+    cuenta = cliente.get("/rumbo/cuenta").json()
+    assert cuenta["cierre"]["origen"] == "general"
+    assert cuenta["cierre"]["base_n"] == 1
+
+
+def test_registrar_propuesta_hablada_por_mensaje(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    cliente = TestClient(servidor.app)
+    r = cliente.post("/mensaje", json={"texto": "le mandé la propuesta a Beam por 2.000"})
+    assert r.status_code == 200
+    assert r.json()["tipo"] == "propuesta"
+    cuenta = cliente.get("/rumbo/cuenta").json()
+    assert cuenta["cierre"]["base_n"] == 1

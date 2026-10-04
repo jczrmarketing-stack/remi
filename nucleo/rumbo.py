@@ -11,18 +11,32 @@ nota de Juan Camilo, es un cálculo).
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 import db
-from modelos import Escalon, Meta, Vision
+import plata
+import trabajo
+from modelos import Escalon, Meta, Propuesta, Vision
+
+BOGOTA = ZoneInfo("America/Bogota")
 
 router = APIRouter(prefix="/rumbo", tags=["rumbo"])
+
+RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config" / "rumbo.json"
+MINIMO_PROPUESTAS_PROPIAS = 5
+
+
+def _config() -> dict[str, object]:
+    return json.loads(RUTA_CONFIG.read_text())
 
 _NUMEROS_PALABRA = {
     "un": 1, "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5,
@@ -268,6 +282,126 @@ def ver_rumbo() -> VistaRumbo:
             ),
             escalera=[EscalonVista(n=e.n, texto=e.texto, criterio=e.criterio, estado=e.estado) for e in escalera],
             partida=partida,
+        )
+    finally:
+        conexion.close()
+
+
+# --- R2 (forma R): cuenta hacia atrás ---------------------------------
+
+_VERBO_PROPUESTA = re.compile(r"\b(?:mand[eé]|envi[eé]|pas[eé])\b.*\bpropuesta\b", re.IGNORECASE)
+_CLIENTE_PROPUESTA = re.compile(r"\ba\s+([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ]*)", re.UNICODE)
+_MONTO_PROPUESTA = re.compile(r"\bpor\s+\$?\s*(\d[\d.,]*)", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class PropuestaParseada:
+    cliente: str
+    monto: float
+
+
+def parsear_propuesta(texto: str) -> PropuestaParseada | None:
+    """«le mandé la propuesta a X por 1.500». Función pura, sin IA; si no
+    se reconoce cliente Y monto, devuelve `None` — nunca adivina."""
+    if not _VERBO_PROPUESTA.search(texto):
+        return None
+    coincidencia_cliente = _CLIENTE_PROPUESTA.search(texto)
+    coincidencia_monto = _MONTO_PROPUESTA.search(texto)
+    if coincidencia_cliente is None or coincidencia_monto is None:
+        return None
+    monto = _numero(coincidencia_monto.group(1))
+    return PropuestaParseada(cliente=coincidencia_cliente.group(1), monto=monto)
+
+
+class CuerpoPropuesta(BaseModel):
+    cliente: str
+    monto: float
+
+
+@router.post("/propuestas", status_code=201)
+def registrar_propuesta(cuerpo: CuerpoPropuesta) -> dict:
+    conexion = db.conectar()
+    try:
+        propuesta = Propuesta(id=uuid4(), cliente=cuerpo.cliente, monto=cuerpo.monto, fecha=datetime.now(timezone.utc), estado="pendiente")
+        db.crear_propuesta(conexion, propuesta)
+        return {"id": str(propuesta.id)}
+    finally:
+        conexion.close()
+
+
+class CuentaCierre(BaseModel):
+    p: float
+    base_n: int
+    origen: str
+
+
+class CaminoHoras(BaseModel):
+    camino: str
+    pct: float
+
+
+class VistaCuenta(BaseModel):
+    meta_mes: float | None
+    ticket: float | None
+    necesarias: float | None
+    tienes: float
+    cierre: CuentaCierre
+    propuestas_semana: int
+    hechas_semana: int
+    horas_semana: list[CaminoHoras]
+
+
+def _lunes(momento: datetime) -> datetime:
+    local = momento.astimezone(BOGOTA)
+    cero = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return (cero - timedelta(days=cero.weekday())).astimezone(timezone.utc)
+
+
+@router.get("/cuenta", response_model=VistaCuenta)
+def ver_cuenta() -> VistaCuenta:
+    conexion = db.conectar()
+    try:
+        ahora = datetime.now(timezone.utc)
+        meta = db.meta_vigente(conexion)
+        meta_mes = (meta.monto_min + meta.monto_max) / 2 if meta and meta.monto_min is not None and meta.monto_max is not None else None
+
+        propuestas = db.listar_propuestas(conexion)
+        total = len(propuestas)
+        cerradas = sum(1 for p in propuestas if p.estado == "cerrada")
+        if total >= MINIMO_PROPUESTAS_PROPIAS:
+            p_cierre, base_n, origen = cerradas / total, total, "propia"
+        else:
+            p_cierre, base_n, origen = float(_config()["tasa_cierre_general"]), total, "general"  # type: ignore[arg-type]
+
+        montos = [p.monto for p in propuestas]
+        ticket = sum(montos) / len(montos) if montos else None
+        necesarias = (meta_mes / ticket) if (meta_mes is not None and ticket) else None
+
+        lunes = _lunes(ahora)
+        propuestas_semana = sum(1 for p in propuestas if p.fecha >= lunes)
+        hechas_semana = sum(1 for p in propuestas if p.estado == "cerrada" and p.fecha >= lunes)
+
+        apuestas = db.listar_apuestas(conexion)
+        horas_semana: list[CaminoHoras] = []
+        if apuestas:
+            minutos_por_camino = {a.camino: trabajo.minutos_entre_rango(a.camino, lunes, ahora) for a in apuestas}
+            total_minutos = sum(minutos_por_camino.values())
+            if total_minutos > 0:
+                horas_semana = [
+                    CaminoHoras(camino=camino, pct=round(100 * minutos / total_minutos, 1))
+                    for camino, minutos in minutos_por_camino.items()
+                    if minutos > 0
+                ]
+
+        return VistaCuenta(
+            meta_mes=meta_mes,
+            ticket=ticket,
+            necesarias=necesarias,
+            tienes=plata.cobrado_mes(conexion, ahora),
+            cierre=CuentaCierre(p=round(p_cierre, 4), base_n=base_n, origen=origen),
+            propuestas_semana=propuestas_semana,
+            hechas_semana=hechas_semana,
+            horas_semana=horas_semana,
         )
     finally:
         conexion.close()

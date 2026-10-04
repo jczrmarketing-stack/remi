@@ -278,6 +278,12 @@ def _por_linea(conexion: sqlite3.Connection, desde: datetime, hasta: datetime) -
     ]
 
 
+def cobrado_mes(conexion: sqlite3.Connection, ahora: datetime) -> float:
+    """R2 (forma R): lo ya cobrado este mes — el «tienes» de la cuenta
+    hacia atrás, nunca un estimado."""
+    return _cobrado_desde(conexion, _primero_del_mes(ahora), ahora)
+
+
 def calcular(conexion: sqlite3.Connection, ahora: datetime) -> Plata:
     """Sin entregas cobradas: 0, nunca error — el chequeo es aritmética
     sobre listas, no una consulta que pueda fallar por falta de filas."""
