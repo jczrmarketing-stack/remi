@@ -862,7 +862,7 @@ export default function App() {
   useEffect(() => {
     const TAREA_DEMO = {
       id: "demo-tarea", titulo: "Terminar el flujo de distribución", proyecto_id: null, estado: "hoy" as const,
-      paso_minimo: "Abrir la tarjeta", estimado_min: null, real_min: null, hora: null, fecha_limite: null, compartible: false,
+      paso_minimo: "Abrir la tarjeta", estimado_min: null, real_min: null, hora: null, fecha_limite: null, tipo: null, compartible: false,
     };
     const sesionDemo = () => ({
       id: "demo-sesion", tarea_id: "demo-tarea", inicio: new Date(Date.now() - 12 * 60000).toISOString(),

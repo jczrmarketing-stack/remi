@@ -4,7 +4,7 @@ import type { Sesion, Tarea } from "./contratos";
 
 const TAREA_HOY: Tarea = {
   id: "1", titulo: "x", proyecto_id: null, estado: "hoy", paso_minimo: "p",
-  estimado_min: null, real_min: null, hora: null, fecha_limite: null, compartible: false,
+  estimado_min: null, real_min: null, hora: null, fecha_limite: null, tipo: null, compartible: false,
 };
 
 const SESION: Sesion = {
