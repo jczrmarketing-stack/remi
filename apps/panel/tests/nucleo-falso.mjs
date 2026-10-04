@@ -404,6 +404,13 @@ const servidor = createServer(async (req, res) => {
       gastos,
       minutos_total: 300,
       por_hora: gastado ? Math.round(((1500 - gastado) / (300 / 60)) * 100) / 100 : null,
+      decisiones: tema === "upvisuals" ? ["Fase 2 se deja para noviembre."] : [],
+      entregas_futuras: tema === "upvisuals" ? ["Alfonso: 1000 el " + dia(3)] : [],
+      lo_que_paso: tema === "upvisuals" ? [
+        { texto: "Cobro de Alfonso: $1.500", origen: "cobro", hace_min: 90 },
+        { texto: "Commit: ajustar el contrato", origen: "commit", hace_min: 200 },
+      ] : [],
+      atento_a: tema === "upvisuals" ? ["Queda 1 paso del camino."] : [],
     });
   }
   if (req.method === "PATCH" && ruta.match(/^\/gastos\/[^/]+$/)) {

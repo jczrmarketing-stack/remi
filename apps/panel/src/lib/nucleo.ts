@@ -80,6 +80,8 @@ export type UltimoEpisodio = { titulo: string; resumen: string; archivo: string 
 // B6 (tablero 5, la ficha de cliente): gastado agrupado por concepto
 // (incluye la parte de los comunes), minutos desde siempre y por_hora.
 export type GastoDeLibro = { concepto: string; monto: number; id?: string | null };
+// B6.3/B6.4: lo acordado, lo que pasó y a qué está atento Remi — sin IA.
+export type LineaDeEvidencia = { texto: string; origen: string; hace_min: number };
 // GET /libros/{tema}: lo mismo, más el Estado entero, el último episodio
 // y la ficha.
 export type LibroDetalle = Libro & {
@@ -89,6 +91,10 @@ export type LibroDetalle = Libro & {
   gastos: GastoDeLibro[];
   minutos_total: number;
   por_hora: number | null;
+  decisiones: string[];
+  entregas_futuras: string[];
+  lo_que_paso: LineaDeEvidencia[];
+  atento_a: string[];
 };
 // GET /hoy/agenda: lo que la base sabe de fechas.
 export type Vencimiento = { titulo: string; fecha: string; monto: number | null; origen: "tarea" | "entrega"; vence_hoy: boolean };

@@ -153,6 +153,33 @@ function FichaDeCliente({ libro, recargar }: { libro: LibroDetalle; recargar: ()
           ))}
         </div>
       ) : null}
+      {libro.decisiones.length > 0 || libro.entregas_futuras.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+          <div className="label">Lo acordado</div>
+          {libro.decisiones.map((d, i) => (
+            <p key={`d${i}`} className="body-sm" style={{ margin: 0 }}>{d}</p>
+          ))}
+          {libro.entregas_futuras.map((e, i) => (
+            <p key={`e${i}`} className="body-sm" style={{ margin: 0, color: "var(--ink-muted)" }}>{e}</p>
+          ))}
+        </div>
+      ) : null}
+      {libro.lo_que_paso.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+          <div className="label">Lo que pasó</div>
+          {libro.lo_que_paso.map((l, i) => (
+            <p key={i} className="mono-sm" style={{ margin: 0, color: "var(--ink-muted)" }}>{l.texto}</p>
+          ))}
+        </div>
+      ) : null}
+      {libro.atento_a.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+          <div className="label">Remi está atento a</div>
+          {libro.atento_a.map((l, i) => (
+            <p key={i} className="body-sm" style={{ margin: 0 }}>{l}</p>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

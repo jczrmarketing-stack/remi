@@ -161,7 +161,7 @@ test("la ficha trae cobrado, gastado, tiempo y por hora, y el gasto se corrige a
   await page.goto("/proyectos/upvisuals");
   const ficha = page.locator('section[aria-label="Ficha"]');
   await expect(ficha.getByText("Cobrado")).toBeVisible();
-  await expect(ficha.getByText("$1.500")).toBeVisible();
+  await expect(ficha.getByText("$1.500").first()).toBeVisible();
   await expect(ficha.getByText("Gastado")).toBeVisible();
   await expect(ficha.getByText("$40").first()).toBeVisible();
   await expect(ficha.getByText("Tiempo")).toBeVisible();
@@ -173,6 +173,13 @@ test("la ficha trae cobrado, gastado, tiempo y por hora, y el gasto se corrige a
   await ficha.getByRole("button", { name: "Guardar" }).click();
 
   await expect(ficha.getByText("$55").first()).toBeVisible();
+
+  await expect(ficha.getByText("Lo acordado")).toBeVisible();
+  await expect(ficha.getByText("Fase 2 se deja para noviembre.")).toBeVisible();
+  await expect(ficha.getByText("Lo que pasó")).toBeVisible();
+  await expect(ficha.getByText("Cobro de Alfonso: $1.500")).toBeVisible();
+  await expect(ficha.getByText("Remi está atento a")).toBeVisible();
+  await expect(ficha.getByText("Queda 1 paso del camino.")).toBeVisible();
 });
 
 test("en el teléfono, la ficha no se sale de la pantalla", async ({ page }) => {
