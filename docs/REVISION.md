@@ -141,3 +141,34 @@ Las 63 pruebas de Playwright del panel (núcleo falso, puerto 4498) pasan comple
 | — | Noche callada (23:00–7:00), salvo urgente | `test_en_silencio_23_a_7_en_bogota`, `test_avisar_respeta_el_silencio_salvo_urgente` | **pasa** |
 
 46 pruebas con dobles de Telegram y Notion, ninguna contra el bot ni el espacio reales.
+
+## R6 · Cierre
+
+**Conteo de R2 a R5** (38 promesas de la Biblia, además de las 25+13 de R1 ya cerradas):
+
+| | Cantidad |
+|---|---|
+| Pasan | 30 |
+| Fallaron y se arreglaron | 3 (`2cdf868`, `e6d60eb`, `66d5ac9`) |
+| No existen (por construir) | 4 |
+| Pendiente de Juan Camilo (a mano) | 1 |
+
+### Por construir — ordenado por lo que más te sirve para terminar y cobrar
+
+1. **Tope de gasto en los motores de pago (S, ~1-2 h).** Hoy nada frena un gasto en Claude/Groq/OpenRouter que se sale de control. Config con un número y un interruptor; cortar antes de llamar si se pasa.
+2. **Hilos por tema (M, medio día).** Al saltar de proyecto a mitad de charla, Remi no anota qué quedó a medias ni lo devuelve al volver — hoy solo existe la frase genérica «retomar el hilo» del cierre.
+3. **Accesibilidad macOS: contexto de la app activa (M, medio día–un día).** La Biblia lo promete; nada en `apps/ventanita/src-tauri` ni en el núcleo lo lee. Depende de permisos de macOS que hay que probar a mano.
+4. **Google Calendar: bloques y citas (M, un día).** OAuth + mapear a los contratos Tarea/Entrega. Sin esto, ninguna cita real le llega a Remi.
+
+### Difiere — decides tú cuál manda contra la Biblia
+
+- **R1.25 — Presupuesto de silencio: 45 o 90 min entre dos interrupciones.** La Biblia se contradice a sí misma (Parte «Actuar» dice 90, Parte VII dice 45). Esto no es un cambio tuyo: es un error de la Biblia que hay que resolver primero.
+- **R1.1 — ¿La ventanita flota siempre encima, o se apila como cualquier ventana?** Hoy se apila (decisión de `e802988`, 1-oct).
+- **R1.6 — ¿Una flecha al acercar el mouse elige el modo, o el chip de siempre?** Hoy es el chip.
+
+(R1.21, las preguntas fuera del chat, ya está resuelto: lo decidiste el 3-oct y la Biblia quedó en v4.1 con eso.)
+
+### A mano, cuando puedas
+
+- **R4.58 — Instalar el panel en tu iPhone.** Desde Safari, `remi.inv3rza.com` (o la IP local) → Compartir → Añadir a inicio. Ya tiene el ícono correcto.
+- **R4.59 — Access, cuando publiques el panel afuera.** Antes de abrir el DNS público, ponle Cloudflare Access delante; `doctor.sh` ya falla si queda público sin eso.
