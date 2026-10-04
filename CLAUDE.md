@@ -11,7 +11,7 @@ Remi (apodo: Lucho) es el asistente personal para TDAH de Juan Camilo. Una sola 
 ## Qué es Remi
 
 - **Ventanita** flotante en macOS (`apps/ventanita`): Tauri 2 + React + Tailwind. 320×180 en reposo, hasta 420×520 con terminal de prompt. Se activa al tocarla, sin palabra clave. Reposo → escuchando → respuesta → reposo.
-- **Panel** web (`apps/panel`): Next.js PWA (Mac + iOS). Vistas: Hoy, Proyectos (camino lineal, nunca árbol), Metas, Bandeja.
+- **Panel** web (`apps/panel`): Next.js PWA (Mac + iOS). Vistas: Hoy, Proyectos (camino lineal, nunca árbol), Metas, Bandeja, Semana, Rumbo.
 - **Núcleo** local (`nucleo/`): Python. Whisper local, reglas del líder sin IA, medidor de tiempo real, Accesibilidad de macOS, **SQLite como fuente de verdad** (un archivo, `remi.db`, nunca en git).
 - **Pensar**: Remi piensa por defecto con la sesión de Max (`claude -p`, sin clave ni costo extra); el toggle «sin pensar» de la ventanita apaga el envío. Todo lo que se piensa sale del Mac hacia el motor elegido, con `conocimiento/caracter.md` y el índice del estante. Venice (pago) y Ollama (local) se eligen a mano. Decisión de Juan Camilo, 29/09/2026 (Fase 3a).
 - **Espejos**: Notion, Google Calendar, Telegram. Solo reciben objetos con `compartible: true`. Pacientes, finanzas y salud viven únicamente en SQLite y **no tienen ruta de salida**.
@@ -47,7 +47,7 @@ Viven en `contratos/contratos.json`. Son sagrados: los tipos de TypeScript y los
 
 - **Un prompt = una tarea = un commit.** Commits pequeños, mensaje en español, imperativo.
 - **Diseño primero**: mockup (A/B/C) → aprobación → código. Impeccable al final de cada pantalla.
-- **Una fase a la vez** (estado vivo en la Biblia): 0.1 contratos → 0.2 repo → 0.3 esqueleto que camina → 1 ventanita → 2 Hoy+Reloj → 3 Bandeja+caminos → 4 espejos. Ninguna fase empieza sin el «listo cuando» de la anterior.
+- **Una fase a la vez**: `docs/PLAN-FINAL.md` es el estado vivo. Ninguna fase empieza sin el «listo cuando» de la anterior.
 - **TypeScript estricto** en apps; `mypy` en el núcleo. Pruebas solo donde duele: contratos, reglas del líder, guardado.
 - `remi.db`, credenciales y cualquier dato personal: **jamás** al repo (ver `.gitignore`).
 - Antes de entregar, verifica: ¿viola alguna ley? ¿hex a mano? ¿campo fuera de contrato? ¿segunda locura en la pantalla? Si sí: corrige antes de mostrar.
