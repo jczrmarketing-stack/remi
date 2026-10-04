@@ -77,8 +77,19 @@ export type Libro = {
   paso_remi: string;
 };
 export type UltimoEpisodio = { titulo: string; resumen: string; archivo: string };
-// GET /libros/{tema}: lo mismo, más el Estado entero y el último episodio.
-export type LibroDetalle = Libro & { estado_completo: string; ultimo_episodio: UltimoEpisodio | null };
+// B6 (tablero 5, la ficha de cliente): gastado agrupado por concepto
+// (incluye la parte de los comunes), minutos desde siempre y por_hora.
+export type GastoDeLibro = { concepto: string; monto: number };
+// GET /libros/{tema}: lo mismo, más el Estado entero, el último episodio
+// y la ficha.
+export type LibroDetalle = Libro & {
+  estado_completo: string;
+  ultimo_episodio: UltimoEpisodio | null;
+  gastado: number;
+  gastos: GastoDeLibro[];
+  minutos_total: number;
+  por_hora: number | null;
+};
 // GET /hoy/agenda: lo que la base sabe de fechas.
 export type Vencimiento = { titulo: string; fecha: string; monto: number | null; origen: "tarea" | "entrega"; vence_hoy: boolean };
 export type AgendaDeHoy = { manana: Tarea[]; vence: Vencimiento[] };
@@ -96,6 +107,8 @@ export type Plata = {
   revision_fria: RevisionFria | null;
   // Sin definir mientras el núcleo no lo sirva.
   por_linea?: LineaDelMes[];
+  // B6: lo común de este mes, antes de repartirse por minutos del mes.
+  gastos_comunes_mes?: number;
 };
 // GET /semana (forma D del plan): la semana desde el lunes, para la revisión.
 // `aplazado` es una lista corta, nunca un contador.

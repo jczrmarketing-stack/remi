@@ -20,6 +20,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 import db
+import ficha
 
 router = APIRouter(prefix="/plata", tags=["plata"])
 
@@ -102,6 +103,9 @@ class Plata(BaseModel):
     # Forma C (T4): una entrada por línea de la config, en ese orden,
     # aunque esté en cero.
     por_linea: list[PorLinea]
+    # B6: lo gastado en común este mes (membresías, herramientas) — antes
+    # de repartirse entre proyectos por minutos trabajados.
+    gastos_comunes_mes: float
 
 
 def _lunes(momento: datetime) -> datetime:
@@ -297,6 +301,7 @@ def calcular(conexion: sqlite3.Connection, ahora: datetime) -> Plata:
         metas=metas_de(config, meta_mensual, cobrado_mes),
         revision_fria=revision_fria_de(config),
         por_linea=_por_linea(conexion, primero_del_mes, ahora),
+        gastos_comunes_mes=ficha.gastos_comunes_mes(conexion, ahora),
     )
 
 

@@ -48,6 +48,23 @@ def test_sin_entregas_cobrado_es_cero_nunca_error(tmp_path, monkeypatch):
     assert cuerpo["mes"]["cobrado"] == 0
     assert cuerpo["mes"]["faltan"] == cuerpo["mes"]["meta"]
     assert cuerpo["proximo"] is None
+    assert cuerpo["gastos_comunes_mes"] == 0.0
+
+
+def test_gastos_comunes_mes_suma_lo_comun_de_este_mes(tmp_path, monkeypatch):
+    servidor = _arrancar(tmp_path, monkeypatch)
+    import db
+
+    conexion = db.conectar()
+    ahora = datetime.now(timezone.utc)
+    db.crear_gasto(conexion, None, "membresía", 100.0, ahora)
+    db.crear_gasto(conexion, "upvisuals", "servidor", 40.0, ahora)  # no es común, no suma
+    conexion.close()
+    cliente = TestClient(servidor.app)
+
+    cuerpo = cliente.get("/plata").json()
+
+    assert cuerpo["gastos_comunes_mes"] == 100.0
 
 
 def test_meta_semanal_es_la_mensual_sobre_4_33(tmp_path, monkeypatch):

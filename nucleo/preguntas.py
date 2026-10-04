@@ -452,6 +452,35 @@ def responder(conexion: sqlite3.Connection, pregunta: Pregunta, texto: str) -> b
     si el texto no se entiende — no guarda nada."""
     libro = next((l for l in libros.listar() if l.tema == pregunta.tema), None)
 
+    if pregunta.campo.startswith("gasto::"):
+        # B6.1: «¿de algún proyecto, o común?» — un gasto que no se pudo
+        # reconocer solo. El monto y el concepto viajan en el `campo`
+        # mismo (no hay dónde más guardarlos entre la pregunta y la
+        # respuesta).
+        _, monto_gasto_texto, concepto_gasto = pregunta.campo.split("::", 2)
+        try:
+            monto_gasto = float(monto_gasto_texto)
+        except ValueError:
+            return False
+        limpio = clasificar.normalizar(texto)
+        if "comun" in limpio:
+            tema_resuelto: str | None = None
+        else:
+            encontrado = next(
+                (
+                    l for l in libros.listar()
+                    if clasificar.normalizar(l.tema) in limpio
+                    or clasificar.normalizar(l.titulo) in limpio
+                    or (l.cliente and clasificar.normalizar(l.cliente) in limpio)
+                ),
+                None,
+            )
+            if encontrado is None:
+                return False
+            tema_resuelto = encontrado.tema
+        db.crear_gasto(conexion, tema_resuelto, concepto_gasto, monto_gasto, datetime.now(timezone.utc))
+        return True
+
     if pregunta.campo.startswith("regla."):
         # T9.1: de lección a regla. Un «sí» la aplica con commit
         # (correcciones.aplicar_regla); cualquier otra cosa se entiende

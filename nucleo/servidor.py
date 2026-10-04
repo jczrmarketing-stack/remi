@@ -31,6 +31,7 @@ import caminos
 import cierre
 import clasificar
 import cobros
+import gastos
 import conexiones
 import correcciones
 import db
@@ -38,6 +39,7 @@ import entregas
 import episodios
 import estado_libro
 import experiencia
+import ficha
 import gasto
 import iniciativa
 import libros
@@ -274,7 +276,7 @@ class RespuestaMensaje(BaseModel):
     # ventanita (el panel no llama a /mensaje).
     tipo: clasificar.TipoMensaje | Literal[
         "encargo", "cliente", "correccion", "agenda", "cobro", "entrega", "pregunta_respondida",
-        "leccion", "conversacion_nueva", "hito_cerrado",
+        "leccion", "conversacion_nueva", "hito_cerrado", "gasto",
     ]
     tarea: Tarea | None = None
     sesion: Sesion | None = None
@@ -556,6 +558,11 @@ def _atender(mensaje: MensajeEntrante, emisor: Emisor | None) -> RespuestaMensaj
         ms = (time.perf_counter() - arranque) * 1000
         print(f"[mensaje] tipo=cobro ms={ms:.0f}", file=sys.stderr, flush=True)
         return respuesta_cobro
+    respuesta_gasto = _registrar_gasto_hablado(mensaje)
+    if respuesta_gasto is not None:
+        ms = (time.perf_counter() - arranque) * 1000
+        print(f"[mensaje] tipo=gasto ms={ms:.0f}", file=sys.stderr, flush=True)
+        return respuesta_gasto
     respuesta_hito = _cerrar_por_mensaje(mensaje)
     if respuesta_hito is not None:
         ms = (time.perf_counter() - arranque) * 1000
@@ -695,6 +702,41 @@ def _cerrar_por_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
         conexion.close()
     voz = f"Listo, cerré ese paso de {libro.cliente or libro.titulo}."
     return RespuestaMensaje(tipo="hito_cerrado", texto=voz, voz=voz)
+
+
+def _registrar_gasto_hablado(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
+    """B6.1: «gasté 40 en el servidor de UpVisuals», «pagué 20 del
+    dominio», «la membresía de Claude: 100 al mes». Sin proyecto Y sin
+    ser un común claro, no adivina: una Pregunta en el panel."""
+    parseada = gastos.parsear(mensaje.texto)
+    if parseada is None:
+        return None
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    try:
+        if not parseada.claro:
+            campo = f"gasto::{parseada.monto}::{parseada.concepto}"
+            if db.pregunta_de_tema_campo(conexion, "_gastos", campo) is None:
+                db.crear_pregunta(
+                    conexion,
+                    Pregunta(
+                        id=uuid4(),
+                        tema="_gastos",
+                        campo=campo,
+                        voz=f"{parseada.concepto} ({parseada.monto:.0f}): ¿de algún proyecto, o común?",
+                        estado="pendiente",
+                        creada_en=ahora,
+                        disponible_desde=ahora,
+                    ),
+                )
+            voz = "No sé de qué proyecto es ese gasto. Te pregunto en el panel."
+            return RespuestaMensaje(tipo="idea", texto=voz, voz=voz)
+        db.crear_gasto(conexion, parseada.tema, parseada.concepto, parseada.monto, ahora)
+    finally:
+        conexion.close()
+    donde = f"de {parseada.tema}" if parseada.tema else "común"
+    voz = f"Anotado: {parseada.monto:.0f} en {parseada.concepto} ({donde})."
+    return RespuestaMensaje(tipo="gasto", texto=voz, voz=voz)
 
 
 def _registrar_cobro(mensaje: MensajeEntrante) -> RespuestaMensaje | None:
@@ -1990,12 +2032,24 @@ class LibroVisible(BaseModel):
     paso_remi: str
 
 
+class GastoVisible(BaseModel):
+    concepto: str
+    monto: float
+
+
 class LibroDetalle(LibroVisible):
     # Solo en el detalle de un libro: el Estado entero (no solo quedaste/
     # próximo paso) y el último episodio — el resumen de la constelación
     # (LibroVisible) se queda liviano a propósito.
     estado_completo: str
     ultimo_episodio: UltimoEpisodio | None
+    # B6 (tablero 5, la ficha de cliente): gastado, agrupado por concepto
+    # (incluye la parte de los comunes, repartida por minutos del mes),
+    # minutos trabajados desde siempre, y lo que queda por hora.
+    gastado: float
+    gastos: list[GastoVisible]
+    minutos_total: int
+    por_hora: float | None
 
 
 def _quedaste_de(estado_texto: str) -> str:
@@ -2135,13 +2189,23 @@ def libro_de(tema: str) -> LibroDetalle:
         raise HTTPException(status_code=404, detail="no tengo un libro con ese tema")
     conexion = db.conectar()
     try:
-        visible = _libro_visible(libro, conexion)
+        return _libro_detalle(libro, conexion)
     finally:
         conexion.close()
+
+
+def _libro_detalle(libro: libros.Libro, conexion: Any) -> LibroDetalle:
+    visible = _libro_visible(libro, conexion)
+    todos_los_temas = [l.tema for l in libros.listar()]
+    numeros = ficha.ficha_de(conexion, libro.tema, todos_los_temas)
     return LibroDetalle(
         **visible.model_dump(),
         estado_completo=estado_libro.leer_estado(libro.archivo),
-        ultimo_episodio=_ultimo_episodio_de(tema),
+        ultimo_episodio=_ultimo_episodio_de(libro.tema),
+        gastado=numeros.gastado,
+        gastos=[GastoVisible(concepto=g.concepto, monto=g.monto) for g in numeros.gastos],
+        minutos_total=numeros.minutos_total,
+        por_hora=numeros.por_hora,
     )
 
 
@@ -2190,14 +2254,9 @@ def deshacer_hito(tema: str, n: int) -> LibroDetalle:
     conexion = db.conectar()
     try:
         db.deshacer_hito_cerrado(conexion, tema, n)
-        visible = _libro_visible(libro, conexion)
+        return _libro_detalle(libro, conexion)
     finally:
         conexion.close()
-    return LibroDetalle(
-        **visible.model_dump(),
-        estado_completo=estado_libro.leer_estado(libro.archivo),
-        ultimo_episodio=_ultimo_episodio_de(tema),
-    )
 
 
 # — Configuración (Panel → Ajustes): llaves y tokens, nunca por el túnel —
