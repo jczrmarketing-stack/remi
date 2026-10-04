@@ -20,6 +20,25 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B1 · tope de gasto · construido · e68fa86
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
+
+- **Qué cambió:**
+  1. `90e46a8` — `nucleo/config/gasto.json` (`tope_dia_usd`, `tope_mes_usd`, `activo`); `config/motores.json` suma `precios` (USD por 1000 tokens de Venice y OpenRouter); tabla `gasto_motor` en `db.py`; `nucleo/gasto.py` — código puro: `calcular_usd`, `registrar`, `gasto_dia_usd`/`gasto_mes_usd` (límite del día en hora de Bogotá), `excede_tope`, `fraccion_usada`.
+  2. `4460c54` — `nucleo/pensar.py`: antes de una llamada a Venice u OpenRouter (charla, trastienda), si `gasto.excede_tope()` es cierto, esa llamada no sale; el turno lo contesta Groq y, si Groq tampoco contesta, Ollama. Toda llamada pagada que sí sale queda registrada con sus tokens.
+  3. `e68fa86` — `GET`/`PUT /config/gasto` (igual que `/config/conexiones`: nunca por el túnel); en el panel, Ajustes → Conexiones suma la fila «Tope de gasto» (interruptor + los dos números) y `doctor.sh` pasa a 11 chequeos, el último avisa (nunca falla) si el gasto llegó al 80%.
+- **Decisiones que tomé sin preguntar:**
+  1. Los precios de `config/motores.json` → `precios` son de catálogo al 4-oct-2026, estimados por mí (estos modelos no estaban en mi conocimiento con precio verificado); quedan señalados en el `$comment` del archivo. Ajústalos en Ajustes si Juan Camilo tiene el número real de la factura.
+  2. Groq nunca se registra en `gasto_motor` (no cobra aparte); solo Venice y OpenRouter.
+  3. El día del tope corre en hora de Bogotá (mismo criterio que `plata.py`), no UTC.
+  4. `doctor.sh` pasó de 10 a 11 chequeos: el nuevo nunca cuenta como FALLA (ley 4, nada se marca urgente), solo deja ver el número.
+- **Revisión con otro modelo (8476da2):** nada grave. Medio — `calcular_usd` leía `config/motores.json` dos veces por llamada (corregido: una sola lectura); el `$comment` de los precios decía «precio de catálogo» sin aclarar que es una estimación mía, no un precio verificado (corregido, lo dice explícito). Menor — un campo de tope vacío en Ajustes mandaba `Number('') === 0` sin avisar (corregido: un campo vacío no guarda hasta que vuelva a tener un número). No atendido: `gasto.registrar()` abre/cierra la conexión SQLite sin reintento ante «database is locked» — un solo usuario local, riesgo bajo, sin prueba de escritura concurrente.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `curl localhost:4400/config/gasto`; bajar `tope_dia_usd` a 0 en Ajustes y pedirle a Remi algo con el chip de OpenRouter — contesta igual, por Groq; `bash scripts/doctor.sh` muestra la línea 11.
+
+---
+
 ## 2026-10-04 · B0 · arranque del plan final · construido · 5f6e1e2
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md` de punta a punta por encargo de Claude en la app.
