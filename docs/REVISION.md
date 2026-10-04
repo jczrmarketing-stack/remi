@@ -130,3 +130,14 @@ De paso, R3 encontró voseo real (arreglado, `e6d60eb`) en `vigia.sh` (una notif
 | 60 | Design System: sin azul, sin verde menta, sin gradientes, sin negro puro, sin hex a mano | Único hex fuera de `tokens.css` es el `themeColor` del navegador (inevitable); sin gradientes; `--ground` es carbón cálido, no negro puro; mismo resultado en la ventanita | **pasa** |
 
 Las 63 pruebas de Playwright del panel (núcleo falso, puerto 4498) pasan completas.
+
+## R5 · Telegram y espejos
+
+| # | La Biblia dice | Código / prueba (3-oct, dobles — nada real) | Estado |
+|---|---|---|---|
+| 61 | Telegram: avisos y charla corta | 25 pruebas con doble de transporte (`test_telegram.py`): idea, entrega, ideas/entregas sin forma, reintentos, nunca lanza | **pasa** |
+| 62 | Notion solo de ida: proyectos, entregas, cobros, lecciones | 21 pruebas con doble de API (`test_notion.py`, `test_notion_sync.py`): crea página, no lee de vuelta por defecto, conflicto a la bitácora, no ensucia la bóveda | **pasa** |
+| 63 | Solo sale lo `compartible: true` | `notion_sync.py` revisa `compartible` antes de llamar a `notion.py`; `test_libro_no_compartible_no_se_toca` lo prueba | **pasa** |
+| — | Noche callada (23:00–7:00), salvo urgente | `test_en_silencio_23_a_7_en_bogota`, `test_avisar_respeta_el_silencio_salvo_urgente` | **pasa** |
+
+46 pruebas con dobles de Telegram y Notion, ninguna contra el bot ni el espacio reales.
