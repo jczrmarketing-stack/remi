@@ -39,7 +39,10 @@ export type Salud = { ok: boolean; db: boolean };
 export type IdeaBandeja = { idea: Idea; fria: boolean; destacada?: boolean };
 // `detalle`: la línea del SOP que explica ese paso (forma A del plan). Un
 // núcleo que todavía no la sirve la deja sin definir; "" si el hito no es del SOP.
-export type Hito = { texto: string; hecho: boolean; detalle?: string };
+// `cerrado_por` (forma K, B3.4): cómo se cerró solo. undefined en un núcleo
+// viejo; null si está abierto o se marcó a mano antes de B3.
+export type CerradoPor = { tipo: string; ref: string; en: string };
+export type Hito = { texto: string; hecho: boolean; detalle?: string; cerrado_por?: CerradoPor | null };
 export type Camino = { hitos: Hito[]; siguiente: Hito | null };
 export type EntregaCercana = { cliente: string; fecha: string; monto: number };
 // Una fase de la propuesta, tal como está en el frontmatter del libro.

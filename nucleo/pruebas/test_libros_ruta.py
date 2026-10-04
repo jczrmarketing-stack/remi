@@ -62,8 +62,8 @@ def test_libros_devuelve_los_dos_con_estado_y_camino(tmp_path, monkeypatch):
     assert upvisuals["quedaste"] == "armando el contrato."
     assert upvisuals["proximo_paso"] == "mandar la propuesta."
     assert upvisuals["hitos"] == [
-        {"texto": "Contrato firmado", "hecho": True, "detalle": ""},
-        {"texto": "Distribución", "hecho": False, "detalle": ""},
+        {"texto": "Contrato firmado", "hecho": True, "detalle": "", "cerrado_por": None},
+        {"texto": "Distribución", "hecho": False, "detalle": "", "cerrado_por": None},
     ]
 
 

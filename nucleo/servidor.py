@@ -1866,12 +1866,21 @@ class FaseVisible(BaseModel):
     cobrado: float
 
 
+class CerradoPor(BaseModel):
+    tipo: str
+    ref: str
+    en: datetime
+
+
 class HitoConDetalle(BaseModel):
     texto: str
     hecho: bool
     # Forma A (T2): la línea del SOP que explica este paso. "" si el hito
     # no es del SOP (uno escrito a mano).
     detalle: str
+    # Forma K (B3.4): cómo se cerró solo. None si está abierto, o si se
+    # marcó a mano desde antes de B3 (sin fila en hito_cerrado).
+    cerrado_por: CerradoPor | None = None
 
 
 class UltimoEpisodio(BaseModel):
@@ -1991,8 +2000,19 @@ def _libro_visible(libro: libros.Libro, conexion: Any) -> LibroVisible:
     estado_texto = estado_libro.leer_estado(libro.archivo)
     hitos_crudos = caminos.leer_hitos(libro.archivo)
     hitos = [
-        HitoConDetalle(texto=h.texto, hecho=h.hecho, detalle=caminos.detalle_de(libro.tipo, h.texto))
-        for h in hitos_crudos
+        HitoConDetalle(
+            texto=h.texto,
+            hecho=h.hecho,
+            detalle=caminos.detalle_de(libro.tipo, h.texto),
+            cerrado_por=(
+                (lambda c: CerradoPor(tipo=c.tipo, ref=c.ref, en=c.en) if c else None)(
+                    db.hito_cerrado_de(conexion, libro.tema, i)
+                )
+                if h.hecho
+                else None
+            ),
+        )
+        for i, h in enumerate(hitos_crudos, start=1)
     ]
     idx_actual = next((i for i, h in enumerate(hitos) if not h.hecho), None)
     hito_actual = hitos[idx_actual] if idx_actual is not None else None
@@ -2087,6 +2107,33 @@ def marcar_hito_de_libro(tema: str, n: int, cuerpo: HechoNuevo) -> Camino:
     return Camino(
         hitos=[HitoVisible(texto=h.texto, hecho=h.hecho) for h in hitos],
         siguiente=HitoVisible(texto=siguiente.texto, hecho=siguiente.hecho) if siguiente else None,
+    )
+
+
+@app.post("/libros/{tema}/camino/{n}/deshacer", response_model=LibroDetalle)
+def deshacer_hito(tema: str, n: int) -> LibroDetalle:
+    """Forma K (B3.4): vuelve el hito a abierto y quita su `cerrado_por`
+    — nunca borra el commit que lo cerró: deja OTRO commit en la bóveda
+    que lo revierte, igual que cualquier otra escritura de Remi ahí."""
+    libro = next((l for l in libros.listar() if l.tema == tema), None)
+    if libro is None:
+        raise HTTPException(status_code=404, detail="no tengo un libro con ese tema")
+    hitos_antes = caminos.leer_hitos(libro.archivo)
+    if not 1 <= n <= len(hitos_antes):
+        raise HTTPException(status_code=404, detail=f"ese libro tiene {len(hitos_antes)} hito(s)")
+    boveda_git.snapshot_antes(f"deshacer el hito {n} de {libro.archivo.name}")
+    caminos.marcar_por_indice(libro.archivo, n - 1, False)
+    boveda_git.snapshot_despues(f"bóveda: hito {n} de {libro.archivo.name} deshecho")
+    conexion = db.conectar()
+    try:
+        db.deshacer_hito_cerrado(conexion, tema, n)
+        visible = _libro_visible(libro, conexion)
+    finally:
+        conexion.close()
+    return LibroDetalle(
+        **visible.model_dump(),
+        estado_completo=estado_libro.leer_estado(libro.archivo),
+        ultimo_episodio=_ultimo_episodio_de(tema),
     )
 
 
