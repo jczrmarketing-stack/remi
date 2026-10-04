@@ -20,6 +20,32 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B7 · Hilos por tema · cerrado · cd6dd7d
+
+Escribe la terminal. El computador se apagó a mitad de B7 en la sesión anterior; este cierre
+retoma donde quedó, sin reabrir el diseño.
+
+- **Qué cambió:**
+  1. El código de B7 ya estaba construido en `9aa444f` (`nucleo/hilos.py`, `db.guardar_hilo` /
+     `db.recoger_hilo`, wireado en `servidor.py`). Lo único sin commitear era
+     `apps/ventanita/src/contratos.ts`: le faltaba el campo `Memoria.tipo: "decision" | null`
+     que ya existía en `contratos/contratos.json` (de B6.3/B6.4) — se regeneró y quedó suelto.
+     Commit `cd6dd7d`, solo esa ruta.
+  2. Cierre de fase: `pytest -q` → 956 pasadas, 2 omitidas; `mypy .` → sin hallazgos en 166
+     archivos. `npx tsc --noEmit` y `npm test` (vitest) en ventanita → 117 pasadas, 17 archivos.
+     `npm run test:e2e` (Playwright, el panel usa `test:e2e`, no `test`) → 72 pasadas. `launchctl
+     kickstart -k gui/$(id -u)/com.remi.nucleo` reinició el núcleo. `bash scripts/doctor.sh` →
+     11/11 OK (el doctor real trae 11 chequeos, no los 10 que menciona la sección «Cómo cierra
+     cada fase» del plan — dato viejo del plan, no un error del doctor).
+- **Decisiones que tomé sin preguntar:**
+  1. El plan dice `cd apps/panel && npm test` para Playwright; el script real es `test:e2e`
+     (`npm test` no existe en `package.json`). Usé `test:e2e`.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `pytest pruebas/test_hilos.py -v` (3 casos: rastrear, guardar y
+  recoger un hilo) en verde; `bash scripts/doctor.sh` 11/11 contra el sistema real.
+
+---
+
 ## 2026-10-04 · B6 · La ficha de cliente · construido · 317a191
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Tablero 5, forma M.
