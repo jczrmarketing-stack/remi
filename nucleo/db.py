@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from modelos import AnalisisCamino, Apuesta, Escalon, Fuente, Idea, Memoria, Meta, Pregunta, Propuesta, Sesion, Tarea, Vision
+from modelos import AnalisisCamino, Apuesta, Escalon, Fuente, Idea, Memoria, Meta, Pregunta, Pronostico, Propuesta, Sesion, Tarea, Vision
 
 RUTA_DB_POR_DEFECTO = Path(__file__).resolve().parent / "remi.db"
 
@@ -374,6 +374,20 @@ CREATE TABLE IF NOT EXISTS fuente (
     verificada INTEGER NOT NULL DEFAULT 0,
     tipo TEXT,
     FOREIGN KEY (analisis_id) REFERENCES analisis_camino(id)
+);
+
+-- R4.5 (forma P): todo número que Remi muestra queda acá con su regla de
+-- sí/no. `resultado` NULL = todavía no vence o no se resolvió.
+CREATE TABLE IF NOT EXISTS pronostico (
+    id TEXT PRIMARY KEY,
+    que TEXT NOT NULL,
+    p REAL NOT NULL,
+    vence TEXT NOT NULL,
+    regla_si_no TEXT NOT NULL,
+    tipo TEXT NOT NULL,
+    origen TEXT NOT NULL,
+    resultado INTEGER,
+    creada_en TEXT NOT NULL
 );
 """
 
@@ -1542,3 +1556,42 @@ def fuentes_de_analisis(conexion: sqlite3.Connection, analisis_id: str) -> list[
         )
         for fila in filas
     ]
+
+
+def _fila_a_pronostico(fila: sqlite3.Row) -> Pronostico:
+    return Pronostico(
+        id=fila["id"], que=fila["que"], p=fila["p"], vence=fila["vence"], regla_si_no=fila["regla_si_no"],
+        tipo=fila["tipo"], origen=fila["origen"],
+        resultado=(bool(fila["resultado"]) if fila["resultado"] is not None else None),
+        creada_en=fila["creada_en"],
+    )
+
+
+def crear_pronostico(conexion: sqlite3.Connection, pronostico: Pronostico) -> None:
+    conexion.execute(
+        "INSERT INTO pronostico (id, que, p, vence, regla_si_no, tipo, origen, resultado, creada_en) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            str(pronostico.id), pronostico.que, pronostico.p, pronostico.vence.isoformat(), pronostico.regla_si_no,
+            pronostico.tipo, pronostico.origen,
+            (None if pronostico.resultado is None else int(pronostico.resultado)),
+            pronostico.creada_en.isoformat(),
+        ),
+    )
+    conexion.commit()
+
+
+def leer_pronostico(conexion: sqlite3.Connection, pronostico_id: str) -> Pronostico | None:
+    fila = conexion.execute("SELECT * FROM pronostico WHERE id = ?", (pronostico_id,)).fetchone()
+    return _fila_a_pronostico(fila) if fila else None
+
+
+def resolver_pronostico(conexion: sqlite3.Connection, pronostico_id: str, resultado: bool | None) -> None:
+    valor = None if resultado is None else int(resultado)
+    conexion.execute("UPDATE pronostico SET resultado = ? WHERE id = ?", (valor, pronostico_id))
+    conexion.commit()
+
+
+def listar_pronosticos(conexion: sqlite3.Connection) -> list[Pronostico]:
+    filas = conexion.execute("SELECT * FROM pronostico ORDER BY creada_en").fetchall()
+    return [_fila_a_pronostico(fila) for fila in filas]
