@@ -20,6 +20,26 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B0 · arranque del plan final · construido · 5f6e1e2
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md` de punta a punta por encargo de Claude en la app.
+
+- **Qué cambió:**
+  1. `17c217f` — Biblia v4.2 (Hoy que se actualiza sola, Parte IX Rumbo, lo que difería el 4-oct) commiteada en el repo.
+  2. `eae3717` — `docs/PLAN-FINAL.md` commiteado.
+  3. Bóveda `remi-mente` `4466cb6` — `referencia/biblia.md` actualizada a v4.2, copia idéntica del repo.
+  4. `5f6e1e2` — `CLAUDE.md`: línea de vistas del panel suma Semana y Rumbo; «Una fase a la vez» apunta a `docs/PLAN-FINAL.md` en vez de la lista de fases vieja (T0–T11, F0–F5, ya cumplidas).
+- **Decisiones que tomé sin preguntar:** ninguna.
+- **Dudas abiertas:** ninguna.
+- **Línea base de las tres suites** (núcleo real corriendo, `doctor.sh` 10/10):
+  - pytest: **810 passed, 2 skipped**.
+  - mypy: **141 módulos**, sin issues.
+  - ventanita: `tsc --noEmit` limpio · vitest **117 passed** · cargo **26 passed, 1 ignored**.
+  - panel: `tsc --noEmit` limpio · Playwright **63 passed**.
+- **Cómo probarlo a mano:** `cat docs/BIBLIA.md` empieza con «v4.2 · 4 octubre 2026»; `diff docs/BIBLIA.md ../remi-mente/referencia/biblia.md` vacío.
+
+---
+
 ## 2026-10-03 · cuatro arreglos de la charla real · construido · 2f6364c
 
 De la charla del 3-oct. Una prueba antes de cada arreglo, un commit por arreglo.
