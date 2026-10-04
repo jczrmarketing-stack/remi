@@ -6,7 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from modelos import Idea, Memoria, Pregunta, Sesion, Tarea
 
@@ -193,6 +193,18 @@ CREATE TABLE IF NOT EXISTS preguntas (
 );
 
 CREATE INDEX IF NOT EXISTS idx_preguntas_tema_campo ON preguntas(tema, campo);
+
+-- B6.1: un gasto hablado, de un proyecto (`tema` con valor) o común
+-- (`tema` NULL, repartido entre proyectos por minutos del mes).
+CREATE TABLE IF NOT EXISTS gasto_proyecto (
+    id TEXT PRIMARY KEY,
+    tema TEXT,
+    concepto TEXT NOT NULL,
+    monto REAL NOT NULL,
+    fecha TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_gasto_proyecto_tema ON gasto_proyecto(tema);
 
 -- B3.4 (forma K): cómo se cerró cada hito solo — nunca se borra, `deshacer`
 -- quita la fila y el archivo vuelve a «- [ ]», pero el commit de la bóveda
@@ -735,6 +747,53 @@ def decisiones_desde(conexion: sqlite3.Connection, desde: datetime) -> list[Memo
         (desde.isoformat(),),
     ).fetchall()
     return [_fila_a_memoria(fila) for fila in filas]
+
+
+@dataclass(frozen=True)
+class GastoProyecto:
+    id: str
+    tema: str | None
+    concepto: str
+    monto: float
+    fecha: datetime
+
+
+def _fila_a_gasto(fila: sqlite3.Row) -> GastoProyecto:
+    return GastoProyecto(
+        id=fila["id"], tema=fila["tema"], concepto=fila["concepto"], monto=fila["monto"],
+        fecha=datetime.fromisoformat(fila["fecha"]),
+    )
+
+
+def crear_gasto(conexion: sqlite3.Connection, tema: str | None, concepto: str, monto: float, fecha: datetime) -> GastoProyecto:
+    gasto_id = str(uuid4())
+    conexion.execute(
+        "INSERT INTO gasto_proyecto (id, tema, concepto, monto, fecha) VALUES (?, ?, ?, ?, ?)",
+        (gasto_id, tema, concepto, monto, fecha.isoformat()),
+    )
+    conexion.commit()
+    return GastoProyecto(id=gasto_id, tema=tema, concepto=concepto, monto=monto, fecha=fecha)
+
+
+def gastos_de_tema(conexion: sqlite3.Connection, tema: str) -> list[GastoProyecto]:
+    filas = conexion.execute("SELECT * FROM gasto_proyecto WHERE tema = ? ORDER BY fecha", (tema,)).fetchall()
+    return [_fila_a_gasto(f) for f in filas]
+
+
+def gastos_comunes_desde(conexion: sqlite3.Connection, desde: datetime) -> list[GastoProyecto]:
+    filas = conexion.execute(
+        "SELECT * FROM gasto_proyecto WHERE tema IS NULL AND fecha >= ? ORDER BY fecha", (desde.isoformat(),)
+    ).fetchall()
+    return [_fila_a_gasto(f) for f in filas]
+
+
+def corregir_gasto(conexion: sqlite3.Connection, gasto_id: str, monto: float) -> GastoProyecto | None:
+    fila = conexion.execute("SELECT * FROM gasto_proyecto WHERE id = ?", (gasto_id,)).fetchone()
+    if fila is None:
+        return None
+    conexion.execute("UPDATE gasto_proyecto SET monto = ? WHERE id = ?", (monto, gasto_id))
+    conexion.commit()
+    return _fila_a_gasto(conexion.execute("SELECT * FROM gasto_proyecto WHERE id = ?", (gasto_id,)).fetchone())
 
 
 @dataclass(frozen=True)
