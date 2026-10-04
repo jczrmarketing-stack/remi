@@ -194,6 +194,18 @@ CREATE TABLE IF NOT EXISTS preguntas (
 
 CREATE INDEX IF NOT EXISTS idx_preguntas_tema_campo ON preguntas(tema, campo);
 
+-- B3.4 (forma K): cómo se cerró cada hito solo — nunca se borra, `deshacer`
+-- quita la fila y el archivo vuelve a «- [ ]», pero el commit de la bóveda
+-- que hizo el cierre queda revertido con OTRO commit, no desaparecido.
+CREATE TABLE IF NOT EXISTS hito_cerrado (
+    tema TEXT NOT NULL,
+    indice INTEGER NOT NULL,
+    tipo TEXT NOT NULL,
+    ref TEXT NOT NULL,
+    en TEXT NOT NULL,
+    PRIMARY KEY (tema, indice)
+);
+
 -- Tope de gasto (B1, PLAN-FINAL.md): cada llamada pagada (Venice,
 -- OpenRouter) deja una fila. Groq, Ollama y Claude (membresía Max) no
 -- cobran aparte y no se registran acá.
@@ -723,6 +735,36 @@ def decisiones_desde(conexion: sqlite3.Connection, desde: datetime) -> list[Memo
         (desde.isoformat(),),
     ).fetchall()
     return [_fila_a_memoria(fila) for fila in filas]
+
+
+@dataclass(frozen=True)
+class HitoCerrado:
+    tipo: str
+    ref: str
+    en: datetime
+
+
+def marcar_hito_cerrado(conexion: sqlite3.Connection, tema: str, indice: int, tipo: str, ref: str, en: datetime) -> None:
+    conexion.execute(
+        "INSERT INTO hito_cerrado (tema, indice, tipo, ref, en) VALUES (?, ?, ?, ?, ?) "
+        "ON CONFLICT(tema, indice) DO UPDATE SET tipo = excluded.tipo, ref = excluded.ref, en = excluded.en",
+        (tema, indice, tipo, ref, en.isoformat()),
+    )
+    conexion.commit()
+
+
+def hito_cerrado_de(conexion: sqlite3.Connection, tema: str, indice: int) -> HitoCerrado | None:
+    fila = conexion.execute(
+        "SELECT tipo, ref, en FROM hito_cerrado WHERE tema = ? AND indice = ?", (tema, indice)
+    ).fetchone()
+    if fila is None:
+        return None
+    return HitoCerrado(tipo=fila["tipo"], ref=fila["ref"], en=datetime.fromisoformat(fila["en"]))
+
+
+def deshacer_hito_cerrado(conexion: sqlite3.Connection, tema: str, indice: int) -> None:
+    conexion.execute("DELETE FROM hito_cerrado WHERE tema = ? AND indice = ?", (tema, indice))
+    conexion.commit()
 
 
 def leer_memoria(conexion: sqlite3.Connection, memoria_id: UUID) -> Memoria | None:

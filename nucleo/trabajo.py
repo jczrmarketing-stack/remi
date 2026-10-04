@@ -20,11 +20,13 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import boveda_git
+import caminos
 import clasificar
 import db
 import episodios
 import estado_libro
 import libros
+from modelos import Pregunta
 
 _DONDE = re.compile(r"\bdonde qued(?:e|amos|aste)\b")
 # T8: «qué te falta para que estés al 100% listo» quedaba de idea en la
@@ -194,10 +196,94 @@ def _cerrar_claude(conexion: sqlite3.Connection, datos: dict[str, object], ahora
     sesion = str(datos.get("session_id") or "").strip()
     if not sesion:
         return
+    fila = conexion.execute(
+        "SELECT inicio FROM trabajo_claude WHERE session_id = ? AND fin IS NULL", (sesion,)
+    ).fetchone()
     conexion.execute(
         "UPDATE trabajo_claude SET fin = ? WHERE session_id = ? AND fin IS NULL",
         (ahora.isoformat(), sesion),
     )
+    if fila is not None:
+        inicio = datetime.fromisoformat(str(fila["inicio"]))
+        if inicio.tzinfo is None:
+            inicio = inicio.replace(tzinfo=timezone.utc)
+        _cerrar_hito_por_encargo(conexion, datos, inicio, ahora, sesion)
+
+
+# B3.2: el encabezado que _armar_encargo (servidor.py) antepone a un
+# encargo que cierra un hito con evidencia de código. El gancho SessionEnd
+# lo lee del primer turno del transcript y lo manda como `datos["hito"]`.
+_HITO_HEADER = re.compile(r"^([a-z0-9][a-z0-9_-]*)#(\d+)$", re.IGNORECASE)
+
+
+def _pruebas_en_verde(conexion: sqlite3.Connection, tema: str, inicio: datetime, fin: datetime) -> bool:
+    fila = conexion.execute(
+        "SELECT datos FROM trabajo_eventos WHERE tema = ? AND tipo = 'pruebas' AND fecha BETWEEN ? AND ? "
+        "ORDER BY fecha DESC LIMIT 1",
+        (tema, inicio.isoformat(), fin.isoformat()),
+    ).fetchone()
+    if fila is None:
+        return False
+    try:
+        return json.loads(fila["datos"]).get("verde") is True
+    except json.JSONDecodeError:
+        return False
+
+
+def _preguntar_cierre_dudoso(conexion: sqlite3.Connection, tema: str, n: int, ahora: datetime) -> None:
+    """B3.3: commit sin pruebas en verde es evidencia dudosa — una
+    Pregunta en el panel, nunca un cierre a ciegas."""
+    campo = f"hito.{n}.cierre"
+    if db.pregunta_de_tema_campo(conexion, tema, campo) is not None:
+        return
+    db.crear_pregunta(
+        conexion,
+        Pregunta(
+            id=uuid4(),
+            tema=tema,
+            campo=campo,
+            voz=f"En {tema} hubo un commit pero no vi las pruebas en verde. ¿Cierro el paso {n}?",
+            estado="pendiente",
+            creada_en=ahora,
+            disponible_desde=ahora,
+        ),
+    )
+
+
+def _cerrar_hito_por_encargo(
+    conexion: sqlite3.Connection, datos: dict[str, object], inicio: datetime, fin: datetime, session_id: str
+) -> None:
+    """B3.1/B3.2/B3.3: una sesión de Claude Code que nació con
+    `hito: <tema>#<n>` cierra ese hito solo si hay commit Y pruebas en
+    verde de ese tema durante la sesión. Sin header, sin evidencia o con
+    el hito ya hecho, no hace nada — nunca inventa un cierre."""
+    coincidencia = _HITO_HEADER.match(str(datos.get("hito") or "").strip())
+    if coincidencia is None:
+        return
+    tema, n = coincidencia.group(1), int(coincidencia.group(2))
+    resultado = caminos.hitos_de_tema(conexion, tema)
+    if resultado is None:
+        return
+    hitos, _siguiente = resultado
+    if n < 1 or n > len(hitos) or hitos[n - 1].hecho:
+        return
+    libro = next((l for l in libros.listar() if l.tema == tema), None)
+    if libro is None or caminos.cierra_con_de(libro.tipo, hitos[n - 1].texto) != "encargo":
+        return
+    hay_commit = (
+        conexion.execute(
+            "SELECT 1 FROM trabajo_eventos WHERE tema = ? AND tipo = 'commit' AND fecha BETWEEN ? AND ? LIMIT 1",
+            (tema, inicio.isoformat(), fin.isoformat()),
+        ).fetchone()
+        is not None
+    )
+    if not hay_commit:
+        return
+    if _pruebas_en_verde(conexion, tema, inicio, fin):
+        caminos.marcar_por_indice(libro.archivo, n - 1, True)
+        db.marcar_hito_cerrado(conexion, tema, n, "encargo", session_id, fin)
+    else:
+        _preguntar_cierre_dudoso(conexion, tema, n, fin)
 
 
 def es_donde_quede(texto: str) -> bool:
