@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -25,7 +26,7 @@ from pydantic import BaseModel
 import db
 import plata
 import trabajo
-from modelos import Escalon, Meta, Propuesta, Vision
+from modelos import Apuesta, Escalon, Meta, Pregunta, Propuesta, Vision
 
 BOGOTA = ZoneInfo("America/Bogota")
 
@@ -405,3 +406,137 @@ def ver_cuenta() -> VistaCuenta:
         )
     finally:
         conexion.close()
+
+
+# --- R2 (forma O): apuestas --------------------------------------------
+
+DIAS_PREGUNTA_SIGUE_O_PAUSA = 14
+DIAS_PREGUNTA_LA_VOLVERIAS_A_HACER = 60
+
+
+class CuerpoApuesta(BaseModel):
+    camino: str
+    inicio: datetime
+    fin: datetime
+    tope_horas: float
+    tope_plata: float
+
+
+class ApuestaProgreso(BaseModel):
+    hecho: float
+    meta: float
+
+
+class ApuestaVista(BaseModel):
+    id: str
+    camino: str
+    inicio: datetime
+    fin: datetime
+    tope_horas: float
+    tope_plata: float
+    gastado_horas: float
+    gastado_plata: float
+    senal_sigue: bool
+    senal_pausa: bool
+    progreso: ApuestaProgreso
+    resultado: str | None
+
+
+def _gastado_plata(conexion: sqlite3.Connection, camino: str, desde: datetime, hasta: datetime) -> float:
+    return sum(g.monto for g in db.gastos_de_tema(conexion, camino) if desde <= g.fecha <= hasta)
+
+
+def _a_vista(conexion: sqlite3.Connection, apuesta: Apuesta, ahora: datetime) -> ApuestaVista:
+    gastado_horas = round(trabajo.minutos_entre_rango(apuesta.camino, apuesta.inicio, min(ahora, apuesta.fin)) / 60, 1)
+    gastado_plata = _gastado_plata(conexion, apuesta.camino, apuesta.inicio, min(ahora, apuesta.fin))
+    # Señal de pausa: se pasó de cualquiera de los dos topes. Señal de
+    # sigue: va dentro de los dos, a mitad de camino en tiempo o menos.
+    senal_pausa = gastado_horas > apuesta.tope_horas or gastado_plata > apuesta.tope_plata
+    duracion_total = (apuesta.fin - apuesta.inicio).total_seconds()
+    transcurrido = (min(ahora, apuesta.fin) - apuesta.inicio).total_seconds()
+    pct_tiempo = transcurrido / duracion_total if duracion_total > 0 else 1.0
+    senal_sigue = not senal_pausa and pct_tiempo <= 0.5
+    return ApuestaVista(
+        id=str(apuesta.id),
+        camino=apuesta.camino,
+        inicio=apuesta.inicio,
+        fin=apuesta.fin,
+        tope_horas=apuesta.tope_horas,
+        tope_plata=apuesta.tope_plata,
+        gastado_horas=gastado_horas,
+        gastado_plata=gastado_plata,
+        senal_sigue=senal_sigue,
+        senal_pausa=senal_pausa,
+        progreso=ApuestaProgreso(hecho=round(pct_tiempo, 2), meta=1.0),
+        resultado=apuesta.resultado,
+    )
+
+
+@router.post("/apuestas", status_code=201)
+def crear_apuesta(cuerpo: CuerpoApuesta) -> dict:
+    conexion = db.conectar()
+    try:
+        apuesta = Apuesta(
+            id=uuid4(), camino=cuerpo.camino, inicio=cuerpo.inicio, fin=cuerpo.fin,
+            tope_horas=cuerpo.tope_horas, tope_plata=cuerpo.tope_plata, resultado=None,
+        )
+        db.crear_apuesta(conexion, apuesta)
+        return {"id": str(apuesta.id)}
+    finally:
+        conexion.close()
+
+
+@router.get("/apuestas", response_model=list[ApuestaVista])
+def ver_apuestas() -> list[ApuestaVista]:
+    conexion = db.conectar()
+    try:
+        ahora = datetime.now(timezone.utc)
+        revisar_apuestas_vencidas(conexion, ahora)
+        return [_a_vista(conexion, a, ahora) for a in db.listar_apuestas(conexion)]
+    finally:
+        conexion.close()
+
+
+class CuerpoCerrarApuesta(BaseModel):
+    resultado: str
+    metrica_nueva: str | None = None
+
+
+@router.post("/apuestas/{apuesta_id}/cerrar")
+def cerrar_apuesta_endpoint(apuesta_id: str, cuerpo: CuerpoCerrarApuesta) -> dict:
+    conexion = db.conectar()
+    try:
+        db.cerrar_apuesta(conexion, apuesta_id, cuerpo.resultado)
+        return {"id": apuesta_id, "resultado": cuerpo.resultado}
+    finally:
+        conexion.close()
+
+
+def revisar_apuestas_vencidas(conexion: sqlite3.Connection, ahora: datetime) -> None:
+    """Al día 14: una Pregunta de tres salidas (sigue/pausa/extender). A
+    los 60 días: «¿la volverías a hacer?». Cada una se pregunta una sola
+    vez por apuesta — deduplicada por `campo` (ley 3: no se repite)."""
+    for apuesta in db.listar_apuestas(conexion):
+        dias = (ahora - apuesta.inicio).days
+        if dias >= DIAS_PREGUNTA_SIGUE_O_PAUSA:
+            campo = f"apuesta_dia14::{apuesta.id}"
+            if db.pregunta_de_tema_campo(conexion, "_rumbo", campo) is None:
+                db.crear_pregunta(
+                    conexion,
+                    Pregunta(
+                        id=uuid4(), tema="_rumbo", campo=campo,
+                        voz=f"La apuesta de {apuesta.camino} lleva 14 días: ¿sigue, pausa, o la extiendes con una métrica más estrecha?",
+                        estado="pendiente", creada_en=ahora, disponible_desde=ahora,
+                    ),
+                )
+        if dias >= DIAS_PREGUNTA_LA_VOLVERIAS_A_HACER:
+            campo = f"apuesta_dia60::{apuesta.id}"
+            if db.pregunta_de_tema_campo(conexion, "_rumbo", campo) is None:
+                db.crear_pregunta(
+                    conexion,
+                    Pregunta(
+                        id=uuid4(), tema="_rumbo", campo=campo,
+                        voz=f"La apuesta de {apuesta.camino} cumple 60 días: ¿la volverías a hacer?",
+                        estado="pendiente", creada_en=ahora, disponible_desde=ahora,
+                    ),
+                )

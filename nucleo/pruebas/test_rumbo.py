@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 import db
 import rumbo
 import servidor
-from modelos import Propuesta, Sesion, Tarea
+from modelos import Apuesta, Propuesta, Sesion, Tarea
 
 
 def test_parsear_vision_extrae_rango_y_plazo():
@@ -151,3 +151,106 @@ def test_registrar_propuesta_hablada_por_mensaje(tmp_path, monkeypatch):
     assert r.json()["tipo"] == "propuesta"
     cuenta = cliente.get("/rumbo/cuenta").json()
     assert cuenta["cierre"]["base_n"] == 1
+
+
+# --- R2 (forma O): apuestas --------------------------------------------
+
+
+def test_crear_y_ver_apuesta(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    cliente = TestClient(servidor.app)
+    ahora = datetime.now(timezone.utc)
+    r = cliente.post(
+        "/rumbo/apuestas",
+        json={
+            "camino": "malik_premium",
+            "inicio": (ahora - timedelta(days=1)).isoformat(),
+            "fin": (ahora + timedelta(days=59)).isoformat(),
+            "tope_horas": 40,
+            "tope_plata": 500,
+        },
+    )
+    assert r.status_code == 201
+    apuestas = cliente.get("/rumbo/apuestas").json()
+    assert len(apuestas) == 1
+    assert apuestas[0]["camino"] == "malik_premium"
+    assert apuestas[0]["resultado"] is None
+    assert apuestas[0]["gastado_horas"] == 0.0
+
+
+def test_senal_pausa_cuando_se_pasa_el_tope_de_plata(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    try:
+        apuesta = Apuesta(
+            id=uuid4(), camino="malik_premium", inicio=ahora - timedelta(days=5), fin=ahora + timedelta(days=55),
+            tope_horas=40, tope_plata=100, resultado=None,
+        )
+        db.crear_apuesta(conexion, apuesta)
+        db.crear_gasto(conexion, "malik_premium", "ads", 150.0, ahora)
+    finally:
+        conexion.close()
+
+    cliente = TestClient(servidor.app)
+    vista = cliente.get("/rumbo/apuestas").json()[0]
+    assert vista["gastado_plata"] == 150.0
+    assert vista["senal_pausa"] is True
+    assert vista["senal_sigue"] is False
+
+
+def test_cerrar_apuesta(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    try:
+        apuesta = Apuesta(
+            id=uuid4(), camino="x", inicio=ahora, fin=ahora + timedelta(days=60),
+            tope_horas=10, tope_plata=10, resultado=None,
+        )
+        db.crear_apuesta(conexion, apuesta)
+        apuesta_id = str(apuesta.id)
+    finally:
+        conexion.close()
+
+    cliente = TestClient(servidor.app)
+    r = cliente.post(f"/rumbo/apuestas/{apuesta_id}/cerrar", json={"resultado": "pausa"})
+    assert r.status_code == 200
+    vista = cliente.get("/rumbo/apuestas").json()[0]
+    assert vista["resultado"] == "pausa"
+
+
+def test_apuesta_al_dia_14_produce_pregunta_de_tres_salidas(tmp_path, monkeypatch):
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    ahora = datetime.now(timezone.utc)
+    conexion = db.conectar()
+    try:
+        apuesta = Apuesta(
+            id=uuid4(), camino="malik_premium", inicio=ahora - timedelta(days=14), fin=ahora + timedelta(days=46),
+            tope_horas=40, tope_plata=500, resultado=None,
+        )
+        db.crear_apuesta(conexion, apuesta)
+    finally:
+        conexion.close()
+
+    cliente = TestClient(servidor.app)
+    cliente.get("/rumbo/apuestas")  # dispara revisar_apuestas_vencidas
+
+    conexion = db.conectar()
+    try:
+        pregunta = db.pregunta_de_tema_campo(conexion, "_rumbo", f"apuesta_dia14::{apuesta.id}")
+    finally:
+        conexion.close()
+    assert pregunta is not None
+    assert "sigue" in pregunta.voz and "pausa" in pregunta.voz and "extiendes" in pregunta.voz
+
+    # Una segunda vuelta no duplica la pregunta (ley 3).
+    cliente.get("/rumbo/apuestas")
+    conexion = db.conectar()
+    try:
+        preguntas_dia14 = conexion.execute(
+            "SELECT COUNT(*) AS n FROM preguntas WHERE campo = ?", (f"apuesta_dia14::{apuesta.id}",)
+        ).fetchone()["n"]
+    finally:
+        conexion.close()
+    assert preguntas_dia14 == 1
