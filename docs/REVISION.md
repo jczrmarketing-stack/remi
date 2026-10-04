@@ -55,10 +55,16 @@ Lo que salió de la prueba en la app del 3-oct (Juan Camilo):
 | 38 | «Tengo 3 preguntas pendientes» en el chat, aunque ya hablaban de otra cosa | Las preguntas salen del chat (ver la 21); «¿qué te falta?» lo contesta el modelo | probar | arreglado, por ver en la app |
 | 29 | «no pude reproducir el audio del núcleo» en el log | No es falla: el audio sonó entero; el aviso sale de más al pasar a la frase siguiente | pendiente menor (solo el log) |
 
-Otras cosas que salieron del guion:
-- La charla coló voseo («querés», «vos», «necesitás») con Haiku: sigue la duda de F2.
-- «¿qué tengo pendiente hoy?» contestó con algo del Estado del libro de Remi escrito por la
-  máquina («correr test_tema_dudoso»): a revisar en R2.
+Dos puntos de R1 que quedaron abiertos, cerrados antes de seguir a R2 (3-oct):
+- **Voseo con Haiku:** 10 charlas en el banco («¿qué opinas de que trabaje el sábado?», «¿tú
+  qué harías en mi lugar?», etc.), 0 formas de voseo (vos/querés/tenés/...). `voseo_a_tu`
+  **pasa**.
+- **Estado de libro escrito por la máquina:** `proyectos/upvisuals.md` tenía el Estado
+  corrompido por una fuga de un núcleo de prueba (1 al 2-oct, 17 escrituras, ya corregida la
+  causa en `bfb9f62`/`d1a9b0b`) — decía «se discutió el precio de la Fase 1 con Alfonso», algo
+  que nunca pasó. **Arreglado** (`c97bf0c`): el texto corrige el dato sin borrar el historial.
+  Los otros libros (`beam.md`, `malik.md`, `remi.md`, `organic-cash.md`) se revisaron y su
+  Estado es real.
 
 ## R2 · Cerebro y memoria — *pendiente*
 
