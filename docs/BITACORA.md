@@ -20,6 +20,55 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B10 · Calendario y app activa · cerrado con dos ESPERA PERMISO · ee69a63
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
+
+- **Qué cambió:**
+  1. `nucleo/calendario.py` (B10.1): `evento_a_tarea`/`tarea_a_evento` — convierte un
+     evento de la API de Google Calendar (con o sin `dateTime`) a `Tarea`, normalizando la
+     hora a Bogotá; solo las `Tarea.compartible` salen de vuelta como evento (regla de
+     privacidad por arquitectura). `POST /calendario/importar` (recibe eventos ya traídos,
+     sin necesitar el OAuth para probarse) y `GET /calendario/estado` (siempre
+     `conectado: false` hasta que el OAuth real exista — nunca inventa una conexión).
+  2. `nucleo/accesibilidad.py` (B10.2): `leer_ventana_activa_macos` — AppleScript vía
+     `osascript` para el app activo y el título de ventana; cualquier fallo (permiso no
+     dado, sin GUI, sin `osascript`) vuelve `None`, nunca lanza. Nada sale del Mac.
+  3. Cierre: `pytest -q` → 1030 pasadas, 2 omitidas; `mypy .` → sin hallazgos (186
+     archivos). Ventanita/panel: `tsc` limpio, 117+72 pasadas. `launchctl kickstart`
+     reinició el núcleo. `doctor.sh` → 11/11. `GET /calendario/estado` contra el real
+     (confirmado puro leyendo el código primero) → `{"conectado":false}`.
+- **ESPERA PERMISO (B10.1):** el OAuth real de Google Calendar — Juan Camilo tiene que
+  crear el proyecto en Google Cloud y autorizarlo desde Ajustes → Conexiones. Sin eso no
+  hay token con que llamar a la API real; `evento_a_tarea`/`tarea_a_evento` ya están
+  completos y probados, listos para recibir eventos reales en cuanto el token exista.
+- **ESPERA PERMISO (B10.2):** el permiso de Accesibilidad de macOS (Ajustes del Sistema →
+  Privacidad y Seguridad → Accesibilidad). El lector ya está escrito y probado con dobles
+  (nunca llama a `osascript` de verdad en pytest); sin el permiso, `osascript` falla y el
+  lector real vuelve `None` en vez de romper algo.
+- **BLOQUEADO (distinto de los anteriores, no es solo un permiso): usar la app activa
+  para afinar `desvio` en `avisos.py`** — por qué: el `_regla_desvio` que ya existe (B5)
+  compara el `tema` del bloque abierto contra el `tema` de otra sesión de Claude Code;
+  para que una app de macOS (Chrome, Slack, lo que sea) cuente como desvío, hace falta que
+  Juan Camilo diga qué apps cuentan como «en el tema» y cuáles como distracción — un dato
+  que solo él tiene (regla 9: no se inventa, se pregunta). Mientras ese mapeo no exista,
+  wirear `leer_ventana_activa_macos` al aviso de verdad sería adivinar. Qué hace falta:
+  preguntarle a Juan Camilo esa lista, o diseñar con él cómo se pregunta sola desde el
+  panel.
+- **Decisiones que tomé sin preguntar:**
+  1. `sincronizar_citas` no deduplica todavía por id de evento de Google (crearía una
+     `Tarea` repetida en una segunda sincronización) — documentado como limitación: hace
+     falta guardar el id del evento, y eso no se puede probar de verdad sin el OAuth
+     corriendo contra citas reales. Queda anotado, no resuelto a medias.
+  2. `GET /calendario/estado` y `POST /calendario/importar` quedan bajo `/calendario`, no
+     `/rumbo` — no es parte del Rumbo, es su propia pieza del plan.
+- **Dudas abiertas:** ninguna más allá de las de arriba.
+- **Cómo probarlo a mano:** `pytest pruebas/test_calendario.py pruebas/test_accesibilidad.py
+  -v` en verde; `curl -s localhost:4400/calendario/estado` de solo lectura (confirmado
+  puro) contra el núcleo real.
+
+---
+
 ## 2026-10-04 · R5 · Hoy ordenado por el Rumbo, latido y poda · cerrado · 7279ca4
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
