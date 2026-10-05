@@ -20,6 +20,80 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · Z (puntos 1 y 2) · Cierre · 742bd8f
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Solo los puntos 1 y 2 de Z (el mega
+prompt deja la semana de uso, punto 3, y el punto 4 para después).
+
+- **Qué cambió:**
+  1. `bash scripts/actualizar.sh` desde `main` en `742bd8f`: compiló, firmó (sin
+     notarización — no hay credenciales de Apple configuradas, esperado en desarrollo),
+     reemplazó `/Applications/Remi.app`, reseteó el permiso de micrófono (toca volver a
+     aprobarlo la próxima vez que se abra la ventanita) y recargó los agentes. Con
+     confirmación de Juan Camilo antes de correrlo (mata el proceso que esté corriendo).
+  2. Probado el ciclo `desinstalar.sh` → `instalar.sh`, también con confirmación previa
+     (apaga los 10 agentes de Remi un rato). **Hallazgo real de la herramienta**:
+     `instalar.sh` NO reinstala el bundle de la app si `desinstalar.sh` la borró — deja
+     `/Applications/Remi.app` ausente y los LaunchAgents de la ventanita sin nada que
+     abrir. Lo resolví copiando a mano el bundle de `target/release/bundle/macos/Remi.app`
+     y volviendo a correr `instalar.sh`. **Queda sin arreglar en el script** (no era parte
+     del encargo tocar `scripts/instalar.sh`; lo anoto para que se arregle aparte: debería
+     copiar el bundle de `target/` si `/Applications/Remi.app` no existe, igual que ya
+     hace `actualizar.sh`).
+  3. `bash scripts/doctor.sh` → 11/11 OK, confirmado después de cada paso.
+- **El resumen de toda la sesión (B7 → Z, puntos 1-2):**
+  | Fase | Hash de cierre | Suites |
+  |---|---|---|
+  | B7 · Hilos por tema | `6ce35fa` | 956→962 pytest, mypy 166 archivos, 117 vitest, 72 e2e |
+  | R1 · Rumbo (visión/meta/partida) | `8ee57a4` | 962 pytest, mypy 168 |
+  | R2 · Reloj/cuenta/apuestas | `5824a31` | 976 pytest, mypy 170 |
+  | R3 · Ábreme el juego / camino | `d3e0501` | 987 pytest, mypy 174 |
+  | R4 · Números honestos/calibración | `47efa2e` | 1005 pytest, mypy 180 |
+  | R5 · Hoy/latido/poda | `8a7ecbf` | 1017 pytest, mypy 182 |
+  | B10 · Calendario/accesibilidad | `c43c501` | 1030 pytest, mypy 186 |
+  | PR · Del encargo a producción | `742bd8f` | 1038 pytest, mypy 188 |
+
+  Todas las fases, 72/72 Playwright y 117/117 vitest en verde al cierre.
+- **BLOQUEADO que quedó repetido en varias fases (R3, R4, PR):** llamadas reales a un
+  modelo distinto del que escribió el código (investigador de caminos, estimadores a
+  ciegas, crítica, revisor de sesiones) — todas comparten la misma causa: necesitan
+  diseñar y probar un prompt real contra `claude -p` con la herramienta de búsqueda (y, en
+  el caso de PR, un gancho `SessionEnd`), con el tope de B1 de por medio. Cada interfaz
+  (`Investigador`, `EstimadorCiego`, `Revisor`, `Generador` de jugadas) ya existe, tipada
+  y probada con dobles — falta una sesión dedicada a esa pieza específica, no más código
+  de este tipo.
+- **ESPERA PERMISO:** B10 completo (Google Calendar OAuth, Accesibilidad de macOS) — el
+  código y las pruebas están listos, falta que Juan Camilo dé los dos permisos a mano.
+- **ESPERA D1:** paneles de R2 (pestaña Rumbo, tablero 6), R3 (Bandeja con jugadas,
+  tablero 7), R5 (aporte de cada proyecto a la meta, tablero 9) — el núcleo de las tres
+  está completo; falta el diseño que hace Claude en la app.
+- **CAMBIO DE FORMA:**
+  1. R2: sin `creada_en` en `Tarea`, el Reloj no acota a «últimos 6 meses»; usa todo el
+     historial.
+  2. B5 (de antes de esta sesión): `desvio` solo detecta otra sesión de Claude Code, no
+     otra app de macOS — falta que Juan Camilo diga qué apps cuentan como «en el tema».
+- **Piezas BLOQUEADAS de B5 (ventanita y Telegram), de sesiones anteriores a esta:** no
+  se reabrieron ni se tocaron en ningún momento de esta sesión; quedan exactamente como
+  estaban anotadas antes de B7.
+- **Lo que solo puede hacer Juan Camilo:**
+  1. Decidir si de verdad quiere R3/R4/PR corridas con llamadas reales a otro modelo, y
+     diseñar esos prompts en una sesión aparte (son 4 piezas: investigador, estimadores,
+     crítica, revisor de sesiones).
+  2. Dar el permiso de Accesibilidad de macOS y el OAuth de Google Calendar (B10), y decir
+     qué apps cuentan como «en el tema» para que `desvio` las use.
+  3. Aprobar D1 en el canvas (Metas, Semana, Proyectos, Bandeja) para que el panel de
+     Rumbo se construya.
+  4. Decidir si arregla `scripts/instalar.sh` (hallazgo de este cierre) o lo deja para
+     cuando vuelva a desinstalar.
+  5. Volver a aprobar el permiso de micrófono de la ventanita (lo resetea cada build).
+  6. La semana de uso (punto 3 de Z) y la revisión del domingo — explícitamente fuera de
+     este encargo.
+- **Dudas abiertas:** ninguna más allá de lo anotado arriba.
+- **Cómo probarlo a mano:** `launchctl list | grep remi` → los 10 agentes corriendo;
+  abrir Remi desde Launchpad y re-aprobar el micrófono; `bash scripts/doctor.sh` → 11/11.
+
+---
+
 ## 2026-10-04 · PR · Del encargo a producción · cerrado con un BLOQUEADO · 123fdc1
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md` (Biblia Parte VIII, los cinco
