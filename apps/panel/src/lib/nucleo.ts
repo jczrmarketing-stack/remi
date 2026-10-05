@@ -4,7 +4,7 @@
 // /nucleo/:path* al núcleo real (127.0.0.1:puerto, de config/nucleo.json),
 // cabeceras incluidas — así el panel sirve desde el teléfono sin CORS ni la
 // IP del Mac a mano. NEXT_PUBLIC_URL_NUCLEO solo manda en Playwright.
-import type { Entrega, Idea, Nudge, Pregunta, Sesion, Tarea } from "@/contratos";
+import type { Entrega, Idea, ISODateString, Nudge, Pregunta, Sesion, Tarea } from "@/contratos";
 
 const BASE = process.env.NEXT_PUBLIC_URL_NUCLEO || "/nucleo";
 
@@ -161,6 +161,59 @@ export type AlDia = {
   mientras_no_estabas: MientrasNoEstabas[];
 };
 
+// --- R1-R5: Rumbo (formas N, R, O, Q) --------------------------------
+
+export type EscalonVista = { n: number; texto: string; criterio: string; estado: "conquistado" | "ahora" | "sigue" | "luego" | "norte" };
+export type ItemPartida = { tipo: string; texto: string; valor: string; origen: "medido" | "dicho" | "pregunta"; dominio: "cirujano" | "sabe" | "aprendiz" | null };
+export type MetaVista = { monto_min: number | null; monto_max: number | null; meses_seguidos: number | null; limites: string | null };
+export type VistaRumbo = { vision: string | null; meta: MetaVista | null; escalera: EscalonVista[]; partida: ItemPartida[] };
+export type PropuestaVisionVista = { monto_min: number | null; monto_max: number | null; meses_seguidos: number | null; limites: string | null };
+
+export type CuentaCierre = { p: number; base_n: number; origen: "propia" | "general" };
+export type CaminoHoras = { camino: string; pct: number };
+export type VistaCuenta = {
+  meta_mes: number | null;
+  ticket: number | null;
+  necesarias: number | null;
+  tienes: number;
+  cierre: CuentaCierre;
+  propuestas_semana: number;
+  hechas_semana: number;
+  horas_semana: CaminoHoras[];
+};
+
+export type ApuestaProgreso = { hecho: number; meta: number };
+export type ApuestaVista = {
+  id: string;
+  camino: string;
+  inicio: ISODateString;
+  fin: ISODateString;
+  tope_horas: number;
+  tope_plata: number;
+  gastado_horas: number;
+  gastado_plata: number;
+  senal_sigue: boolean;
+  senal_pausa: boolean;
+  progreso: ApuestaProgreso;
+  resultado: string | null;
+};
+
+export type FuenteVista = { id: string; url: string; fecha: ISODateString; fragmento: string; verificada: boolean; tipo: string | null };
+export type VistaAnalisisCamino = {
+  estado: "investigando" | "listo" | "fallo";
+  mercado: string | null;
+  competidores: string | null;
+  juego: string | null;
+  a_favor: string | null;
+  en_contra: string | null;
+  dominio: string | null;
+  base: { texto: string; fuente_id: string | null } | null;
+  palancas: string | null;
+  objeciones: string | null;
+  prueba: string | null;
+  fuentes: FuenteVista[];
+};
+
 export const nucleo = {
   salud: () => pedir<Salud>("/salud"),
   // Un núcleo que todavía no tiene esta ruta (B2) responde 404: null, no
@@ -286,4 +339,24 @@ export const nucleo = {
   configGasto: () => pedir<ConfigGasto>("/config/gasto"),
   guardarConfigGasto: (config: { tope_dia_usd: number; tope_mes_usd: number; activo: boolean }) =>
     pedir<ConfigGasto>("/config/gasto", { method: "PUT", body: JSON.stringify(config) }),
+
+  // Rumbo (R1-R5): visión/meta/escalera/partida, cuenta hacia atrás,
+  // apuestas y el análisis de un camino.
+  rumbo: () => pedir<VistaRumbo>("/rumbo"),
+  contarVision: (texto: string) =>
+    pedir<{ propuesta: PropuestaVisionVista; voz: string }>("/rumbo/vision", { method: "POST", body: JSON.stringify({ texto }) }),
+  fijarMeta: (meta: { monto_min: number | null; monto_max: number | null; meses_seguidos: number | null; limites: string | null; confirmada: boolean }) =>
+    pedir<MetaVista | null>("/rumbo/meta", { method: "POST", body: JSON.stringify(meta) }),
+  rumboCuenta: () => pedir<VistaCuenta>("/rumbo/cuenta"),
+  rumboApuestas: () => pedir<ApuestaVista[]>("/rumbo/apuestas"),
+  // 404: esa idea todavía no tiene un análisis pedido — la pantalla lo dice,
+  // no rompe.
+  analisisCamino: async (id: string): Promise<VistaAnalisisCamino | null> => {
+    try {
+      return await pedir<VistaAnalisisCamino>(`/rumbo/caminos/${encodeURIComponent(id)}`);
+    } catch (error) {
+      if (error instanceof NucleoApagado && error.status === 404) return null;
+      throw error;
+    }
+  },
 };
