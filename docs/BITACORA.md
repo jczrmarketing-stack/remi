@@ -20,6 +20,43 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · PR · Del encargo a producción · cerrado con un BLOQUEADO · 123fdc1
+
+Escribe la terminal, ejecutando `docs/PLAN-FINAL.md` (Biblia Parte VIII, los cinco
+criterios).
+
+- **Qué cambió:**
+  1. `nucleo/produccion.py`: `generar_paquete_base` (PR.1 — `{ruta: contenido}` de
+     `CLAUDE.md` y `contratos/contratos.json`; no escribe nada por sí solo, nunca se mete
+     dentro de una app gestionada sin que Juan Camilo lo pida). `puede_entregar` (PR.4 —
+     un `HallazgoSeguridad` con severidad `serio` basta para bloquear la Entrega).
+     `revisar_sesion`/`nada_grave_pendiente` (PR.2/PR.3 — ordena los hallazgos del diff por
+     gravedad, con un `Revisor` inyectado; la explicación de tres líneas sin jerga viaja en
+     la misma `RevisionDiff`). `ListaDeLaVerdad` (PR.5 — las cuatro preguntas; `primera_
+     pendiente()` encoge al primer «no», nunca lista todo lo que falta — ley 3).
+  2. Cierre: `pytest -q` → 1038 pasadas, 2 omitidas (las de escala, a mano); `mypy .` → sin
+     hallazgos (188 archivos). Ventanita/panel: `tsc` limpio, 117+72 pasadas. `launchctl
+     kickstart` reinició el núcleo. `doctor.sh` → 11/11. Sin endpoints HTTP nuevos en esta
+     fase (es proceso interno, no forma J–S): no hay nada que comprobar con un GET real.
+- **BLOQUEADO (mismo de R3/R4): la revisión real con otro modelo (PR.2/PR.3)** — por qué:
+  necesita una llamada real a un modelo DISTINTO del que escribió el código, disparada
+  desde un gancho `SessionEnd` de Claude Code cuando una sesión cierra con commits — la
+  misma sesión dedicada de prompt-design y wireo de ganchos que R3/R4. `Revisor` ya es la
+  interfaz tipada y probada con un doble; falta conectar el gancho real y elegir qué
+  modelo hace de revisor.
+- **Decisiones que tomé sin preguntar:**
+  1. `generar_paquete_base` devuelve archivos, no los escribe — coherente con la regla
+     dura de este operador (nunca tocar una app gestionada sin pedido explícito); quien
+     use esto en un proyecto nuevo decide dónde escribir cada archivo.
+  2. No agregué endpoints HTTP para PR: la Biblia no define una forma J–S para esta fase
+     (es proceso, no dato que viva en el panel); si el panel necesita mostrar algo de esto
+     más adelante, se agrega cuando haga falta, no antes.
+- **Dudas abiertas:** ninguna más allá del BLOQUEADO.
+- **Cómo probarlo a mano:** `pytest pruebas/test_produccion.py -v` en verde (8 casos,
+  todo con dobles).
+
+---
+
 ## 2026-10-04 · B10 · Calendario y app activa · cerrado con dos ESPERA PERMISO · ee69a63
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`.
