@@ -20,7 +20,7 @@ Formato de una entrada construida:
 
 ---
 
-## 2026-10-04 · B5 (mapeo app-tema) · construido · pendiente
+## 2026-10-04 · B5 (mapeo app-tema) · construido · 34aa7b8
 
 Cierra el CAMBIO DE FORMA anotado en el cierre de Z (`742bd8f`): `desvio` solo detectaba
 otra sesión de Claude Code, no otra app de macOS. Juan Camilo decidió (vía Claude en la
