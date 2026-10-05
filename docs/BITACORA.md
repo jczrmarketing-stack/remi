@@ -20,6 +20,35 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-04 · B5 (mapeo app-tema) · construido · pendiente
+
+Cierra el CAMBIO DE FORMA anotado en el cierre de Z (`742bd8f`): `desvio` solo detectaba
+otra sesión de Claude Code, no otra app de macOS. Juan Camilo decidió (vía Claude en la
+app): lista global de apps de trabajo, no una por proyecto.
+
+- **Qué cambió:** `config/apps_trabajo.json` (nuevo: `Terminal`, `Google Chrome`, `Claude`
+  — las dio Juan Camilo). `nucleo/avisos.py`: tabla `enfoque_externo` (fila única, "desde
+  cuándo" la app activa no está en la lista); `_regla_desvio` ahora, si no hay otra sesión
+  de Claude Code, consulta Accesibilidad (B10, ESPERA PERMISO) — si la app activa está en
+  la lista, borra el seguimiento (vuelve al tema reinicia el reloj); si no, y lleva 30 min
+  fuera, avisa igual que el camino de Claude Code. Sin permiso dado, el lector real vuelve
+  `None` y nada cambia. `nucleo/pruebas/test_avisos.py`: 4 pruebas nuevas (app de la lista
+  nunca avisa, app fuera 30 min sí avisa, volver a una app de la lista reinicia el reloj,
+  sin permiso no rompe).
+- **Decisiones que tomé sin preguntar:**
+  1. El reloj de "fuera del tema" es uno solo (no por app): cualquier app fuera de la
+     lista cuenta como el mismo desvío, no reinicia al cambiar entre dos apps fuera de la
+     lista — solo se reinicia al pasar por una app de la lista.
+  2. `ref` del aviso: `app:<nombre>:<desde-iso>` — no repite mientras sea el mismo tramo
+     fuera de tema (igual que `claude:<session_id>` ya hacía).
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** con el permiso de Accesibilidad dado (B10) y un bloque con
+  `fecha_limite` abierto, cambiar a una app fuera de `config/apps_trabajo.json` por 30 min
+  y pedir `GET /avisos/pendiente` — debe traer `desvio`. Volver a Chrome/Terminal antes de
+  los 30 min y el aviso no sale.
+
+---
+
 ## 2026-10-04 · Z (puntos 1 y 2) · Cierre · 742bd8f
 
 Escribe la terminal, ejecutando `docs/PLAN-FINAL.md`. Solo los puntos 1 y 2 de Z (el mega

@@ -246,3 +246,105 @@ def test_sin_bloque_abierto_evaluar_no_rompe(tmp_path, monkeypatch):
     aviso = avisos.evaluar(conexion, ahora)
     conexion.close()
     assert aviso is None
+
+
+def _bloque_con_fecha_limite(conexion, ahora):
+    tarea_id = str(uuid4())
+    conexion.execute(
+        "INSERT INTO tareas (id, titulo, proyecto_id, estado, paso_minimo, estimado_min, real_min, compartible, fecha_limite) "
+        "VALUES (?, 'x', NULL, 'hoy', 'paso', NULL, NULL, 0, ?)",
+        (tarea_id, ahora.isoformat()),
+    )
+    conexion.execute(
+        "INSERT INTO sesiones (id, tarea_id, inicio, fin, real_min, app_contexto) VALUES (?, ?, ?, NULL, 0, 'upvisuals')",
+        (str(uuid4()), tarea_id, (ahora - timedelta(minutes=5)).isoformat()),
+    )
+    conexion.commit()
+
+
+def test_mapeo_app_tema_app_de_trabajo_nunca_avisa_desvio(tmp_path, monkeypatch):
+    """Decisión de Juan Camilo (4-oct-2026): lista global de apps de
+    trabajo (config/apps_trabajo.json) — Terminal, Google Chrome, Claude.
+    Si Accesibilidad ve una de esas al frente, no es desvío aunque pasen
+    30 min."""
+    avisos = _db(tmp_path, monkeypatch)
+    import accesibilidad
+
+    conexion = _conexion(avisos)
+    ahora = datetime(2026, 10, 5, 14, 0, tzinfo=timezone.utc)
+    _bloque_con_fecha_limite(conexion, ahora)
+    monkeypatch.setattr(accesibilidad, "leer_ventana_activa_macos", lambda: accesibilidad.VentanaActiva("Terminal", ""))
+    aviso = avisos.evaluar(conexion, ahora)
+    conexion.close()
+    assert aviso is None
+
+
+def test_mapeo_app_tema_app_fuera_de_la_lista_30_min_avisa_desvio(tmp_path, monkeypatch):
+    avisos = _db(tmp_path, monkeypatch)
+    import accesibilidad
+
+    conexion = _conexion(avisos)
+    ahora = datetime(2026, 10, 5, 14, 0, tzinfo=timezone.utc)
+    _bloque_con_fecha_limite(conexion, ahora)
+    monkeypatch.setattr(accesibilidad, "leer_ventana_activa_macos", lambda: accesibilidad.VentanaActiva("Instagram", ""))
+    # Primera lectura: queda registrada "desde ahora" — todavía no pasan 30 min.
+    primero = avisos.evaluar(conexion, ahora)
+    # A los 26 min, foco_25 del mismo bloque gana la carrera y se consume su
+    # único turno — no toca el reloj de `desvio`, que sigue desde el paso 1.
+    segundo = avisos.evaluar(conexion, ahora + timedelta(minutes=26))
+    # `entre_min` (45) exige esperar desde el aviso de foco_25 — el reloj de
+    # desvío sigue contando desde el paso 1 (ahora), no desde aquí.
+    tercero = avisos.evaluar(conexion, ahora + timedelta(minutes=26 + 46))
+    conexion.close()
+    assert primero is None
+    assert segundo is not None and segundo.tipo == "foco_25"
+    assert tercero is not None and tercero.tipo == "desvio"
+    assert "Instagram" in tercero.texto
+
+
+def test_mapeo_app_tema_volver_a_app_de_trabajo_resetea_el_reloj(tmp_path, monkeypatch):
+    avisos = _db(tmp_path, monkeypatch)
+    import accesibilidad
+
+    conexion = _conexion(avisos)
+    ahora = datetime(2026, 10, 5, 14, 0, tzinfo=timezone.utc)
+    _bloque_con_fecha_limite(conexion, ahora)
+    # Consume primero el turno de foco_25 (mismo bloque) para que las
+    # llamadas siguientes lleguen de verdad a la regla de desvío.
+    monkeypatch.setattr(accesibilidad, "leer_ventana_activa_macos", lambda: accesibilidad.VentanaActiva("Google Chrome", ""))
+    t_foco = ahora + timedelta(minutes=26)
+    foco = avisos.evaluar(conexion, t_foco)
+    assert foco is not None and foco.tipo == "foco_25"
+
+    monkeypatch.setattr(accesibilidad, "leer_ventana_activa_macos", lambda: accesibilidad.VentanaActiva("Instagram", ""))
+    t1 = t_foco
+    uno = avisos.evaluar(conexion, t1)  # queda "fuera desde" t1
+    assert uno is None
+
+    monkeypatch.setattr(accesibilidad, "leer_ventana_activa_macos", lambda: accesibilidad.VentanaActiva("Google Chrome", ""))
+    t2 = t1 + timedelta(minutes=20)
+    dos = avisos.evaluar(conexion, t2)  # vuelve al tema — borra el seguimiento
+    assert dos is None
+
+    monkeypatch.setattr(accesibilidad, "leer_ventana_activa_macos", lambda: accesibilidad.VentanaActiva("Instagram", ""))
+    t3 = t2 + timedelta(minutes=15)
+    tres = avisos.evaluar(conexion, t3)
+    conexion.close()
+    # Sin el reset, t3 - t1 = 35 min >= 30 habría avisado. Con el reset en
+    # t2, el reloj arranca de nuevo en t3 — 0 min, no avisa.
+    assert tres is None
+
+
+def test_mapeo_app_tema_sin_permiso_de_accesibilidad_no_rompe(tmp_path, monkeypatch):
+    """B10 sigue ESPERA PERMISO: sin el permiso, el lector real vuelve
+    `None` y evaluar() no debe fallar ni avisar por este camino."""
+    avisos = _db(tmp_path, monkeypatch)
+    import accesibilidad
+
+    conexion = _conexion(avisos)
+    ahora = datetime(2026, 10, 5, 14, 0, tzinfo=timezone.utc)
+    _bloque_con_fecha_limite(conexion, ahora)
+    monkeypatch.setattr(accesibilidad, "leer_ventana_activa_macos", lambda: None)
+    aviso = avisos.evaluar(conexion, ahora)
+    conexion.close()
+    assert aviso is None

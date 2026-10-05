@@ -16,8 +16,11 @@ from pathlib import Path
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
+import accesibilidad
+
 BOGOTA = ZoneInfo("America/Bogota")
 RUTA_CONFIG_POR_DEFECTO = Path(__file__).resolve().parent.parent / "config" / "avisos.json"
+RUTA_APPS_TRABAJO_POR_DEFECTO = Path(__file__).resolve().parent.parent / "config" / "apps_trabajo.json"
 
 TIPOS = ("terminal_termino", "foco_25", "desvio")
 MINUTOS_FOCO = 25
@@ -38,9 +41,22 @@ CREATE TABLE IF NOT EXISTS avisos (
 );
 """
 
+ESQUEMA_ENFOQUE = """
+CREATE TABLE IF NOT EXISTS enfoque_externo (
+    -- Fila única (id fijo): desde cuándo la app activa (por Accesibilidad,
+    -- B10) no está en `config/apps_trabajo.json`. Se borra en cuanto vuelve
+    -- una app de la lista; así `_regla_desvio` mide "sostenida 30 min" sin
+    -- necesitar una tabla de muestreo.
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    app TEXT NOT NULL,
+    desde TEXT NOT NULL
+);
+"""
+
 
 def _preparar(conexion: sqlite3.Connection) -> None:
     conexion.executescript(ESQUEMA)
+    conexion.executescript(ESQUEMA_ENFOQUE)
 
 
 @dataclass(frozen=True)
@@ -57,6 +73,24 @@ CONFIG_POR_DEFECTO = ConfigAvisos(suenan=TIPOS, max_dia=5, entre_min=45, noche=(
 
 def _ruta_config() -> Path:
     return Path(os.environ.get("REMI_AVISOS") or RUTA_CONFIG_POR_DEFECTO)
+
+
+def _ruta_apps_trabajo() -> Path:
+    return Path(os.environ.get("REMI_APPS_TRABAJO") or RUTA_APPS_TRABAJO_POR_DEFECTO)
+
+
+def leer_apps_trabajo() -> tuple[str, ...]:
+    """Lista global de apps que siempre cuentan como "en el tema" —
+    `config/apps_trabajo.json`. Decisión de Juan Camilo (4-oct-2026): una
+    lista fija, sin importar el proyecto, no una por libro."""
+    try:
+        datos = json.loads(_ruta_apps_trabajo().read_text())
+    except (OSError, json.JSONDecodeError):
+        return ()
+    if not isinstance(datos, dict):
+        return ()
+    apps = datos.get("apps", [])
+    return tuple(a for a in apps if isinstance(a, str))
 
 
 def leer_config() -> ConfigAvisos:
@@ -211,7 +245,33 @@ def _regla_foco_25(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, 
     return "foco_25", f"25 min de bloque{f' en {tema}' if tema else ''}. ¿Seguimos?", f"sesion:{fila['id']}"
 
 
-def _regla_desvio(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, str, str] | None:
+def _actualizar_enfoque_externo(
+    conexion: sqlite3.Connection, ventana: accesibilidad.VentanaActiva | None, apps_trabajo: tuple[str, ...], ahora: datetime
+) -> tuple[str, datetime] | None:
+    """Actualiza la fila única de `enfoque_externo` y devuelve (app, desde)
+    si la app activa sigue fuera de la lista de trabajo; `None` si no hay
+    lectura, o si la app activa está en la lista (y de paso borra el
+    seguimiento — vuelve al tema limpia el reloj)."""
+    if ventana is None:
+        return None
+    if ventana.app in apps_trabajo:
+        conexion.execute("DELETE FROM enfoque_externo WHERE id = 1")
+        conexion.commit()
+        return None
+    fila = conexion.execute("SELECT app, desde FROM enfoque_externo WHERE id = 1").fetchone()
+    if fila is None:
+        conexion.execute(
+            "INSERT INTO enfoque_externo (id, app, desde) VALUES (1, ?, ?)", (ventana.app, ahora.isoformat())
+        )
+        conexion.commit()
+        return ventana.app, ahora
+    desde = datetime.fromisoformat(fila["desde"])
+    return fila["app"], desde
+
+
+def _regla_desvio(
+    conexion: sqlite3.Connection, ahora: datetime, lector_ventana: accesibilidad.LectorVentanaActiva | None = None
+) -> tuple[str, str, str] | None:
     fila = conexion.execute(
         "SELECT s.app_contexto AS tema, t.fecha_limite AS fecha_limite FROM sesiones s "
         "JOIN tareas t ON t.id = s.tarea_id WHERE s.fin IS NULL ORDER BY s.inicio DESC LIMIT 1"
@@ -225,11 +285,23 @@ def _regla_desvio(conexion: sqlite3.Connection, ahora: datetime) -> tuple[str, s
         "ORDER BY inicio ASC LIMIT 1",
         (tema_bloque,),
     ).fetchone()
-    if otra is None:
+    if otra is not None and datetime.fromisoformat(otra["inicio"]) <= limite:
+        return "desvio", f"Lleva un rato en {otra['tema']} con {tema_bloque} prometido. ¿Volvemos?", f"claude:{otra['session_id']}"
+
+    # B10 + mapeo app-tema (decisión de Juan Camilo, 4-oct-2026): si no hay
+    # otra sesión de Claude Code, mira la app activa real (Accesibilidad de
+    # macOS). Con permiso aún no dado, el lector vuelve `None` y esto no
+    # cambia nada — sigue como antes de este cambio.
+    lector = lector_ventana or accesibilidad.leer_ventana_activa_macos
+    ventana = lector()
+    apps_trabajo = leer_apps_trabajo()
+    seguimiento = _actualizar_enfoque_externo(conexion, ventana, apps_trabajo, ahora)
+    if seguimiento is None:
         return None
-    if datetime.fromisoformat(otra["inicio"]) > limite:
+    app_fuera, desde = seguimiento
+    if ahora - desde < timedelta(minutes=MINUTOS_DESVIO):
         return None
-    return "desvio", f"Lleva un rato en {otra['tema']} con {tema_bloque} prometido. ¿Volvemos?", f"claude:{otra['session_id']}"
+    return "desvio", f"Lleva un rato en {app_fuera} con {tema_bloque} prometido. ¿Volvemos?", f"app:{app_fuera}:{desde.isoformat()}"
 
 
 _REGLAS = (_regla_foco_25, _regla_desvio)
@@ -239,6 +311,7 @@ def evaluar(conexion: sqlite3.Connection, ahora: datetime, canal: str = "ventani
     """El primer candidato de las reglas de reloj que de verdad sale —
     presupuesto, silencio, noche y «ya avisó este bloque» ya filtrados
     por `registrar`."""
+    _preparar(conexion)
     for regla in _REGLAS:
         candidato = regla(conexion, ahora)
         if candidato is None:
