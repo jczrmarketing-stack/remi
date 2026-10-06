@@ -20,6 +20,137 @@ Formato de una entrada construida:
 
 ---
 
+## 2026-10-06 · R5 panel (motor, 375 px) · construido · f7f1228
+
+Cuarta y última tarea del encargo del panel de Rumbo: «Motor» (tablero 9, el
+Rumbo como sistema) y el barrido a 375 px de las cuatro pantallas nuevas.
+
+- **Qué cambió:** `apps/panel/src/lib/nucleo.ts` suma `latido()` sobre
+  `GET /rumbo/latido` (forma S exacta: `[{pieza, ultimo_dato,
+  callado_dias}]`), con el mismo patrón 404→`[]` que ya usan las demás
+  rutas de Rumbo contra un núcleo viejo. `apps/panel/src/app/rumbo/motor/
+  page.tsx`: una fila por pieza (reloj, pronósticos, cuenta), sin rojo ni
+  alarma — «callado N días» solo aparece desde 2 días (ley 3: nada se
+  marca como falla). Enlace «Ver el motor» desde Rumbo.
+  `apps/panel/tests/rumbo-motor.spec.ts` suma, al final, un barrido
+  parametrizado por las cuatro rutas de Rumbo (`/rumbo`, `/rumbo/partida`,
+  `/rumbo/caminos/[id]`, `/rumbo/motor`) a 375 px y en escritorio (1280 px),
+  confirmando `scrollWidth <= clientWidth` en las dos.
+- **Decisiones que tomé sin preguntar:**
+  1. El umbral visual de «callado» en el motor es 2 días, igual al que
+     describe la Biblia para el aviso real del latido — no se inventó un
+     número nuevo, se tomó el mismo.
+  2. El motor queda como pantalla aparte (`/rumbo/motor`), no una sección
+     de la pantalla principal de Rumbo: la ley 4 («una meta, una cuenta,
+     una barra, apuestas y una frase» en la pantalla principal) ya la
+     llena la Tarea 2; el motor es diagnóstico, no parte de esa única
+     locura por pantalla.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `cd apps/panel && npx tsc --noEmit && npx
+  playwright test` → 100/100. Contra el núcleo real, `GET /rumbo/latido`
+  es de solo lectura (confirmado leyendo `nucleo/reloj.py` antes de
+  llamarlo — no escribe nada, a diferencia de `GET /rumbo/apuestas`).
+
+---
+
+## 2026-10-06 · R3.5 panel (análisis de un camino) · construido · 3e6e72d
+
+Tercera tarea del encargo del panel de Rumbo.
+
+- **Qué cambió:** `apps/panel/src/app/rumbo/caminos/[id]/page.tsx`: las
+  seis preguntas en orden de la Biblia (¿a quién venderle? ¿quién ya lo
+  hace? ¿quién más mueve fichas? ¿a favor y en contra? ¿qué tan probable
+  es, con el dominio y su base? ¿qué objetó otro modelo?), palancas, la
+  prueba que responde la duda, y las fuentes con su url/fecha/fragmento y
+  si están verificadas. Usa `nucleo.analisisCamino(id)` tal cual, sin
+  campos nuevos. Entrada nueva en Rumbo: «El análisis de un camino», con
+  un campo de id. `apps/panel/tests/rumbo-camino.spec.ts`.
+- **Decisiones que tomé sin preguntar:**
+  1. El núcleo (`apps/panel/src/lib/nucleo.ts`) no expone ninguna ruta que
+     liste los caminos con análisis pedido — solo `analisisCamino(id)`,
+     que necesita un id de entrada. Mientras esa lista no exista, puse un
+     campo de texto simple (id → `/rumbo/caminos/{id}`) en vez de inventar
+     un listado o un endpoint. Cuando el núcleo sirva la lista, este campo
+     se cambia por ella.
+  2. No construí las jugadas que este análisis puede proponer hacia la
+     Bandeja — eso es ESPERA D1, explícitamente fuera de este encargo.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `cd apps/panel && npx tsc --noEmit && npx
+  playwright test tests/rumbo-camino.spec.ts` → 5/5. Contra el núcleo
+  real: `GET /rumbo/caminos/{id}` con un id sin análisis pedido responde
+  404 y la pantalla muestra «Todavía no pedí un análisis para este
+  camino.» en vez de romperse.
+
+---
+
+## 2026-10-06 · R2.5 panel (tablero 6 completo) · construido · 776e1bc
+
+Segunda tarea del encargo del panel de Rumbo.
+
+- **Qué cambió:** en `/rumbo`, suma la cuenta hacia atrás
+  (`nucleo.rumboCuenta()`: mensualidades necesarias/tienes, cierre con su
+  origen propia/general, propuestas de la semana) y las apuestas
+  (`nucleo.rumboApuestas()`: tope de horas/plata, gastado, señales
+  sigue/pausa, progreso, resultado). Componente canónico nuevo
+  `apps/panel/src/components/ProgressBar.tsx` (una barra sin relleno de
+  tarjeta, sobre `var(--line)`), reusado por la cuenta, el reparto de
+  horas y cada apuesta. `apps/panel/tests/rumbo-cuenta.spec.ts`.
+- **BLOQUEADO: «jugadas que ganan pase lo que pase»** (Biblia, Parte IX,
+  «Realista sin ser pesimista») — por qué: ni `VistaCuenta` ni
+  `ApuestaVista` (`apps/panel/src/lib/nucleo.ts`) traen ese campo, y no
+  hay ninguna ruta del núcleo que lo sirva. Qué hace falta: que el núcleo
+  calcule esa jugada (una que mejora la posición en cualquier escenario)
+  y la exponga en una forma nueva o una que ya exista — no se inventó en
+  el panel para no mostrar un dato que no viene de ningún lado.
+- **Decisiones que tomé sin preguntar:** ninguna más allá de la forma de
+  la barra de horas (una por camino, con su color de la rampa, en el
+  orden que entrega el núcleo).
+- **Dudas abiertas:** ninguna más allá del BLOQUEADO.
+- **Cómo probarlo a mano:** `cd apps/panel && npx tsc --noEmit && npx
+  playwright test tests/rumbo-cuenta.spec.ts` → 4/4.
+
+---
+
+## 2026-10-06 · R1.5 panel (pestaña Rumbo) · construido · a8f3ee6
+
+Primera tarea del encargo «construir el panel de Rumbo» (el núcleo de
+R1-R5 ya estaba hecho desde `8ee57a4`…`8a7ecbf`; faltaba solo
+`apps/panel/src/app/rumbo`, que no existía). Carga la skill `/remi`, lee
+`CLAUDE.md`, `docs/PLAN-FINAL.md`, `docs/BIBLIA.md` Parte IX y las tres
+entradas de arriba de esta bitácora antes de escribir código, como pide el
+encargo.
+
+- **Qué cambió:** `apps/panel/src/app/rumbo/page.tsx`: la escalera arriba
+  (un color/peso por estado — `conquistado` en `luz`, `ahora` en `brasa`
+  con su glow, `sigue`/`luego` sin relleno, `norte` con borde punteado;
+  nunca relleno de tarjeta), la meta si ya existe, y «Contar mi visión»
+  (voz con dictado del navegador cuando existe, y texto siempre) que llama
+  a `nucleo.contarVision` y muestra la propuesta — la meta solo cambia con
+  `nucleo.fijarMeta({..., confirmada: true})`, nunca sola.
+  `apps/panel/src/app/rumbo/partida/page.tsx`: el punto de partida
+  agrupado por tipo (recurso/habilidad/cuesta/preferencia), con el origen
+  (medido/dicho/pregunta) y el dominio (cirujano/sabe/aprendiz) cuando
+  aplica. `apps/panel/tests/rumbo.spec.ts` y `partida.spec.ts`.
+  `apps/panel/tests/nucleo-falso.mjs` suma de una vez las rutas de Rumbo
+  que usarán las cuatro tareas (es un fixture de prueba compartido, no
+  código de producto — no tiene sentido partirlo tarea por tarea).
+- **Decisiones que tomé sin preguntar:**
+  1. El dictado de voz usa `webkitSpeechRecognition` del navegador cuando
+     existe (Safari/Chrome de escritorio) y se oculta en silencio cuando
+     no — no se construyó un servicio de voz nuevo para esto; el texto
+     siempre funciona igual.
+  2. La propuesta de visión se muestra de solo lectura antes de confirmar
+     (sin campos editables uno por uno): «Confirmar meta» guarda
+     exactamente lo que el núcleo propuso, o «Volver a contarla» descarta
+     y reintenta. Más simple que editar cada número a mano, y el núcleo es
+     quien decide los valores, no el panel.
+- **Dudas abiertas:** ninguna.
+- **Cómo probarlo a mano:** `cd apps/panel && npx tsc --noEmit && npx
+  playwright test tests/rumbo.spec.ts tests/partida.spec.ts` → 8/8.
+  Contra el núcleo real: `GET /rumbo` es de solo lectura.
+
+---
+
 ## 2026-10-04 · B5 (mapeo app-tema) · construido · 34aa7b8
 
 Cierra el CAMBIO DE FORMA anotado en el cierre de Z (`742bd8f`): `desvio` solo detectaba
