@@ -7,6 +7,7 @@
 // vive aparte, en /rumbo/partida.
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { TabBar } from "@/components/TabBar";
 import { Apagado } from "@/components/Apagado";
@@ -65,6 +66,7 @@ export default function PaginaRumbo() {
         <Meta datos={datos.rumbo} onCambio={recargar} />
         <Cuenta cuenta={datos.cuenta} />
         <Apuestas apuestas={datos.apuestas} />
+        <VerAnalisisDeCamino />
 
         <p className="voz"><Bionica texto="A dónde vas y por qué esto primero. La certeza sube con la evidencia, no con la confianza." /></p>
       </div>
@@ -389,5 +391,40 @@ function FilaApuesta({ apuesta }: { apuesta: ApuestaVista }) {
         {apuesta.resultado ? <Chip mono>{apuesta.resultado}</Chip> : null}
       </div>
     </div>
+  );
+}
+
+// — R3.5: entrada a «el análisis de un camino» (/rumbo/caminos/[id]). El
+//   núcleo todavía no expone una lista de caminos con análisis — mientras
+//   no la tenga, se entra por el id de la idea (decisión sin preguntar,
+//   anotada en la bitácora). —
+
+function VerAnalisisDeCamino() {
+  const router = useRouter();
+  const [id, setId] = useState("");
+
+  function ir(evento: FormEvent) {
+    evento.preventDefault();
+    if (!id.trim()) return;
+    router.push(`/rumbo/caminos/${encodeURIComponent(id.trim())}`);
+  }
+
+  return (
+    <section aria-label="Ver el análisis de un camino" className="card">
+      <div className="label">El análisis de un camino</div>
+      <form onSubmit={ir} className="pregunta-fila" style={{ marginTop: 10 }}>
+        <input
+          type="text"
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+          aria-label="Id del camino"
+          placeholder="Id del camino"
+          className="pregunta-campo"
+        />
+        <div className="pregunta-botones">
+          <button type="submit" className="btn btn-secundario" disabled={!id.trim()}>Ver análisis</button>
+        </div>
+      </form>
+    </section>
   );
 }
