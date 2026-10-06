@@ -198,6 +198,11 @@ export type ApuestaVista = {
   resultado: string | null;
 };
 
+// R5.2, forma S: si el reloj, los pronósticos o la cuenta dejan de recibir
+// datos, el latido lo dice una vez, sin culpa. `ultimo_dato`: ISO, o null
+// si esa pieza nunca recibió nada todavía.
+export type LatidoPieza = { pieza: string; ultimo_dato: ISODateString | null; callado_dias: number };
+
 export type FuenteVista = { id: string; url: string; fecha: ISODateString; fragmento: string; verificada: boolean; tipo: string | null };
 export type VistaAnalisisCamino = {
   estado: "investigando" | "listo" | "fallo";
@@ -356,6 +361,16 @@ export const nucleo = {
       return await pedir<VistaAnalisisCamino>(`/rumbo/caminos/${encodeURIComponent(id)}`);
     } catch (error) {
       if (error instanceof NucleoApagado && error.status === 404) return null;
+      throw error;
+    }
+  },
+  // R5.2 (forma S): un núcleo que todavía no la sirve responde 404 — el
+  // motor lo dice sin romperse, no como un núcleo caído.
+  latido: async (): Promise<LatidoPieza[]> => {
+    try {
+      return await pedir<LatidoPieza[]>("/rumbo/latido");
+    } catch (error) {
+      if (error instanceof NucleoApagado && error.status === 404) return [];
       throw error;
     }
   },

@@ -59,7 +59,10 @@ export default function PaginaRumbo() {
       <div className="contenedor">
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "8px 16px", flexWrap: "wrap", paddingTop: 8 }}>
           <h1 className="display-xl" style={{ fontSize: 40, lineHeight: "42px" }}>Rumbo</h1>
-          <Link href="/rumbo/partida" className="btn btn-secundario">Ver el punto de partida</Link>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Link href="/rumbo/partida" className="btn btn-secundario">Ver el punto de partida</Link>
+            <Link href="/rumbo/motor" className="btn btn-secundario">Ver el motor</Link>
+          </div>
         </div>
 
         <Escalera escalera={datos.rumbo.escalera} />
