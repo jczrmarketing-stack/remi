@@ -182,6 +182,22 @@ button { font: inherit; cursor: pointer; color: inherit; }
   font-size: 16px;
 }
 .pregunta-campo::placeholder { color: var(--ink-muted); }
+
+/* — Rumbo: contar la visión, hablando o escribiendo — */
+
+.vision-campo {
+  width: 100%;
+  min-height: 72px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  resize: vertical;
+}
+.vision-campo::placeholder { color: var(--ink-muted); }
 .pregunta-botones { display: flex; gap: 10px; }
 @media (max-width: 720px) {
   .pregunta-fila { flex-direction: column; align-items: stretch; gap: var(--space-2); }

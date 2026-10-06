@@ -296,6 +296,113 @@ function enviarJSON(res, estado, cuerpo) {
 let configGasto = { tope_dia_usd: 5.0, tope_mes_usd: 50.0, activo: true };
 const vistaGasto = () => ({ ...configGasto, gastado_dia_usd: 0, gastado_mes_usd: 0 });
 
+// R1-R5: Rumbo. Datos fijos que cubren los cinco estados de la escalera,
+// los cuatro tipos y los tres orígenes de la partida, una apuesta activa y
+// una cerrada, y dos caminos (uno listo con fuentes, uno investigando).
+// `metaConfirmada` es lo único que /__escenario resetea (empieza sin meta:
+// así se prueba que «Contar mi visión» no la cambia sola).
+const ESCALERA = [
+  { n: 1, texto: "Primeros clientes", criterio: "2 mensualidades seguidas", estado: "conquistado" },
+  { n: 2, texto: "Vivir solo", criterio: "$2.400/mes, 6 meses seguidos", estado: "ahora" },
+  { n: 3, texto: "Un mes de margen", criterio: "3 meses de gasto fijo guardados", estado: "sigue" },
+  { n: 4, texto: "Dos líneas estables", criterio: "ningún cliente > 40 %", estado: "luego" },
+  { n: 5, texto: "Patrimonio", criterio: "$1.000.000 guardado y trabajando", estado: "norte" },
+];
+const PARTIDA = [
+  { tipo: "recurso", texto: "Horas reales por semana", valor: "22 h", origen: "medido", dominio: null },
+  { tipo: "recurso", texto: "Meses de gasto fijo guardados", valor: "2", origen: "medido", dominio: null },
+  { tipo: "habilidad", texto: "Software para clientes", valor: "6 proyectos entregados", origen: "medido", dominio: "cirujano" },
+  { tipo: "habilidad", texto: "Contenido (Malik)", valor: "2 cuentas creciendo", origen: "medido", dominio: "sabe" },
+  { tipo: "habilidad", texto: "Vender por llamada", valor: "sin evidencia todavía", origen: "pregunta", dominio: "aprendiz" },
+  { tipo: "cuesta", texto: "Seguimiento de propuestas", valor: "le cuesta sostenerlo", origen: "dicho", dominio: null },
+  { tipo: "preferencia", texto: "Prefiere mensualidad a pago único", valor: "", origen: "dicho", dominio: null },
+];
+let metaConfirmada = null;
+let visionTexto = null;
+const CUENTA = {
+  meta_mes: 2400,
+  ticket: 1000,
+  necesarias: 3,
+  tienes: 1,
+  cierre: { p: 0.25, base_n: 8, origen: "propia" },
+  propuestas_semana: 2,
+  hechas_semana: 1,
+  horas_semana: [
+    { camino: "Clientes de software", pct: 60 },
+    { camino: "Malik (contenido)", pct: 30 },
+    { camino: "Sin planear", pct: 10 },
+  ],
+};
+const APUESTAS = [
+  {
+    id: "apuesta-1",
+    camino: "Mensualidad de mantenimiento",
+    inicio: dia(-7),
+    fin: dia(7),
+    tope_horas: 20,
+    tope_plata: 0,
+    gastado_horas: 9,
+    gastado_plata: 0,
+    senal_sigue: true,
+    senal_pausa: false,
+    progreso: { hecho: 1, meta: 2 },
+    resultado: null,
+  },
+  {
+    id: "apuesta-2",
+    camino: "Curso corto de edición",
+    inicio: dia(-30),
+    fin: dia(-16),
+    tope_horas: 10,
+    tope_plata: 50,
+    gastado_horas: 10,
+    gastado_plata: 48,
+    senal_sigue: false,
+    senal_pausa: true,
+    progreso: { hecho: 0, meta: 1 },
+    resultado: "pausa",
+  },
+];
+const CAMINOS = {
+  "camino-1": {
+    estado: "listo",
+    mercado: "Negocios chicos que ya tienen web y necesitan mantenimiento mensual.",
+    competidores: "Freelancers sueltos, sin contrato de mensualidad.",
+    juego: "El cliente prueba un mes; si responde rápido, se queda.",
+    a_favor: "Ya tiene 6 proyectos entregados en software para clientes.",
+    en_contra: "Depende de conseguir el primer cliente de mantenimiento.",
+    dominio: "cirujano",
+    base: { texto: "De cada 10 freelancers que ofrecen mantenimiento, 3 lo sostienen un año.", fuente_id: "f1" },
+    palancas: "Ofrecer el primer mes a mitad de precio.",
+    objeciones: "El precio de mantenimiento puede parecer alto sin un caso mostrado.",
+    prueba: "Ofrecerlo a un cliente actual por un mes.",
+    fuentes: [
+      { id: "f1", url: "https://example.com/freelance-retention", fecha: dia(-20), fragmento: "3 de 10 freelancers sostienen un contrato mensual más de un año.", verificada: true, tipo: "fuente" },
+    ],
+  },
+  "camino-2": {
+    estado: "investigando",
+    mercado: null,
+    competidores: null,
+    juego: null,
+    a_favor: null,
+    en_contra: null,
+    dominio: null,
+    base: null,
+    palancas: null,
+    objeciones: null,
+    prueba: null,
+    fuentes: [],
+  },
+};
+// R5.2, forma S: si el reloj, los pronósticos o la cuenta no reciben datos
+// en 2 días, una pieza del latido lo dice — sin alarma, sin rojo.
+const LATIDO = [
+  { pieza: "reloj", ultimo_dato: iso(-2 * 3600000), callado_dias: 0 },
+  { pieza: "pronosticos", ultimo_dato: dia(-3), callado_dias: 3 },
+  { pieza: "cuenta", ultimo_dato: dia(-1), callado_dias: 1 },
+];
+
 function leerCuerpo(req) {
   return new Promise((resolve) => {
     let datos = "";
@@ -329,8 +436,42 @@ const servidor = createServer(async (req, res) => {
     preguntas = preguntasDeEntrada();
     listoCuandoFase2 = "";
     tipoDeMalik = null;
+    metaConfirmada = null;
+    visionTexto = null;
     return enviarJSON(res, 200, { bloque: hayBloque });
   }
+  if (req.method === "GET" && ruta === "/rumbo") {
+    return enviarJSON(res, 200, { vision: visionTexto, meta: metaConfirmada, escalera: ESCALERA, partida: PARTIDA });
+  }
+  if (req.method === "POST" && ruta === "/rumbo/vision") {
+    const cuerpo = await leerCuerpo(req);
+    visionTexto = String(cuerpo.texto ?? "");
+    return enviarJSON(res, 200, {
+      propuesta: { monto_min: 2400, monto_max: 3000, meses_seguidos: 6, limites: "ningún cliente más del 40 %" },
+      voz: "Entendí: entre $2.400 y $3.000 al mes, seis meses seguidos. ¿Confirmas?",
+    });
+  }
+  if (req.method === "POST" && ruta === "/rumbo/meta") {
+    const cuerpo = await leerCuerpo(req);
+    if (cuerpo.confirmada === true) {
+      metaConfirmada = {
+        monto_min: cuerpo.monto_min ?? null,
+        monto_max: cuerpo.monto_max ?? null,
+        meses_seguidos: cuerpo.meses_seguidos ?? null,
+        limites: cuerpo.limites ?? null,
+      };
+    }
+    return enviarJSON(res, 200, metaConfirmada);
+  }
+  if (req.method === "GET" && ruta === "/rumbo/cuenta") return enviarJSON(res, 200, CUENTA);
+  if (req.method === "GET" && ruta === "/rumbo/apuestas") return enviarJSON(res, 200, APUESTAS);
+  if (req.method === "GET" && ruta.match(/^\/rumbo\/caminos\/[^/]+$/)) {
+    const id = decodeURIComponent(ruta.split("/")[3]);
+    const camino = CAMINOS[id];
+    if (!camino) return enviarJSON(res, 404, { detail: "no tengo un análisis para ese camino" });
+    return enviarJSON(res, 200, camino);
+  }
+  if (req.method === "GET" && ruta === "/rumbo/latido") return enviarJSON(res, 200, LATIDO);
   if (req.method === "GET" && ruta === "/hoy") return enviarJSON(res, 200, hayBloque ? [bloqueAbierto(), ...DEMAS_HOY] : DEMAS_HOY);
   if (req.method === "GET" && ruta === "/hoy/agenda") return enviarJSON(res, 200, AGENDA);
   if (req.method === "POST" && ruta === "/bloque") {
