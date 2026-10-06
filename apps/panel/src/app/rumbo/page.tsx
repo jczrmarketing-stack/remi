@@ -11,11 +11,24 @@ import { Header } from "@/components/Header";
 import { TabBar } from "@/components/TabBar";
 import { Apagado } from "@/components/Apagado";
 import { Bionica } from "@/components/Bionica";
+import { Chip } from "@/components/Chip";
+import { ProgressBar } from "@/components/ProgressBar";
 import { useCargaNucleo } from "@/hooks/useCargaNucleo";
-import { nucleo, NucleoApagado, type EscalonVista, type PropuestaVisionVista, type VistaRumbo } from "@/lib/nucleo";
+import {
+  nucleo,
+  NucleoApagado,
+  type ApuestaVista,
+  type CaminoHoras,
+  type EscalonVista,
+  type PropuestaVisionVista,
+  type VistaCuenta,
+  type VistaRumbo,
+} from "@/lib/nucleo";
+import { fechaCorta } from "@/lib/formato";
 
 async function cargarRumbo() {
-  return nucleo.rumbo();
+  const [rumbo, cuenta, apuestas] = await Promise.all([nucleo.rumbo(), nucleo.rumboCuenta(), nucleo.rumboApuestas()]);
+  return { rumbo, cuenta, apuestas };
 }
 
 export default function PaginaRumbo() {
@@ -48,8 +61,10 @@ export default function PaginaRumbo() {
           <Link href="/rumbo/partida" className="btn btn-secundario">Ver el punto de partida</Link>
         </div>
 
-        <Escalera escalera={datos.escalera} />
-        <Meta datos={datos} onCambio={recargar} />
+        <Escalera escalera={datos.rumbo.escalera} />
+        <Meta datos={datos.rumbo} onCambio={recargar} />
+        <Cuenta cuenta={datos.cuenta} />
+        <Apuestas apuestas={datos.apuestas} />
 
         <p className="voz"><Bionica texto="A dónde vas y por qué esto primero. La certeza sube con la evidencia, no con la confianza." /></p>
       </div>
@@ -266,5 +281,113 @@ function ContarVision({ onCerrar, onCambio }: { onCerrar: () => void; onCambio: 
         <button type="button" className="btn btn-secundario" disabled={ocupado} onClick={onCerrar}>Cancelar</button>
       </div>
     </form>
+  );
+}
+
+// — R2.5: la cuenta hacia atrás (forma R) y el reparto de horas de la
+//   semana. Baja la meta a lo que se hace esta semana (Biblia, «La cuenta
+//   hacia atrás»). —
+
+function moneda(v: number): string {
+  return `$${Math.round(v).toLocaleString("es-CO")}`;
+}
+
+const COLOR_DE_CAMINO = ["var(--dinero)", "var(--pensar)", "var(--brasa)", "var(--luz)", "var(--ink-muted)"];
+
+function Cuenta({ cuenta }: { cuenta: VistaCuenta }) {
+  const conMeta = cuenta.meta_mes !== null && cuenta.ticket !== null && cuenta.necesarias !== null;
+  return (
+    <section aria-label="Cuenta hacia atrás" className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="label">Cuenta hacia atrás</div>
+      {conMeta ? (
+        <div>
+          <p className="body-txt" style={{ margin: 0 }}>
+            Necesitas {cuenta.necesarias} mensualidad{cuenta.necesarias === 1 ? "" : "es"} de {moneda(cuenta.ticket!)} para {moneda(cuenta.meta_mes!)}/mes. Tienes {cuenta.tienes}.
+          </p>
+          <div style={{ marginTop: 8 }}>
+            <ProgressBar pct={cuenta.necesarias! > 0 ? (cuenta.tienes / cuenta.necesarias!) * 100 : 0} etiqueta={`${cuenta.tienes} de ${cuenta.necesarias} mensualidades`} />
+          </div>
+        </div>
+      ) : (
+        <p className="body-muted" style={{ margin: 0 }}>Todavía no hay meta confirmada para calcular la cuenta.</p>
+      )}
+      <div>
+        <p className="body-txt" style={{ margin: 0 }}>
+          Esta semana: {cuenta.hechas_semana} de {cuenta.propuestas_semana} propuesta{cuenta.propuestas_semana === 1 ? "" : "s"}.
+        </p>
+        <div style={{ marginTop: 8 }}>
+          <ProgressBar
+            pct={cuenta.propuestas_semana > 0 ? (cuenta.hechas_semana / cuenta.propuestas_semana) * 100 : 0}
+            color="var(--brasa)"
+            etiqueta={`${cuenta.hechas_semana} de ${cuenta.propuestas_semana} propuestas de la semana`}
+          />
+        </div>
+      </div>
+      <p className="body-muted" style={{ margin: 0 }}>
+        Cierras {Math.round(cuenta.cierre.p * 10)} de cada 10 propuestas, con {cuenta.cierre.origen === "propia" ? `tu propio dato (${cuenta.cierre.base_n})` : "el dato general"}.
+      </p>
+      {cuenta.horas_semana.length > 0 ? <HorasDeLaSemana horas={cuenta.horas_semana} /> : null}
+    </section>
+  );
+}
+
+function HorasDeLaSemana({ horas }: { horas: CaminoHoras[] }) {
+  return (
+    <div>
+      <div className="label">Tus horas</div>
+      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+        {horas.map((h, i) => (
+          <div key={h.camino} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "baseline", fontSize: 14 }}>
+            <span className="body-muted" style={{ color: "var(--ink)" }}>{h.camino}</span>
+            <span className="mono-sm">{h.pct}%</span>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <ProgressBar pct={h.pct} color={COLOR_DE_CAMINO[i % COLOR_DE_CAMINO.length]} etiqueta={`${h.camino}: ${h.pct}% de la semana`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// — Apuestas (forma O): dos o tres pruebas de dos semanas, tope de horas y
+//   plata, señal para seguir y para pausar, y en qué va el progreso. —
+
+function Apuestas({ apuestas }: { apuestas: ApuestaVista[] }) {
+  if (apuestas.length === 0) {
+    return (
+      <section aria-label="Apuestas" className="card">
+        <div className="label">Apuestas</div>
+        <p className="body-muted" style={{ margin: "8px 0 0" }}>Ninguna apuesta abierta todavía.</p>
+      </section>
+    );
+  }
+  return (
+    <section aria-label="Apuestas" className="card" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="label">Apuestas</div>
+      {apuestas.map((a) => <FilaApuesta key={a.id} apuesta={a} />)}
+    </section>
+  );
+}
+
+function FilaApuesta({ apuesta }: { apuesta: ApuestaVista }) {
+  const pct = apuesta.progreso.meta > 0 ? (apuesta.progreso.hecho / apuesta.progreso.meta) * 100 : 0;
+  return (
+    <div role="group" aria-label={apuesta.camino} style={{ display: "flex", flexDirection: "column", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "6px 12px", flexWrap: "wrap" }}>
+        <span className="body-txt">{apuesta.camino}</span>
+        <span className="mono-sm">{fechaCorta(apuesta.inicio)} a {fechaCorta(apuesta.fin)}</span>
+      </div>
+      <ProgressBar pct={pct} etiqueta={`${apuesta.progreso.hecho} de ${apuesta.progreso.meta}`} />
+      <div className="mono-sm">
+        {apuesta.gastado_horas} de {apuesta.tope_horas} h
+        {apuesta.tope_plata > 0 ? ` · ${moneda(apuesta.gastado_plata)} de ${moneda(apuesta.tope_plata)}` : ""}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {apuesta.senal_sigue ? <Chip punto="var(--luz)">sigue</Chip> : null}
+        {apuesta.senal_pausa ? <Chip punto="var(--ink-muted)">pausa</Chip> : null}
+        {apuesta.resultado ? <Chip mono>{apuesta.resultado}</Chip> : null}
+      </div>
+    </div>
   );
 }
