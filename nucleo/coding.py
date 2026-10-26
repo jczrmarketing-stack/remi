@@ -187,7 +187,9 @@ MANOS: dict[Etapa, Mano] = {
         '"donde": "<repo>/<archivo>", "secciones": {...}}}\n'
         'Para "error" las secciones son exactamente: "Síntoma", "Lo que creímos", "Causa real", '
         '"Cura", "Cómo verlo antes". Para "acierto": "Qué funcionó", "Evidencia", "Cuándo usarlo". '
-        "Pon una lección SOLO si es nueva: si ya está en las lecciones que te pasé, deja null.",
+        "Si rechazas por un error nuevo, anótalo como \"error\". Si apruebas y hubo un fix o una "
+        "decisión que sirva la próxima vez, anótala como \"acierto\". Pon una lección SOLO si es "
+        "nueva: si ya está en las lecciones que te pasé, deja null.",
     ),
 }
 
@@ -314,7 +316,7 @@ def _json_de(texto: str) -> dict[str, object] | None:
     return datos if isinstance(datos, dict) else None
 
 
-def _guardar_leccion(propuesta: object, tarea: str) -> str | None:
+def guardar_leccion(propuesta: object, tarea: str) -> str | None:
     """La lección del revisor entra por la puerta de `POST /experiencia`.
     Si viene incompleta (422), no se guarda: el modelo redacta, no decide."""
     if not isinstance(propuesta, dict):
@@ -370,7 +372,7 @@ def correr(corrida: Corrida, llamar: Llamador = llamar_claude) -> Corrida:
         corrida.tokens += revision.tokens_entrada + revision.tokens_salida
         corrida.estado = "aprobado" if veredicto.get("veredicto") == "aprobado" else "rechazado"
         corrida.motivo = str(veredicto.get("motivo") or "")
-        corrida.leccion_guardada = _guardar_leccion(veredicto.get("leccion"), corrida.tarea)
+        corrida.leccion_guardada = guardar_leccion(veredicto.get("leccion"), corrida.tarea)
         return corrida
     except LimiteDeMax:
         corrida.estado, corrida.motivo = "fallo", "Max llegó a su límite. Sigo cuando se renueve."
