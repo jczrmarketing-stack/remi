@@ -114,3 +114,23 @@ def test_reindexar_borra_lo_que_ya_no_esta(tmp_path, monkeypatch):
 
     total = conexion.execute("SELECT COUNT(*) FROM experiencia_fts").fetchone()[0]
     assert total == 1
+
+
+def test_la_noche_deja_la_leccion_del_dia_en_el_fts(tmp_path, monkeypatch):
+    """noche.recalcular_vectores reindexa también el FTS: una lección
+    guardada hoy sale en la búsqueda sin correr --reindexar a mano."""
+    exp = _boveda(tmp_path, monkeypatch)
+    monkeypatch.setenv("REMI_DB_PATH", str(tmp_path / "remi.db"))
+    for nombre in ("db", "noche"):
+        sys.modules.pop(nombre, None)
+    import db
+    import noche
+
+    monkeypatch.setattr(noche, "experiencia", exp)
+    noche.recalcular_vectores()
+
+    conexion = db.conectar()
+    try:
+        assert exp._fts_buscar(conexion, '"ERR-401-TOKEN"', None, 5)
+    finally:
+        conexion.close()

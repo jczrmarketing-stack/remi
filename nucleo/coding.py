@@ -59,9 +59,9 @@ def _consulta_fts(texto: str) -> str:
 
 
 def _por_palabras(tarea: str, k: int) -> list[experiencia.LeccionGuardada]:
-    """Respaldo directo sobre la bóveda: el índice FTS solo se reconstruye
-    con `--reindexar`, así que una lección recién guardada no aparece en
-    `experiencia.buscar` hasta entonces. Las lecciones son pocas; contar
+    """Respaldo directo sobre la bóveda: el índice FTS se reconstruye de
+    noche (`noche.recalcular_vectores`), así que una lección de hoy no
+    aparece en `experiencia.buscar` hasta entonces. Las lecciones son pocas; contar
     palabras en común es barato y siempre está al día."""
     buscadas = set(_palabras(tarea))
     puntaje: list[tuple[int, experiencia.LeccionGuardada]] = []

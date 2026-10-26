@@ -7,8 +7,9 @@ Cinco pasos, en orden:
    hoy, no se toca — mismo mecanismo anti-invento de `estado_libro.py`.
 2. Fusiona episodios repetidos del mismo día y el mismo libro (mismo
    resumen exacto — no adivina «parecido»).
-3. Recalcula los vectores de lo que cambió (`vectores.py` ya solo recalcula
-   si el hash cambió).
+3. Reindexa la experiencia: reconstruye el FTS (para que una lección del
+   día salga en la búsqueda) y recalcula los vectores de lo que cambió
+   (`vectores.py` ya solo recalcula si el hash cambió).
 4. Reordena la mente: vuelve a sembrar los libros de proyecto
    (`sembrar_conocimiento.sembrar()`), que ahora asigna nivel 1 a lo tocado
    en los últimos 7 días y nivel 2 al resto — nunca borra nada.
@@ -45,7 +46,6 @@ import libros
 import preguntas
 import sembrar_conocimiento
 import telegram
-import vectores
 
 RUTA_CONFIG_SERVIDOR = Path(__file__).resolve().parent.parent / "config" / "nucleo.json"
 
@@ -193,9 +193,11 @@ def fusionar_episodios_del_dia(hoy: date | None = None) -> list[tuple[str, str]]
 
 
 def recalcular_vectores() -> int:
+    """`experiencia.reindexar` hace las dos cosas: FTS de cero y vectores
+    solo de lo que cambió. Devuelve los vectores recalculados, como antes."""
     conexion = db.conectar()
     try:
-        return vectores.actualizar_todos(conexion)
+        return experiencia.reindexar(conexion)
     finally:
         conexion.close()
 
