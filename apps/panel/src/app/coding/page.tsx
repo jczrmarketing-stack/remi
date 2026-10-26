@@ -80,7 +80,7 @@ export default function PaginaCoding() {
           <h1 className="display-xl" style={{ fontSize: 40, lineHeight: "42px" }}>Coding</h1>
           <span className="chip chip-mono" aria-label="Motor y bóveda">
             <i className="chip-punto" style={{ background: "var(--pensar)" }} />
-            Claude Max · bóveda {estado.lecciones_en_boveda}
+            Usando Claude Max + bóveda (ahorro de tokens) · {estado.lecciones_en_boveda}
           </span>
         </div>
 
@@ -94,7 +94,7 @@ export default function PaginaCoding() {
 
         <p className="voz"><Bionica texto="Primero miro lo que ya aprendimos. Así Claude no lo busca dos veces." /></p>
         <p className="body-muted">
-          Spec, builder y revisor van por tu sesión de Max (claude -p): sin clave, sin cobro aparte. Si el revisor encuentra algo nuevo, queda en la bóveda.
+          Spec, builder y revisor van por tu sesión de Max (claude -p): sin clave, sin cobro aparte; OpenRouter y Venice no tocan código. Antes de cada llamada entra lo que la bóveda ya sabe. Si el revisor encuentra un error o un acierto nuevo, queda guardado.
         </p>
       </div>
       <TabBar />
