@@ -219,6 +219,25 @@ export type VistaAnalisisCamino = {
   fuentes: FuenteVista[];
 };
 
+// Coding: la bóveda delante y Claude Max (claude -p) haciendo spec,
+// builder y revisor. Ver nucleo/coding.py.
+export type LeccionVista = { titulo: string; tema: string; clase: string; resumen: string; ultima_vez: string; veces: number };
+export type EstadoCoding = { motor: string; lecciones_en_boveda: number; lecciones_de_coding: number; corrida_en_curso: string | null };
+export type EstadoCorrida = "consultando" | "spec" | "builder" | "revisor" | "aprobado" | "rechazado" | "fallo";
+export type CorridaCoding = {
+  id: string;
+  tarea: string;
+  estado: EstadoCorrida;
+  lecciones: string[];
+  spec: string | null;
+  cambio: string | null;
+  motivo: string | null;
+  leccion_guardada: string | null;
+  tokens: number;
+  empezo: string;
+  segundos: number | null;
+};
+
 export const nucleo = {
   salud: () => pedir<Salud>("/salud"),
   // Un núcleo que todavía no tiene esta ruta (B2) responde 404: null, no
@@ -301,6 +320,14 @@ export const nucleo = {
   abrirBloque: (titulo: string, tema: string | null) =>
     pedir<{ tarea: Tarea; sesion: Sesion }>("/bloque", { method: "POST", body: JSON.stringify({ titulo, tema }) }),
 
+  codingEstado: () => pedir<EstadoCoding>("/coding/estado"),
+  // Sin q: las últimas de coding. Con q: búsqueda en toda la bóveda.
+  codingLecciones: (q?: string) =>
+    pedir<LeccionVista[]>(`/coding/lecciones${q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`),
+  // 409 si ya hay una corrida en curso: una a la vez.
+  codingCorrer: (tarea: string) =>
+    pedir<CorridaCoding>("/coding/corrida", { method: "POST", body: JSON.stringify({ tarea }) }),
+  codingCorrida: (id: string) => pedir<CorridaCoding>(`/coding/corrida/${encodeURIComponent(id)}`),
 
   // Marca o desmarca el hito número `n` (desde 1) del camino de ese libro.
   // El núcleo edita solo esa línea y deja un commit en la bóveda.

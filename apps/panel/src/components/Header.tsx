@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, Compass, Inbox, LineChart, Settings, SunMoon, Target } from "lucide-react";
+import { Bot, Code, Compass, Inbox, LineChart, Settings, SunMoon, Target } from "lucide-react";
 import { StatusDot } from "@/components/StatusDot";
 import { usePreferencias } from "@/hooks/PreferenciasContext";
 
@@ -12,6 +12,7 @@ const VISTAS = [
   { href: "/rumbo", etiqueta: "Rumbo", Icono: Compass },
   { href: "/bandeja", etiqueta: "Bandeja", Icono: Inbox },
   { href: "/semana", etiqueta: "Semana", Icono: SunMoon },
+  { href: "/coding", etiqueta: "Coding", Icono: Code },
 ];
 
 export function Header({ sano = true }: { sano?: boolean }) {
