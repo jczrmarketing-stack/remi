@@ -67,7 +67,9 @@ else
   echo "  claude: NO ESTÁ EN EL PATH — Remi va a andar, pero sin «pensar»." >&2
 fi
 
-RUTA="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# ~/.local/bin primero: ahí vive el claude nativo (claude install, 26-oct-2026);
+# las copias viejas de npm en /usr/local y /opt/homebrew ya no se actualizan.
+RUTA="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 if [[ -n "$DIR_CLAUDE" && ":$RUTA:" != *":$DIR_CLAUDE:"* ]]; then
   RUTA="$DIR_CLAUDE:$RUTA"
 fi
