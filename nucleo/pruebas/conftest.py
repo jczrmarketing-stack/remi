@@ -131,3 +131,8 @@ def _base_propia(tmp_path, monkeypatch):
 # El sondeo de avisos de Notion no arranca en las pruebas: con un nucleo/.env
 # real consultaría la base de verdad cada 5 minutos (mismo motivo que Telegram).
 os.environ.setdefault("REMI_NOTION_AVISOS", "0")
+
+# Desde el 26-oct hay un TELEGRAM_TOKEN real en nucleo/.env: ninguna prueba
+# puede escribirle a Juan Camilo. Apaga el polling y el envío real
+# (ClienteBotAPI); las pruebas de Telegram usan su transporte falso.
+os.environ.setdefault("REMI_TELEGRAM", "0")

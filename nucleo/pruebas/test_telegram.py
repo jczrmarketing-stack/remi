@@ -2,6 +2,7 @@
 ninguna prueba toca la red ni el TELEGRAM_TOKEN real."""
 from __future__ import annotations
 
+import importlib
 import re
 import time
 from datetime import datetime
@@ -201,24 +202,17 @@ def test_idea_por_texto_entra_a_la_bandeja_y_responde_corto(monkeypatch):
         conexion.close()
 
 
-# — 3. entrega por texto: misma vía que POST /entregas —
+# — 3. entrega por texto: lleva monto, así que va al Mac (26-oct-2026) —
 
 
-def test_entrega_por_texto_crea_entrega_y_confirma(monkeypatch):
+def test_entrega_por_texto_no_se_crea_y_va_al_mac(monkeypatch):
     monkeypatch.setattr(telegram, "chat_id_configurado", lambda: "123")
     transporte = _TransporteFalso()
 
-    texto = "entrega para Alfonso el 18 de octubre por 5.000"
-    telegram._manejar_actualizacion(transporte, _actualizacion(123, texto))
+    telegram._manejar_actualizacion(transporte, _actualizacion(123, "entrega para Alfonso el 18 de octubre por 5.000"))
 
-    assert len(transporte.enviados) == 1
-    _, respuesta = transporte.enviados[0]
-    assert respuesta == "Entrega para Alfonso: 18 de octubre, $5.000"
-
-    listadas = TestClient(servidor.app).get("/entregas").json()
-    assert len(listadas) == 1
-    assert listadas[0]["cliente"] == "Alfonso"
-    assert listadas[0]["monto"] == 5000.0
+    assert transporte.enviados == [(123, "Eso lo vemos en el Mac.")]
+    assert TestClient(servidor.app).get("/entregas").json() == []
 
 
 def test_texto_sin_forma_de_entrega_no_crea_nada(monkeypatch):
@@ -379,28 +373,82 @@ def test_reporte_noche_sin_cambios():
     assert telegram.mensaje_reporte_noche([]) == "Anoche no toqué nada"
 
 
-def test_reporte_noche_con_un_libro():
+def test_reporte_noche_con_un_libro_solo_dice_el_titulo():
     texto = telegram.mensaje_reporte_noche([("Malik", "-Quedaste: nada.\n+Quedaste: se arregló el webhook.")])
-    assert texto.startswith("Anoche cambié 1 libro\n\n")
-    assert "Malik:" in texto
-    assert "se arregló el webhook" in texto
-    assert "más" not in texto
+    assert texto == "Anoche cambié 1 libro: Malik."
 
 
 def test_reporte_noche_con_varios_libros_dice_libros_en_plural():
     texto = telegram.mensaje_reporte_noche([("Malik", "diff a"), ("Organic", "diff b")])
-    assert texto.startswith("Anoche cambié 2 libros\n\n")
+    assert texto == "Anoche cambié 2 libros: Malik, Organic."
 
 
 def test_reporte_noche_muestra_maximo_3_y_avisa_los_que_sobran():
     cambios = [(f"Libro {i}", f"diff {i}") for i in range(5)]
     texto = telegram.mensaje_reporte_noche(cambios)
-    assert texto.startswith("Anoche cambié 5 libros")
-    for i in range(3):
-        assert f"Libro {i}:" in texto
-    for i in (3, 4):
-        assert f"Libro {i}:" not in texto
-    assert texto.endswith("y 2 más")
+    assert texto == "Anoche cambié 5 libros: Libro 0, Libro 1, Libro 2 y 2 más."
+
+
+def test_reporte_noche_no_nombra_los_libros_privados():
+    texto = telegram.mensaje_reporte_noche([("Malik", "d"), (None, "monto: 500")])
+    assert texto == "Anoche cambié 2 libros: Malik. Lo demás lo vemos en el Mac."
+    assert telegram.mensaje_reporte_noche([(None, "x")]) == "Anoche cambié 1 libro. Lo vemos en el Mac."
+
+
+# — 6. lo que cabe en el teléfono (26-oct-2026) —
+
+
+def test_tema_privado_que_entra_va_al_mac_sin_tocar_nada(monkeypatch):
+    llamados = []
+    monkeypatch.setattr(importlib.import_module("servidor"), "recibir_mensaje", lambda m: llamados.append(m))
+    monkeypatch.setattr(telegram, "chat_id_configurado", lambda: "123")
+    transporte = _TransporteFalso()
+    for texto in ("¿cuánta plata me deben?", "me toca la pastilla", "lo del paciente de ayer", "cobré $300"):
+        telegram._manejar_actualizacion(transporte, _actualizacion(123, texto))
+    assert [t for _, t in transporte.enviados] == ["Eso lo vemos en el Mac."] * 4
+    assert llamados == []
+
+
+def test_el_telefono_no_piensa(monkeypatch):
+    vistos = []
+
+    def recibir(mensaje):
+        vistos.append(mensaje)
+        return importlib.import_module("servidor").RespuestaMensaje(tipo="idea", texto="A la Bandeja.", voz="A la Bandeja.")
+
+    # El servidor vigente (otras pruebas lo recargan): el que importa telegram.
+    vigente = importlib.import_module("servidor")
+    monkeypatch.setattr(vigente, "recibir_mensaje", recibir)
+    monkeypatch.setattr(telegram, "chat_id_configurado", lambda: "123")
+    transporte = _TransporteFalso()
+    telegram._manejar_actualizacion(transporte, _actualizacion(123, "idea: app de recetas"))
+    assert vistos[0].think is False
+    assert transporte.enviados == [(123, "A la Bandeja.")]
+
+
+def test_respuesta_larga_o_privada_no_sale():
+    assert telegram.para_el_telefono("x" * 300) == "Eso lo vemos en el Mac."
+    assert telegram.para_el_telefono("Te deben 2 millones") == "Eso lo vemos en el Mac."
+    assert telegram.para_el_telefono("Listo. Cerrado.") == "Listo. Cerrado."
+
+
+def test_avisar_privado_solo_dice_que_hay_algo(monkeypatch):
+    enviados = []
+
+    class Falso:
+        def __init__(self, tok):
+            pass
+
+        def enviar_mensaje(self, chat_id, texto):
+            enviados.append(texto)
+
+    monkeypatch.setattr(telegram, "chat_id_configurado", lambda: "123")
+    monkeypatch.setattr(telegram, "token", lambda: "un-token")
+    monkeypatch.setattr(telegram, "ClienteBotAPI", Falso)
+    monkeypatch.setattr(telegram, "en_silencio", lambda ahora=None: False)
+    monkeypatch.setattr(telegram.threading, "Thread", lambda target, args, daemon: type("H", (), {"start": lambda self: target(*args)})())
+    telegram.avisar(telegram.AvisoSaliente(texto="Entra el pago de Alfonso"))
+    assert enviados == ["Hay algo nuevo. Lo vemos en el Mac."]
 
 
 def test_escuchar_no_se_cae_si_obtener_actualizaciones_falla(monkeypatch):

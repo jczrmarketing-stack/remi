@@ -13,6 +13,7 @@ arriba crearía un ciclo.
 from __future__ import annotations
 
 import os
+import re
 import sys
 import threading
 import time
@@ -34,6 +35,40 @@ TIMEOUT_ENVIO_SEGUNDOS = 8
 REINTENTO_AVISO_SEGUNDOS = 2
 HORA_SILENCIO_DESDE = 23
 HORA_SILENCIO_HASTA = 7
+
+# — Qué cabe en el teléfono (Juan Camilo, 26-oct-2026) —
+#
+# Sale: el paso mínimo de lo abierto (1 al día), el aviso de que terminó
+# una tarea de /coding y el resumen de la noche. Entra: ideas a la Bandeja
+# y respuestas cortas («listo», «después»). Nada de charla larga ni de
+# plata, salud o pacientes: eso no tiene ruta al teléfono, ni de ida ni de
+# vuelta. El patrón es grueso a propósito: un falso positivo cuesta abrir
+# el Mac; un falso negativo, que algo privado salga del Mac.
+EN_EL_MAC = "Eso lo vemos en el Mac."
+AVISO_PRIVADO = "Hay algo nuevo. Lo vemos en el Mac."
+MAX_CARACTERES = 280
+PATRON_PRIVADO = re.compile(
+    r"\b(plata|dinero|pagos?|pagar|pagu[eé]|pag[oó]|cobros?|cobrar|cobr[eé]|cobr[oó]|factura\w*|precios?|"
+    r"montos?|sueldo|salario|deudas?|pr[eé]stamos?|banco|bancaria|tarjeta|transferencia\w*|impuestos?|"
+    r"pesos|d[oó]lares|usd|cop|millones|"
+    r"salud|m[eé]dic\w*|doctor\w*|terapia|terapeuta|psic[oó]\w*|psiquiatr\w*|medicament\w*|pastillas?|"
+    r"dosis|diagn[oó]stic\w*|enferm\w*|tdah|ansiedad|depresi[oó]n|hospital|"
+    r"pacientes?|historia cl[ií]nica)\b"
+    r"|\$\s?\d",
+    re.IGNORECASE,
+)
+
+
+def es_privado(texto: str) -> bool:
+    return PATRON_PRIVADO.search(texto) is not None
+
+
+def para_el_telefono(texto: str) -> str:
+    """Lo único que sale como respuesta: privado → al Mac; largo → al Mac."""
+    if es_privado(texto) or len(texto) > MAX_CARACTERES:
+        return EN_EL_MAC
+    return texto
+
 
 _MESES_NOMBRE = {
     1: "enero", 2: "febrero", 3: "marzo", 4: "abril", 5: "mayo", 6: "junio",
@@ -102,6 +137,10 @@ class ClienteBotAPI:
         return respuesta.json().get("result", [])
 
     def enviar_mensaje(self, chat_id: int | str, texto: str) -> None:
+        # Con un token real en nucleo/.env, una prueba que llegue hasta acá
+        # le escribiría a Juan Camilo: conftest pone REMI_TELEGRAM=0.
+        if os.environ.get("REMI_TELEGRAM", "1") == "0":
+            return
         self._http_envios.post(f"{self._base}/sendMessage", json={"chat_id": chat_id, "text": texto})
 
 
@@ -119,23 +158,20 @@ def _monto_corto(monto: float) -> str:
 
 
 def _procesar_texto(texto: str) -> str:
-    """Lo que contesta el bot a un mensaje de charla corta. Una entrega con
-    la forma exacta se crea por la misma vía que POST /entregas; si no,
-    pasa por la misma función que /mensaje (clasificador, memoria y
-    carácter incluidos) con origen="texto", modo="rapido"."""
+    """Lo que contesta el bot. Plata, salud o pacientes no entran: «Eso lo
+    vemos en el Mac.» (una entrega lleva monto: también va al Mac). Lo
+    demás pasa por la misma función que /mensaje, SIN pensar: ideas a la
+    Bandeja, «listo», «después» — reglas, cero tokens, nada de charla. La
+    respuesta pasa otra vez por el filtro antes de salir."""
     import entregas
     import servidor
 
-    parseada = entregas.parsear_entrega(texto)
-    if parseada is not None:
-        entrega = entregas.crear_desde_texto(entregas.CrearEntregaDesdeTexto(texto=texto))
-        # parsear_entrega no reconoce el texto sin un monto: acá siempre viene puesto.
-        monto = _monto_corto(entrega.monto) if entrega.monto is not None else "?"
-        return f"Entrega para {entrega.cliente}: {_fecha_corta(entrega.fecha)}, ${monto}"
+    if es_privado(texto) or entregas.parsear_entrega(texto) is not None:
+        return EN_EL_MAC
 
-    mensaje = servidor.MensajeEntrante(texto=texto, origen="texto", modo="rapido", think=True, canal="telegram")
+    mensaje = servidor.MensajeEntrante(texto=texto, origen="texto", modo="rapido", think=False, canal="telegram")
     respuesta = servidor.recibir_mensaje(mensaje)
-    return servidor.para_hablar(respuesta.texto)
+    return para_el_telefono(servidor.para_hablar(respuesta.texto))
 
 
 def _manejar_start(chat_id: int | str) -> None:
@@ -252,23 +288,27 @@ def en_silencio(ahora: datetime | None = None) -> bool:
     return hora >= HORA_SILENCIO_DESDE or hora < HORA_SILENCIO_HASTA
 
 
-def mensaje_reporte_noche(cambios: list[tuple[str, str]], max_mostrados: int = 3) -> str:
+def mensaje_reporte_noche(cambios: list[tuple[str | None, str]], max_mostrados: int = 3) -> str:
     """El mensaje que `noche.py` manda por `/telegram/avisar` después de
     consolidar. Sin cambios, es literalmente «Anoche no toqué nada» — nunca
-    «cambié 0 libros». Con cambios: «Anoche cambié N libros» y hasta
-    `max_mostrados` diffs cortos (uno por libro, ya recortados por quien
-    llama); si sobran, cierra con «y M más»."""
+    «cambié 0 libros». Con cambios: «Anoche cambié N libros: A, B.» Solo
+    títulos, nunca el diff (corto, y un diff puede traer montos). Un libro
+    con título None no es compartible: cuenta, pero no se nombra."""
     if not cambios:
         return "Anoche no toqué nada"
     total = len(cambios)
-    mostrados = cambios[:max_mostrados]
-    piezas = [f"Anoche cambié {total} libro{'s' if total != 1 else ''}"]
-    for titulo, diff in mostrados:
-        piezas.append(f"{titulo}:\n{diff}")
-    restantes = total - len(mostrados)
-    if restantes > 0:
-        piezas.append(f"y {restantes} más")
-    return "\n\n".join(piezas)
+    nombrables = [titulo for titulo, _ in cambios if titulo]
+    mostrados = nombrables[:max_mostrados]
+    texto = f"Anoche cambié {total} libro{'s' if total != 1 else ''}"
+    if mostrados:
+        texto += ": " + ", ".join(mostrados)
+        if len(nombrables) > len(mostrados):
+            texto += f" y {len(nombrables) - len(mostrados)} más"
+    texto += "."
+    privados = total - len(nombrables)
+    if privados:
+        texto += " Lo demás lo vemos en el Mac." if mostrados else " Lo vemos en el Mac."
+    return texto
 
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
@@ -336,6 +376,9 @@ def avisar(cuerpo: AvisoSaliente) -> None:
     a Telegram."""
     if en_silencio() and not cuerpo.urgente:
         return
+    # La misma puerta para todos: si el texto toca plata, salud o
+    # pacientes, sale solo que hay algo, nunca qué.
+    texto = AVISO_PRIVADO if es_privado(cuerpo.texto) else cuerpo.texto
     configurado = chat_id_configurado()
     if configurado is None:
         print("[telegram] sin TELEGRAM_CHAT_ID: no puedo avisar", file=sys.stderr, flush=True)
@@ -347,7 +390,7 @@ def avisar(cuerpo: AvisoSaliente) -> None:
     transporte = _transporte_para_avisar(tok)
     hilo = threading.Thread(
         target=_enviar_con_reintento,
-        args=(transporte, configurado, cuerpo.texto),
+        args=(transporte, configurado, texto),
         daemon=True,
     )
     hilo.start()
