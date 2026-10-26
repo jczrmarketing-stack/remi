@@ -139,3 +139,24 @@ def test_api_estado_y_ultimas_de_coding(tmp_path, monkeypatch):
     assert estado == {"motor": "claude-max", "lecciones_en_boveda": 2, "lecciones_de_coding": 1, "corrida_en_curso": None}
     ultimas = cliente.get("/coding/lecciones").json()
     assert [l["titulo"] for l in ultimas] == [ERROR_401["titulo"]]
+
+
+def test_al_terminar_avisa_corto_y_sin_la_tarea(tmp_path, monkeypatch):
+    _servidor, coding = _arrancar(tmp_path, monkeypatch)
+    monkeypatch.setattr(coding.experiencia.vectores, "asociar", lambda *a, **k: [])
+    avisos: list = []
+    coding.correr(
+        coding.Corrida(id="5", tarea="mover el cobro de Alfonso"),
+        _llamador({"veredicto": "aprobado", "motivo": "ok", "leccion": None}, []),
+        avisos.append,
+    )
+    assert avisos == [coding.AVISOS_DE_FIN["aprobado"]]
+    assert "Alfonso" not in avisos[0]
+    assert all(len(t.split()) <= 20 for t in coding.AVISOS_DE_FIN.values())
+
+
+def test_sin_avisador_no_avisa(tmp_path, monkeypatch):
+    _servidor, coding = _arrancar(tmp_path, monkeypatch)
+    monkeypatch.setattr(coding.experiencia.vectores, "asociar", lambda *a, **k: [])
+    monkeypatch.setattr(coding.telegram, "avisar", lambda *a: (_ for _ in ()).throw(AssertionError("avisó")))
+    coding.correr(coding.Corrida(id="6", tarea="x"), _llamador({"veredicto": "aprobado", "motivo": "", "leccion": None}, []))

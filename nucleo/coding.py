@@ -33,6 +33,7 @@ from pydantic import BaseModel
 import db
 import experiencia
 import pensar
+import telegram
 
 router = APIRouter(prefix="/coding", tags=["coding"])
 
@@ -337,9 +338,35 @@ def guardar_leccion(propuesta: object, tarea: str) -> str | None:
         return None
 
 
-def correr(corrida: Corrida, llamar: Llamador = llamar_claude) -> Corrida:
-    """tarea → bóveda → spec → builder → revisor → (lección). Cada paso deja
-    el estado en `corrida`, para que el panel lo vea mientras avanza."""
+# El aviso al teléfono cuando termina: corto, calmo, sin la tarea ni el
+# diff (eso se ve en el Mac). Fuera de 23:00–7:00, como todo aviso.
+AVISOS_DE_FIN: dict[str, str] = {
+    "aprobado": "Terminé la tarea de código. El revisor la aprobó; te espera en el Mac.",
+    "rechazado": "Terminé la tarea de código. El revisor pidió otra vuelta; la vemos en el Mac.",
+    "fallo": "La tarea de código se detuvo. Cuando vuelvas al Mac, la retomamos.",
+}
+Avisador = Callable[[str], None]
+
+
+def avisar_por_telegram(texto: str) -> None:
+    telegram.avisar(telegram.AvisoSaliente(texto=texto))
+
+
+def correr(corrida: Corrida, llamar: Llamador = llamar_claude, avisar: Avisador | None = None) -> Corrida:
+    """tarea → bóveda → spec → builder → revisor → (lección) → aviso. Cada
+    paso deja el estado en `corrida`, para que el panel lo vea mientras
+    avanza. `avisar` solo lo pasa la API: las pruebas no avisan."""
+    try:
+        return _correr(corrida, llamar)
+    finally:
+        if avisar is not None and corrida.estado in AVISOS_DE_FIN:
+            try:
+                avisar(AVISOS_DE_FIN[corrida.estado])
+            except Exception as error:  # un aviso que falla no tumba la corrida
+                print(f"[coding] no pude avisar ({type(error).__name__})", file=sys.stderr)
+
+
+def _correr(corrida: Corrida, llamar: Llamador) -> Corrida:
     arranque = time.perf_counter()
     try:
         lecciones = lecciones_para(corrida.tarea)
@@ -465,7 +492,7 @@ def nueva_corrida(cuerpo: TareaCoding) -> CorridaVista:
             raise HTTPException(status_code=409, detail="ya hay una corrida en curso")
         corrida = Corrida(id=str(uuid4()), tarea=tarea)
         _CORRIDAS[corrida.id] = corrida
-    threading.Thread(target=correr, args=(corrida,), daemon=True).start()
+    threading.Thread(target=correr, args=(corrida, llamar_claude, avisar_por_telegram), daemon=True).start()
     return _corrida_vista(corrida)
 
 
