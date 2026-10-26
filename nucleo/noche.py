@@ -240,13 +240,12 @@ def _recortar_diff(diff: str, max_lineas: int) -> str:
     return "\n".join(lineas[:max_lineas])
 
 
-def diff_de_la_noche(referencia: str | None, max_lineas: int = 8) -> list[tuple[str, str]]:
+def diff_de_la_noche(referencia: str | None, max_lineas: int = 8) -> list[tuple[str | None, str]]:
     """[(libro, diff_corto)] de lo que tocó esta corrida en la carpeta de
     libros (`libros.carpeta()`), comparado contra `referencia` (el HEAD de
     la bóveda al arrancar `correr()`). Cada diff se recorta a `max_lineas`
     líneas de hunk (`_recortar_diff`); el nombre es el título del libro si
-    todavía se puede leer, o el nombre de archivo si no (por ejemplo si el
-    libro se borró en la corrida)."""
+    es compartible, o None si no lo es o ya no se puede leer."""
     if referencia is None:
         return []
     raiz = boveda_git.raiz()
@@ -258,7 +257,7 @@ def diff_de_la_noche(referencia: str | None, max_lineas: int = 8) -> list[tuple[
     except subprocess.CalledProcessError:
         return []
 
-    cambios: list[tuple[str, str]] = []
+    cambios: list[tuple[str | None, str]] = []
     for nombre_relativo in sorted(nombre for nombre in nombres if nombre):
         try:
             diff = subprocess.run(
@@ -269,7 +268,9 @@ def diff_de_la_noche(referencia: str | None, max_lineas: int = 8) -> list[tuple[
             continue
         ruta_absoluta = raiz / nombre_relativo
         libro = libros.leer(ruta_absoluta) if ruta_absoluta.exists() else None
-        etiqueta = libro.titulo if libro is not None else Path(nombre_relativo).stem
+        # Solo un libro compartible se nombra en el reporte (va a Telegram).
+        # Uno que no se puede leer tampoco: no hay cómo saber si lo era.
+        etiqueta = libro.titulo if libro is not None and libro.compartible else None
         cambios.append((etiqueta, _recortar_diff(diff, max_lineas)))
     return cambios
 
@@ -279,7 +280,7 @@ def _url_avisar() -> str:
     return f"http://{config['host']}:{config['puerto']}/telegram/avisar"
 
 
-def enviar_reporte_de_la_noche(cambios: list[tuple[str, str]]) -> None:
+def enviar_reporte_de_la_noche(cambios: list[tuple[str | None, str]]) -> None:
     """POST a `/telegram/avisar` (nunca en proceso: `noche.py` corre aparte
     del servidor) con el resumen de esta corrida. `urgente: true` porque la
     consolidación corre a las 4:00, dentro del silencio 23:00–7:00 — sin

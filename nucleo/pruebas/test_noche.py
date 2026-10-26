@@ -265,15 +265,15 @@ def test_diff_de_la_noche_reporta_el_libro_que_cambio(tmp_path, monkeypatch):
     noche, _, _ = _arrancar(tmp_path, monkeypatch)
     _iniciar_repo_git(tmp_path)
     _libro(tmp_path)
+    compartible = LIBRO.format(ruta="/tmp/malik").replace("ruta: /tmp/malik\n", "ruta: /tmp/malik\ncompartible: true\n")
+    (tmp_path / "proyectos" / "malik.md").write_text(compartible)
     _commit(tmp_path, "estado inicial de malik")
 
     referencia = noche._head_git()
     assert referencia is not None
 
     (tmp_path / "proyectos" / "malik.md").write_text(
-        LIBRO.format(ruta="/tmp/malik").replace(
-            "Próximo paso: arrancar.", "Próximo paso: seguir con el webhook."
-        )
+        compartible.replace("Próximo paso: arrancar.", "Próximo paso: seguir con el webhook.")
     )
     _commit(tmp_path, "consolidación nocturna: Estado de malik.md")
 
@@ -314,7 +314,7 @@ def test_diff_de_la_noche_recorta_a_max_lineas(tmp_path, monkeypatch):
     assert len(diff.splitlines()) <= 8
 
 
-def test_diff_de_la_noche_usa_el_nombre_de_archivo_si_el_libro_ya_no_se_puede_leer(tmp_path, monkeypatch):
+def test_diff_de_la_noche_no_nombra_un_libro_que_ya_no_se_puede_leer(tmp_path, monkeypatch):
     noche, _, _ = _arrancar(tmp_path, monkeypatch)
     _iniciar_repo_git(tmp_path)
     _libro(tmp_path)
@@ -326,7 +326,22 @@ def test_diff_de_la_noche_usa_el_nombre_de_archivo_si_el_libro_ya_no_se_puede_le
 
     cambios = noche.diff_de_la_noche(referencia)
     assert len(cambios) == 1
-    assert cambios[0][0] == "malik"
+    assert cambios[0][0] is None
+
+
+def test_diff_de_la_noche_no_nombra_un_libro_privado(tmp_path, monkeypatch):
+    noche, _, _ = _arrancar(tmp_path, monkeypatch)
+    _iniciar_repo_git(tmp_path)
+    _libro(tmp_path)
+    _commit(tmp_path, "estado inicial")
+    referencia = noche._head_git()
+
+    (tmp_path / "proyectos" / "malik.md").write_text(
+        LIBRO.format(ruta="/tmp/malik").replace("Próximo paso: arrancar.", "Próximo paso: cobrar.")
+    )
+    _commit(tmp_path, "cambia malik")
+
+    assert [titulo for titulo, _ in noche.diff_de_la_noche(referencia)] == [None]
 
 
 # — reporte de la noche: POST a /telegram/avisar —
