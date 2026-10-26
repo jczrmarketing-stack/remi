@@ -947,7 +947,7 @@ def _armar_encargo(mensaje: MensajeEntrante) -> RespuestaMensaje:
         return RespuestaMensaje(
             tipo="encargo", texto="Sin pensar no puedo armar el encargo.", voz="Sin pensar no puedo armar el encargo."
         )
-    pensado = pensar.pensar(mensaje.texto, mensaje.motor, "equilibrio", pensar.sistema_encargo())
+    pensado = pensar.pensar(mensaje.texto, mensaje.motor, "equilibrio", pensar.sistema_encargo(), coding=True)
     if pensado is None:
         return RespuestaMensaje(
             tipo="encargo", texto="No pude armar el encargo. Prueba de nuevo.", voz="No pude armar el encargo."

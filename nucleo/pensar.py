@@ -989,6 +989,65 @@ def _agotar(frases: Frases) -> Pensado | None:
         return resultado
 
 
+# — Coding: Claude Max y la bóveda delante —
+#
+# Una tarea de código va siempre por Claude (la sesión de Max): ni el chip
+# ni REMI_PENSADOR la mandan a Venice u OpenRouter. Si Max llega al
+# límite, el respaldo de charla solo sale si REMI_CODING_RESPALDO=openrouter
+# está puesto a propósito en el .env; sin eso, Remi sigue sin IA. Antes de
+# llamar, viajan las lecciones de la bóveda que tengan que ver; si Claude
+# llega a un fix o decisión nueva, la deja en una línea LECCION_JSON que acá
+# se saca de la respuesta y entra a la bóveda (coding.guardar_leccion).
+PATRON_CODING = re.compile(
+    r"\b(c[oó]digo|bug|traceback|stack ?trace|refactor\w*|endpoint|commit|diff|spec|merge|deploy|"
+    r"typescript|python|compila\w*|build|pull request|claude code)\b"
+    r"|\.(py|tsx?|jsx?|rs|sql)\b",
+    re.IGNORECASE,
+)
+PATRON_LECCION = re.compile(r"^LECCION_JSON:\s*(\{.*\})\s*$", re.MULTILINE)
+INSTRUCCIONES_LECCION_CODING = (
+    "\n\nSi en esta respuesta llegas a un fix, una causa o una decisión NUEVA (que no esté en la "
+    "bóveda de arriba), agrega al final UNA línea, sola, así:\n"
+    'LECCION_JSON: {"clase": "error" | "acierto", "titulo": "...", "resumen": "...", '
+    '"donde": "<repo>/<archivo>", "secciones": {...}}\n'
+    'Secciones de "error": "Síntoma", "Lo que creímos", "Causa real", "Cura", "Cómo verlo antes". '
+    'De "acierto": "Qué funcionó", "Evidencia", "Cuándo usarlo". Si no hay nada nuevo, no la pongas.'
+)
+
+
+def es_de_coding(frase: str) -> bool:
+    return PATRON_CODING.search(frase) is not None
+
+
+def _contexto_de_coding(frase: str) -> str:
+    """La bóveda para esta tarea. Sin lecciones, solo el pedido de anotar:
+    no se gastan tokens en decir que no hay nada."""
+    import coding  # coding importa pensar: acá adentro para no cerrar el círculo
+
+    lecciones = coding.lecciones_para(frase)
+    print(f"[coding] bóveda: {len(lecciones)} lección(es) al prompt", file=sys.stderr)
+    bloque = f"\n\n## Bóveda\n\n{coding.bloque_de_experiencia(lecciones)}" if lecciones else ""
+    return bloque + INSTRUCCIONES_LECCION_CODING
+
+
+def _sacar_leccion(frase: str, texto: str) -> str:
+    """Quita la línea LECCION_JSON de la respuesta y, si trae una lección
+    completa, la guarda. Lo que se dice y se guarda en la charla, sin ella."""
+    import coding
+
+    encontrada = PATRON_LECCION.search(texto)
+    if encontrada is None:
+        return texto
+    archivo = coding.guardar_leccion(coding._json_de(encontrada.group(1)), frase)
+    if archivo:
+        print(f"[coding] lección nueva en la bóveda: {archivo}", file=sys.stderr)
+    return PATRON_LECCION.sub("", texto).rstrip()
+
+
+def _respaldo_de_coding_permitido() -> bool:
+    return _ajuste("REMI_CODING_RESPALDO", "").lower() == RESPALDO_DE_CHARLA[0]
+
+
 def pensar(
     frase: str,
     motor_pedido: str | None = None,
@@ -998,13 +1057,14 @@ def pensar(
     buscar: bool = False,
     modelo_ollama: str | None = None,
     modelo_venice: str | None = None,
+    coding: bool | None = None,
 ) -> Pensado | None:
     """Lo que el motor elegido contesta a `frase`, con la conversación de la
     última hora. None si el motor no está, falla o no devolvió texto: el que
     llama sigue por el camino sin IA — nunca se rompe la respuesta por esto."""
     return _agotar(
         pensar_en_frases(
-            frase, motor_pedido, modo_pedido, sistema, nivel, buscar, modelo_ollama, modelo_venice, en_vivo=False
+            frase, motor_pedido, modo_pedido, sistema, nivel, buscar, modelo_ollama, modelo_venice, en_vivo=False, coding=coding
         )
     )
 
@@ -1019,6 +1079,7 @@ def pensar_en_frases(
     modelo_ollama: str | None = None,
     modelo_venice: str | None = None,
     en_vivo: bool = True,
+    coding: bool | None = None,
 ) -> Frases:
     """Como `pensar()`, pero rinde cada frase completa en cuanto llega (la
     voz arranca con la primera, no con la respuesta entera) y al final
@@ -1028,7 +1089,11 @@ def pensar_en_frases(
     En vivo, si un motor falla después de haber soltado alguna frase, no se
     cae a otro motor ni a otro modo: lo dicho ya se oyó, y una segunda
     respuesta distinta encima sería peor que quedarse sin la primera. El que
-    llama recibe None y contesta sin IA, como cuando el motor no está."""
+    llama recibe None y contesta sin IA, como cuando el motor no está.
+
+    `coding`: None lo decide la frase (`es_de_coding`); quien ya sabe que es
+    código (el encargo para Claude Code) pasa True."""
+    de_coding = es_de_coding(frase) if coding is None else coding
     indice = _indice()
     # El system prompt es lo estable (carácter, rol técnico, índice): así la
     # caché de la API lo lee en vez de reescribirlo en cada turno.
@@ -1060,6 +1125,8 @@ def pensar_en_frases(
     if referencia is not None:
         contexto += referencia
         print("[precarga] referencia: la frase nombra la Biblia, entra la sección que toca", file=sys.stderr)
+    if de_coding:
+        contexto += _contexto_de_coding(frase)
     turnos, resumen = _conversacion()
     abre_conversacion_nueva = not turnos  # toda conversación vigente tiene al menos un turno
     mensaje = mensaje_con_historia(frase, turnos, resumen, contexto)
@@ -1068,6 +1135,12 @@ def pensar_en_frases(
     # Si el modelo abre con una pregunta, la regla deja el prompt primero y
     # esa es la única versión que se muestra y se habla.
     pedir_entero = en_vivo and concreto.pide_prompt(frase)
+    if de_coding:
+        if elegido != "claude":
+            print(f"[pensar] tarea de código con {elegido}: va por Claude (Max)", file=sys.stderr)
+        elegido = "claude"
+        # Entera: la línea LECCION_JSON se saca antes de decir nada.
+        pedir_entero = en_vivo
     if buscar:
         # Solo Claude tiene WebSearch: una búsqueda va por Claude aunque el
         # chip diga Venice u Ollama, y queda dicho en el log.
@@ -1085,12 +1158,16 @@ def pensar_en_frases(
                 elegido, mensaje, instrucciones, indice, modo_pedido, nivel, buscar, modelo_ollama, modelo_venice
             )
     except LimiteDeClaude as limite:
-        print(
-            f"[pensar] Claude en su límite ({limite}): respaldo de charla por "
-            f"{RESPALDO_DE_CHARLA[0]}/{RESPALDO_DE_CHARLA[1]}",
-            file=sys.stderr,
-        )
-        pensado = _respaldo_de_charla(mensaje, instrucciones, len(indice))
+        if de_coding and not _respaldo_de_coding_permitido():
+            print(f"[pensar] Claude en su límite ({limite}) con código: sin respaldo, sigo sin IA", file=sys.stderr)
+            pensado = None
+        else:
+            print(
+                f"[pensar] Claude en su límite ({limite}): respaldo de charla por "
+                f"{RESPALDO_DE_CHARLA[0]}/{RESPALDO_DE_CHARLA[1]}",
+                file=sys.stderr,
+            )
+            pensado = _respaldo_de_charla(mensaje, instrucciones, len(indice))
         if pensado is not None and en_vivo and not pedir_entero:
             yield from _en_frases(_un_solo_delta(pensado.paso_minimo))
 
@@ -1101,6 +1178,8 @@ def pensar_en_frases(
     # Si pidieron un prompt y el modelo solo preguntó, el prompt va primero
     # y es lo único que se llega a decir.
     conversacion_id = _guardar_turno("juan", frase)
+    if pensado is not None and de_coding:
+        pensado = replace(pensado, paso_minimo=_sacar_leccion(frase, pensado.paso_minimo))
     if pensado is not None:
         paso = voseo.voseo_a_tu(concreto.concreto_primero(frase, pensado.paso_minimo))
         pensado = replace(pensado, paso_minimo=paso)
