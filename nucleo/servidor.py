@@ -38,6 +38,7 @@ import db
 import entregas
 import episodios
 import estado_libro
+import coding
 import experiencia
 import ficha
 import gasto
@@ -152,6 +153,7 @@ app.add_middleware(
 app.include_router(entregas.router)
 app.include_router(entregas.router_cobros)
 app.include_router(experiencia.router)
+app.include_router(coding.router)
 app.include_router(notion.router)
 app.include_router(notion_avisos.router)
 app.include_router(analisis_camino.router)
