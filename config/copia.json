@@ -1,7 +1,7 @@
 {
   "$comment": "Copia nocturna cifrada de Remi (3e). Solo un destino activo a la vez; los demás quedan preparados. Las credenciales NUNCA van acá: viven en el Llavero de macOS (servicio indicado en cada destino). La clave de cifrado es el ítem «remi-copia» del Llavero: guardala también fuera del Mac, sin ella las copias no se abren.",
   "destino": "icloud",
-  "conservar_dias": 30,
+  "conservar_dias": 90,
   "destinos": {
     "icloud": {
       "repo": "~/Library/Mobile Documents/com~apple~CloudDocs/Remi/copias"
