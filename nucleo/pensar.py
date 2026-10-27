@@ -94,6 +94,10 @@ PATRON_LIMITE_ALCANZADO = re.compile(r"usage limit|límite alcanzado|límite de 
 RESPALDO_DE_CHARLA = ("openrouter", "deepseek/deepseek-v4-pro")
 
 
+class SinLlave(Exception):
+    """Un motor externo sin llave: se salta sin abrir ninguna conexión."""
+
+
 class LimiteDeClaude(Exception):
     """La CLI dijo que se llegó al límite de uso de la membresía Max. No
     tiene sentido reintentar con otro modo de Claude —rápido, equilibrio e
@@ -1570,6 +1574,9 @@ def _charla(
 def _llamar_proveedor(proveedor: str, nombre_modelo: str, instrucciones: str, frase: str) -> dict[str, Any]:
     url, clave_env = PROVEEDORES_TRASTIENDA[proveedor]
     clave = _ajuste(clave_env, "") if clave_env else None
+    if clave_env and not clave:
+        # Sin llave no se llama: ni a Groq ni a OpenRouter sale nada del Mac.
+        raise SinLlave(proveedor)
     return _llamar_openai_compatible(url, clave, nombre_modelo, instrucciones, frase, TRASTIENDA_TIMEOUT_SEGUNDOS)
 
 
@@ -1616,6 +1623,9 @@ def pensar_con_trastienda(
             continue
         try:
             datos = _llamar_proveedor(proveedor, modelo, instrucciones, pedido)
+        except SinLlave:
+            print(f"[trastienda] {proveedor} sin llave: lo salto", file=sys.stderr)
+            continue
         except httpx.HTTPError as error:
             print(
                 f"[trastienda] {proveedor}/{modelo} no contestó ({type(error).__name__}): "
@@ -1643,6 +1653,9 @@ def _respaldo_de_charla(frase: str, instrucciones: str, entradas: int) -> Pensad
     proveedor, modelo = RESPALDO_DE_CHARLA
     try:
         datos = _llamar_proveedor(proveedor, modelo, instrucciones, frase)
+    except SinLlave:
+        print(f"[respaldo] {proveedor} sin llave: sigo sin IA", file=sys.stderr)
+        return None
     except httpx.HTTPError as error:
         print(f"[respaldo] {proveedor}/{modelo} no contestó ({type(error).__name__}): sigo sin IA", file=sys.stderr)
         return None

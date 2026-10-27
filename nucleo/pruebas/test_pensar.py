@@ -1017,3 +1017,26 @@ def test_trastienda_con_tope_pasado_salta_openrouter(monkeypatch, tmp_path):
     pensado = pensar.pensar_con_trastienda("algo", "instrucciones")
     assert pensado is not None
     assert vistos == ["ollama"]
+
+
+# — U0 (27/10/2026): la trastienda no sale del Mac sin llave —
+
+
+def test_trastienda_sin_llaves_no_pide_nada_fuera_de_localhost(monkeypatch, tmp_path):
+    pensar = _importar_pensar()
+    for llave in ("GROQ_API_KEY", "OPENROUTER_API_KEY"):
+        monkeypatch.delenv(llave, raising=False)
+    monkeypatch.setattr(pensar, "_leer_env", lambda: {})
+    ruta = tmp_path / "motores.json"
+    ruta.write_text('{"trastienda": ["groq/x", "openrouter/y", "ollama/gemma3:4b"]}')
+    monkeypatch.setattr(pensar, "RUTA_MOTORES", ruta)
+    urls = []
+
+    def falso_post(url, **kwargs):
+        urls.append(url)
+        raise pensar.httpx.ConnectError("sin red en la prueba")
+
+    monkeypatch.setattr(pensar.httpx, "post", falso_post)
+    assert pensar.pensar_con_trastienda("pedido", "instrucciones") is None
+    assert urls, "ollama (local) sí debía intentarse"
+    assert all(pensar.httpx.URL(u).host in ("127.0.0.1", "localhost") for u in urls), urls
