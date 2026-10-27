@@ -23,6 +23,7 @@ RUTA_ENV = Path(__file__).resolve().parent / ".env"
 BASE_URL = "https://api.notion.com/v1"
 VERSION = "2022-06-28"
 TIMEOUT_SEGUNDOS = 15.0
+VERSION_FUENTES = "2025-09-03"  # data sources: el id «collection://…» de una base
 
 
 def _leer_env(ruta: Path | None = None) -> dict[str, str]:
@@ -117,20 +118,45 @@ class Notion:
                 return paginas
             cursor = datos.get("next_cursor")
 
+    def consultar_fuente(self, fuente_id: str, filtro: dict[str, Any]) -> list[dict[str, Any]]:
+        """Filas de una data source con un filtro. Es el id que Notion muestra
+        como `collection://…`; la API vieja (2022-06-28) consulta por id de base
+        y este puente solo conoce el de la fuente, así que usa VERSION_FUENTES."""
+        paginas: list[dict[str, Any]] = []
+        cursor: str | None = None
+        while True:
+            cuerpo: dict[str, Any] = {"page_size": 100, "filter": filtro}
+            if cursor:
+                cuerpo["start_cursor"] = cursor
+            datos = self._pedir("POST", f"/data_sources/{fuente_id}/query", cuerpo, version=VERSION_FUENTES)
+            paginas.extend(datos.get("results", []))
+            if not datos.get("has_more"):
+                return paginas
+            cursor = datos.get("next_cursor")
+
     def crear_pagina(self, database_id: str, propiedades: dict[str, Any]) -> str:
         cuerpo = {"parent": {"database_id": database_id}, "properties": propiedades}
         return self._pedir("POST", "/pages", cuerpo)["id"]
 
-    def actualizar_pagina(self, pagina_id: str, propiedades: dict[str, Any]) -> None:
-        self._pedir("PATCH", f"/pages/{pagina_id}", {"properties": propiedades})
+    def actualizar_pagina(
+        self, pagina_id: str, propiedades: dict[str, Any], *, version: str | None = None
+    ) -> None:
+        self._pedir("PATCH", f"/pages/{pagina_id}", {"properties": propiedades}, version=version)
 
     def obtener_pagina(self, pagina_id: str) -> dict[str, Any]:
         return self._pedir("GET", f"/pages/{pagina_id}", None)
 
     def _pedir(
-        self, metodo: str, ruta: str, cuerpo: dict[str, Any] | None, *, params: dict[str, Any] | None = None
+        self,
+        metodo: str,
+        ruta: str,
+        cuerpo: dict[str, Any] | None,
+        *,
+        params: dict[str, Any] | None = None,
+        version: str | None = None,
     ) -> dict[str, Any]:
-        respuesta = self._cliente.request(metodo, ruta, json=cuerpo, params=params)
+        cabeceras = {"Notion-Version": version} if version else None
+        respuesta = self._cliente.request(metodo, ruta, json=cuerpo, params=params, headers=cabeceras)
         respuesta.raise_for_status()
         return respuesta.json()
 

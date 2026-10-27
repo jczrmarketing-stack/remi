@@ -301,6 +301,7 @@ export const nucleo = {
   abrirBloque: (titulo: string, tema: string | null) =>
     pedir<{ tarea: Tarea; sesion: Sesion }>("/bloque", { method: "POST", body: JSON.stringify({ titulo, tema }) }),
 
+
   // Marca o desmarca el hito número `n` (desde 1) del camino de ese libro.
   // El núcleo edita solo esa línea y deja un commit en la bóveda.
   marcarHito: (tema: string, n: number, hecho: boolean) =>

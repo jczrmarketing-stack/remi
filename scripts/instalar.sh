@@ -44,8 +44,13 @@ echo "  puerto: $HOST:$PUERTO"
 
 # — uv es quien levanta el servidor: sin él no hay nada que instalar —
 UV="$(command -v uv || true)"
+if [[ -z "$UV" ]] && command -v brew > /dev/null 2>&1; then
+  echo "  uv:     no está; lo instalo con brew"
+  brew install uv
+  UV="$(command -v uv || true)"
+fi
 if [[ -z "$UV" ]]; then
-  echo "No encontré \`uv\`. Instalalo y volvé a correr esto." >&2
+  echo "No encontré \`uv\` y no pude instalarlo con brew (¿falta brew?). Instalalo y volvé a correr esto." >&2
   exit 1
 fi
 echo "  uv:     $UV"

@@ -127,3 +127,7 @@ def _base_propia(tmp_path, monkeypatch):
     # Ni sus libros ni su git: la copia de esta corrida (las que quieren la
     # suya la ponen con monkeypatch y pisan esta).
     monkeypatch.setenv("REMI_CONOCIMIENTO", str(_COPIA_DE_LA_BOVEDA / "proyectos"))
+
+# El sondeo de avisos de Notion no arranca en las pruebas: con un nucleo/.env
+# real consultaría la base de verdad cada 5 minutos (mismo motivo que Telegram).
+os.environ.setdefault("REMI_NOTION_AVISOS", "0")

@@ -46,6 +46,7 @@ import iniciativa
 import libros
 import mensaje_cliente
 import notion
+import notion_avisos
 import pensar
 import plata
 import analisis_camino
@@ -134,6 +135,7 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
         except Exception as error:  # nunca tumbar el arranque por esto
             print(f"[referencia] no pude sembrar ({type(error).__name__}: {error})", file=sys.stderr)
     telegram.arrancar_hilo()
+    notion_avisos.arrancar_hilo()
     yield
 
 
@@ -151,6 +153,7 @@ app.include_router(entregas.router)
 app.include_router(entregas.router_cobros)
 app.include_router(experiencia.router)
 app.include_router(notion.router)
+app.include_router(notion_avisos.router)
 app.include_router(analisis_camino.router)
 app.include_router(calendario.router)
 app.include_router(calibracion.router)

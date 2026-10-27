@@ -108,6 +108,9 @@ import {
 } from "./ventana";
 import type { Estado, Modo, OrigenMensaje } from "./tipos";
 import { mostrarTextoIsla, MS_NUDGE_VISIBLE, MS_ISLA_ENCOGER, MS_ISLA_VISIBLE, tamanoIsla, TAMANO_ISLA_MINIMA } from "./reposo";
+import { AvisoNotion } from "./componentes/AvisoNotion";
+import { avisoEnPantalla } from "./avisoNotion";
+import { useAvisoNotion } from "./useAvisoNotion";
 import "./estilos.css";
 import "./App.css";
 
@@ -390,6 +393,7 @@ export default function App() {
     });
     let relojLugar = 0;
     const lugar = ventana.onMoved(({ payload }) => {
+      if (avisoEnPantalla.activo) return;
       window.clearTimeout(relojLugar);
       relojLugar = window.setTimeout(() => {
         void ventana.scaleFactor().then((f) => fijarPosicion({ x: payload.x / f, y: payload.y / f }));
@@ -408,7 +412,7 @@ export default function App() {
   const tamanoIslaAnteriorRef = useRef(claveIsla);
   useEffect(() => {
     // Durante la animación de cerrar, el tamaño lo pone ella.
-    if (expandido || animandoRef.current) return;
+    if (expandido || animandoRef.current || avisoEnPantalla.activo) return;
     if (tamanoIslaAnteriorRef.current === claveIsla) {
       // Primer paint en reposo (o cambio de contenido sin cambio de tamaño):
       // fija el tamaño ya, sin animar.
@@ -854,6 +858,12 @@ export default function App() {
       return null;
     });
   }, []);
+
+  // Aviso de Notion: solo en reposo y sin un nudge en la isla. Va encima de
+  // todo, entra deslizándose y suena una vez (useAvisoNotion.ts).
+  const puedeAvisoNotion = estado === "reposo" && nudgePendiente === null;
+  const { aviso: avisoNotion, saliendo: avisoNotionSaliendo, responder: alResponderAvisoNotion } =
+    useAvisoNotion(puedeAvisoNotion);
 
   // — Banco de pruebas (⌘⌥ + tecla) —
   // Para ver en vivo cada pieza del diseño sin esperar a que pase de verdad:
@@ -1669,6 +1679,10 @@ export default function App() {
         )}
       </div>
     );
+  }
+
+  if (avisoNotion && puedeAvisoNotion) {
+    return <AvisoNotion aviso={avisoNotion} saliendo={avisoNotionSaliendo} onResponder={alResponderAvisoNotion} />;
   }
 
   return (

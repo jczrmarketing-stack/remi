@@ -1,0 +1,71 @@
+/* Aviso de Notion: una tarjeta Nudge que ocupa toda la ventana y entra
+   deslizándose desde el borde derecho de la pantalla (la ventana se pega ahí).
+   Un solo movimiento de 250 ms; sin sombras ni relleno de prioridad (DS). */
+.aviso-notion {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  box-sizing: border-box;
+  padding: var(--space-2);
+  overflow: hidden;
+  animation: aviso-notion-entra var(--dur-aparecer) var(--curva) both;
+}
+
+.aviso-notion--sale {
+  animation: aviso-notion-sale var(--dur-aparecer) var(--curva) both;
+}
+
+.aviso-notion__tarjeta {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: space-between;
+}
+
+.aviso-notion__textos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.aviso-notion__rotulo {
+  color: var(--ink-muted);
+}
+
+/* Lo que pesa más se ve más calmado, no más grande (ley 4): 20/24, itálica de Remi. */
+.aviso-notion__fuerte,
+.aviso-notion__suave {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.aviso-notion__fuerte {
+  font-size: 20px;
+  line-height: 24px;
+}
+
+.aviso-notion__suave {
+  color: var(--ink-muted);
+}
+
+@keyframes aviso-notion-entra {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes aviso-notion-sale {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aviso-notion,
+  .aviso-notion--sale {
+    animation: none;
+  }
+}

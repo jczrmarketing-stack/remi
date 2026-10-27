@@ -90,6 +90,17 @@ fn leer_atajos() -> Atajos {
 struct UltimaPalanca(Mutex<Option<Instant>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// El aviso de Notion suena una vez: un toque corto del sistema (macOS), sin
+/// archivo de audio propio. Si falla, el aviso sale igual, callado.
+#[tauri::command]
+fn sonar_aviso() {
+    std::thread::spawn(|| {
+        let _ = std::process::Command::new("afplay")
+            .arg("/System/Library/Sounds/Tink.aiff")
+            .status();
+    });
+}
+
 pub fn run() {
     let atajos = leer_atajos();
     let atajo_dictado: Shortcut = atajos.dictado.parse().unwrap_or_else(|_| {
@@ -119,6 +130,7 @@ pub fn run() {
         }))
         .manage(EstadoGrabacion::default())
         .invoke_handler(tauri::generate_handler![
+            sonar_aviso,
             voz::iniciar_escucha,
             voz::activar_corte_por_silencio,
             voz::cancelar_escucha,
