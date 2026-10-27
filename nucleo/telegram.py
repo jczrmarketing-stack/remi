@@ -36,6 +36,15 @@ REINTENTO_AVISO_SEGUNDOS = 2
 HORA_SILENCIO_DESDE = 23
 HORA_SILENCIO_HASTA = 7
 
+_TOKEN_EN_URL = re.compile(r"/bot[^/\s'\"]+")
+
+
+def _sin_token(texto: object) -> str:
+    """El mensaje de un error de httpx trae la URL con `/bot<token>/`: antes de
+    escribirlo en el log, el token se enmascara (U0, 27-oct-2026)."""
+    return _TOKEN_EN_URL.sub("/bot<oculto>", str(texto))
+
+
 # — Qué cabe en el teléfono (Juan Camilo, 26-oct-2026) —
 #
 # Sale: el paso mínimo de lo abierto (1 al día), el aviso de que terminó
@@ -217,7 +226,7 @@ def escuchar(transporte: Transporte, seguir: Callable[[], bool] | None = None) -
         try:
             actualizaciones = transporte.obtener_actualizaciones(offset)
         except Exception as error:  # nunca tumbar el hilo por un error de red
-            print(f"[telegram] falló getUpdates ({type(error).__name__}: {error})", file=sys.stderr, flush=True)
+            print(f"[telegram] falló getUpdates ({type(error).__name__}: {_sin_token(error)})", file=sys.stderr, flush=True)
             time.sleep(1)
             continue
         for actualizacion in actualizaciones:
@@ -225,7 +234,7 @@ def escuchar(transporte: Transporte, seguir: Callable[[], bool] | None = None) -
             try:
                 _manejar_actualizacion(transporte, actualizacion)
             except Exception as error:  # una actualización rota no tumba el hilo
-                print(f"[telegram] falló al procesar una actualización ({type(error).__name__}: {error})", file=sys.stderr, flush=True)
+                print(f"[telegram] falló al procesar una actualización ({type(error).__name__}: {_sin_token(error)})", file=sys.stderr, flush=True)
 
 
 # El evento de parada del hilo que está corriendo ahora, si hay uno.
@@ -352,7 +361,7 @@ def _enviar_con_reintento(transporte: Transporte, chat_id: int | str, texto: str
             transporte.enviar_mensaje(chat_id, texto)
         except Exception as error:  # nunca tumbar el hilo de fondo
             ms = (time.perf_counter() - inicio) * 1000
-            motivo = f"{type(error).__name__}: {error}"
+            motivo = f"{type(error).__name__}: {_sin_token(error)}"
             print(
                 f"[telegram] intento {intento + 1} de avisar falló ({motivo}, ms={ms:.0f})",
                 file=sys.stderr,

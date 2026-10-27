@@ -468,3 +468,23 @@ def test_escuchar_no_se_cae_si_obtener_actualizaciones_falla(monkeypatch):
 
     telegram.escuchar(TransporteRoto(), seguir)
     assert intentos["n"] == 2
+
+
+# — U0 (27/10/2026): el token no llega al log —
+
+
+def test_el_token_no_se_escribe_en_el_log(capsys, monkeypatch):
+    token = "123456:ABC-secreto-de-prueba"
+    error = RuntimeError(f"Client error '409 Conflict' for url 'https://api.telegram.org/bot{token}/getUpdates?timeout=30'")
+
+    class Transporte:
+        def obtener_actualizaciones(self, offset):
+            raise error
+
+    monkeypatch.setattr(telegram.time, "sleep", lambda s: None)
+    vueltas = iter([True, False])
+    telegram.escuchar(Transporte(), seguir=lambda: next(vueltas))
+    salida = capsys.readouterr().err
+    assert "falló getUpdates" in salida
+    assert token not in salida
+    assert "/bot<oculto>/getUpdates" in salida
