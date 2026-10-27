@@ -346,6 +346,11 @@ def correr(hoy: date | None = None) -> None:
     conversaciones_cerradas = cierre.cerrar_conversaciones_inactivas(arranque)
     print(f"[noche] conversaciones con episodio={conversaciones_cerradas}")
 
+    # U1: el estado vivo se refresca desde Notion para que no envejezca.
+    import estado_crm
+
+    print(f"[noche] estado_crm={estado_crm.refrescar()}")
+
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")
 

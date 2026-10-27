@@ -89,6 +89,14 @@ def construir_estado(hoy: date | None = None) -> str:
     else:
         aviso += f"Este estado tiene {edad} día(s); lo marcado como visto puede haber cambiado."
     partes = [aviso, cuerpo.strip()]
+    crm_datos, crm_cuerpo = _frontmatter(_leer("crm.md"))
+    if crm_cuerpo.strip():
+        try:
+            crm_edad = (hoy - date.fromisoformat(crm_datos.get("actualizado", ""))).days
+        except ValueError:
+            crm_edad = -1
+        nota = "" if 0 <= crm_edad <= 1 else f"\n(Ojo: este bloque se sacó de Notion hace {crm_edad} día(s)" + ("" if crm_edad >= 0 else ", fecha desconocida") + ".)"
+        partes.append(crm_cuerpo.strip() + nota)
     vencidos = _supuestos_vencidos(hoy)
     if vencidos:
         partes.append("# Supuestos por revisar\n" + "\n".join(vencidos))
