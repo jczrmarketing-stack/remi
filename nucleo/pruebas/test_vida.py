@@ -1,7 +1,7 @@
 from datetime import date
 from pathlib import Path
 
-import remi_mcp as r
+import vida as r
 
 
 def _montar(tmp_path: Path, monkeypatch, estado_fecha="2026-10-27"):
