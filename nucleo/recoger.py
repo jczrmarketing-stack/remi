@@ -30,6 +30,11 @@ _ABRIR = {"/info", "/links"}
 _CERRAR = {"/listo", "/enviar"}
 MAX_LINKS = 500
 MAX_MOSTRADOS = 5
+AUTO_ESPERA_SEG = 45          # calma sin links nuevos antes de empezar a leer
+_SOLO_LINK_MAX_LETRAS = 12    # «mira esto:» cabe; una frase entera ya es charla
+_SITIOS_AUTO = ("youtube.com", "youtu.be", "youtube-nocookie.com", "instagram.com", "tiktok.com")
+_CANDADO = threading.Lock()   # un lote a la vez: Whisper y las plataformas no aguantan más
+_TEMPORIZADORES: dict[str, threading.Timer] = {}
 
 
 def extraer_urls(texto: str) -> list[str]:
@@ -88,16 +93,77 @@ def _lanzar_y_avisar(boveda: Path, archivo: Path, avisar: Callable[[str], None])
     """Corre lote.py aparte y, al terminar, avisa. En un hilo para no frenar el polling."""
     def trabajo() -> None:
         try:
+            _CANDADO.acquire()
             r = subprocess.run([_python_de(boveda), "lote.py", str(archivo)], cwd=boveda, capture_output=True, text=True, timeout=6 * 3600)
             ultimo = boveda / "cache" / "ultimo_lote.md"
             avisar(resumen_corto(ultimo.read_text(encoding="utf-8")) if ultimo.exists() and r.returncode in (0, 1) else "No pude leer el resultado del lote. Mira la bóveda en el Mac.")
         except Exception as exc:  # noqa: BLE001 — avisar siempre, aunque falle
             avisar(f"El lote se cayó ({type(exc).__name__}). Los links están guardados en la bóveda.")
+        finally:
+            if _CANDADO.locked():
+                _CANDADO.release()
 
     threading.Thread(target=trabajo, daemon=True).start()
 
 
-def manejar(chat_id: int | str, texto: str, avisar: Callable[[str], None], lanzar: Callable[[Path, Path, Callable[[str], None]], None] | None = None, ahora: datetime | None = None) -> str | None:
+def _es_solo_links_de_contenido(texto: str) -> list[str]:
+    """Los links del mensaje si es SOLO links de YouTube/Instagram/TikTok (con a lo sumo
+    unas palabras). Cualquier otra cosa devuelve [] y sigue como charla normal."""
+    urls = extraer_urls(texto)
+    if not urls or len(re.sub(r"\W+", "", _URL.sub("", texto))) > _SOLO_LINK_MAX_LETRAS:
+        return []
+    for u in urls:
+        host = (urlparse(u).hostname or "").lower()
+        if not any(host == d or host.endswith("." + d) for d in _SITIOS_AUTO):
+            return []
+    return urls
+
+
+def _programar(segundos: float, funcion: Callable[[], None]) -> threading.Timer:
+    t = threading.Timer(segundos, funcion)
+    t.daemon = True
+    t.start()
+    return t
+
+
+def _escribir_lote(boveda: Path, nombre: str, links: list[str], ahora: datetime) -> Path:
+    carpeta = boveda / "00_inbox" / "_telegram"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    archivo = carpeta / f"{nombre}-{ahora:%Y%m%d-%H%M%S}.txt"
+    archivo.write_text("\n".join(links) + "\n", encoding="utf-8")
+    return archivo
+
+
+def cerrar_auto(chat_id: int | str, avisar: Callable[[str], None], lanzar: Callable[..., None] | None = None, ahora: datetime | None = None) -> None:
+    """Lo acumulado por «compartir a Telegram» pasa a la bóveda. Si no hay bóveda,
+    los links se quedan guardados y se reintenta en el próximo mensaje o reinicio."""
+    estado = _leer()
+    clave = f"auto:{chat_id}"
+    links = estado.get(clave) or []
+    if not links:
+        return
+    boveda = _boveda()
+    if boveda is None:
+        avisar("No encuentro la bóveda (¿el disco ORGANIC está conectado?). Tus links quedan guardados y los leo cuando vuelva.")
+        return
+    archivo = _escribir_lote(boveda, "auto", links, ahora or datetime.now())
+    estado.pop(clave)
+    _guardar(estado)
+    avisar(f"Leyendo {len(links)} link(s) de la bóveda…")
+    (lanzar or _lanzar_y_avisar)(boveda, archivo, avisar)
+
+
+def reanudar(enviar: Callable[[str, str], None], espera: float = 5, programar: Callable[..., object] | None = None, lanzar: Callable[..., None] | None = None) -> int:
+    """Al arrancar el núcleo: links compartidos que se quedaron esperando (se cayó o se
+    reinició antes de leerlos). Devuelve cuántos chats tenían algo pendiente."""
+    pendientes = [k for k, v in _leer().items() if k.startswith("auto:") and v]
+    for k in pendientes:
+        chat = k.split(":", 1)[1]
+        (programar or _programar)(espera, lambda c=chat: cerrar_auto(c, lambda t, c=c: enviar(c, t), lanzar))
+    return len(pendientes)
+
+
+def manejar(chat_id: int | str, texto: str, avisar: Callable[[str], None], lanzar: Callable[[Path, Path, Callable[[str], None]], None] | None = None, ahora: datetime | None = None, programar: Callable[..., object] | None = None, espera: float = AUTO_ESPERA_SEG) -> str | None:
     """Devuelve lo que contesta Remi, o None si el mensaje no es de la recolección."""
     cmd = texto.strip().split()[0].lower().split("@")[0] if texto.strip() else ""
     estado = _leer()
@@ -135,11 +201,7 @@ def manejar(chat_id: int | str, texto: str, avisar: Callable[[str], None], lanza
         boveda = _boveda()
         if boveda is None:
             return "No encuentro la bóveda (¿el disco ORGANIC está conectado?). Tus links siguen guardados; manda /listo cuando esté."
-        ahora = ahora or datetime.now()
-        carpeta = boveda / "00_inbox" / "_telegram"
-        carpeta.mkdir(parents=True, exist_ok=True)
-        archivo = carpeta / f"lote-{ahora:%Y%m%d-%H%M%S}.txt"
-        archivo.write_text("\n".join(links) + "\n", encoding="utf-8")
+        archivo = _escribir_lote(boveda, "lote", links, ahora or datetime.now())
         estado.pop(clave)
         _guardar(estado)
         (lanzar or _lanzar_y_avisar)(boveda, archivo, avisar)
@@ -157,5 +219,20 @@ def manejar(chat_id: int | str, texto: str, avisar: Callable[[str], None], lanza
         estado[clave] += nuevos[:lugar]
         _guardar(estado)
         return f"+{len(nuevos[:lugar])} · {len(estado[clave])} en total" if nuevos else f"Ya los tenía · {len(estado[clave])} en total"
+
+    # Compartir desde el celular: un mensaje que es solo links de YouTube/Instagram/TikTok
+    # entra solo, sin /info. Espera `espera` s de calma y los lee todos juntos.
+    auto = _es_solo_links_de_contenido(texto)
+    if auto:
+        k = f"auto:{clave}"
+        cola = estado.get(k, [])
+        nuevos = [u for u in auto if u not in cola]
+        estado[k] = (cola + nuevos)[:MAX_LINKS]
+        _guardar(estado)
+        previo = _TEMPORIZADORES.pop(k, None)
+        if previo is not None and hasattr(previo, "cancel"):
+            previo.cancel()
+        _TEMPORIZADORES[k] = (programar or _programar)(espera, lambda: cerrar_auto(chat_id, avisar, lanzar, ahora))
+        return f"Anotado ✓ ({len(estado[k])} en espera; los leo en {int(espera)} s si no mandas más)"
 
     return None

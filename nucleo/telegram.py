@@ -261,6 +261,12 @@ def _iniciar_polling(tok: str) -> None:
     evento = threading.Event()
     _evento_detener = evento
     transporte = ClienteBotAPI(tok)
+    try:
+        import recoger
+
+        recoger.reanudar(transporte.enviar_mensaje)  # links compartidos que quedaron esperando
+    except Exception as error:  # nunca tumbar el arranque por esto
+        print(f"[telegram] no pude reanudar los links pendientes ({type(error).__name__})", file=sys.stderr, flush=True)
     hilo = threading.Thread(target=escuchar, args=(transporte, lambda: not evento.is_set()), daemon=True)
     hilo.start()
 
