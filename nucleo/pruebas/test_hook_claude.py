@@ -14,8 +14,14 @@ def _instalador():
     return m
 
 
-def test_el_hook_entrega_json_valido_con_el_estado():
-    r = subprocess.run([sys.executable, str(RAIZ / "scripts" / "hook_sesion_inicio.py")], capture_output=True, text=True, timeout=5)
+def test_el_hook_entrega_json_valido_con_el_estado(tmp_path):
+    import os
+    (tmp_path / "yo").mkdir()
+    (tmp_path / "negocio").mkdir()
+    (tmp_path / "yo" / "perfil.md").write_text("---\ntipo: yo\n---\n# Quién es\n- prueba\n", encoding="utf-8")
+    (tmp_path / "negocio" / "frentes.md").write_text("---\nactualizado: 2026-10-30\n---\n# Frentes\n- uno\n", encoding="utf-8")
+    env = dict(os.environ, REMI_MENTE=str(tmp_path))
+    r = subprocess.run([sys.executable, str(RAIZ / "scripts" / "hook_sesion_inicio.py")], capture_output=True, text=True, timeout=5, env=env)
     assert r.returncode == 0
     datos = json.loads(r.stdout)["hookSpecificOutput"]
     assert datos["hookEventName"] == "SessionStart" and "Hoy es" in datos["additionalContext"]

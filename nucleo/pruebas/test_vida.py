@@ -50,7 +50,7 @@ def test_estado_respeta_presupuesto(tmp_path, monkeypatch):
     vida = _montar(tmp_path, monkeypatch)
     (vida / "negocio" / "frentes.md").write_text("---\nactualizado: 2026-10-27\n---\n" + ("linea larga de relleno\n" * 600), encoding="utf-8")
     t = r.construir_estado(date(2026, 10, 27))
-    assert len(t) <= r.PRESUPUESTO_CARACTERES + 120 and "recortado" in t
+    assert len(t) <= r.PRESUPUESTO_CARACTERES + 120 and ("sigue en" in t or "no cupo" in t or "recortado" in t)
 
 
 def test_anotar_supuesto_y_bandeja(tmp_path, monkeypatch):

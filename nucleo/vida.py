@@ -83,32 +83,50 @@ def construir_estado(hoy: date | None = None) -> str:
         aviso += "Estado actualizado hoy."
     else:
         aviso += f"Este estado tiene {edad} día(s); lo marcado como visto puede haber cambiado."
-    partes = [aviso, *yo]
-    if frentes.strip():
-        partes.append(frentes.strip())
+    # Lo que nunca se recorta: quién es, supuestos vencidos y lo anotado hace poco.
+    # Lo que cede espacio: frentes y, de último, el bloque del CRM.
     vencidos = _supuestos_vencidos(hoy)
-    if vencidos:
-        partes.append("# Supuestos por revisar\n" + "\n".join(vencidos))
+    bloque_supuestos = "# Supuestos por revisar\n" + "\n".join(vencidos) if vencidos else ""
+    bandeja = _bandeja_reciente()
+    bloque_bandeja = "# Anotado hace poco\n" + "\n".join(bandeja) if bandeja else ""
+    # Un servidor MCP abierto antes de la mudanza sigue escribiendo en las rutas viejas.
+    restos = [d for d in ("vida", "experiencia") if (MENTE / d).exists()]
+    aviso_restos = f"Ojo: hay notas en rutas viejas de la mente ({', '.join(restos)}/): falta pasarlas a su carpeta." if restos else ""
     crm_datos, crm_cuerpo = _frontmatter(_leer("negocio/crm.md"))
+    bloque_crm = ""
     if crm_cuerpo.strip():
         try:
             crm_edad = (hoy - date.fromisoformat(crm_datos.get("actualizado", ""))).days
         except ValueError:
             crm_edad = -1
         nota = "" if 0 <= crm_edad <= 1 else f"\n(Ojo: este bloque se sacó de Notion hace {crm_edad} día(s)" + ("" if crm_edad >= 0 else ", fecha desconocida") + ".)"
-        partes.append(crm_cuerpo.strip() + nota)
-    bandeja = _bandeja_reciente()
-    if bandeja:
-        partes.append("# Anotado hace poco\n" + "\n".join(bandeja))
-    # Un servidor MCP abierto antes de la mudanza sigue escribiendo en las rutas viejas.
-    restos = [d for d in ("vida", "experiencia") if (MENTE / d).exists()]
-    if restos:
-        partes.insert(1, f"Ojo: hay notas en rutas viejas de la mente ({', '.join(restos)}/): falta pasarlas a su carpeta.")
+        bloque_crm = crm_cuerpo.strip() + nota
+    fijos = [p for p in (aviso, aviso_restos, *yo, bloque_supuestos, bloque_bandeja) if p]
+    disponible = PRESUPUESTO_CARACTERES - sum(len(p) + 2 for p in fijos) - 4
+    bloque_frentes = frentes.strip()
+    if bloque_frentes and bloque_crm:
+        cupo_frentes = max(0, int(disponible * 0.65))
+    else:
+        cupo_frentes = max(0, disponible)
+    bloque_frentes = _recortar(bloque_frentes, cupo_frentes, "negocio/frentes.md")
+    cupo_crm = max(0, disponible - len(bloque_frentes))
+    bloque_crm = _recortar(bloque_crm, cupo_crm, "negocio/crm.md")
+    partes = [p for p in (aviso, aviso_restos, *yo, bloque_frentes, bloque_supuestos, bloque_crm, bloque_bandeja) if p]
     texto = "\n\n".join(partes)
-    if len(texto) > PRESUPUESTO_CARACTERES:
-        recorte = texto[:PRESUPUESTO_CARACTERES].rsplit("\n", 1)[0]
-        texto = recorte + "\n[…recortado por presupuesto; usa `preguntar` para el resto]"
+    if len(texto) > PRESUPUESTO_CARACTERES + 200:  # red de seguridad; no debería pasar
+        texto = texto[:PRESUPUESTO_CARACTERES].rsplit("\n", 1)[0] + "\n[…recortado por presupuesto; usa `preguntar` para el resto]"
     return texto
+
+
+def _recortar(bloque: str, cupo: int, archivo: str) -> str:
+    """Corta un bloque por líneas enteras para que quepa en `cupo`, y dice dónde está el resto."""
+    if not bloque or len(bloque) <= cupo:
+        return bloque
+    cola = f"\n[… sigue en {archivo}; pídelo con `preguntar`]"
+    if cupo <= len(cola) + 40:
+        return f"[{archivo}: no cupo en el presupuesto; pídelo con `preguntar`]"
+    corte = bloque[: cupo - len(cola)].rsplit("\n", 1)[0]
+    return corte + cola
 
 
 def _archivos_de_busqueda() -> list[Path]:
