@@ -58,6 +58,13 @@ Un prompt = una tarea = un commit. Pruebas donde duele. `conocimiento/` y `mente
 - Medición de tokens por sesión (`uso.md`) y semana de uso real con bitácora de fallos.
 **Listo cuando:** 7 días sin intervención manual; una restauración probada; `git log -p` sin un solo secreto.
 
+## F3b · Ventanita de foco y notificaciones (terminal, ~2 días) — pedido de JC el 30-oct
+Primero **auditar** panel y ventanita pantalla por pantalla (qué hace, qué le falta, qué está roto) y escribir `docs/auditoria/panel-2026-10-30.md`; después construir:
+1. **Foco tipo BeFocus (M).** Escribir una tarea + minutos; cuenta regresiva visible en la **barra de menú** (icono de bandeja de Tauri con el tiempo restante como título); al terminar, pausa y «¿terminaste?». BeFocus ya está instalado y corriendo en su Mac: se copia su manera (tarea, tiempo, contador arriba), no se reemplaza a la fuerza.
+2. **Que Remi lo inicie (S).** Remi propone la tarea de la hora (del estado vivo) y arranca el temporizador con un toque; sin él, JC lo olvida.
+3. **Notificaciones (M).** La ventanita se superpone a las demás ventanas solo cuando Remi tiene algo que decir (aviso, vencimiento, aprobación); un canal, sin cadena de culpa.
+*Listo cuando:* JC inicia una tarea de 25 min con un toque, ve el contador en la barra de arriba y recibe el aviso final sin abrir nada.
+
 ## F4 · La fábrica (terminal, ~3 días) — según el video y `nucleo/coding.py`
 1. **Cotizar y proponer (L).** Entrada por Telegram (brief del cliente) → spec que consulta `mente/` → propuesta con precio ancla y contrato Omniway → revisor con contexto limpio → portero (reglas, no agente) → PDF listo para enviar. *Listo cuando:* una cotización real sale en menos de 30 min de su tiempo.
 2. **Entregar software (L).** Spec → builder con TDD → revisores (seguridad, UX, código) → aprobador → portero con hooks → PR; trazas en SQLite. *Listo cuando:* una entrega real pasa por la fábrica y se cobra.
@@ -66,6 +73,7 @@ Un prompt = una tarea = un commit. Pruebas donde duele. `conocimiento/` y `mente
 La Sala (mapa vectorial) cuando `mente/` tenga datos de campo y decisiones; el investigador semanal que llena `mundo/`; marketing y ventas; la vara contra Grok Bot medida como oportunidades por semana que el sistema encontró y él no.
 
 ## Registro
+- 30-oct: F3b (ventanita de foco y notificaciones) añadida al plan. Fábrica (F4): decidido que será cliente de `mente/` por el MCP `remi`, sin memoria propia y sin meterse en el núcleo de Remi; el material va en `mente/mundo/fabrica/`.
 - 30-oct: `vision.py` en la bóveda: videos sin voz y posts de imágenes se ven con un modelo `:free` de OpenRouter; caption del post en toda nota. Falta que JC ponga `OPENROUTER_API_KEY` en `_sistema/.env` y reintente los fallidos.
 - 30-oct: arquitectura v3 (frontera, gratis) escrita en `docs/diseno/boveda-v3-frontera.md`; F1.3–F1.8 reescritos. F2.4 corre sobre `afirmaciones` y `hallazgos`.
 - 30-oct: plan reescrito tras la revisión externa y el diagnóstico de la bóveda. F0 abierta.
