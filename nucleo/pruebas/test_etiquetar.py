@@ -40,7 +40,18 @@ def test_solo_salen_notas_de_fuente_publica(boveda):
     _nota(boveda, "03_oro/negocio", "a")
     _nota(boveda, "03_oro/negocio", "privada", fuente="milo")
     _nota(boveda, "03_oro/decisiones", "rumbo", fuente="rumbo")
+    _nota(boveda, "03_oro/inteligencia", "informe", fuente="youtube")
+    _nota(boveda, "03_oro/negocio", "ejemplo-pasos", fuente="youtube")
     assert [n["id"] for n in e.notas(boveda)] == ["a"]
+
+
+def test_nota_sin_verificar_no_sale_al_telefono(boveda):
+    _nota(boveda, "03_oro/negocio", "a")
+    _nota(boveda, "03_oro/negocio", "b")
+    ruta = boveda / "03_oro/negocio/b.md"
+    ruta.write_text(ruta.read_text(encoding="utf-8").replace('id: "b"', 'id: "b"\nsin_verificar: true'), encoding="utf-8")
+    assert [n["id"] for n in e.notas(boveda)] == ["a"]
+    assert e.manejar_boton("et:negocio:b") is None
 
 
 def test_el_mensaje_es_ciego_y_lo_privado_va_solo_como_link(boveda):

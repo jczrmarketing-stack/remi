@@ -5,7 +5,8 @@
 Para medir el modelo contra las reglas hace falta la opinión de Juan Camilo
 sin pistas: el mensaje no muestra qué dijo ninguno de los dos. Solo salen
 notas de fuente pública (nunca las de Rumbo ni las escritas a mano), y si el
-título o el resumen tocan algo privado, va solo el link. Pausar no deja rastro.
+título o el resumen tocan algo privado, va solo el link. Una nota sin_verificar
+no sale. Pausar no deja rastro.
 """
 from __future__ import annotations
 
@@ -52,7 +53,12 @@ def notas(boveda: Path) -> list[dict[str, Any]]:
     halladas = []
     for carpeta in _CARPETAS:
         for ruta in (boveda / carpeta).rglob("*.md"):
+            # Los informes y ejemplos dicen fuente «youtube», pero no son notas de la ingesta.
+            if "inteligencia" in ruta.parts or ruta.name.startswith("ejemplo-"):
+                continue
             datos = _frontmatter(ruta)
+            if datos.get("sin_verificar") is True:
+                continue
             if datos.get("fuente") in FUENTES_PUBLICAS and datos.get("id") and datos.get("url"):
                 halladas.append(datos)
     halladas.sort(key=lambda d: hashlib.sha256(str(d["id"]).encode()).hexdigest())
