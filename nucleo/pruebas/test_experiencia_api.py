@@ -44,7 +44,7 @@ def test_post_experiencia_crea_la_leccion(tmp_path, monkeypatch):
 
     assert respuesta.status_code == 201
     assert respuesta.json()["es_nueva"] is True
-    assert (tmp_path / "boveda" / "experiencia" / respuesta.json()["archivo"]).exists()
+    assert (tmp_path / "boveda" / "aprendido" / "lecciones" / respuesta.json()["archivo"]).exists()
 
 
 def test_post_experiencia_incompleta_es_422(tmp_path, monkeypatch):

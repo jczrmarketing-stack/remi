@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Hook UserPromptSubmit de Claude Code: antes de que Claude piense, la bóveda
-responde. Busca lo que ya tenemos (conocimiento/ y la bóveda) sobre lo que
+responde. Busca lo que ya tenemos (mente/ y la bóveda) sobre lo que
 Juan Camilo acaba de escribir y se lo pone a Claude en el contexto, con la
 instrucción de usarlo antes de investigar en la web o abrir un repo.
 

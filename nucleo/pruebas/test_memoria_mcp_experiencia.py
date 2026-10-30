@@ -34,7 +34,7 @@ def test_anotar_leccion_crea_el_archivo(tmp_path, monkeypatch):
     )
 
     assert "Anotada" in respuesta
-    assert list((tmp_path / "boveda" / "experiencia").glob("*.md"))
+    assert list((tmp_path / "boveda" / "aprendido" / "lecciones").glob("*.md"))
 
 
 def test_anotar_leccion_repetida_suma_una_vuelta(tmp_path, monkeypatch):
@@ -48,7 +48,7 @@ def test_anotar_leccion_repetida_suma_una_vuelta(tmp_path, monkeypatch):
     respuesta = mcp.anotar_leccion(**kwargs)
 
     assert "ya había" in respuesta.lower()
-    lecciones = [p for p in (tmp_path / "boveda" / "experiencia").glob("*.md") if p.name != "README.md"]
+    lecciones = [p for p in (tmp_path / "boveda" / "aprendido" / "lecciones").glob("*.md") if p.name != "README.md"]
     assert len(lecciones) == 1
 
 
@@ -71,7 +71,7 @@ def test_anotar_leccion_incompleta_no_guarda_nada(tmp_path, monkeypatch):
     )
 
     assert "no me entra" in respuesta.lower()
-    assert list((tmp_path / "boveda" / "experiencia").glob("*.md")) == []
+    assert list((tmp_path / "boveda" / "aprendido" / "lecciones").glob("*.md")) == []
 
 
 def test_buscar_lecciones_sin_nada_lo_dice(tmp_path, monkeypatch):

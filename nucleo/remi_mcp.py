@@ -4,11 +4,11 @@ Cualquier sesión de Claude lo abre y sabe en qué está Juan Camilo sin que él
 se lo cuente de nuevo. Cuatro herramientas, ninguna llama a un modelo de pago:
 
 - estado_vivo  — su vida hoy en ≤ ~1.500 tokens, con la edad del dato.
-- preguntar    — busca en conocimiento/ y en la bóveda (texto, sin tokens).
+- preguntar    — busca en mente/ y en la bóveda (texto, sin tokens).
 - anotar       — deja algo en la bandeja o abre un supuesto.
 - supuestos    — lo que se dio por cierto y ya toca revisar.
 
-Solo stdlib + mcp. Los archivos viven en conocimiento/vida/ (git, legibles
+Solo stdlib + mcp. Los archivos viven en ~/proyectos/mente (git, legibles
 desde Obsidian). Nada sale del Mac.
 """
 from __future__ import annotations

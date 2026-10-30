@@ -37,9 +37,8 @@ FUENTES = ("claude-code", "claude-app", "remi", "bitacora", "manual")
 
 
 def carpeta() -> Path:
-    """`remi-mente/experiencia/` — al lado de proyectos/, áreas/, oficios/
-    y episodios/, no adentro de ninguna."""
-    return episodios.carpeta_episodios().parent / "experiencia"
+    """`mente/aprendido/lecciones/` — lo que se aprendió, junto a decisiones y diario."""
+    return episodios.carpeta_episodios().parent / "aprendido" / "lecciones"
 
 
 @dataclass(frozen=True)

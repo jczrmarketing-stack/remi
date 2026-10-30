@@ -38,7 +38,7 @@ INSTRUCCIONES = (
     "(una sola acción de cinco minutos)\n"
 )
 
-# — El libro de errores → T8: lecciones en remi-mente/experiencia/ —
+# — El libro de errores → T8: lecciones en mente/aprendido/lecciones/ —
 # Si el transcript de la sesión dice, tal cual, que un problema se resolvió
 # (o un commit de la sesión empieza con fix/arregl/corrig), queda una
 # lección (`experiencia.Leccion`, clase «error») con sus cinco secciones.
@@ -177,7 +177,7 @@ def guardar(ruta: str, datos: dict[str, object], ahora: datetime) -> Path | None
         secciones_error = redactar_error(charla, titulo_libro)
         if secciones_error is not None:
             error_destino = escribir_episodio_error(tema, titulo_libro, secciones_error, local, donde=ruta)
-            print(f"[cierre] {error_destino.name} · lección (experiencia/)", file=sys.stderr)
+            print(f"[cierre] {error_destino.name} · lección (aprendido/lecciones/)", file=sys.stderr)
     return destino
 
 

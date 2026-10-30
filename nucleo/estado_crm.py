@@ -1,4 +1,4 @@
-"""Trae lo abierto de «Remi · CRM de vida» (Notion) a conocimiento/vida/crm.md.
+"""Trae lo abierto de «Remi · CRM de vida» (Notion) a mente/negocio/crm.md.
 
 Grok Bot y los rituales escriben ahí; este módulo lo vuelve un archivo corto
 que `remi_mcp.estado_vivo` suma al estado. Solo lectura de Notion. Sin token
@@ -15,8 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-RAIZ = Path(os.environ.get("REMI_RAIZ") or Path(__file__).resolve().parent.parent)
-DESTINO = RAIZ / "conocimiento" / "vida" / "crm.md"
+DESTINO = Path(os.environ.get("REMI_MENTE") or Path.home() / "proyectos" / "mente") / "negocio" / "crm.md"
 FRENTES_FUERA = frozenset({"Salud", "Cuerpo"})
 MAXIMO_FILAS = 25
 MAXIMO_NOTA = 220

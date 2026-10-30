@@ -44,7 +44,7 @@ def test_anota_esta_leccion_escribe_el_archivo(tmp_path, monkeypatch):
     assert respuesta.status_code == 200
     assert respuesta.json()["tipo"] == "leccion"
     assert "Anotada" in respuesta.json()["texto"]
-    assert list((tmp_path / "boveda" / "experiencia").glob("*.md"))
+    assert list((tmp_path / "boveda" / "aprendido" / "lecciones").glob("*.md"))
 
 
 def test_sin_nada_que_sacar_no_escribe_nada(tmp_path, monkeypatch):
@@ -57,7 +57,7 @@ def test_sin_nada_que_sacar_no_escribe_nada(tmp_path, monkeypatch):
     respuesta = cliente.post("/mensaje", json={"texto": "anotá esta lección: no sé qué pasó"})
 
     assert "No saqué nada claro" in respuesta.json()["texto"]
-    carpeta = tmp_path / "boveda" / "experiencia"
+    carpeta = tmp_path / "boveda" / "aprendido" / "lecciones"
     assert not carpeta.exists() or list(carpeta.glob("*.md")) == []
 
 

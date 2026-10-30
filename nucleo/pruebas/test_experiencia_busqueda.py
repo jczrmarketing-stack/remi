@@ -26,11 +26,11 @@ def _sin_ollama(monkeypatch):
 def _boveda(tmp_path, monkeypatch):
     boveda = tmp_path / "boveda"
     (boveda / "proyectos").mkdir(parents=True)
-    (boveda / "experiencia").mkdir(parents=True)
+    (boveda / "aprendido" / "lecciones").mkdir(parents=True)
     (boveda / "proyectos" / "malik.md").write_text(
         "---\ntitulo: Malik\ntema: malik\nresumen: Las cuentas del artista.\n---\n\nCuerpo.\n"
     )
-    (boveda / "experiencia" / "2026-10-01-malik-401.md").write_text(
+    (boveda / "aprendido" / "lecciones" / "2026-10-01-malik-401.md").write_text(
         "---\n"
         'titulo: "El 401 de malik"\n'
         "tema: malik\n"
@@ -108,7 +108,7 @@ def test_reindexar_borra_lo_que_ya_no_esta(tmp_path, monkeypatch):
     conexion = sqlite3.connect(":memory:")
     conexion.row_factory = sqlite3.Row
     exp.reindexar(conexion)
-    (tmp_path / "boveda" / "experiencia" / "2026-10-01-malik-401.md").unlink()
+    (tmp_path / "boveda" / "aprendido" / "lecciones" / "2026-10-01-malik-401.md").unlink()
 
     exp.reindexar(conexion)
 

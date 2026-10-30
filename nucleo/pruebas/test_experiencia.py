@@ -245,7 +245,7 @@ def test_escribir_genera_el_readme_por_proyecto(tmp_path, monkeypatch):
     )
     exp.escribir(otra)
 
-    readme = (tmp_path / "boveda" / "experiencia" / "README.md").read_text()
+    readme = (tmp_path / "boveda" / "aprendido" / "lecciones" / "README.md").read_text()
 
     assert "## beam" in readme
     assert "## malik" in readme
