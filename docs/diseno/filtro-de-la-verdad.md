@@ -45,6 +45,8 @@ Reglas: solo datos públicos; respetar términos de uso y límites; nunca cuenta
 - **Rumbo solo decide con cifras respaldadas** o de campo, y muestra la confianza de cada número.
 
 ## Fases
+> **30-oct-2026, Juan Camilo:** Fase 1 hecha, sin puntaje de credibilidad: `estatus` (evidencia | hipotesis) como compuerta de fuente. Las fases 2 a 4 no van todavía: el trabajo de campo va antes que rastrear cifras de reels (`docs/revision/2026-10-30-sintesis.md`).
+
 1. **Local, sin tokens** (va dentro de la acción 1 de Ollama): capas A y B por nota, más «¿cita fuente?». Campos en el frontmatter.
 2. **Fuente primaria:** capa C para cifras de oro, tabla de reputación de fuentes (SQLite) y cifras circulares.
 3. **Campo:** 2-3 bots semanales (precios y demanda en Fiverr/Upwork, Ad Library, Maps) que dejan hechos de campo en la bóveda.
