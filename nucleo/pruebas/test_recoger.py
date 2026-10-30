@@ -91,23 +91,25 @@ class _Temp:
         self.cancelado = True
 
 
+_PENDIENTES: list = []
+
+
 def _auto(texto, entorno, chat=1):
     boveda, lanzados, avisos = entorno
     r._TEMPORIZADORES.clear()
-    pendientes = _auto.pend
+    pendientes = _PENDIENTES
     return r.manejar(chat, texto, avisos.append, lanzar=lambda b, a, av: lanzados.append((b, a)),
                      ahora=datetime(2026, 10, 29, 20, 0, 0), programar=lambda s, f: (pendientes.append(f), _Temp())[1], espera=45)
 
 
-_auto.pend = []
 
 
 def test_link_suelto_de_youtube_o_instagram_entra_solo(entorno):
     boveda, lanzados, avisos = entorno
-    _auto.pend.clear()
+    _PENDIENTES.clear()
     assert "Anotado" in _auto("https://www.instagram.com/reel/Xy12/", entorno)
     assert not lanzados                      # espera la calma
-    _auto.pend[-1]()                         # pasan los 45 s
+    _PENDIENTES[-1]()                         # pasan los 45 s
     assert [p.name for p in [lanzados[0][1]]] == ["auto-20261029-200000.txt"]
     assert lanzados[0][1].read_text().strip() == "https://www.instagram.com/reel/Xy12/"
     assert any("Leyendo 1 link" in a for a in avisos)
@@ -115,21 +117,21 @@ def test_link_suelto_de_youtube_o_instagram_entra_solo(entorno):
 
 def test_varios_seguidos_se_juntan_en_un_solo_lote(entorno):
     boveda, lanzados, _ = entorno
-    _auto.pend.clear()
+    _PENDIENTES.clear()
     r._TEMPORIZADORES.clear()
     kw = dict(lanzar=lambda b, a, av: lanzados.append((b, a)), ahora=datetime(2026, 10, 29, 20, 0, 0), espera=45)
     temps = []
-    prog = lambda s, f: (_auto.pend.append(f), temps.append(_Temp()), temps[-1])[-1]
+    prog = lambda s, f: (_PENDIENTES.append(f), temps.append(_Temp()), temps[-1])[-1]
     for u in ("https://youtu.be/abc12345678", "https://www.tiktok.com/@a/video/1", "https://youtu.be/abc12345678"):
         r.manejar(1, u, lambda t: None, programar=prog, **kw)
     assert temps[0].cancelado and temps[1].cancelado and not temps[2].cancelado  # cada link reinicia la espera
-    _auto.pend[-1]()
-    _auto.pend[0]()                           # un temporizador viejo no duplica nada
+    _PENDIENTES[-1]()
+    _PENDIENTES[0]()                           # un temporizador viejo no duplica nada
     assert len(lanzados) == 1 and lanzados[0][1].read_text().splitlines() == ["https://youtu.be/abc12345678", "https://www.tiktok.com/@a/video/1"]
 
 
 def test_blog_suelto_o_frase_larga_no_entran_solos(entorno):
-    _auto.pend.clear()
+    _PENDIENTES.clear()
     assert _m("https://miblog.com/post", entorno) is None
     assert _m("oye mira este video que me mandó un cliente sobre precios https://youtu.be/abc12345678", entorno) is None
     assert _m("https://youtu.be/abc12345678 https://miblog.com/post", entorno) is None  # mezcla: no adivina
@@ -137,9 +139,9 @@ def test_blog_suelto_o_frase_larga_no_entran_solos(entorno):
 
 def test_pendientes_se_retoman_al_arrancar(entorno):
     boveda, lanzados, avisos = entorno
-    _auto.pend.clear()
+    _PENDIENTES.clear()
     _auto("https://youtu.be/abc12345678", entorno, chat=7)   # queda guardado, el temporizador "se pierde"
-    _auto.pend.clear()
+    _PENDIENTES.clear()
     prog = []
     assert r.reanudar(lambda c, t: avisos.append((c, t)), programar=lambda s, f: prog.append(f), lanzar=lambda b, a, av: lanzados.append((b, a))) == 1
     prog[0]()

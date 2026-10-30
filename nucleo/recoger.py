@@ -34,7 +34,7 @@ AUTO_ESPERA_SEG = 45          # calma sin links nuevos antes de empezar a leer
 _SOLO_LINK_MAX_LETRAS = 12    # «mira esto:» cabe; una frase entera ya es charla
 _SITIOS_AUTO = ("youtube.com", "youtu.be", "youtube-nocookie.com", "instagram.com", "tiktok.com")
 _CANDADO = threading.Lock()   # un lote a la vez: Whisper y las plataformas no aguantan más
-_TEMPORIZADORES: dict[str, threading.Timer] = {}
+_TEMPORIZADORES: dict[str, object] = {}  # Timer real o el doble que inyectan las pruebas
 
 
 def extraer_urls(texto: str) -> list[str]:
@@ -159,7 +159,10 @@ def reanudar(enviar: Callable[[str, str], None], espera: float = 5, programar: C
     pendientes = [k for k, v in _leer().items() if k.startswith("auto:") and v]
     for k in pendientes:
         chat = k.split(":", 1)[1]
-        (programar or _programar)(espera, lambda c=chat: cerrar_auto(c, lambda t, c=c: enviar(c, t), lanzar))
+        def _cerrar(c: str = chat) -> None:
+            cerrar_auto(c, lambda t: enviar(c, t), lanzar)
+
+        (programar or _programar)(espera, _cerrar)
     return len(pendientes)
 
 
