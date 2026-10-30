@@ -212,7 +212,10 @@ def _manejar_actualizacion(transporte: Transporte, actualizacion: dict) -> None:
         # Sin CHAT_ID no se sabe quién es Juan Camilo: no se contesta a nadie.
         return
     if str(chat_id) != str(configurado):
-        return  # cualquier otro chat_id, en silencio
+        # Sigue sin contestar, pero deja una línea para poder diagnosticar «le
+        # escribo y no pasa nada» (el chat_id no es un secreto).
+        print(f"[telegram] mensaje ignorado: chat_id={chat_id} no es el configurado", file=sys.stderr, flush=True)
+        return
 
     # /info … /listo: recoger links para la bóveda (recoger.py). Mientras está
     # abierta, los mensajes no pasan por la charla normal.
@@ -223,6 +226,7 @@ def _manejar_actualizacion(transporte: Transporte, actualizacion: dict) -> None:
         transporte.enviar_mensaje(chat_id, recogida)
         return
 
+    print(f"[telegram] mensaje recibido ({len(texto)} caracteres)", file=sys.stderr, flush=True)
     respuesta = _procesar_texto(texto)
     transporte.enviar_mensaje(chat_id, respuesta)
 
