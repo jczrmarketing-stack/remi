@@ -19,7 +19,7 @@ Lo que **no** es frontera, aunque suene: un grafo Neo4j, otro framework encima, 
 
 - **El markdown es la verdad.** `indice.db` y las tablas de afirmaciones se regeneran del markdown por hash. Si se corrompen, se borran.
 - **Todo hecho lleva procedencia, fecha y vigencia.** Sin cita literal no es hecho: es hipótesis.
-- **Local primero.** Lo que toca `yo/` y `negocio/` nunca sale del Mac. Las APIs gratuitas solo ven texto público (transcripciones de videos, blogs, repos), porque los niveles gratuitos entrenan con lo que les mandas (Google lo dice en su página de precios).
+- **Sin cargar el Mac (decisión de Juan Camilo, 30-oct).** Todo lo que sea modelo de lenguaje o de visión va primero a **OpenRouter con modelos `:free`** (ya tiene cuenta), después Gemini Flash-Lite gratis, y Ollama local solo como último respaldo. Lo que toca `yo/` y `negocio/` nunca sale del Mac: los niveles gratuitos pueden entrenar con lo que les mandas (Google lo dice; en OpenRouter depende del proveedor final). Whisper y los embeddings sí corren en local: son pequeños y no hay versión gratis en la nube que valga.
 - **Claude Max solo de noche y solo como juez o maestro**, nunca como obrero de cada nota: sus límites de 5 horas y semanales son el recurso escaso.
 - **Cero etiquetado manual.** La bóveda titula, resume, clasifica y detecta pedidos sola. Él solo confirma lo que toca `yo/` (sí/no por Telegram).
 - **Medir o no cambiar.**
@@ -37,14 +37,14 @@ Telegram / Claude (anotar) / sensores
 ```
 
 ### [1] Captura — ya existe; se completa
-Hoy: cualquier link por Telegram (video, blog, repo), transcripción en cascada (captions → API → Whisper local), `web.py`, `repos.py`, sensores de campo, detección de «comenta X». Falta: PDF (`pypdf`, local), y nada más. X y LinkedIn no tienen vía honesta sin API: se dejan fuera.
+Hoy: cualquier link por Telegram (video, blog, repo), transcripción en cascada (captions → API → Whisper local → **visión**), `web.py`, `repos.py`, sensores de campo, detección de «comenta X». **Visión (`vision.py`, 30-oct):** los reels sin voz (música + texto en pantalla) ya no se pierden: fotogramas por cambio de escena, un solo pedido a un modelo de visión `:free` de OpenRouter, y vuelve el texto en pantalla, las escenas, las marcas vistas y un resumen; los posts de solo imágenes entran igual con `gallery-dl`. El caption del post se guarda en toda nota (ahí vive el «comenta X»). Falta: PDF (`pypdf`, local). X y LinkedIn no tienen vía honesta sin API: se dejan fuera.
 
 ### [2] Extracción — una pasada por nota, estructurada
 Por cada nota, un solo JSON (ya existe la mitad en `enriquecer.py`): título, resumen con citas, ideas, afirmaciones por tipo con cita literal, cifras, interés del autor, fuente citada, pedido (comenta X), **y lo nuevo:** entidades (herramienta, repo, persona, empresa, precio) con sus alias tal como aparecen, relaciones entre ellas (`X usa Y`, `X cuesta Z`, `X compite con Y`), y los links que la nota cita (los de GitHub van solos a `repos.py`).
 
 **Quién extrae, en dos etapas, por privacidad y por calidad:**
-- **Etapa A, texto público → API gratuita o local.** Gemini Flash-Lite gratis (reportes de desarrolladores hablan de ~500 peticiones/día para Flash-Lite y ~20 para Flash; Google ya no publica los límites, se ven en AI Studio) o Mistral gratis (límites no publicados) o OpenRouter `:free` (50 peticiones/día). Entra solo la transcripción, sin frentes ni contexto personal. Si la API no responde, cae a Ollama local y la nota se marca `extraccion: local`.
-- **Etapa B, relevancia para los frentes → local siempre.** Con el resumen y las afirmaciones ya extraídas (texto corto), gemma3:4b decide relevancia por frente y qué hacer con la nota. Con entrada corta el modelo chico rinde; con 16.000 caracteres crudos, no. Esto explica el `frentes: []` de hoy.
+- **Etapa A, texto público → OpenRouter `:free` → Gemini gratis → local.** OpenRouter gratis da ~50 peticiones/día, o 1.000/día si la cuenta compró alguna vez 10 USD de crédito (vale la pena hacerlo una vez: es la diferencia entre 50 y 1.000 videos al día). Gemini Flash-Lite gratis como segunda vía (~500/día según desarrolladores; Google ya no publica el límite). Entra solo la transcripción, sin frentes ni contexto personal. Si todo falla, Ollama local y la nota se marca `extraccion: local`. Los modelos se eligen leyendo `GET /models` de OpenRouter (los `:free` del día), nunca a mano.
+- **Etapa B, relevancia para los frentes → también OpenRouter `:free`**, con entrada corta (resumen + afirmaciones, nunca la transcripción cruda) y la lista de frentes sin cifras del negocio. Lo que lleve datos propios (`yo/`, `negocio/`) se queda en gemma3:4b local, que con entrada corta rinde. El `frentes: []` de hoy viene de darle 16.000 caracteres crudos a un modelo de 4b.
 - **Trozos contextualizados.** Las transcripciones largas se parten en trozos de ~800 tokens y cada trozo recibe 1–2 frases de contexto generadas en local (qué video es, de qué parte habla) antes de indexarse. Es la técnica de Anthropic; en local cuesta tiempo, no dinero.
 
 ### [3] Memoria — archivos + un índice + afirmaciones
@@ -86,8 +86,9 @@ Un solo servidor, las mismas herramientas para Claude Code, Claude escritorio, e
 | Transcribir | faster-whisper local | hecho, gratis | tiempo de CPU |
 | Embeddings | `qwen3-embedding:0.6b` (Ollama) | multilingüe; `nomic` es inglés | reindexar todo (minutos) |
 | Reordenar | `bge-reranker-v2-m3` local | +18 puntos de mejora medidos por Anthropic sobre híbrida sola | ~1 s por consulta en CPU |
-| Extraer texto público | Gemini Flash-Lite gratis → Mistral gratis → local | 1M de contexto, JSON confiable | límites no oficiales (~500/día); **entrena con los datos**: solo texto público |
-| Relevancia, títulos, contexto de trozos | gemma3:4b local (qwen3:8b si la RAM alcanza) | entrada corta, tarea cerrada | calidad: por eso el juez semanal |
+| Ver videos sin voz e imágenes | OpenRouter `:free` con visión (`vision.py`) | un pedido por video; cero RAM | ~50 pedidos/día (1.000 con 10 USD comprados una vez) |
+| Extraer texto público | OpenRouter `:free` → Gemini Flash-Lite gratis → local | ya tiene cuenta; cero RAM | mismo límite diario; **pueden entrenar con los datos**: solo texto público |
+| Relevancia, títulos, contexto de trozos | OpenRouter `:free` con entrada corta; local solo si lleva datos propios | no cargar el Mac | calidad: por eso el juez semanal |
 | Juez/maestro semanal | `claude -p --model haiku` (Max) | ya pagado | cuenta contra el límite semanal: 1 vez por semana, de noche |
 | Índice y afirmaciones | SQLite + FTS5 + sqlite-vec | cero servicios, un archivo | ninguno a esta escala |
 | Ventana | Obsidian + Bases/Dataview | gratis | — |
@@ -136,7 +137,8 @@ F2 (Rumbo v2) consume `hallazgos` y `afirmaciones`: la teoría de juegos de F2.4
 
 ## 8. Riesgos y preguntas abiertas
 
-- **RAM del Mac mini:** no está medida en el repo. `whisper` corre en CPU int8 y el modelo es 4b: si hay 16 GB o menos, `qwen3:8b` no cabe con Whisper a la vez. Primera tarea de F1.4: `sysctl hw.memsize` y decidir.
+- **RAM del Mac mini:** decidido el 30-oct: no se usa para modelos de lenguaje ni de visión; OpenRouter `:free` primero. Solo Whisper y embeddings en local.
+- **Límite diario de OpenRouter gratis:** 50 pedidos/día es poco para días de 35 links + enriquecido; comprar 10 USD una sola vez lo sube a 1.000/día. Es la única compra que este diseño recomienda.
 - **Límites de Gemini gratis no son oficiales** y cambian; por eso la cascada API → local y la marca `extraccion:` en cada nota.
 - **Resolución de entidades** es el punto débil de todos (lo dicen los evaluadores): se hace conservadora y las dudas quedan en un archivo visible en Obsidian, no se adivina.
 - **Reddit** sigue devolviendo 403 sin cuenta de API; **Instagram** no permite leer comentarios sin sesión: lo de «comenta X» lo hace él, y la bóveda solo le dice cuáles valen la pena.
