@@ -31,6 +31,24 @@ def test_instalar_conserva_lo_ajeno_es_idempotente_y_se_quita(tmp_path):
     d = json.loads(ruta.read_text())
     assert d["model"] == "opus" and "Stop" in d["hooks"]
     assert len(d["hooks"]["SessionStart"]) == 2 and ruta.with_suffix(".json.bak-remi").exists()
+    assert len(d["hooks"]["UserPromptSubmit"]) == 1 and "hook_prompt_boveda" in d["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
     m.main(["--quitar"], ruta)
     d = json.loads(ruta.read_text())
     assert d["hooks"]["SessionStart"][0]["hooks"][0]["command"] == "echo hola" and len(d["hooks"]["SessionStart"]) == 1
+    assert "UserPromptSubmit" not in d["hooks"]
+
+
+def test_hook_prompt_responde_desde_la_boveda_y_calla_si_no_hay_nada(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("hp", RAIZ / "scripts" / "hook_prompt_boveda.py")
+    hp = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hp)
+    (tmp_path / "03_oro" / "repos").mkdir(parents=True)
+    (tmp_path / "03_oro" / "repos" / "adbar-trafilatura.md").write_text("---\nveredicto: adoptar\n---\n")
+    buscar = lambda q, n=4: [("03_oro/ai-tools/nota.md", "trafilatura saca el texto limpio de blogs"), ("01_raw/otra.md", "nada que ver")] if "trafilatura" in q else []
+    ctx = hp.contexto("¿sirve trafilatura para leer blogs? mira https://github.com/adbar/trafilatura", buscar, tmp_path)
+    assert "adbar/trafilatura: ya tiene ficha" in ctx and "veredicto: adoptar" in ctx and "nota.md" in ctx and ctx.startswith("LA BÓVEDA")
+    assert "otra.md" not in ctx  # un hallazgo con una sola palabra suelta no entra
+    assert hp.contexto("hola, ¿cómo vas?", buscar, tmp_path) is None
+    q = hp.consulta_de("quiero que revises el repo de trafilatura para los blogs https://github.com/adbar/trafilatura")
+    assert "trafilatura" in q and "blogs" in q and "quiero" not in q and "https" not in q and "github.com" not in q

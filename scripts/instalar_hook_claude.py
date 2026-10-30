@@ -12,7 +12,11 @@ from difflib import unified_diff
 from pathlib import Path
 
 MARCA = "hook_sesion_inicio.py"
-SCRIPT = Path(__file__).resolve().parent / MARCA
+MARCA_PROMPT = "hook_prompt_boveda.py"
+MARCAS = (MARCA, MARCA_PROMPT)
+AQUI = Path(__file__).resolve().parent
+SCRIPT = AQUI / MARCA
+SCRIPT_PROMPT = AQUI / MARCA_PROMPT
 EVENTOS = ("startup", "clear", "compact")
 
 
@@ -20,23 +24,29 @@ def _entrada() -> dict:
     return {"matcher": "|".join(EVENTOS), "hooks": [{"type": "command", "command": f"python3 {SCRIPT}", "timeout": 5}]}
 
 
+def _entrada_prompt() -> dict:
+    # Sin matcher: cada mensaje pasa por la bóveda (FTS local, milisegundos).
+    return {"hooks": [{"type": "command", "command": f"python3 {SCRIPT_PROMPT}", "timeout": 5}]}
+
+
 def _sin_remi(lista: list) -> list:
-    return [e for e in lista if not any(MARCA in h.get("command", "") for h in e.get("hooks", []))]
+    return [e for e in lista if not any(any(m in h.get("command", "") for m in MARCAS) for h in e.get("hooks", []))]
 
 
 def transformar(ajustes: dict, quitar: bool = False) -> dict:
     nuevo = json.loads(json.dumps(ajustes))
     hooks = nuevo.setdefault("hooks", {})
-    resto = _sin_remi(hooks.get("SessionStart", []))
-    if quitar:
-        if resto:
-            hooks["SessionStart"] = resto
+    for evento, nueva in (("SessionStart", _entrada()), ("UserPromptSubmit", _entrada_prompt())):
+        resto = _sin_remi(hooks.get(evento, []))
+        if quitar:
+            if resto:
+                hooks[evento] = resto
+            else:
+                hooks.pop(evento, None)
         else:
-            hooks.pop("SessionStart", None)
-        if not hooks:
-            nuevo.pop("hooks", None)
-    else:
-        hooks["SessionStart"] = resto + [_entrada()]
+            hooks[evento] = resto + [nueva]
+    if not hooks:
+        nuevo.pop("hooks", None)
     return nuevo
 
 
