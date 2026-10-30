@@ -17,6 +17,7 @@ Estado vivo. Una fase a la vez; ninguna empieza sin el «listo cuando» de la an
 - Rumbo v2 según la revisión: contador de tiros, experimentos con potencia mínima, diario de micro-predicciones, tasas base propias, sensibilidad simple; sin ranking de 60 nichos ni Kelly ni futuros a 12 meses. El espacio de configuraciones (yo fijo × modelo, nicho, geografía, canal, precio) se construye, pero solo con datos T1/T2.
 - La fábrica arranca por cotizar y proponer, no por código.
 - Nada entra como hecho sin fuente; lo que Claude concluye es hipótesis o decisión con fecha.
+- **Cero etiquetado manual.** La bóveda titula, resume y clasifica sola (Ollama local). Su calidad se mide sin Juan Camilo: acuerdo entre reglas y modelo, cuántas veces `preguntar` y el hook sirven cada nota, y si Claude la cita. `/etiquetar` se retira. Nada de prueba entra al vault: las pruebas corren contra `_archivo/ejemplos/`.
 
 ## Reglas
 Un prompt = una tarea = un commit. Pruebas donde duele. `conocimiento/` y `mente/` nunca al repo público. Diseño antes que pantalla. Cada fase cierra con un «listo cuando» verificado por Juan Camilo o por Claude en la app, no por la terminal que lo hizo.
@@ -29,12 +30,11 @@ Un prompt = una tarea = un commit. Pruebas donde duele. `conocimiento/` y `mente
 ---
 
 ## F0 · Cerrar lo abierto (hoy, ~1 h)
-- [ ] `/etiquetar` probado desde el teléfono (él, 1 min).
 - [ ] Hook de prompt instalado: `python3 ~/proyectos/remi/scripts/instalar_hook_claude.py --aplicar` (él).
 - [ ] MCP `remi` en Claude Desktop (él, pegar el JSON del README).
 - [ ] Servicio semanal de campo cargado (él, comando del README de la bóveda).
 - [ ] `python3 campo.py --tema "ai receptionist"` corre con RemoteOK, Remotive y HN respondiendo (él pega la salida).
-**Listo cuando:** Telegram responde a `/etiquetar`; una pregunta en Claude Code trae contexto de la bóveda; el campo deja una nota con al menos dos fuentes.
+**Listo cuando:** una pregunta en Claude Code trae contexto de la bóveda; el campo deja una nota con al menos dos fuentes.
 
 ## F1 · La mente (terminal, ~3,5 días) — detalle en `docs/diseno/boveda-v2-mente.md` §7
 1. **Estructura y mudanza (M).** Crear `~/proyectos/mente/{yo,negocio,mundo,aprendido,bandeja}`; mover `conocimiento/vida` y `experiencia`; sembrar `yo/` (perfil, metas, recursos, valores y reglas, restricciones) desde `estado.md` y sus frases, con fecha por línea; `vida.py`, hooks y MCP apuntan a `mente/`; vault de Obsidian con `.obsidian`, propiedades uniformes y plantillas. *Listo cuando:* `estado_vivo` sale de `yo/` + `negocio/`; Obsidian abre `mente/`.
