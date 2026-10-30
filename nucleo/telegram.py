@@ -214,6 +214,15 @@ def _manejar_actualizacion(transporte: Transporte, actualizacion: dict) -> None:
     if str(chat_id) != str(configurado):
         return  # cualquier otro chat_id, en silencio
 
+    # /info … /listo: recoger links para la bóveda (recoger.py). Mientras está
+    # abierta, los mensajes no pasan por la charla normal.
+    import recoger
+
+    recogida = recoger.manejar(chat_id, texto, lambda aviso: transporte.enviar_mensaje(chat_id, aviso))
+    if recogida is not None:
+        transporte.enviar_mensaje(chat_id, recogida)
+        return
+
     respuesta = _procesar_texto(texto)
     transporte.enviar_mensaje(chat_id, respuesta)
 

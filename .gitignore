@@ -38,3 +38,4 @@ apps/ventanita/src-tauri/icons/ios/
 
 # El ayudante del Mac (scripts/recargar.sh): pedidos y salidas, nunca código.
 .recargar/
+nucleo/recoleccion.json*
