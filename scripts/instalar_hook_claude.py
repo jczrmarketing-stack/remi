@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Pone el hook de inicio de sesión de Remi en ~/.claude/settings.json.
+"""Pone los hooks de Remi en ~/.claude/settings.json: inicio de sesión (estado vivo y mapas),
+prompt (fichas de la mente) y post-herramienta (métricas de acierto).
 
 Sin argumentos solo MUESTRA el diff y no toca nada.
 Con --aplicar guarda una copia (.bak-remi) y escribe. Idempotente.
@@ -13,10 +14,12 @@ from pathlib import Path
 
 MARCA = "hook_sesion_inicio.py"
 MARCA_PROMPT = "hook_prompt_boveda.py"
-MARCAS = (MARCA, MARCA_PROMPT)
+MARCA_POST = "hook_post_herramienta.py"
+MARCAS = (MARCA, MARCA_PROMPT, MARCA_POST)
 AQUI = Path(__file__).resolve().parent
 SCRIPT = AQUI / MARCA
 SCRIPT_PROMPT = AQUI / MARCA_PROMPT
+SCRIPT_POST = AQUI / MARCA_POST
 EVENTOS = ("startup", "clear", "compact")
 
 
@@ -29,6 +32,12 @@ def _entrada_prompt() -> dict:
     return {"hooks": [{"type": "command", "command": f"python3 {SCRIPT_PROMPT}", "timeout": 5}]}
 
 
+def _entrada_post() -> dict:
+    # Solo las herramientas que dicen si la mente sirvió: leer/preguntar del MCP y la web.
+    return {"matcher": "WebSearch|WebFetch|mcp__remi__leer|mcp__remi__preguntar",
+            "hooks": [{"type": "command", "command": f"python3 {SCRIPT_POST}", "timeout": 5}]}
+
+
 def _sin_remi(lista: list) -> list:
     return [e for e in lista if not any(any(m in h.get("command", "") for m in MARCAS) for h in e.get("hooks", []))]
 
@@ -36,7 +45,7 @@ def _sin_remi(lista: list) -> list:
 def transformar(ajustes: dict, quitar: bool = False) -> dict:
     nuevo = json.loads(json.dumps(ajustes))
     hooks = nuevo.setdefault("hooks", {})
-    for evento, nueva in (("SessionStart", _entrada()), ("UserPromptSubmit", _entrada_prompt())):
+    for evento, nueva in (("SessionStart", _entrada()), ("UserPromptSubmit", _entrada_prompt()), ("PostToolUse", _entrada_post())):
         resto = _sin_remi(hooks.get(evento, []))
         if quitar:
             if resto:

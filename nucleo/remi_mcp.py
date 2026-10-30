@@ -17,6 +17,7 @@ from __future__ import annotations
 from mcp.server.mcpserver import MCPServer
 
 import indexar
+import metricas
 import vida
 
 servidor = MCPServer(
@@ -44,12 +45,21 @@ def preguntar(q: str) -> str:
         hallazgos = indexar.buscar(conexion, q)
     finally:
         conexion.close()
-    if not hallazgos:
-        return f"No hay nada sobre «{q}» en la mente."
-    return "\n".join(
+    # Umbral honesto: lo que no comparte ni un término con la consulta queda marcado como
+    # «relacionado» (vino solo por vector) y se limita a 2. F1.5 pone reordenador y número.
+    terminos = vida._terminos(q)
+    exactos = [h for h in hallazgos if any(t in vida._slug(f"{h.titulo} {h.resumen}", 400) for t in terminos)]
+    parecidos = [h for h in hallazgos if h not in exactos][:2]
+    texto = "\n".join(
         f"[{h.id}] {h.tipo} · {h.fecha} · estatus: {h.estatus} · confianza: {h.confianza}\n{h.titulo}: {h.resumen}"
-        for h in hallazgos
+        for h in exactos
     )
+    if parecidos:
+        texto += ("\n" if texto else "") + "Relacionado, no exacto:\n" + "\n".join(f"[{h.id}] {h.tipo} · {h.titulo}" for h in parecidos)
+    metricas.registrar_consulta("mcp", "-", q, [h.id for h in exactos + parecidos], len(texto))
+    if not texto:
+        return f"No hay nada sobre «{q}» en la mente."
+    return texto
 
 
 @servidor.tool(description="El cuerpo completo de una nota, con el id entre corchetes que dio `preguntar`. Solo si el resumen no basta.")
@@ -62,9 +72,13 @@ def leer(id: str) -> str:
     return cuerpo if cuerpo is not None else f"No hay ninguna nota con id «{id}»."
 
 
-@servidor.tool(description="Deja algo anotado. tipo: decision | idea | hecho | supuesto | pendiente. Un supuesto se vuelve a revisar solo.")
-def anotar(texto: str, tipo: str = "hecho", revisar_en_dias: int = 14) -> str:
-    return vida.agregar(texto, tipo, revisar_en_dias)
+@servidor.tool(description=(
+    "Devuelve a la mente lo que se decidió, aprendió o investigó. tipo: decision | investigacion (exige URL en texto o en `fuentes`) | "
+    "leccion | resultado | hipotesis (sin fuente) | hecho_sobre_mi (queda por confirmar y se le pregunta a Juan Camilo) | "
+    "supuesto (se revisa solo) | idea | hecho | pendiente (bandeja). Al cerrar una sesión larga: 5 líneas máximo."
+))
+def anotar(texto: str, tipo: str = "hecho", revisar_en_dias: int = 14, fuentes: str = "") -> str:
+    return vida.anotar(texto, tipo, revisar_en_dias, fuentes)
 
 
 @servidor.tool(description="Supuestos abiertos que ya toca confirmar o dar por rotos.")

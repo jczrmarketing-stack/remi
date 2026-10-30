@@ -78,12 +78,32 @@ def main() -> int:
     try:
         datos = json.load(sys.stdin)
         prompt = str(datos.get("prompt") or "")
+        sesion = str(datos.get("session_id") or "-")
         if len(prompt) < 12 or prompt.startswith("/"):
             return 0
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "nucleo"))
         import vida
 
-        ctx = contexto(prompt, vida.buscar, vida._boveda())
+        # Router (F1.3): primero el índice único con umbral; si no existe todavía,
+        # la búsqueda vieja sobre markdown. Fichas, nunca cuerpos; ≤ ~600 tokens.
+        fichas = vida.buscar_indice(prompt, n=4)
+        repos = fichas_de_repos(prompt, vida._boveda())
+        if fichas or repos:
+            ctx = vida.fichas_para_contexto(fichas)
+            if repos:
+                ctx += "\n" + "\n".join(f"- {r}" for r in repos)
+            ctx = ctx[:vida.PRESUPUESTO_HOOK]
+            ids = [f["id"] for f in fichas]
+        elif not (vida.MENTE / "indice.db").exists():
+            ctx = contexto(prompt, vida.buscar, vida._boveda())
+            ids = ["(fts-markdown)"] if ctx else []
+        else:
+            ctx, ids = None, []
+        try:
+            import metricas
+            metricas.registrar_consulta("hook", sesion, consulta_de(prompt), ids, len(ctx or ""))
+        except Exception:
+            pass
         if ctx:
             print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}, ensure_ascii=False))
     except Exception:

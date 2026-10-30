@@ -74,6 +74,7 @@ Primero **auditar** panel y ventanita pantalla por pantalla (qué hace, qué le 
 La Sala (mapa vectorial) cuando `mente/` tenga datos de campo y decisiones; el investigador semanal que llena `mundo/`; marketing y ventas; la vara contra Grok Bot medida como oportunidades por semana que el sistema encontró y él no.
 
 ## Registro
+- 30-oct: F1.3 construida desde la app (commit de hoy): router del hook sobre `indice.db` con umbral y presupuesto (stdlib, sin sqlite-vec), hook PostToolUse de métricas, `anotar(tipo, fuentes)` con compuerta, `metricas.py` + `uso.md`, noche regenera mapas y pasa confirmaciones a `yo/confirmado.md`. **Falta verificar en el Mac:** `./scripts/recargar.sh`, reinstalar hooks con `--aplicar`, y que `uso.md` aparezca tras la primera noche.
 - 30-oct: los 35 links de Instagram se convirtieron en decisiones (v3 §7b): mapas + hook (hecho), markitdown y archivos por Telegram (F1.4), casos semilla (F1.5), formato de hallazgo (F1.6), parte de la mañana (F3b), compuertas y rúbricas de la fábrica (F4).
 - 30-oct: F3b (ventanita de foco y notificaciones) añadida al plan. Fábrica (F4): decidido que será cliente de `mente/` por el MCP `remi`, sin memoria propia y sin meterse en el núcleo de Remi; el material va en `mente/mundo/fabrica/`.
 - 30-oct: `vision.py` en la bóveda: videos sin voz y posts de imágenes se ven con un modelo `:free` de OpenRouter; caption del post en toda nota. Falta que JC ponga `OPENROUTER_API_KEY` en `_sistema/.env` y reintente los fallidos.

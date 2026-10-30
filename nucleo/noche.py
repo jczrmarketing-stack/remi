@@ -295,6 +295,49 @@ def enviar_reporte_de_la_noche(cambios: list[tuple[str | None, str]]) -> None:
         print(f"[noche] no pude mandar el reporte de la noche ({type(error).__name__}): {error}", file=sys.stderr, flush=True)
 
 
+def cerrar_f13() -> dict[str, object]:
+    """F1.3: regenera los mapas, pasa lo confirmado de la bandeja a `yo/` y
+    escribe `uso.md` con las métricas. Cada parte falla sola, sin tumbar la noche."""
+    import subprocess
+
+    import metricas
+    import vida
+
+    salida: dict[str, object] = {}
+    try:
+        subprocess.run([sys.executable, str(Path(__file__).resolve().parent.parent / "scripts" / "mapa.py")], check=False, timeout=120, capture_output=True)
+        salida["mapas"] = "ok"
+    except Exception as error:  # noqa: BLE001
+        salida["mapas"] = f"error {type(error).__name__}"
+    try:
+        ruta = vida.MENTE / "bandeja" / "por-confirmar.md"
+        movidas = 0
+        if ruta.exists():
+            quedan, confirmadas = [], []
+            for linea in ruta.read_text(encoding="utf-8").splitlines():
+                (confirmadas if linea.startswith("- [x]") else quedan).append(linea)
+            if confirmadas:
+                destino = vida.MENTE / "yo" / "confirmado.md"
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                nuevo = not destino.exists()
+                with open(destino, "a", encoding="utf-8") as f:
+                    if nuevo:
+                        f.write("---\ntipo: yo\ntitulo: Hechos confirmados por Juan Camilo\n---\n\n# Hechos confirmados\n\n")
+                    for linea in confirmadas:
+                        f.write(linea.replace("- [x] ", "- ", 1) + "\n")
+                ruta.write_text("\n".join(quedan) + ("\n" if quedan else ""), encoding="utf-8")
+                movidas = len(confirmadas)
+        salida["confirmadas"] = movidas
+    except Exception as error:  # noqa: BLE001
+        salida["confirmadas"] = f"error {type(error).__name__}"
+    try:
+        (vida.MENTE / "uso.md").write_text(metricas.texto_uso(7), encoding="utf-8")
+        salida["uso"] = "ok"
+    except Exception as error:  # noqa: BLE001
+        salida["uso"] = f"error {type(error).__name__}"
+    return salida
+
+
 def correr(hoy: date | None = None) -> None:
     arranque = datetime.now(timezone.utc)
     print(f"[noche] arranca {arranque.isoformat()}")
@@ -350,6 +393,7 @@ def correr(hoy: date | None = None) -> None:
     import estado_crm
 
     print(f"[noche] estado_crm={estado_crm.refrescar()}")
+    print(f"[noche] f13={cerrar_f13()}")
 
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")
