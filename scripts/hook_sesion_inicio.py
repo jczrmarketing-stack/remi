@@ -12,6 +12,21 @@ try:
     import vida
 
     texto = vida.construir_estado()
+    # Mapas (idea de Graphify: un mapa precalculado antes de explorar). Solo el
+    # puntero, nunca el contenido: se abre si hace falta.
+    try:
+        entrada = json.loads(sys.stdin.read() or "{}")
+    except Exception:
+        entrada = {}
+    cwd = Path(str(entrada.get("cwd") or "")).resolve() if entrada.get("cwd") else None
+    repo = Path(__file__).resolve().parent.parent
+    mapas = []
+    if cwd and (cwd == repo or repo in cwd.parents) and (repo / "docs" / "MAPA.md").exists():
+        mapas.append(f"Mapa del repo (una línea por archivo, léelo antes de grep/glob): {repo / 'docs' / 'MAPA.md'}")
+    if (vida.MENTE / "MAPA.md").exists():
+        mapas.append(f"Mapa de la mente: {vida.MENTE / 'MAPA.md'}. Antes de buscar en la web, usa `preguntar` del MCP remi; al terminar, `anotar` lo investigado con fuentes.")
+    if mapas:
+        texto += "\n\n" + "\n".join(mapas)
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "ESTADO VIVO DE JUAN CAMILO (Remi)\n\n" + texto}}, ensure_ascii=False))
 except Exception:
     pass

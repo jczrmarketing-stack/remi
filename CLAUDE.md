@@ -8,6 +8,13 @@ Remi (apodo: Lucho) es el asistente personal para TDAH de Juan Camilo. Una sola 
 2. **Biblia de Remi** (artefacto en claude.ai) → fuente única de leyes, pantallas, arquitectura y estado de fases.
 3. **Este repo** → ejecuta lo que dicen 1 y 2. Notion es la vitrina, **solo de ida** (Remi → Notion). La vuelta de campos de operación se prende con `NOTION_VUELTA=1` en `nucleo/.env` cuando Remi lleve un mes en uso; la prosa del libro sale solo de la máquina. Las llaves se escriben desde el panel (Ajustes → Conexiones), nunca en git ni en un chat. Puertos: 4400 núcleo · 4402 panel · 4401 whisper.
 
+## Antes de gastar tokens (30-oct-2026, de los hallazgos de la bóveda)
+
+- **Antes de explorar el repo con grep o glob, lee `docs/MAPA.md`** (una línea por archivo) y abre solo lo que necesites. Se regenera con `python3 scripts/mapa.py`.
+- **Antes de buscar en la web, `preguntar` al MCP `remi`**; si la bóveda no sabe, investiga y al terminar `anotar(tipo="investigacion")` con las URLs. Mapa de la mente: `~/proyectos/mente/MAPA.md`.
+- **Nunca arrastres un PDF, DOCX o PPTX a la sesión**: un PDF de 20 páginas son ~70.000 tokens por el diseño y la tipografía. Conviértelo a Markdown (`markitdown archivo.pdf -o archivo.md`, o mándalo al bot de Telegram y la bóveda lo hace) y lee el `.md`.
+- Una sesión larga deja 5 líneas en la bóveda al cerrar: qué decidimos, qué aprendimos, qué investigamos.
+
 ## Qué es Remi
 
 - **Ventanita** flotante en macOS (`apps/ventanita`): Tauri 2 + React + Tailwind. 320×180 en reposo, hasta 420×520 con terminal de prompt. Se activa al tocarla, sin palabra clave. Reposo → escuchando → respuesta → reposo.

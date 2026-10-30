@@ -1,0 +1,12 @@
+{"tipo": "clasificacion", "nota_id": "DeNlN0gAKTG", "espera": {"frentes_incluye": "remi", "razon": "parte de la mañana de un Jarvis: sueño, recuperación, suscriptores, agenda"}}
+{"tipo": "clasificacion", "nota_id": "Dekx_rtB_wm", "espera": {"frentes_incluye": "remi", "razon": "asistente por voz que controla el computador"}}
+{"tipo": "clasificacion", "nota_id": "De6gc1thRAN", "espera": {"status_no": "oro", "razon": "opinión sobre burbuja de IA sin cifra verificable"}}
+{"tipo": "clasificacion", "nota_id": "De6_hitxOrQ", "espera": {"descartar": true, "razon": "eco del glosario de Whisper sobre música"}}
+{"tipo": "clasificacion", "nota_id": "Dc0wusZtJK3", "espera": {"entidades_incluye": "Graphify", "frentes_incluye": "remi"}}
+{"tipo": "clasificacion", "nota_id": "DcmdEfzx06t", "espera": {"entidades_incluye": "MarkItDown", "razon": "el video no lo nombra bien; la extracción debe resolver la herramienta"}}
+{"tipo": "pedido", "nota_id": "DfF9phUlE_R", "espera": {"pedido_palabra": "repos"}}
+{"tipo": "pedido", "nota_id": "De6gc1thRAN", "espera": {"pedido_via": "", "razon": "'comenta aquí' no es palabra clave"}}
+{"tipo": "busqueda", "consulta": "cómo ahorrar tokens en Claude Code", "espera_ids": ["Dc0wusZtJK3", "DcmdEfzx06t", "DfF9phUlE_R"]}
+{"tipo": "busqueda", "consulta": "checklist para que una web no parezca vibecoded", "espera_ids": ["Db6FKG4O_WU", "DfFvooqxSzN", "DcTvVoBgSrB"]}
+{"tipo": "busqueda", "consulta": "resumen matutino de un asistente personal", "espera_ids": ["DeNlN0gAKTG"]}
+{"tipo": "busqueda", "consulta": "seguridad de apps hechas con IA", "espera_ids": ["DcbdueVRnT0"]}

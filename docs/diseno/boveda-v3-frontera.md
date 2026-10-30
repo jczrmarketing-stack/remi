@@ -135,6 +135,20 @@ Un solo servidor, las mismas herramientas para Claude Code, Claude escritorio, e
 
 F2 (Rumbo v2) consume `hallazgos` y `afirmaciones`: la teoría de juegos de F2.4 corre sobre esa tabla, no sobre notas sueltas.
 
+## 7b. Ajustes que salieron de los 35 links del 30-oct (hallazgo → decisión)
+
+| Hallazgo (nota) | Qué enseña de verdad | Decisión en Remi/bóveda | Dónde |
+|---|---|---|---|
+| Graphify «70x» (Dc0wusZtJK3) | No la herramienta (1–3x en repos chicos, hook roto en Claude Code ≥2.1.117) sino el **patrón**: mapa precalculado + señal antes de explorar | `scripts/mapa.py` genera `docs/MAPA.md` (repo) y `mente/MAPA.md`; el hook de inicio apunta a ellos; `CLAUDE.md` manda leer el mapa antes de grep. La noche lo regenera. | hecho (30-oct) + F1.3 |
+| PDF → Markdown (DcmdEfzx06t) | MarkItDown (MIT) quita el costo del diseño del PDF | `markitdown` en la ingesta (PDF, DOCX, PPTX, XLSX); el bot de Telegram acepta **documentos**, no solo links; regla en `CLAUDE.md` de no arrastrar PDFs | F1.4 |
+| «Busca repos antes de construir» (DfF9phUlE_R) | Es nuestra regla de no inventar la rueda, dicha por otro | Compuerta en la fábrica: la spec no pasa sin `preguntar` + ficha de repos (`repos.py`) de lo que ya existe | F4 |
+| `mattpocock/skills` (Dctyh5zxZm-) | `grill-me`: una pregunta a la vez antes de construir | Instalar `grill-me` y `grilling`; `/rumbo` ya pregunta de a una (ley TDAH); la fábrica las usa en la etapa de spec | F2 / F4 |
+| Parte de la mañana de un Jarvis (DeNlN0gAKTG) | Lo que Remi debe decir a las 7:00: cuerpo, números del negocio, agenda, **una** tarea para empezar | `partes/manana.py`: 5 líneas por Telegram/ventanita desde el estado vivo + cifras propias, termina en «Empezar 25 min: <tarea>» (enlaza con el foco tipo BeFocus) | F3b |
+| 11 notas de calidad web | Consenso real entre fuentes | `aprendido/procedimientos/calidad-web.md` como rúbrica del revisor UX de la fábrica, de las entregas en Fiverr y de la **auditoría del panel y la ventanita** | F3b / F4 |
+| 20 fallos de seguridad (DcbdueVRnT0) | Lista práctica | `aprendido/procedimientos/seguridad-apps-ia.md` para el revisor de seguridad y para F3 (producción de Remi) | F3 / F4 |
+| Errores del clasificador (20/35 sin frente, burbuja en oro, eco de Whisper) | El puntaje por palabras no distingue | `nucleo/evaluacion/casos.jsonl`: 12 casos semilla (clasificación, pedidos, búsqueda) que F1.5 debe pasar | F1.5 |
+| Hallazgo manual `mundo/hallazgos/2026-10-30-instagram-35-links.md` | El formato que la noche debe producir sola: coincidencias, contradicciones, verificado, errores, preguntas, decisiones | Plantilla de F1.6 | F1.6 |
+
 ## 8. Riesgos y preguntas abiertas
 
 - **RAM del Mac mini:** decidido el 30-oct: no se usa para modelos de lenguaje ni de visión; OpenRouter `:free` primero. Solo Whisper y embeddings en local.
