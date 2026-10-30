@@ -122,6 +122,10 @@ class Transporte(Protocol):
 
     def enviar_mensaje(self, chat_id: int | str, texto: str) -> None: ...
 
+    def enviar_botones(self, chat_id: int | str, texto: str, botones: list[list[dict[str, str]]]) -> None: ...
+
+    def responder_boton(self, boton_id: str) -> None: ...
+
 
 class ClienteBotAPI:
     """Transporte real: httpx sobre la Bot API de Telegram.
@@ -151,6 +155,18 @@ class ClienteBotAPI:
         if os.environ.get("REMI_TELEGRAM", "1") == "0":
             return
         self._http_envios.post(f"{self._base}/sendMessage", json={"chat_id": chat_id, "text": texto})
+
+    def enviar_botones(self, chat_id: int | str, texto: str, botones: list[list[dict[str, str]]]) -> None:
+        if os.environ.get("REMI_TELEGRAM", "1") == "0":
+            return
+        cuerpo = {"chat_id": chat_id, "text": texto, "reply_markup": {"inline_keyboard": botones}}
+        self._http_envios.post(f"{self._base}/sendMessage", json=cuerpo)
+
+    def responder_boton(self, boton_id: str) -> None:
+        # Sin esto el botón se queda con el reloj girando en el teléfono.
+        if os.environ.get("REMI_TELEGRAM", "1") == "0":
+            return
+        self._http_envios.post(f"{self._base}/answerCallbackQuery", json={"callback_query_id": boton_id})
 
 
 def _fecha_corta(fecha: datetime) -> str:
@@ -193,7 +209,32 @@ def _manejar_start(chat_id: int | str) -> None:
     )
 
 
+def _enviar_etiqueta(transporte: Transporte, chat_id: int | str, respuesta: tuple[str, list[list[dict[str, str]]] | None]) -> None:
+    texto, botones = respuesta
+    if botones:
+        transporte.enviar_botones(chat_id, texto, botones)
+    else:
+        transporte.enviar_mensaje(chat_id, texto)
+
+
+def _manejar_boton(transporte: Transporte, consulta: dict) -> None:
+    chat_id = (consulta.get("message") or {}).get("chat", {}).get("id")
+    configurado = chat_id_configurado()
+    if chat_id is None or configurado is None or str(chat_id) != str(configurado):
+        return
+    import etiquetar
+
+    transporte.responder_boton(str(consulta.get("id")))
+    respuesta = etiquetar.manejar_boton(str(consulta.get("data") or ""))
+    if respuesta is not None:
+        _enviar_etiqueta(transporte, chat_id, respuesta)
+
+
 def _manejar_actualizacion(transporte: Transporte, actualizacion: dict) -> None:
+    consulta = actualizacion.get("callback_query")
+    if consulta:
+        _manejar_boton(transporte, consulta)
+        return
     mensaje = actualizacion.get("message")
     if not mensaje:
         return
@@ -215,6 +256,13 @@ def _manejar_actualizacion(transporte: Transporte, actualizacion: dict) -> None:
         # Sigue sin contestar, pero deja una línea para poder diagnosticar «le
         # escribo y no pasa nada» (el chat_id no es un secreto).
         print(f"[telegram] mensaje ignorado: chat_id={chat_id} no es el configurado", file=sys.stderr, flush=True)
+        return
+
+    import etiquetar
+
+    etiqueta = etiquetar.manejar_comando(texto)
+    if etiqueta is not None:
+        _enviar_etiqueta(transporte, chat_id, etiqueta)
         return
 
     # /info … /listo: recoger links para la bóveda (recoger.py). Mientras está
