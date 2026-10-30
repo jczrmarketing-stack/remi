@@ -8,9 +8,10 @@ guardados en `remi.db` con `sqlite-vec`. Se recalculan solo si el hash del
 contenido cambió: no hay por qué volver a pedirle un vector a Ollama a cada
 respuesta.
 
-Cubre la bóveda entera: `proyectos/` y `areas/` (los libros), `oficios/`
-(`tipo: oficio` en el frontmatter), `episodios/` y `experiencia/` (las
-lecciones de T8).
+Cubre lo que se asocia en mente/: `proyectos/` y `areas/` (los libros, si
+los hay), `oficios/`, `episodios/`, `aprendido/` (lecciones y decisiones) y
+`mundo/`. La búsqueda general va por `indexar.py`; esto sigue siendo solo la
+asociación de títulos.
 """
 from __future__ import annotations
 
@@ -105,6 +106,10 @@ def notas() -> list[Nota]:
         (raiz / "oficios", "oficio"),
         (raiz / "episodios", "episodio"),
         (raiz / "aprendido" / "lecciones", "leccion"),
+        (raiz / "aprendido" / "decisiones", "decision"),
+        (raiz / "mundo" / "campo", "campo"),
+        (raiz / "mundo" / "fuentes", "fuente"),
+        (raiz / "mundo" / "investigaciones", "investigacion"),
         (raiz / "referencia", "referencia"),
     ):
         if not carpeta.is_dir():
@@ -199,7 +204,7 @@ def asociar(conexion: sqlite3.Connection, mensaje: str, k: int = 5, con_fecha: b
         if any(t == fila["titulo"] or t.endswith(f": {fila['titulo']}") for t in titulos) or libros.fuera_del_estante(Path(fila["ruta"])):
             continue
         titulos.append(fila["titulo"])
-        if con_fecha and fila["tipo"] in ("episodio", "leccion"):
+        if con_fecha and fila["tipo"] in ("episodio", "leccion", "decision", "campo"):
             # Lo que pasó lleva su fecha (tarea 3 del 2-oct); un libro no.
             dia = libros.fecha_del_nombre(Path(fila["ruta"]))
             if dia is not None:

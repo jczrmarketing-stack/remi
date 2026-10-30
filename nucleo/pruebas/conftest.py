@@ -112,7 +112,7 @@ def _sin_mundo_real(request):
 _BOVEDA_REAL = Path(__file__).resolve().parent.parent.parent / "conocimiento"
 _COPIA_DE_LA_BOVEDA = Path(tempfile.mkdtemp(prefix="remi-pruebas-boveda-")) / "boveda"
 if _BOVEDA_REAL.is_dir():
-    shutil.copytree(_BOVEDA_REAL.resolve(), _COPIA_DE_LA_BOVEDA, ignore=shutil.ignore_patterns(".git", ".obsidian"))
+    shutil.copytree(_BOVEDA_REAL.resolve(), _COPIA_DE_LA_BOVEDA, ignore=shutil.ignore_patterns(".git", ".obsidian", "indice.db"))
 else:
     (_COPIA_DE_LA_BOVEDA / "proyectos").mkdir(parents=True)
 

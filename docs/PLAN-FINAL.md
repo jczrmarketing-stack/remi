@@ -65,6 +65,7 @@ La Sala (mapa vectorial) cuando `mente/` tenga datos de campo y decisiones; el i
 ## Registro
 - 30-oct: plan reescrito tras la revisión externa y el diagnóstico de la bóveda. F0 abierta.
 - 30-oct: F1.1 entregada por la terminal: `~/proyectos/mente` con `conocimiento` como enlace. Falta verificar que Obsidian abre el vault.
+- 30-oct: F1.2 entregada por la terminal: `nucleo/indexar.py` y `mente/indice.db`; `preguntar` sin cuerpo, `leer(id)`; oficios restaurados en `mente/oficios/`. Falta que el hook de prompt use el índice y que la noche lo actualice (F1.3).
 
 ## Cómo se arranca cada paso en la terminal
 «Lee `docs/PLAN-FINAL.md` y el diseño que cita. Haz solo el paso F<n>.<m>. Antes de tocar código, di en 5 líneas qué vas a cambiar y qué prueba lo demuestra. Un commit por tarea. Al final: qué quedó, qué no, cómo lo verifico desde mi teléfono o desde Obsidian, y qué anotaste con `anotar_leccion`.»

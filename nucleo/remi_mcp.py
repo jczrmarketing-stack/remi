@@ -1,20 +1,22 @@
 """El cerebro vivo de Remi, como servidor MCP global (stdio).
 
 Cualquier sesión de Claude lo abre y sabe en qué está Juan Camilo sin que él
-se lo cuente de nuevo. Cuatro herramientas, ninguna llama a un modelo de pago:
+se lo cuente de nuevo. Cinco herramientas, ninguna llama a un modelo de pago:
 
 - estado_vivo  — su vida hoy en ≤ ~1.500 tokens, con la edad del dato.
-- preguntar    — busca en mente/ y en la bóveda (texto, sin tokens).
+- preguntar    — busca en el índice: resumen, fecha, estatus y confianza, sin el cuerpo.
+- leer         — el cuerpo de una nota, por el id que dio `preguntar`.
 - anotar       — deja algo en la bandeja o abre un supuesto.
 - supuestos    — lo que se dio por cierto y ya toca revisar.
 
-Solo stdlib + mcp. Los archivos viven en ~/proyectos/mente (git, legibles
+Los archivos viven en ~/proyectos/mente (git, legibles
 desde Obsidian). Nada sale del Mac.
 """
 from __future__ import annotations
 
 from mcp.server.mcpserver import MCPServer
 
+import indexar
 import vida
 
 servidor = MCPServer(
@@ -33,12 +35,31 @@ def estado_vivo() -> str:
     return vida.construir_estado()
 
 
-@servidor.tool(description="Busca en el conocimiento de Remi y en la bóveda (sin gastar modelo). Úsala antes de preguntarle algo a Juan Camilo.")
+@servidor.tool(description="Busca en la mente de Remi (sin gastar modelo): devuelve resumen, fecha, estatus y confianza. Úsala antes de preguntarle algo a Juan Camilo; el cuerpo se pide con `leer`.")
 def preguntar(q: str) -> str:
-    hallazgos = vida.buscar(q)
+    conexion = indexar.conectar()
+    try:
+        # Una nota de hace un minuto ya tiene que salir; el resto de vectores los hace la noche.
+        indexar.actualizar(conexion, tope_vectores=5)
+        hallazgos = indexar.buscar(conexion, q)
+    finally:
+        conexion.close()
     if not hallazgos:
-        return f"No hay nada sobre «{q}» en el conocimiento ni en la bóveda."
-    return "\n".join(f"{ruta}: {frag}" for ruta, frag in hallazgos)
+        return f"No hay nada sobre «{q}» en la mente."
+    return "\n".join(
+        f"[{h.id}] {h.tipo} · {h.fecha} · estatus: {h.estatus} · confianza: {h.confianza}\n{h.titulo}: {h.resumen}"
+        for h in hallazgos
+    )
+
+
+@servidor.tool(description="El cuerpo completo de una nota, con el id entre corchetes que dio `preguntar`. Solo si el resumen no basta.")
+def leer(id: str) -> str:
+    conexion = indexar.conectar()
+    try:
+        cuerpo = indexar.leer(conexion, id)
+    finally:
+        conexion.close()
+    return cuerpo if cuerpo is not None else f"No hay ninguna nota con id «{id}»."
 
 
 @servidor.tool(description="Deja algo anotado. tipo: decision | idea | hecho | supuesto | pendiente. Un supuesto se vuelve a revisar solo.")

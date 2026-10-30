@@ -1,7 +1,7 @@
 """Vectores locales y asociación (Fase C, punto 5 del encargo del 30-sep).
 
-Test real contra Ollama corriendo en esta máquina (nomic-embed-text) y la
-bóveda real remi-mente — no se simula el embedding. Si Ollama no está
+Test real contra Ollama corriendo en esta máquina (nomic-embed-text), sobre
+una mente de prueba — no se simula el embedding. Si Ollama no está
 arriba, se salta en vez de fallar en rojo por una razón ajena al código.
 """
 import sqlite3
@@ -26,21 +26,28 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_asociacion_trae_shopify_y_mantenimiento(monkeypatch) -> None:
+def test_asociacion_trae_lo_que_toca(tmp_path, monkeypatch) -> None:
+    boveda = tmp_path / "boveda"
+    notas = {
+        "proyectos/shopify.md": ("Software para Shopify de un cliente", "El cliente desconfiaba: quería ver avances antes de pagar el anticipo."),
+        "oficios/mantenimiento.md": ("Mantenimiento", "Cómo se vende y se cobra la mensualidad después de entregar."),
+        "oficios/claude-code.md": ("Claude Code", "Qué es plan mode, subagentes y qué modelo recomendar."),
+        "aprendido/decisiones/agua.md": ("Tomar agua", "Un vaso de agua al cerrar cada bloque largo."),
+        "mundo/campo/lluvia.md": ("Clima en Medellín", "Cuántos días llovió este mes."),
+    }
+    for relativa, (titulo, resumen) in notas.items():
+        ruta = boveda / relativa
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        ruta.write_text(f"---\ntitulo: {titulo}\nresumen: {resumen}\n---\n\nnada\n")
+    monkeypatch.setattr(libros, "carpeta", lambda: boveda / "proyectos")
     conexion = sqlite3.connect(":memory:")
     conexion.row_factory = sqlite3.Row
 
-    recalculadas = vectores.actualizar_todos(conexion)
-    assert recalculadas > 0
+    assert vectores.actualizar_todos(conexion) == len(notas)
 
-    asociados_cliente = vectores.asociar(conexion, "lo del cliente que desconfiaba")
-    assert any("Shopify" in titulo for titulo in asociados_cliente), asociados_cliente
-
-    asociados_cobro = vectores.asociar(conexion, "cómo cobro la mensualidad")
-    assert any("Mantenimiento" in titulo for titulo in asociados_cobro), asociados_cobro
-
-    asociados_plan_mode = vectores.asociar(conexion, "qué es plan mode")
-    assert any("Claude Code" in titulo for titulo in asociados_plan_mode), asociados_plan_mode
+    assert "Shopify" in vectores.asociar(conexion, "lo del cliente que desconfiaba", k=1)[0]
+    assert "Mantenimiento" in vectores.asociar(conexion, "cómo cobro la mensualidad", k=1)[0]
+    assert "Claude Code" in vectores.asociar(conexion, "qué es plan mode", k=1)[0]
 
 
 def test_no_recalcula_si_el_contenido_no_cambio(tmp_path, monkeypatch) -> None:
