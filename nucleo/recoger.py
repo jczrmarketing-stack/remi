@@ -32,7 +32,9 @@ MAX_LINKS = 500
 MAX_MOSTRADOS = 5
 AUTO_ESPERA_SEG = 45          # calma sin links nuevos antes de empezar a leer
 _SOLO_LINK_MAX_LETRAS = 12    # «mira esto:» cabe; una frase entera ya es charla
-_SITIOS_AUTO = ("youtube.com", "youtu.be", "youtube-nocookie.com", "instagram.com", "tiktok.com")
+# Cualquier link compartido solo entra a la bóveda (video, blog, repo de GitHub…).
+# La bóveda decide cómo leerlo; lo que no sepa leer queda reportado como fallido.
+_SITIOS_FUERA = ("t.me", "wa.me", "api.whatsapp.com", "mailto:")
 _CANDADO = threading.Lock()   # un lote a la vez: Whisper y las plataformas no aguantan más
 _TEMPORIZADORES: dict[str, object] = {}  # Timer real o el doble que inyectan las pruebas
 
@@ -107,14 +109,14 @@ def _lanzar_y_avisar(boveda: Path, archivo: Path, avisar: Callable[[str], None])
 
 
 def _es_solo_links_de_contenido(texto: str) -> list[str]:
-    """Los links del mensaje si es SOLO links de YouTube/Instagram/TikTok (con a lo sumo
-    unas palabras). Cualquier otra cosa devuelve [] y sigue como charla normal."""
+    """Los links del mensaje si el mensaje es SOLO links (con a lo sumo unas palabras):
+    videos, blogs, repos, lo que sea. Una frase con un link adentro sigue siendo charla."""
     urls = extraer_urls(texto)
     if not urls or len(re.sub(r"\W+", "", _URL.sub("", texto))) > _SOLO_LINK_MAX_LETRAS:
         return []
     for u in urls:
         host = (urlparse(u).hostname or "").lower()
-        if not any(host == d or host.endswith("." + d) for d in _SITIOS_AUTO):
+        if any(host == d or host.endswith("." + d) for d in _SITIOS_FUERA):
             return []
     return urls
 

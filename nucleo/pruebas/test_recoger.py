@@ -24,7 +24,7 @@ def _m(texto, entorno, chat=1):
 
 def test_charla_normal_pasa_de_largo(entorno):
     assert _m("hola, ¿cómo vamos?", entorno) is None
-    assert _m("https://a.com/x", entorno) is None  # sin /info no recoge
+    assert "Anotado" in _m("https://a.com/x", entorno)  # un link solo entra aunque no haya /info
     assert "Manda /info" in _m("/listo", entorno)
 
 
@@ -130,11 +130,12 @@ def test_varios_seguidos_se_juntan_en_un_solo_lote(entorno):
     assert len(lanzados) == 1 and lanzados[0][1].read_text().splitlines() == ["https://youtu.be/abc12345678", "https://www.tiktok.com/@a/video/1"]
 
 
-def test_blog_suelto_o_frase_larga_no_entran_solos(entorno):
+def test_cualquier_link_suelto_entra_pero_una_frase_no(entorno):
     _PENDIENTES.clear()
-    assert _m("https://miblog.com/post", entorno) is None
+    assert "Anotado" in _auto("https://miblog.com/post", entorno)            # blogs y repos también
+    assert "Anotado" in _auto("https://github.com/adbar/trafilatura", entorno)
     assert _m("oye mira este video que me mandó un cliente sobre precios https://youtu.be/abc12345678", entorno) is None
-    assert _m("https://youtu.be/abc12345678 https://miblog.com/post", entorno) is None  # mezcla: no adivina
+    assert _m("https://t.me/algunbot", entorno) is None                        # links de chat no son contenido
 
 
 def test_pendientes_se_retoman_al_arrancar(entorno):
