@@ -1,8 +1,3 @@
 {
-  "mcpServers": {
-    "remi": {
-      "command": "uv",
-      "args": ["run", "--directory", "nucleo", "python", "remi_mcp.py"]
-    }
-  }
+  "mcpServers": {}
 }
