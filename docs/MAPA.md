@@ -1,4 +1,4 @@
-# Mapa del repo Remi · 2026-10-30
+# Mapa del repo Remi · 2026-10-31
 
 Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar con grep; abre solo el archivo que necesites. Se regenera con `python3 scripts/mapa.py`.
 
@@ -163,15 +163,16 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `nucleo/gastos.py` · 104 l. · B6.1: un gasto que llega hablado — «gasté 40 en el servidor de · GastoParseado, parsear
 - `nucleo/generar_modelos.py` · 114 l. · Genera nucleo/modelos.py desde contratos/contratos.json. · tipo_python, linea_campo, generar
 - `nucleo/hilos.py` · 31 l. · B7: hilos por tema (de la revisión R6). Al saltar de proyecto en medio · rastrear, voz_del_hilo
-- `nucleo/indexar.py` · 316 l. · El índice único de la mente: `mente/indice.db`, FTS5 + sqlite-vec, por hash. · Hallazgo, ruta_indice, conectar, actualizar, buscar, leer …
+- `nucleo/indexar.py` · 300 l. · El índice único de la mente: `mente/indice.db`, FTS5 + sqlite-vec, por hash. · Hallazgo, ruta_indice, conectar, actualizar, buscar, leer …
 - `nucleo/iniciativa.py` · 290 l. · El motor de iniciativa (Biblia Parte III «el que sabe cuándo», ley 6). · silenciar, Candidato, evaluar, registrar, pendiente_o_nuevo, responder
 - `nucleo/juego.py` · 100 l. · R3 (PLAN-FINAL.md): «Ábreme el juego» — 20 jugadas con muestreo · JugadaCruda, filtrar_jugadas, generar_jugadas, jugadas_a_ideas
 - `nucleo/libros.py` · 302 l. · Un proyecto es una carpeta. El libro lo dice en `ruta:` del frontmatter. · Fase, Libro, carpeta, fecha_corta, fecha_del_nombre, fuera_del_estante …
 - `nucleo/limpiar_pruebas.py` · 216 l. · Lo que quedó de probar Remi en la base real — dos patrones, nada más: · candidatos_dia_cero, archivar_dia_cero, deshacer_dia_cero, main
 - `nucleo/memoria_mcp.py` · 232 l. · El estante de Remi, como servidor MCP (stdio). · indice, leer, guardar, anotar_leccion, buscar_lecciones, buscar_memoria
 - `nucleo/mensaje_cliente.py` · 40 l. · B3.1: «ya le mandé el avance a Alfonso» cierra el hito de ese cliente · libro_nombrado
+- `nucleo/metricas.py` · 145 l. · Métricas de uso de la mente: cuánto consulta Claude, cuánto le sirve y · ruta, registrar_consulta, marcar, resumen, texto_uso
 - `nucleo/modelos.py` · 213 l. · Generado desde contratos/contratos.json por generar_modelos.py. · Tarea, Idea, Sesion, Nudge, Memoria, Pregunta …
-- `nucleo/noche.py` · 360 l. · Consolidación nocturna (ARQUITECTURA-CEREBRO §6): LaunchAgent com.remi.noche · actualizar_estados_del_dia, fusionar_episodios_del_dia, recalcular_vectores, reordenar_mente, diff_de_la_noche, enviar_reporte_de_la_noche …
+- `nucleo/noche.py` · 404 l. · Consolidación nocturna (ARQUITECTURA-CEREBRO §6): LaunchAgent com.remi.noche · actualizar_estados_del_dia, fusionar_episodios_del_dia, recalcular_vectores, reordenar_mente, diff_de_la_noche, enviar_reporte_de_la_noche …
 - `nucleo/notion.py` · 246 l. · Cliente delgado de la API de Notion, y la puerta HTTP del sync (Fase 4). · token, pagina_id, vuelta_habilitada, Notion, prop_titulo, prop_texto …
 - `nucleo/notion_avisos.py` · 372 l. · Puente Notion → Ventanita: los avisos de «Remi · CRM de vida». · fuente_id, sondear, Salida, pendiente, responder, arrancar_hilo …
 - `nucleo/notion_sync.py` · 437 l. · Fase 4 · espejo de Notion: proyectos y entregas. · ResumenSync, sincronizar
@@ -182,10 +183,10 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `nucleo/preguntas.py` · 619 l. · T3 (fase Q, Biblia v3.8): Remi pregunta lo que le falta — nunca un · marcar_en_el_aire, en_el_aire, borrar_en_el_aire, es_arranque_cierre_o_pregunta, preguntar_en_voz, avisar_por_telegram_si_toca …
 - `nucleo/probar_bloqueos.py` · 68 l. · ¿Remi puede leer una clave? Prueba de verdad, con la CLI (3c · 10). · probar
 - `nucleo/produccion.py` · 137 l. · PR (PLAN-FINAL.md, Biblia Parte VIII): del encargo a producción. Los · generar_paquete_base, HallazgoSeguridad, puede_entregar, HallazgoDiff, RevisionDiff, revisar_sesion …
-- `nucleo/recoger.py` · 244 l. · Recoger links por Telegram para la bóveda. · extraer_urls, resumen_corto, cerrar_auto, reanudar, manejar
+- `nucleo/recoger.py` · 272 l. · Recoger links por Telegram para la bóveda. · extraer_urls, resumen_corto, recibir_archivo, cerrar_auto, reanudar, manejar
 - `nucleo/refresco_claude_code.py` · 173 l. · Refresco semanal del oficio Claude Code (Biblia Parte VI, Fase S punto 5). · traer_changelog, refrescar
 - `nucleo/reloj.py` · 167 l. · R2 (forma S, PLAN-FINAL.md): el Reloj — estimación basada en evidencia · EstimacionReloj, estimar, excede_90_min, Latido, calcular_latido, piezas_caladas …
-- `nucleo/remi_mcp.py` · 78 l. · El cerebro vivo de Remi, como servidor MCP global (stdio). · estado_vivo, preguntar, leer, anotar, supuestos
+- `nucleo/remi_mcp.py` · 113 l. · El cerebro vivo de Remi, como servidor MCP global (stdio). · estado_vivo, preguntar, leer, anotar, supuestos, anotar_leccion …
 - `nucleo/rumbo.py` · 613 l. · R1 (forma N, PLAN-FINAL.md): Rumbo — visión, meta, escalera y punto de · PropuestaVision, parsear_vision, calcular_partida_medida, ItemPartida, PropuestaVisionVista, CuerpoVision …
 - `nucleo/sanear.py` · 57 l. · Cierra las sesiones que quedaron abiertas y nadie cerró. · sanear
 - `nucleo/semana.py` · 105 l. · GET /semana (Forma D, T4.2): las cinco preguntas del panel «Semana» · Cerrado, Aplazado, IdeaDestacada, Semana, calcular, ver_semana
@@ -193,21 +194,22 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `nucleo/sembrar_memoria.py` · 79 l. · Pone en el estante lo que Remi tiene que saber desde el primer día. · sembrar
 - `nucleo/servidor.py` · 2478 l. · FastAPI local. El bind en 127.0.0.1 no protege del origen: por acá no pueden · problema_de_aislamiento, ciclo_de_vida, recortar_voz, sin_markdown, para_hablar, frase_remi …
 - `nucleo/simulacion.py` · 69 l. · R4.4 (PLAN-FINAL.md): simulación de seis meses, sembrada con `numpy` · Bandas, Frecuencia, ResultadoSimulacion, simular, kelly_tope
-- `nucleo/telegram.py` · 473 l. · Telegram (Biblia Parte IV): el teléfono — avisos y charla corta. · es_privado, para_el_telefono, token, chat_id_configurado, Transporte, ClienteBotAPI …
+- `nucleo/telegram.py` · 497 l. · Telegram (Biblia Parte IV): el teléfono — avisos y charla corta. · es_privado, para_el_telefono, token, chat_id_configurado, Transporte, ClienteBotAPI …
 - `nucleo/temas.py` · 81 l. · A qué libro pertenece una idea (Biblia v3.7: `Idea.tema`). · tema_de_texto
 - `nucleo/trabajo.py` · 712 l. · Las herramientas avisan solas. Remi no espera una palabra clave. · es_ruta_de_pruebas, es_carpeta_de_proyecto, es_cuanto, cuanto_le_meti, minutos_esta_semana, minutos_totales …
 - `nucleo/tts.py` · 140 l. · Voz de Remi, local y sin clave: Kokoro-82M en CPU. · Voz, lang_code, elegir_voz, resolver_voz, precalentar, sintetizar
 - `nucleo/vectores.py` · 215 l. · Vectores locales de la bóveda (ARQUITECTURA-CEREBRO §3 / Biblia Parte IV·B). · Nota, preparar, notas, embed, actualizar_todos, asociar
-- `nucleo/vida.py` · 196 l. · La mente de Juan Camilo como archivos: quién es, su negocio, supuestos, bandeja y búsqueda · construir_estado, buscar, agregar
+- `nucleo/vida.py` · 353 l. · La mente de Juan Camilo como archivos: quién es, su negocio, supuestos, bandeja y búsqueda · construir_estado, buscar, buscar_indice, fichas_para_contexto, anotar, agregar
 - `nucleo/voseo.py` · 167 l. · De vos a tú, sin modelo. · voseo_a_tu
 
 ## scripts
 
 - `scripts/archivar_ruido_de_sesiones.py` · 72 l. · T11.2: las ideas de ruido que T8.0 dejó de crear, pero que ya habían · es_ruido, candidatas, main
 - `scripts/banco.py` · 130 l. · El banco de la revisión (docs/PLAN-REVISION.md, R0): un núcleo de prueba · parar, arrancar, frases
-- `scripts/hook_prompt_boveda.py` · 96 l. · Hook UserPromptSubmit de Claude Code: antes de que Claude piense, la bóveda · consulta_de, fichas_de_repos, contexto, main
-- `scripts/hook_sesion_inicio.py` · 19 l. · Hook SessionStart de Claude Code: mete el estado vivo de Juan Camilo en el
-- `scripts/instalar_hook_claude.py` · 75 l. · Pone el hook de inicio de sesión de Remi en ~/.claude/settings.json. · transformar, main
+- `scripts/hook_post_herramienta.py` · 37 l. · Hook PostToolUse de Claude Code: mide si la mente sirvió. · main
+- `scripts/hook_prompt_boveda.py` · 116 l. · Hook UserPromptSubmit de Claude Code: antes de que Claude piense, la bóveda · consulta_de, fichas_de_repos, contexto, main
+- `scripts/hook_sesion_inicio.py` · 34 l. · Hook SessionStart de Claude Code: mete el estado vivo de Juan Camilo en el
+- `scripts/instalar_hook_claude.py` · 84 l. · Pone los hooks de Remi en ~/.claude/settings.json: inicio de sesión (estado vivo y mapas), · transformar, main
 - `scripts/mapa.py` · 143 l. · Mapa del repo y de la mente, para que Claude no explore con grep lo que ya se sabe. · mapa_repo, mapa_mente, main
 - `scripts/oficios_a_skills.py` · 80 l. · T9.4: exporta cada oficio de la bóveda como skill de usuario de Claude · main
 - `scripts/sembrar_camino.py` · 89 l. · Siembra «## Camino» en los libros que todavía no lo tienen, con los · main
@@ -218,10 +220,10 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `scripts/hooks/avisar-commit.py` · 92 l. · Avisa al núcleo que hubo un commit. Si no está, se calla. · main
 - `scripts/hooks/claude-sesion.py` · 139 l. · SessionStart y SessionEnd de Claude Code, hacia el núcleo de Remi. · hito_del_primer_turno, main
 - `scripts/hooks/instalar-claude.py` · 70 l. · Suma SessionStart y SessionEnd al settings.json de Claude Code. · instalar, main
-- `scripts/hooks/instalar-mcp.py` · 64 l. · Registra el MCP de memoria en Claude Code (scope user) y en la app de escritorio. · entrada, configurar_escritorio, registrar_claude_code, main
+- `scripts/hooks/instalar-mcp.py` · 65 l. · Registra el MCP `remi` en Claude Code (scope user) y en la app de escritorio, y saca `memo · entrada, configurar_escritorio, registrar_claude_code, main
 
 ## vendor/kokoro
 
 - `vendor/kokoro/tts_kokoro.py` · 67 l. · Prueba de humo del TTS de Remi: genera un wav por cada una de las cuatro · main
 
-203 archivos de código; 137 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).
+205 archivos de código; 138 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).

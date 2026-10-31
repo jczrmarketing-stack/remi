@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "memoria": {
+    "remi": {
       "command": "uv",
-      "args": ["run", "--directory", "nucleo", "python", "memoria_mcp.py"]
+      "args": ["run", "--directory", "nucleo", "python", "remi_mcp.py"]
     }
   }
 }

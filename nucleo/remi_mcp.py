@@ -1,13 +1,14 @@
 """El cerebro vivo de Remi, como servidor MCP global (stdio).
 
 Cualquier sesión de Claude lo abre y sabe en qué está Juan Camilo sin que él
-se lo cuente de nuevo. Cinco herramientas, ninguna llama a un modelo de pago:
+se lo cuente de nuevo. Siete herramientas, ninguna llama a un modelo de pago:
 
 - estado_vivo  — su vida hoy en ≤ ~1.500 tokens, con la edad del dato.
 - preguntar    — busca en el índice: resumen, fecha, estatus y confianza, sin el cuerpo.
 - leer         — el cuerpo de una nota, por el id que dio `preguntar`.
 - anotar       — deja algo en la bandeja o abre un supuesto.
 - supuestos    — lo que se dio por cierto y ya toca revisar.
+- anotar_leccion, buscar_lecciones — T8: la experiencia de los arreglos (absorbidas del MCP `memoria`, F1.4c).
 
 Los archivos viven en ~/proyectos/mente (git, legibles
 desde Obsidian). Nada sale del Mac.
@@ -17,6 +18,7 @@ from __future__ import annotations
 from mcp.server.mcpserver import MCPServer
 
 import indexar
+import memoria_mcp
 import metricas
 import vida
 
@@ -85,6 +87,25 @@ def anotar(texto: str, tipo: str = "hecho", revisar_en_dias: int = 14, fuentes: 
 def supuestos() -> str:
     v = vida._supuestos_vencidos(vida._hoy())
     return "\n".join(v) if v else "No hay supuestos por revisar hoy."
+
+
+@servidor.tool(description=memoria_mcp.anotar_leccion.__doc__ or (
+    "T8: al cerrar un trabajo, por cada problema resuelto o acierto que valga la pena repetir — anota una lección, con evidencia, "
+    "no un resumen de la charla. `clase` es «error» o «acierto»; `secciones` lleva las que pide cada clase: error — Síntoma, "
+    "Lo que creímos (vacía si no hubo pista falsa), Causa real, Cura, Cómo verlo antes; acierto — Qué funcionó, Evidencia, "
+    "Cuándo usarlo. `donde` es el repo y el archivo. Si ya hay una lección del mismo tema con el mismo síntoma, esto no crea "
+    "otra: le suma una vuelta más."
+))
+def anotar_leccion(titulo: str, tema: str, resumen: str, clase: str, donde: str, secciones: dict[str, str]) -> str:
+    return memoria_mcp.anotar_leccion(titulo, tema, resumen, clase, donde, secciones)
+
+
+@servidor.tool(description=(
+    "T8: antes de proponer un arreglo nuevo, busca si esto ya pasó. Texto exacto (un código de error, un nombre, un monto) y "
+    "parecido, sobre libros, oficios, episodios y lecciones. `tema` filtra, por ejemplo «malik»."
+))
+def buscar_lecciones(q: str, tema: str = "") -> str:
+    return memoria_mcp.buscar_lecciones(q, tema)
 
 
 if __name__ == "__main__":
