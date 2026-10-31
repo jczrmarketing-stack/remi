@@ -21,7 +21,9 @@ def main() -> int:
         import metricas
 
         if herramienta.endswith("remi__leer"):
-            metricas.marcar(sesion, "acierto", herramienta)
+            # El id leído queda guardado: son casos reales para evaluar.py.
+            leido = str((datos.get("tool_input") or {}).get("id") or "")
+            metricas.marcar(sesion, "acierto", f"{herramienta}:{leido}" if leido else herramienta)
         elif herramienta.endswith("remi__preguntar"):
             metricas.marcar(sesion, "profundizo", herramienta)
         elif herramienta in {"WebSearch", "WebFetch"}:

@@ -1,0 +1,11 @@
+{
+  "embeddings": {
+    "modelo": "qwen3-embedding:0.6b",
+    "dimensiones": 1024
+  },
+  "reordenador": {
+    "activar": false,
+    "modelo": "BAAI/bge-reranker-v2-m3",
+    "candidatos": 20
+  }
+}

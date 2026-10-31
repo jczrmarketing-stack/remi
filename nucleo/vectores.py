@@ -2,8 +2,8 @@
 
 Un vector encuentra QUÉ libro es, nunca trae el libro: la asociación suma
 solo títulos a la mente («esto quizá tenga que ver»), el cuerpo nunca viaja
-así. Embeddings con Ollama (`nomic-embed-text`, local, gratis — 274 MB,
-elegido por tamaño contra `bge-m3` de 1,16 GB, ver docs/BITACORA.md),
+así. Embeddings con Ollama (modelo en config/mente.json — hoy `qwen3-embedding:0.6b`, local,
+gratis; antes `nomic-embed-text`, ver docs/BITACORA.md),
 guardados en `remi.db` con `sqlite-vec`. Se recalculan solo si el hash del
 contenido cambió: no hay por qué volver a pedirle un vector a Ollama a cada
 respuesta.
@@ -16,6 +16,8 @@ asociación de títulos.
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,10 +27,43 @@ import sqlite_vec
 
 import libros
 
-DIMENSIONES = 768
 OLLAMA_BASE = "http://127.0.0.1:11434"
-MODELO_EMBEDDINGS = "nomic-embed-text"
 TIMEOUT_SEGUNDOS = 10.0
+
+# El modelo de embeddings vive en config/mente.json (F1.5): cambiarlo es editar
+# un archivo, no código. Si cambia, el índice reconstruye sus vectores solo
+# (indexar.conectar → alinear). Valores por defecto: el modelo multilingüe
+# pequeño de Qwen3 (1024 dimensiones, español incluido, corre en Ollama).
+_POR_DEFECTO = {
+    "modelo": "qwen3-embedding:0.6b",
+    "dimensiones": 1024,
+    "prefijo_consulta": "Instruct: Dada una pregunta, recupera las notas que la responden\nQuery: ",
+}
+_ARCHIVO_CONFIG = Path(__file__).resolve().parent.parent / "config" / "mente.json"
+
+
+def _configuracion() -> dict:
+    datos = dict(_POR_DEFECTO)
+    try:
+        leido = json.loads(_ARCHIVO_CONFIG.read_text(encoding="utf-8")).get("embeddings", {})
+        datos.update({k: v for k, v in leido.items() if k in datos})
+    except (OSError, ValueError, AttributeError):
+        pass
+    if os.environ.get("REMI_EMBED_MODELO"):
+        datos["modelo"] = os.environ["REMI_EMBED_MODELO"]
+    if os.environ.get("REMI_EMBED_DIM"):
+        datos["dimensiones"] = int(os.environ["REMI_EMBED_DIM"])
+    if os.environ.get("REMI_EMBED_PREFIJO") is not None:
+        datos["prefijo_consulta"] = os.environ["REMI_EMBED_PREFIJO"]
+    return datos
+
+
+_CONFIG = _configuracion()
+MODELO_EMBEDDINGS: str = _CONFIG["modelo"]
+DIMENSIONES: int = int(_CONFIG["dimensiones"])
+PREFIJO_CONSULTA: str = _CONFIG["prefijo_consulta"]
+# Lo que había antes de F1.5: una bóveda sin registro de modelo se asume así.
+MODELO_ANTERIOR = ("nomic-embed-text", 768)
 
 ESQUEMA_VECTORES = f"""
 CREATE TABLE IF NOT EXISTS notas_vector (
@@ -38,6 +73,10 @@ CREATE TABLE IF NOT EXISTS notas_vector (
     titulo TEXT NOT NULL,
     hash TEXT NOT NULL,
     actualizado TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notas_vector_meta (
+    clave TEXT PRIMARY KEY,
+    valor TEXT NOT NULL
 );
 """
 
@@ -60,10 +99,25 @@ def preparar(conexion: sqlite3.Connection) -> None:
     """Crea la tabla de metadatos y la tabla virtual vec0, si no existen."""
     _cargar_extension(conexion)
     conexion.executescript(ESQUEMA_VECTORES)
+    firma = firma_modelo()
+    fila = conexion.execute("SELECT valor FROM notas_vector_meta WHERE clave = 'embeddings'").fetchone()
+    hay = conexion.execute("SELECT 1 FROM notas_vector LIMIT 1").fetchone() is not None
+    previa = fila[0] if fila else (firma_modelo(*MODELO_ANTERIOR) if hay else firma)
+    if previa != firma:
+        # Otro modelo, otras dimensiones: los vectores viejos no sirven. Se
+        # borran y el hash vacío obliga a recalcular cada nota.
+        conexion.execute("DROP TABLE IF EXISTS notas_vector_embed")
+        conexion.execute("DELETE FROM notas_vector")
     conexion.execute(
         f"CREATE VIRTUAL TABLE IF NOT EXISTS notas_vector_embed USING vec0(embedding float[{DIMENSIONES}])"
     )
+    conexion.execute("INSERT OR REPLACE INTO notas_vector_meta (clave, valor) VALUES ('embeddings', ?)", (firma,))
     conexion.commit()
+
+
+def firma_modelo(modelo: str | None = None, dimensiones: int | None = None) -> str:
+    """«modelo|dimensiones»: lo que se guarda para saber con qué se calcularon los vectores."""
+    return f"{modelo or MODELO_EMBEDDINGS}|{dimensiones or DIMENSIONES}"
 
 
 def _hash(texto: str) -> str:
@@ -138,6 +192,12 @@ def embed(texto: str) -> list[float]:
     return vector
 
 
+def embed_consulta(pregunta: str) -> list[float]:
+    """El vector de una pregunta. Algunos modelos (Qwen3) rinden más si la
+    pregunta lleva una instrucción delante; las notas se vectorizan sin ella."""
+    return embed(PREFIJO_CONSULTA + pregunta)
+
+
 def _empaquetar(vector: list[float]) -> bytes:
     return sqlite_vec.serialize_float32(vector)
 
@@ -186,7 +246,7 @@ def asociar(conexion: sqlite3.Connection, mensaje: str, k: int = 5, con_fecha: b
     total = conexion.execute("SELECT COUNT(*) AS n FROM notas_vector").fetchone()["n"]
     if total == 0:
         return []
-    vector = _empaquetar(embed(mensaje))
+    vector = _empaquetar(embed_consulta(mensaje))
     # Se piden de más: una nota archivada o fusionada conserva su vector (la
     # tabla nunca se poda) y se salta acá, igual que un título repetido.
     filas = conexion.execute(

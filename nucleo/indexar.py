@@ -21,6 +21,7 @@ import httpx
 import sqlite_vec
 import yaml
 
+import reordenar
 import vectores
 import vida
 
@@ -70,6 +71,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS notas_fts USING fts5(
     titulo, resumen, cuerpo, tokenize='unicode61 remove_diacritics 2'
 );
 CREATE VIRTUAL TABLE IF NOT EXISTS notas_vec USING vec0(embedding float[{vectores.DIMENSIONES}]);
+CREATE TABLE IF NOT EXISTS meta (clave TEXT PRIMARY KEY, valor TEXT NOT NULL);
 """
 
 
@@ -97,7 +99,26 @@ def conectar(ruta: Path | None = None) -> sqlite3.Connection:
     sqlite_vec.load(conexion)
     conexion.enable_load_extension(False)
     conexion.executescript(ESQUEMA)
+    alinear(conexion)
     return conexion
+
+
+def alinear(conexion: sqlite3.Connection) -> bool:
+    """Si el modelo de embeddings cambió desde la última vez, borra los vectores
+    y deja las notas sin vector: `actualizar` los recalcula con el modelo nuevo.
+    Devuelve True si hubo que reconstruir."""
+    firma = vectores.firma_modelo()
+    fila = conexion.execute("SELECT valor FROM meta WHERE clave = 'embeddings'").fetchone()
+    hay = conexion.execute("SELECT 1 FROM notas WHERE hash_vector IS NOT NULL LIMIT 1").fetchone() is not None
+    previa = fila["valor"] if fila else (vectores.firma_modelo(*vectores.MODELO_ANTERIOR) if hay else firma)
+    cambio = previa != firma
+    if cambio:
+        conexion.execute("DROP TABLE IF EXISTS notas_vec")
+        conexion.execute(f"CREATE VIRTUAL TABLE notas_vec USING vec0(embedding float[{vectores.DIMENSIONES}])")
+        conexion.execute("UPDATE notas SET hash_vector = NULL")
+    conexion.execute("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('embeddings', ?)", (firma,))
+    conexion.commit()
+    return cambio
 
 
 def _tipo(relativa: str, tabla: tuple[tuple[str, str], ...], otro: str) -> str:
@@ -241,7 +262,7 @@ def _por_texto(conexion: sqlite3.Connection, q: str, k: int) -> list[int]:
 
 def _por_vector(conexion: sqlite3.Connection, q: str, k: int) -> list[int]:
     try:
-        vector = sqlite_vec.serialize_float32(vectores.embed(q))
+        vector = sqlite_vec.serialize_float32(vectores.embed_consulta(q))
     except (httpx.HTTPError, ValueError, KeyError):
         return []
     filas = conexion.execute(
@@ -250,15 +271,41 @@ def _por_vector(conexion: sqlite3.Connection, q: str, k: int) -> list[int]:
     return [f["rowid"] for f in filas if f["distance"] <= filas[0]["distance"] * _HOLGURA_VECTOR]
 
 
-def buscar(conexion: sqlite3.Connection, q: str, n: int = 8) -> list[Hallazgo]:
-    """Texto y vector, fundidos por posición (RRF). Nunca trae el cuerpo."""
+MODOS = ("texto", "vector", "hibrida", "rerank")
+
+
+def _ordenar(conexion: sqlite3.Connection, q: str, n: int, modo: str) -> list[int]:
+    """Los rowid candidatos, del mejor al peor, según el modo."""
+    if modo == "texto":
+        return _por_texto(conexion, q, n * 3)
+    if modo == "vector":
+        return _por_vector(conexion, q, n * 3)
     puntos: dict[int, float] = {}
     for lista in (_por_texto(conexion, q, n * 3), _por_vector(conexion, q, n * 3)):
         for posicion, rowid in enumerate(lista):
             puntos[rowid] = puntos.get(rowid, 0.0) + 1 / (_RRF + posicion)
+    orden = sorted(puntos, key=lambda r: puntos[r], reverse=True)
+    if modo == "rerank" and orden:
+        tope = int(reordenar.configuracion()["candidatos"])
+        cabeza = orden[:tope]
+        textos = []
+        for rowid in cabeza:
+            f = conexion.execute("SELECT titulo, resumen FROM notas WHERE rowid = ?", (rowid,)).fetchone()
+            textos.append((rowid, f"{f['titulo']}\n{f['resumen']}"))
+        nuevo = reordenar.reordenar(q, textos)
+        if nuevo is not None:
+            orden = nuevo + orden[tope:]
+    return orden
+
+
+def buscar(conexion: sqlite3.Connection, q: str, n: int = 8, modo: str | None = None) -> list[Hallazgo]:
+    """Texto y vector, fundidos por posición (RRF); con reordenador si está
+    activo. `modo` fuerza una variante (para evaluar). Nunca trae el cuerpo."""
+    if modo is None:
+        modo = "rerank" if reordenar.activo() else "hibrida"
     hallazgos: list[Hallazgo] = []
     por_tipo: dict[str, int] = {}
-    for rowid in sorted(puntos, key=lambda r: puntos[r], reverse=True):
+    for rowid in _ordenar(conexion, q, n, modo):
         f = conexion.execute(
             "SELECT id, tipo, titulo, resumen, fecha, estatus, confianza FROM notas WHERE rowid = ?", (rowid,)
         ).fetchone()
