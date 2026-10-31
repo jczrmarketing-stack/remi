@@ -41,6 +41,7 @@ _TIPOS_MENTE = (
     ("negocio/", "negocio"),
     ("oficios/", "oficio"),
     ("mundo/campo/", "campo"),
+    ("mundo/fuentes/campo/", "campo"),
     ("mundo/fuentes/", "fuente"),
     ("mundo/repos/", "repo"),
     ("mundo/investigaciones/", "investigacion"),
@@ -50,12 +51,6 @@ _TIPOS_MENTE = (
     ("aprendido/", "aprendido"),
     ("bandeja/", "bandeja"),
 )
-_TIPOS_BOVEDA = (
-    ("03_oro/campo/", "campo"),
-    ("03_oro/decisiones/", "decision"),
-    ("memoria/entradas/", "memoria"),
-)
-_RAICES_BOVEDA = ("03_oro", "02_procesado", "memoria/entradas")
 
 ESQUEMA = f"""
 CREATE TABLE IF NOT EXISTS notas (
@@ -109,26 +104,16 @@ def _tipo(relativa: str, tabla: tuple[tuple[str, str], ...], otro: str) -> str:
     return next((tipo for prefijo, tipo in tabla if relativa.startswith(prefijo)), otro)
 
 
-def _archivos() -> tuple[dict[str, tuple[Path, str]], bool]:
-    """{id: (ruta, tipo)} y si la bóveda estaba montada. El id es la ruta
-    relativa; lo de la bóveda lleva el prefijo `boveda/`."""
+def _archivos() -> dict[str, tuple[Path, str]]:
+    """{id: (ruta, tipo)}. El id es la ruta relativa a la mente, que es la única
+    raíz: las notas de la ingesta viven en `mundo/fuentes/` (F1.4c)."""
     encontrados: dict[str, tuple[Path, str]] = {}
     for ruta in vida.MENTE.rglob("*.md"):
         relativa = ruta.relative_to(vida.MENTE)
         if vida.FUERA_DE_BUSQUEDA.intersection(relativa.parts) or ruta.name == "README.md":
             continue
         encontrados[relativa.as_posix()] = (ruta, _tipo(relativa.as_posix(), _TIPOS_MENTE, "mente"))
-    boveda = vida._boveda()
-    if boveda is None:
-        return encontrados, False
-    for carpeta in _RAICES_BOVEDA:
-        for ruta in (boveda / carpeta).rglob("*.md"):
-            en_boveda = ruta.relative_to(boveda).as_posix()
-            # Los ejemplos sembrados a mano no son conocimiento (F1.4 los archiva).
-            if ruta.name == "README.md" or ruta.name.startswith("ejemplo"):
-                continue
-            encontrados[f"boveda/{en_boveda}"] = (ruta, _tipo(en_boveda, _TIPOS_BOVEDA, "fuente"))
-    return encontrados, True
+    return encontrados
 
 
 def _campos(texto: str) -> tuple[dict[str, object], str]:
@@ -216,13 +201,12 @@ def _calcular_vectores(conexion: sqlite3.Connection, tope: int | None) -> int:
 
 
 def actualizar(conexion: sqlite3.Connection, tope_vectores: int | None = None) -> dict[str, int]:
-    """Deja el índice igual al disco tocando solo lo que cambió. Si la bóveda
-    no está montada, sus notas se quedan: un disco ausente no es un borrado."""
-    archivos, con_boveda = _archivos()
+    """Deja el índice igual al disco tocando solo lo que cambió."""
+    archivos = _archivos()
     existentes = {f["id"]: f for f in conexion.execute("SELECT rowid, id, hash FROM notas")}
     cambiadas = borradas = 0
     for id_nota, fila in existentes.items():
-        if id_nota in archivos or (id_nota.startswith("boveda/") and not con_boveda):
+        if id_nota in archivos:
             continue
         _quitar(conexion, fila["rowid"])
         borradas += 1

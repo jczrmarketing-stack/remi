@@ -19,6 +19,8 @@ from typing import Any
 
 import yaml
 
+import vida
+
 COMANDO = "/etiquetar"
 PREFIJO = "et:"
 PAUSA = "pausa"
@@ -27,7 +29,6 @@ MAX_NOTAS = 30
 FUENTES_PUBLICAS = {"instagram", "youtube", "tiktok", "web"}
 DOMINIOS = ("negocio", "ai-tools", "contenido", "crecimiento", "decisiones")
 MAX_EXTRACTO = 110
-_CARPETAS = ("01_raw", "02_procesado", "03_oro")
 
 
 def _boveda() -> Path | None:
@@ -51,10 +52,9 @@ def _frontmatter(ruta: Path) -> dict[str, Any]:
 def notas(boveda: Path) -> list[dict[str, Any]]:
     """Orden fijo por hash del id: mezcla los temas y no cambia entre corridas."""
     halladas = []
-    for carpeta in _CARPETAS:
-        for ruta in (boveda / carpeta).rglob("*.md"):
-            # Los informes y ejemplos dicen fuente «youtube», pero no son notas de la ingesta.
-            if "inteligencia" in ruta.parts or ruta.name.startswith("ejemplo-"):
+    for carpeta in (vida.MENTE / "mundo" / "fuentes",):  # las notas viven en la mente (F1.4c)
+        for ruta in carpeta.rglob("*.md"):
+            if ruta.name.startswith("ejemplo-"):
                 continue
             datos = _frontmatter(ruta)
             if datos.get("sin_verificar") is True:

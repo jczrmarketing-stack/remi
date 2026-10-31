@@ -38,23 +38,23 @@ def consulta_de(prompt: str) -> str:
     return " ".join(list(vistas)[:8])
 
 
-def fichas_de_repos(prompt: str, boveda: Path | None) -> list[str]:
-    if boveda is None:
+def fichas_de_repos(prompt: str, mente: Path | None) -> list[str]:
+    if mente is None:
         return []
     salida = []
     for owner, repo in GITHUB.findall(prompt):
-        ficha = boveda / "03_oro" / "repos" / f"{owner.lower()}-{repo.lower().removesuffix('.git')}.md"
+        ficha = mente / "mundo" / "repos" / f"{owner.lower()}-{repo.lower().removesuffix('.git')}.md"
         if ficha.exists():
             texto = ficha.read_text(encoding="utf-8", errors="replace")
             veredicto = re.search(r"^veredicto:\s*(.+)$", texto, re.M)
-            salida.append(f"{owner}/{repo}: ya tiene ficha en la bóveda ({ficha.relative_to(boveda)})"
+            salida.append(f"{owner}/{repo}: ya tiene ficha en la bóveda ({ficha.relative_to(mente)})"
                           + (f", veredicto: {veredicto.group(1).strip()}" if veredicto else ""))
     return salida
 
 
-def contexto(prompt: str, buscar, boveda: Path | None) -> str | None:
+def contexto(prompt: str, buscar, mente: Path | None) -> str | None:
     q = consulta_de(prompt)
-    repos = fichas_de_repos(prompt, boveda)
+    repos = fichas_de_repos(prompt, mente)
     terminos = q.split()
     hallazgos = []
     if len(terminos) >= 2:
@@ -87,7 +87,7 @@ def main() -> int:
         # Router (F1.3): primero el índice único con umbral; si no existe todavía,
         # la búsqueda vieja sobre markdown. Fichas, nunca cuerpos; ≤ ~600 tokens.
         fichas = vida.buscar_indice(prompt, n=4)
-        repos = fichas_de_repos(prompt, vida._boveda())
+        repos = fichas_de_repos(prompt, vida.MENTE)
         if fichas or repos:
             ctx = vida.fichas_para_contexto(fichas)
             if repos:
@@ -95,7 +95,7 @@ def main() -> int:
             ctx = ctx[:vida.PRESUPUESTO_HOOK]
             ids = [f["id"] for f in fichas]
         elif not (vida.MENTE / "indice.db").exists():
-            ctx = contexto(prompt, vida.buscar, vida._boveda())
+            ctx = contexto(prompt, vida.buscar, vida.MENTE)
             ids = ["(fts-markdown)"] if ctx else []
         else:
             ctx, ids = None, []

@@ -15,7 +15,7 @@ RAIZ = Path(os.environ.get("REMI_RAIZ") or Path(__file__).resolve().parent.paren
 MENTE = Path(os.environ.get("REMI_MENTE") or Path.home() / "proyectos" / "mente")
 # El orden es el del estado vivo: primero quién es, luego en qué anda.
 ARCHIVOS_YO = ("perfil.md", "metas.md", "recursos.md", "restricciones.md", "valores-y-reglas.md")
-FUERA_DE_BUSQUEDA = {".git", ".obsidian", "plantillas"}
+FUERA_DE_BUSQUEDA = {".git", ".obsidian", "plantillas", "dashboards"}
 PRESUPUESTO_CARACTERES = 5000  # ≈ 1.500 tokens en español
 TIPOS = ("decision", "idea", "hecho", "supuesto", "pendiente")
 # Tipos con destino propio en la mente (F1.3). Los de TIPOS siguen cayendo en la bandeja.
@@ -141,15 +141,9 @@ def _recortar(bloque: str, cupo: int, archivo: str) -> str:
 
 
 def _archivos_de_busqueda() -> list[Path]:
-    raices = [MENTE]
-    b = _boveda()
-    if b:
-        raices += [b / d for d in ("03_oro", "02_procesado", "memoria/entradas")]
-    archivos: list[Path] = []
-    for raiz in raices:
-        if raiz.is_dir():
-            archivos += [p for p in raiz.rglob("*.md") if not FUERA_DE_BUSQUEDA.intersection(p.parts)]
-    return archivos
+    if not MENTE.is_dir():
+        return []
+    return [p for p in MENTE.rglob("*.md") if not FUERA_DE_BUSQUEDA.intersection(p.parts)]
 
 
 _VACIAS = frozenset("el la los las un una unos unas de del al y o u en con por para que se su sus es son fue a lo le les mi tu me te como mas pero sin sobre entre cual cuales hay ya".split())

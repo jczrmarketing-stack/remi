@@ -132,20 +132,17 @@ def test_sin_ollama_responde_por_texto_y_retoma_luego(mente, monkeypatch):
     assert indexar.actualizar(conexion)["vectores"] > 3
 
 
-def test_la_boveda_ausente_no_borra_sus_notas(mente, tmp_path, monkeypatch):
-    boveda = tmp_path / "boveda-prueba"
-    _nota(boveda, "03_oro/campo/x.md", "Campo en bóveda", "Conteo.")
-    _nota(boveda, "memoria/entradas/ejemplo-x.md", "Ejemplo sembrado", "No debe salir.")
-    monkeypatch.setattr(vida, "_boveda", lambda: boveda)
+def test_las_notas_de_la_ingesta_se_indexan_desde_la_mente(mente):
+    """F1.4c: no hay segunda raíz; lo de mundo/fuentes/ entra con su tipo y su id relativo."""
+    _nota(mente, "mundo/fuentes/campo/x.md", "Campo de ingesta", "Conteo.")
+    _nota(mente, "mundo/fuentes/instagram/y.md", "Reel de ingesta", "Texto.")
     conexion = indexar.conectar()
     indexar.actualizar(conexion)
-    hallado = indexar.buscar(conexion, "Campo en bóveda")[0]
-    assert (hallado.id, hallado.tipo) == ("boveda/03_oro/campo/x.md", "campo")
-    assert not any("ejemplo-x" in h.id for h in indexar.buscar(conexion, "Ejemplo sembrado", n=20))
+    assert [(h.id, h.tipo) for h in indexar.buscar(conexion, "Campo de ingesta")[:1]] == [("mundo/fuentes/campo/x.md", "campo")]
+    tipos = {h.id: h.tipo for h in indexar.buscar(conexion, "ingesta", n=20)}
+    assert tipos["mundo/fuentes/instagram/y.md"] == "fuente"
+    assert not any(h.id.startswith("boveda/") for h in indexar.buscar(conexion, "ingesta", n=20))
 
-    monkeypatch.setattr(vida, "_boveda", lambda: None)
-    assert indexar.actualizar(conexion)["borradas"] == 0
-    assert indexar.buscar(conexion, "Campo en bóveda")[0].id == "boveda/03_oro/campo/x.md"
 
 
 def test_vectores_de_verdad_encuentran_sin_palabras_en_comun(mente, monkeypatch):

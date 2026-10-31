@@ -49,9 +49,9 @@ def test_hook_prompt_responde_desde_la_boveda_y_calla_si_no_hay_nada(tmp_path):
     spec = importlib.util.spec_from_file_location("hp", RAIZ / "scripts" / "hook_prompt_boveda.py")
     hp = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(hp)
-    (tmp_path / "03_oro" / "repos").mkdir(parents=True)
-    (tmp_path / "03_oro" / "repos" / "adbar-trafilatura.md").write_text("---\nveredicto: adoptar\n---\n")
-    buscar = lambda q, n=4: [("03_oro/ai-tools/nota.md", "trafilatura saca el texto limpio de blogs"), ("01_raw/otra.md", "nada que ver")] if "trafilatura" in q else []
+    (tmp_path / "mundo" / "repos").mkdir(parents=True)
+    (tmp_path / "mundo" / "repos" / "adbar-trafilatura.md").write_text("---\nveredicto: adoptar\n---\n")
+    buscar = lambda q, n=4: [("mundo/fuentes/instagram/nota.md", "trafilatura saca el texto limpio de blogs"), ("mundo/fuentes/instagram/otra.md", "nada que ver")] if "trafilatura" in q else []
     ctx = hp.contexto("¿sirve trafilatura para leer blogs? mira https://github.com/adbar/trafilatura", buscar, tmp_path)
     assert "adbar/trafilatura: ya tiene ficha" in ctx and "veredicto: adoptar" in ctx and "nota.md" in ctx and ctx.startswith("LA BÓVEDA")
     assert "otra.md" not in ctx  # un hallazgo con una sola palabra suelta no entra
