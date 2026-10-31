@@ -121,6 +121,34 @@ def _es_solo_links_de_contenido(texto: str) -> list[str]:
     return urls
 
 
+_EXTENSIONES_DOC = {".pdf", ".docx", ".pptx", ".xlsx", ".txt", ".md", ".csv"}
+_MAX_DOC_BYTES = 40 * 1024 * 1024
+
+
+def recibir_archivo(documento: dict, descargar: Callable[[str, Path], Path], avisar: Callable[[str], None], lanzar: Callable[..., None] | None = None, ahora: datetime | None = None) -> str:
+    """Un documento mandado al bot: se guarda en la bóveda y entra como un lote de uno.
+    Devuelve el texto de respuesta inmediata; el resultado llega después por `avisar`."""
+    nombre = str(documento.get("file_name") or "documento")
+    sufijo = Path(nombre).suffix.lower()
+    if sufijo not in _EXTENSIONES_DOC:
+        return f"Ese archivo ({sufijo or 'sin extensión'}) no lo leo todavía. Acepto PDF, DOCX, PPTX, XLSX, TXT, MD y CSV."
+    if int(documento.get("file_size") or 0) > _MAX_DOC_BYTES:
+        return "Ese archivo pesa más de 40 MB; mándame un link o una versión más liviana."
+    boveda = _boveda()
+    if boveda is None:
+        return "No encuentro la bóveda (¿el disco ORGANIC está conectado?). Vuelve a mandarlo cuando esté."
+    ahora = ahora or datetime.now()
+    seguro = re.sub(r"[^\w.-]+", "-", Path(nombre).stem)[:60] or "documento"
+    destino = boveda / "00_inbox" / "_archivos" / f"{ahora:%Y%m%d-%H%M%S}-{seguro}{sufijo}"
+    try:
+        descargar(str(documento.get("file_id")), destino)
+    except Exception as exc:  # noqa: BLE001 — red o Telegram; se le dice y ya
+        return f"No pude bajar el archivo ({type(exc).__name__}). Inténtalo de nuevo."
+    archivo = _escribir_lote(boveda, "doc", [str(destino)], ahora)
+    (lanzar or _lanzar_y_avisar)(boveda, archivo, avisar)
+    return f"Recibí «{nombre}». Lo leo y te aviso."
+
+
 def _programar(segundos: float, funcion: Callable[[], None]) -> threading.Timer:
     t = threading.Timer(segundos, funcion)
     t.daemon = True

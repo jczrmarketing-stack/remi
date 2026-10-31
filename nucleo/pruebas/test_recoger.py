@@ -147,3 +147,23 @@ def test_pendientes_se_retoman_al_arrancar(entorno):
     assert r.reanudar(lambda c, t: avisos.append((c, t)), programar=lambda s, f: prog.append(f), lanzar=lambda b, a, av: lanzados.append((b, a))) == 1
     prog[0]()
     assert lanzados and "https://youtu.be/abc12345678" in lanzados[-1][1].read_text()
+
+
+def test_archivo_por_telegram_entra_como_lote(entorno):
+    boveda, lanzados, avisos = entorno
+    bajados = []
+
+    def descargar(file_id, destino):
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_bytes(b"%PDF-1.4 ...")
+        bajados.append((file_id, destino))
+        return destino
+
+    doc = {"file_id": "F1", "file_name": "Contrato Omniway.pdf", "file_size": 1000}
+    r1 = r.recibir_archivo(doc, descargar, avisos.append, lanzar=lambda b, a, av: lanzados.append((b, a)), ahora=datetime(2026, 10, 31, 1, 0, 0))
+    assert "Recibí «Contrato Omniway.pdf»" in r1
+    assert bajados[0][1] == boveda / "00_inbox" / "_archivos" / "20261031-010000-Contrato-Omniway.pdf"
+    lote = lanzados[0][1].read_text()
+    assert lote.strip().endswith("20261031-010000-Contrato-Omniway.pdf")
+    assert "no lo leo" in r.recibir_archivo({"file_id": "F2", "file_name": "video.mov", "file_size": 10}, descargar, avisos.append)
+    assert "40 MB" in r.recibir_archivo({"file_id": "F3", "file_name": "x.pdf", "file_size": 99 * 1024 * 1024}, descargar, avisos.append)

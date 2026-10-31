@@ -120,6 +120,19 @@ class Transporte(Protocol):
 
     def obtener_actualizaciones(self, offset: int | None) -> list[dict]: ...
 
+    def descargar_archivo(self, file_id: str, destino: Path) -> Path:
+        """Baja un documento que Juan Camilo mandó al bot (getFile + /file/bot…)."""
+        r = self._http_envios.get(f"{self._base}/getFile", params={"file_id": file_id})
+        r.raise_for_status()
+        ruta_remota = r.json()["result"]["file_path"]
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        with self._http_envios.stream("GET", f"{self._archivos}/{ruta_remota}") as flujo:
+            flujo.raise_for_status()
+            with open(destino, "wb") as f:
+                for trozo in flujo.iter_bytes():
+                    f.write(trozo)
+        return destino
+
     def enviar_mensaje(self, chat_id: int | str, texto: str) -> None: ...
 
     def enviar_botones(self, chat_id: int | str, texto: str, botones: list[list[dict[str, str]]]) -> None: ...
@@ -138,6 +151,7 @@ class ClienteBotAPI:
 
     def __init__(self, token: str) -> None:
         self._base = f"https://api.telegram.org/bot{token}"
+        self._archivos = f"https://api.telegram.org/file/bot{token}"
         self._http = httpx.Client(timeout=TIMEOUT_POLLING_SEGUNDOS + 10)
         self._http_envios = httpx.Client(timeout=TIMEOUT_ENVIO_SEGUNDOS)
 
@@ -241,7 +255,17 @@ def _manejar_actualizacion(transporte: Transporte, actualizacion: dict) -> None:
     chat = mensaje.get("chat", {})
     chat_id = chat.get("id")
     texto = mensaje.get("text")
-    if chat_id is None or not texto:
+    documento = mensaje.get("document")
+    if chat_id is None or not (texto or documento):
+        return
+    if documento and not texto:
+        # Un PDF, DOCX o similar: a la bóveda, como un link (F1.4).
+        configurado = chat_id_configurado()
+        if configurado is None or str(chat_id) != str(configurado):
+            return
+        import recoger
+
+        transporte.enviar_mensaje(chat_id, recoger.recibir_archivo(documento, transporte.descargar_archivo, lambda aviso: transporte.enviar_mensaje(chat_id, aviso)))
         return
 
     if texto.strip() == "/start":
