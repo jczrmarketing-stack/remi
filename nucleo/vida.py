@@ -71,6 +71,34 @@ def _supuestos_vencidos(hoy: date) -> list[str]:
     return salida
 
 
+DIAS_DECISION_VIGENTE = 90
+
+
+def _decisiones_vigentes(hoy: date | None = None, n: int = 8) -> list[str]:
+    """Las últimas decisiones anotadas (aprendido/decisiones/AAAA-MM-DD-*.md), más
+    recientes primero. Una decisión vieja no desaparece: deja de mostrarse a los 90
+    días, pero sigue en la mente para `preguntar`."""
+    hoy = hoy or _hoy()
+    carpeta = MENTE / "aprendido" / "decisiones"
+    if not carpeta.is_dir():
+        return []
+    salida = []
+    for ruta in sorted(carpeta.glob("*.md"), reverse=True):
+        try:
+            fecha = date.fromisoformat(ruta.name[:10])
+        except ValueError:
+            continue
+        if (hoy - fecha).days > DIAS_DECISION_VIGENTE:
+            continue
+        datos, _cuerpo = _frontmatter(ruta.read_text(encoding="utf-8", errors="replace"))
+        titulo = str(datos.get("titulo") or ruta.stem[11:].replace("-", " ")).strip().strip('"')
+        if titulo:
+            salida.append(f"- {fecha.isoformat()}: {titulo}")
+        if len(salida) == n:
+            break
+    return salida
+
+
 def _bandeja_reciente(n: int = 5) -> list[str]:
     lineas = [l for l in _leer("bandeja/bandeja.md").splitlines() if l.startswith("- ")]
     return lineas[-n:]
@@ -100,6 +128,8 @@ def construir_estado(hoy: date | None = None) -> str:
     bloque_supuestos = "# Supuestos por revisar\n" + "\n".join(vencidos) if vencidos else ""
     bandeja = _bandeja_reciente()
     bloque_bandeja = "# Anotado hace poco\n" + "\n".join(bandeja) if bandeja else ""
+    decisiones = _decisiones_vigentes(hoy)
+    bloque_decisiones = "# Decisiones vigentes (no las vuelvas a abrir sin motivo nuevo)\n" + "\n".join(decisiones) if decisiones else ""
     # Un servidor MCP abierto antes de la mudanza sigue escribiendo en las rutas viejas.
     restos = [d for d in ("vida", "experiencia") if (MENTE / d).exists()]
     aviso_restos = f"Ojo: hay notas en rutas viejas de la mente ({', '.join(restos)}/): falta pasarlas a su carpeta." if restos else ""
@@ -112,7 +142,7 @@ def construir_estado(hoy: date | None = None) -> str:
             crm_edad = -1
         nota = "" if 0 <= crm_edad <= 1 else f"\n(Ojo: este bloque se sacó de Notion hace {crm_edad} día(s)" + ("" if crm_edad >= 0 else ", fecha desconocida") + ".)"
         bloque_crm = crm_cuerpo.strip() + nota
-    fijos = [p for p in (aviso, aviso_restos, *yo, bloque_supuestos, bloque_bandeja) if p]
+    fijos = [p for p in (aviso, aviso_restos, *yo, bloque_decisiones, bloque_supuestos, bloque_bandeja) if p]
     disponible = PRESUPUESTO_CARACTERES - sum(len(p) + 2 for p in fijos) - 4
     bloque_frentes = frentes.strip()
     if bloque_frentes and bloque_crm:
@@ -122,7 +152,7 @@ def construir_estado(hoy: date | None = None) -> str:
     bloque_frentes = _recortar(bloque_frentes, cupo_frentes, "negocio/frentes.md")
     cupo_crm = max(0, disponible - len(bloque_frentes))
     bloque_crm = _recortar(bloque_crm, cupo_crm, "negocio/crm.md")
-    partes = [p for p in (aviso, aviso_restos, *yo, bloque_frentes, bloque_supuestos, bloque_crm, bloque_bandeja) if p]
+    partes = [p for p in (aviso, aviso_restos, *yo, bloque_decisiones, bloque_frentes, bloque_supuestos, bloque_crm, bloque_bandeja) if p]
     texto = "\n\n".join(partes)
     if len(texto) > PRESUPUESTO_CARACTERES + 200:  # red de seguridad; no debería pasar
         texto = texto[:PRESUPUESTO_CARACTERES].rsplit("\n", 1)[0] + "\n[…recortado por presupuesto; usa `preguntar` para el resto]"

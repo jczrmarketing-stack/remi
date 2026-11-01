@@ -8,6 +8,14 @@ Remi (apodo: Lucho) es el asistente personal para TDAH de Juan Camilo. Una sola 
 2. **Biblia de Remi** (artefacto en claude.ai) → fuente única de leyes, pantallas, arquitectura y estado de fases.
 3. **Este repo** → ejecuta lo que dicen 1 y 2. Notion es la vitrina, **solo de ida** (Remi → Notion). La vuelta de campos de operación se prende con `NOTION_VUELTA=1` en `nucleo/.env` cuando Remi lleve un mes en uso; la prosa del libro sale solo de la máquina. Las llaves se escriben desde el panel (Ajustes → Conexiones), nunca en git ni en un chat. Puertos: 4400 núcleo · 4402 panel · 4401 whisper.
 
+## Remi y la bóveda no son lo mismo (1-nov-2026)
+
+- **Remi es el agente** (el Jarvis de Juan Camilo): persona, estado vivo, ventanita, Telegram, modo foco, parte de la mañana, Rumbo, coordinación de agentes. Piensa y actúa.
+- **La bóveda es un departamento**: entrada (Telegram, reels, documentos, newsletter, campo), memoria (`~/proyectos/mente`, markdown + `indice.db`) y salida (MCP `preguntar`, `leer`, `anotar`). Guarda, filtra con nivel de confianza y responde. **No piensa.**
+- Remi es un cliente más de la bóveda: lo que aprende de Juan Camilo lo manda por `anotar`, nunca lo guarda por su cuenta. Cualquier agente futuro (fábrica) consulta la bóveda por MCP sin cargar con Remi.
+- Toda respuesta de Remi y de Claude Code arranca con el **estado vivo** (`vida.construir_estado`: quién es, cómo decide, decisiones vigentes, frentes, supuestos vencidos). Es lo que hace que la respuesta sea para él y no genérica.
+- Pendiente acordado: dos MCP (`boveda` y `remi`) cuando se conecte el primer agente externo; código de la bóveda al disco interno (pesa <1 MB) y datos pesados en ORGANIC, después de que la newsletter corra sola.
+
 ## Antes de gastar tokens (30-oct-2026, de los hallazgos de la bóveda)
 
 - **Antes de explorar el repo con grep o glob, lee `docs/MAPA.md`** (una línea por archivo) y abre solo lo que necesites. Se regenera con `python3 scripts/mapa.py`.

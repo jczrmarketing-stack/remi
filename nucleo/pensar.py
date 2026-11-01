@@ -417,6 +417,18 @@ def sistema_encargo() -> str:
     return "\n\n".join(piezas)
 
 
+def _estado_vivo() -> str:
+    """El estado vivo de la mente, o "" si no se pudo: Remi nunca se queda sin contestar por esto."""
+    try:
+        import vida
+
+        texto = vida.construir_estado()
+        return "" if texto.startswith("Remi no tiene estado todavía") else texto
+    except Exception as error:  # noqa: BLE001
+        print(f"[pensar] sin estado vivo: {type(error).__name__}", file=sys.stderr)
+        return ""
+
+
 def instrucciones_con_indice(
     indice: list[db.EntradaIndice], base: str | None = None, presupuesto_tokens: int = PRESUPUESTO_INDICE_TOKENS
 ) -> str:
@@ -428,6 +440,12 @@ def instrucciones_con_indice(
     if base is None:
         tecnico = rol_tecnico()
         base = f"{caracter()}\n\n{tecnico}" if tecnico else caracter()
+        # La ficha de Juan Camilo (mente/yo, frentes, decisiones vigentes): Remi
+        # contesta como alguien que lo conoce, no como un experto genérico. Es lo
+        # mismo que el hook le da a Claude Code al abrir sesión (1-nov).
+        estado = _estado_vivo()
+        if estado:
+            base = f"{base}\n\nQUIÉN ES Y CÓMO ESTÁ HOY (de la bóveda; si algo aquí contradice lo que él dice, manda lo que él dice):\n{estado}"
     if not indice:
         return base
     incluidas, recortadas_por_tema = _indice_con_presupuesto(indice, presupuesto_tokens)
