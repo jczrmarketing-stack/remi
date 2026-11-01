@@ -283,7 +283,7 @@ def _url_avisar() -> str:
 BOVEDA = Path("/Volumes/ORGANIC/boveda")
 
 
-def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 900) -> str:
+def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400) -> str:
     """La parte pesada de la newsletter propia corre de noche en el Mac (1-nov):
     resolver canales de YouTube, verificar feeds y armar la diaria SIN enviarla
     (a las 4:00 es silencio; la manda su propio horario de las 6:40 o se lee en
@@ -303,7 +303,8 @@ def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 900) -> str:
     resumen = []
     for titulo, args in (("Canales de YouTube", ["youtube_canales.py"]),
                          ("Verificación de feeds", ["newsletter.py", "--verificar"]),
-                         ("Diaria (sin enviar)", ["newsletter.py", "--diaria"])):
+                         ("Diaria (sin enviar)", ["newsletter.py", "--diaria"]),
+                         ("Catálogo de YouTube (inventario, triaje, ingesta)", ["youtube_catalogo.py", "--noche"])):
         try:
             r = subprocess.run([str(python), *args], cwd=boveda, capture_output=True, text=True, timeout=timeout_s)
             texto = (r.stdout + ("\n" + r.stderr if r.stderr.strip() else "")).strip()
