@@ -29,9 +29,11 @@ Log: ~/Library/Logs/Remi/noche.log — lo arma `scripts/noche.sh`, igual que
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -283,7 +285,7 @@ def _url_avisar() -> str:
 BOVEDA = Path("/Volumes/ORGANIC/boveda")
 
 
-def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400) -> str:
+def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400, presupuesto_s: int = 3000) -> str:
     """La parte pesada de la newsletter propia corre de noche en el Mac (1-nov):
     resolver canales de YouTube, verificar feeds y armar la diaria SIN enviarla
     (a las 4:00 es silencio; la manda su propio horario de las 6:40 o se lee en
@@ -301,6 +303,11 @@ def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400) -> str:
     salida = carpeta / f"_noche-{date.today().isoformat()}.md"
     partes = [f"# Newsletter · corrida nocturna {datetime.now().strftime('%Y-%m-%d %H:%M')}", ""]
     resumen = []
+    # Un solo presupuesto para TODA la corrida (antes cada paso tenía su propio tope de 40 min:
+    # 8 pasos podían sumar más de 5 h). Los pasos reciben el fin como BOVEDA_PLAZO_FIN y paran
+    # antes de pedir modelos; lo que no alcance queda para mañana.
+    fin = time.time() + presupuesto_s
+    entorno = {**os.environ, "BOVEDA_PLAZO_FIN": str(fin - 20)}
     for titulo, args in (("Canales de YouTube", ["youtube_canales.py"]),
                          ("Verificación de feeds", ["newsletter.py", "--verificar"]),
                          ("Diaria (sin enviar)", ["newsletter.py", "--diaria"]),
@@ -310,11 +317,17 @@ def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400) -> str:
                              ("Salud de fuentes (suben, bajan o se apagan solas)", ["salud_fuentes.py"]),
                              ("Semanal (tendencias y cambios, sin enviar)", ["newsletter.py", "--semanal"]))
                             if date.today().weekday() == 6 else ()))):
+        quedan = fin - time.time()
+        if quedan < 60:
+            partes += [f"## {titulo}", "", "```", "(sin tiempo esta noche: queda para mañana)", "```", ""]
+            resumen.append(f"{titulo}: sin tiempo (queda para mañana)")
+            continue
+        tope = int(min(timeout_s, quedan))
         try:
-            r = subprocess.run([str(python), *args], cwd=boveda, capture_output=True, text=True, timeout=timeout_s)
+            r = subprocess.run([str(python), *args], cwd=boveda, capture_output=True, text=True, timeout=tope, env=entorno)
             texto = (r.stdout + ("\n" + r.stderr if r.stderr.strip() else "")).strip()
         except subprocess.TimeoutExpired:
-            texto = f"(se pasó de {timeout_s} s y se cortó)"
+            texto = f"(se pasó de {tope} s y se cortó)"
         except OSError as error:
             texto = f"(no corrió: {error})"
         partes += [f"## {titulo}", "", "```", texto[-12000:], "```", ""]

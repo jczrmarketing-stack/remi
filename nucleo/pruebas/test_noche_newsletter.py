@@ -35,6 +35,28 @@ def test_con_boveda_falsa_escribe_el_archivo_y_resume():
         assert len(archivos) == 1 and "## Diaria" in archivos[0].read_text()
 
 
+def test_presupuesto_total_corta_los_pasos_que_no_caben_y_pasa_el_plazo():
+    """Un solo presupuesto para toda la corrida: sin tiempo, los pasos no corren y quedan para mañana;
+    con tiempo, cada paso recibe BOVEDA_PLAZO_FIN."""
+    import noche
+    import vida
+    with tempfile.TemporaryDirectory() as d:
+        boveda = Path(d) / "boveda"; (boveda / ".venv" / "bin").mkdir(parents=True)
+        (boveda / "newsletter.py").write_text("")
+        falso = boveda / ".venv" / "bin" / "python"
+        falso.write_text("#!/bin/sh\necho \"plazo=$BOVEDA_PLAZO_FIN\"\n")
+        falso.chmod(falso.stat().st_mode | stat.S_IEXEC)
+        vieja, vida.MENTE = vida.MENTE, Path(d) / "mente"
+        try:
+            sin_tiempo = noche.correr_newsletter(boveda, timeout_s=20, presupuesto_s=0)
+            con_tiempo = noche.correr_newsletter(boveda, timeout_s=20, presupuesto_s=600)
+            archivo = next((vida.MENTE / "mundo" / "newsletter").glob("_noche-*.md")).read_text()
+        finally:
+            vida.MENTE = vieja
+        assert "sin tiempo" in sin_tiempo and "plazo=" not in sin_tiempo
+        assert "plazo=1" in archivo  # un epoch: el paso lo recibió
+
+
 if __name__ == "__main__":
     fallos = 0
     for nombre, f in sorted(globals().items()):
