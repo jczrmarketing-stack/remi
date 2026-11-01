@@ -41,14 +41,20 @@ def _dir_eval() -> Path:
 
 # ---------- puro: métricas ----------
 
+def _es(id_nota: str, esperado: str) -> bool:
+    """El id del índice es la ruta de la nota («mundo/fuentes/instagram/…-Dc0wusZtJK3.md»);
+    los casos escritos a mano traen solo el código del post. Vale igual o contenido."""
+    return id_nota == esperado or esperado in id_nota
+
+
 def recall_en_k(ids: list[str], esperados: list[str], k: int = 5) -> float:
     """1.0 si alguna esperada está entre las k primeras (los casos tienen una o varias válidas)."""
-    return 1.0 if set(ids[:k]) & set(esperados) else 0.0
+    return 1.0 if any(_es(i, e) for i in ids[:k] for e in esperados) else 0.0
 
 
 def rr(ids: list[str], esperados: list[str]) -> float:
     for posicion, id_nota in enumerate(ids, start=1):
-        if id_nota in esperados:
+        if any(_es(id_nota, e) for e in esperados):
             return 1.0 / posicion
     return 0.0
 

@@ -110,6 +110,7 @@ def test_metricas_y_decision():
     assert evaluar.recall_en_k(["a", "b", "c"], ["c"], 5) == 1.0
     assert evaluar.recall_en_k(["a", "b", "c"], ["c"], 2) == 0.0
     assert evaluar.rr(["a", "b", "c"], ["b", "c"]) == 0.5 and evaluar.rr(["a"], ["z"]) == 0.0
+    assert evaluar.recall_en_k(["mundo/fuentes/instagram/graphify-Dc0wusZtJK3.md"], ["Dc0wusZtJK3"]) == 1.0
     base = {"casos": 10, "recall5": 0.6, "mrr": 0.4, "tokens": 300}
     assert evaluar.decidir(base, {"casos": 10, "recall5": 0.8, "mrr": 0.5, "tokens": 310}) == "ADOPTAR"
     assert evaluar.decidir(base, {"casos": 10, "recall5": 0.8, "mrr": 0.5, "tokens": 500}) == "no adoptar"
