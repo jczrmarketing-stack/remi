@@ -280,7 +280,45 @@ def _url_avisar() -> str:
     return f"http://{config['host']}:{config['puerto']}/telegram/avisar"
 
 
-def enviar_reporte_de_la_noche(cambios: list[tuple[str | None, str]]) -> None:
+BOVEDA = Path("/Volumes/ORGANIC/boveda")
+
+
+def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 900) -> str:
+    """La parte pesada de la newsletter propia corre de noche en el Mac (1-nov):
+    resolver canales de YouTube, verificar feeds y armar la diaria SIN enviarla
+    (a las 4:00 es silencio; la manda su propio horario de las 6:40 o se lee en
+    mente/mundo/newsletter/). Deja la salida en mente/mundo/newsletter/_noche-AAAA-MM-DD.md.
+    Si la bóveda no está montada, lo dice y sigue: nunca tumba la noche."""
+    python = boveda / ".venv" / "bin" / "python"
+    if not (boveda / "newsletter.py").exists() or not python.exists():
+        return "bóveda no disponible"
+    import subprocess
+
+    import vida
+
+    carpeta = vida.MENTE / "mundo" / "newsletter"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    salida = carpeta / f"_noche-{date.today().isoformat()}.md"
+    partes = [f"# Newsletter · corrida nocturna {datetime.now().strftime('%Y-%m-%d %H:%M')}", ""]
+    resumen = []
+    for titulo, args in (("Canales de YouTube", ["youtube_canales.py"]),
+                         ("Verificación de feeds", ["newsletter.py", "--verificar"]),
+                         ("Diaria (sin enviar)", ["newsletter.py", "--diaria"])):
+        try:
+            r = subprocess.run([str(python), *args], cwd=boveda, capture_output=True, text=True, timeout=timeout_s)
+            texto = (r.stdout + ("\n" + r.stderr if r.stderr.strip() else "")).strip()
+        except subprocess.TimeoutExpired:
+            texto = f"(se pasó de {timeout_s} s y se cortó)"
+        except OSError as error:
+            texto = f"(no corrió: {error})"
+        partes += [f"## {titulo}", "", "```", texto[-12000:], "```", ""]
+        ok, falla = texto.count("\nOK ") + texto.startswith("OK "), texto.count("FALLA ")
+        resumen.append(f"{titulo}: {ok} ok, {falla} fallan" if (ok or falla) else f"{titulo}: {texto.splitlines()[-1][:80] if texto else 'sin salida'}")
+    salida.write_text("\n".join(partes), encoding="utf-8")
+    return "; ".join(resumen)
+
+
+def enviar_reporte_de_la_noche(cambios: list[tuple[str | None, str]], extra: str = "") -> None:
     """POST a `/telegram/avisar` (nunca en proceso: `noche.py` corre aparte
     del servidor) con el resumen de esta corrida. `urgente: true` porque la
     consolidación corre a las 4:00, dentro del silencio 23:00–7:00 — sin
@@ -289,6 +327,8 @@ def enviar_reporte_de_la_noche(cambios: list[tuple[str | None, str]]) -> None:
     consolidación — mismo criterio de `boveda_git._commit`: se anota en
     stderr y sigue."""
     texto = telegram.mensaje_reporte_noche(cambios)
+    if extra:
+        texto = f"{texto}\n\n{extra}"
     try:
         httpx.post(_url_avisar(), json={"texto": texto, "urgente": True}, timeout=10)
     except Exception as error:  # noqa: BLE001 — un aviso que falla no tumba la noche
@@ -365,7 +405,6 @@ def correr(hoy: date | None = None) -> None:
     )
 
     cambios = diff_de_la_noche(referencia)
-    enviar_reporte_de_la_noche(cambios)
     print(f"[noche] reporte libros_cambiados={len(cambios)}")
 
     # T3.6: la pregunta pendiente más vieja, por Telegram — una vez al día
@@ -394,6 +433,12 @@ def correr(hoy: date | None = None) -> None:
 
     print(f"[noche] estado_crm={estado_crm.refrescar()}")
     print(f"[noche] f13={cerrar_f13()}")
+    try:
+        resumen_newsletter = correr_newsletter()
+    except Exception as error:  # noqa: BLE001 — la newsletter nunca tumba la noche
+        resumen_newsletter = f"error {type(error).__name__}"
+    print(f"[noche] newsletter={resumen_newsletter}")
+    enviar_reporte_de_la_noche(cambios, extra=f"Newsletter (de noche): {resumen_newsletter}. Detalle en mente/mundo/newsletter/." if resumen_newsletter != "bóveda no disponible" else "")
 
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")
