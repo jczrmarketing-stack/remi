@@ -14,6 +14,7 @@ Remi (apodo: Lucho) es el asistente personal para TDAH de Juan Camilo. Una sola 
 - **La bóveda es un departamento**: entrada (Telegram, reels, documentos, newsletter, campo), memoria (`~/proyectos/mente`, markdown + `indice.db`) y salida (MCP `preguntar`, `leer`, `anotar`). Guarda, filtra con nivel de confianza y responde. **No piensa.**
 - Remi es un cliente más de la bóveda: lo que aprende de Juan Camilo lo manda por `anotar`, nunca lo guarda por su cuenta. Cualquier agente futuro (fábrica) consulta la bóveda por MCP sin cargar con Remi.
 - Toda respuesta de Remi y de Claude Code arranca con el **estado vivo** (`vida.construir_estado`: quién es, cómo decide, decisiones vigentes, frentes, supuestos vencidos). Es lo que hace que la respuesta sea para él y no genérica.
+- **Biblia de la bóveda** (artefacto en claude.ai; copia en `/Volumes/ORGANIC/boveda/BIBLIA.md`): fuente única de las 8 leyes, arquitectura, modelo de datos, tuberías y plan B0–B6 de la bóveda. Léela antes de tocar ingesta, criterio, índice, MCP o noche.
 - Pendiente acordado: dos MCP (`boveda` y `remi`) cuando se conecte el primer agente externo; código de la bóveda al disco interno (pesa <1 MB) y datos pesados en ORGANIC, después de que la newsletter corra sola.
 
 ## Antes de gastar tokens (30-oct-2026, de los hallazgos de la bóveda)
