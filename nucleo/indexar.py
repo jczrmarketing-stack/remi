@@ -46,6 +46,7 @@ _TIPOS_MENTE = (
     ("mundo/fuentes/", "fuente"),
     ("mundo/repos/", "repo"),
     ("mundo/investigaciones/", "investigacion"),
+    ("mundo/newsletter/", "newsletter"),
     ("aprendido/lecciones/", "leccion"),
     ("aprendido/decisiones/", "decision"),
     ("aprendido/diario/", "diario"),
