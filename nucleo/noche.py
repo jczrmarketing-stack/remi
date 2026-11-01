@@ -305,7 +305,7 @@ def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400) -> str:
                          ("Verificación de feeds", ["newsletter.py", "--verificar"]),
                          ("Diaria (sin enviar)", ["newsletter.py", "--diaria"]),
                          ("Catálogo de YouTube (inventario, triaje, ingesta)", ["youtube_catalogo.py", "--noche"]),
-                         ("Descubridor (cada 7 días; revisa canales a prueba)", ["descubrir.py", "--si-toca"])):
+                         ("Descubridor diario (busca en HN, Reddit, GitHub, arXiv, YouTube; fuentes nuevas a prueba)", ["descubrir.py", "--diario"])):
         try:
             r = subprocess.run([str(python), *args], cwd=boveda, capture_output=True, text=True, timeout=timeout_s)
             texto = (r.stdout + ("\n" + r.stderr if r.stderr.strip() else "")).strip()
