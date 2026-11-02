@@ -7,7 +7,8 @@ import donde_boveda
 
 
 def test_el_disco_interno_va_antes_que_organic():
-    assert donde_boveda.FIJAS[0].endswith("proyectos/boveda") and donde_boveda.FIJAS[1] == "/Volumes/ORGANIC/boveda"
+    # (en las pruebas FIJAS se reemplaza por una ruta inexistente; el orden real vive en INTERNA/EXTERNA)
+    assert str(donde_boveda.INTERNA).endswith("proyectos/boveda") and str(donde_boveda.EXTERNA) == "/Volumes/ORGANIC/boveda"
 
 
 def test_la_variable_manda_y_se_exige_la_marca(tmp_path):

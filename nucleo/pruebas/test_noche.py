@@ -45,6 +45,9 @@ def _arrancar(tmp_path, monkeypatch):
     importlib.reload(libros)
     importlib.reload(sembrar_conocimiento)
     importlib.reload(noche)
+    # Nunca la bóveda real: desde la mudanza al disco interno (B3) `correr_newsletter` la encontraba y
+    # lanzaba la noche entera de verdad (YouTube, descubridor, 541 s y escribía en la mente real).
+    monkeypatch.setattr(noche, "correr_newsletter", lambda *a, **k: "bóveda falsa de prueba: 0 ok")
     (tmp_path / "proyectos").mkdir(parents=True, exist_ok=True)
     (tmp_path / "episodios").mkdir(parents=True, exist_ok=True)
     return noche, db, sembrar_conocimiento

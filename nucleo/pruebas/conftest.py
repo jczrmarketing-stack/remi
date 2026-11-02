@@ -136,3 +136,14 @@ os.environ.setdefault("REMI_NOTION_AVISOS", "0")
 # puede escribirle a Juan Camilo. Apaga el polling y el envío real
 # (ClienteBotAPI); las pruebas de Telegram usan su transporte falso.
 os.environ.setdefault("REMI_TELEGRAM", "0")
+
+
+# Red de seguridad (2-nov): ninguna prueba debe correr la bóveda real. Si alguna llega a
+# `noche.correr_newsletter` sin parchearla, apunta a una carpeta que no existe y responde al instante.
+@pytest.fixture(autouse=True)
+def _sin_boveda_real(monkeypatch):
+    monkeypatch.setenv("BOVEDA_RAIZ", "/no/existe/boveda-de-pruebas")
+    import donde_boveda
+    monkeypatch.setattr(donde_boveda, "FIJAS", ("/no/existe/boveda-de-pruebas",))
+    if "noche" in sys.modules:
+        monkeypatch.setattr(sys.modules["noche"], "BOVEDA", Path("/no/existe/boveda-de-pruebas"), raising=False)
