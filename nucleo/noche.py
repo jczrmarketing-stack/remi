@@ -387,6 +387,8 @@ def guardar_reporte_de_la_noche(cambios: list[tuple[str | None, str]], resumen_n
         enviar_reporte_de_la_noche(cambios, extra=mensaje_newsletter(resumen_newsletter))
         return
     texto = telegram.mensaje_reporte_noche(cambios)
+    if telegram.es_privado(texto):   # el mensaje de las 11 sale sin filtro (es público): lo personal se limpia aquí
+        texto = f"Anoche cambié {len(cambios)} libro{'s' if len(cambios) != 1 else ''}. Lo vemos en el Mac."
     importante = _lo_que_importa(resumen_newsletter)
     if importante:
         texto = f"{texto}\n{importante}"

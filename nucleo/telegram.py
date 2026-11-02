@@ -425,6 +425,10 @@ router = APIRouter(prefix="/telegram", tags=["telegram"])
 class AvisoSaliente(BaseModel):
     texto: str
     urgente: bool = False
+    # Contenido de fuentes públicas (la newsletter, las alertas técnicas de la bóveda): no pasa por el
+    # filtro de plata/salud, que es para los datos de JC. Sin esto, una noticia con «$20» tapaba todo el
+    # mensaje de las 11 con «Hay algo nuevo» (2-nov). Lo personal que vaya dentro se limpia antes de llegar.
+    publico: bool = False
 
 
 # Un solo transporte para los avisos salientes, reutilizado entre llamadas a
@@ -486,7 +490,7 @@ def avisar(cuerpo: AvisoSaliente) -> None:
         return
     # La misma puerta para todos: si el texto toca plata, salud o
     # pacientes, sale solo que hay algo, nunca qué.
-    texto = AVISO_PRIVADO if es_privado(cuerpo.texto) else cuerpo.texto
+    texto = cuerpo.texto if cuerpo.publico else (AVISO_PRIVADO if es_privado(cuerpo.texto) else cuerpo.texto)
     configurado = chat_id_configurado()
     if configurado is None:
         print("[telegram] sin TELEGRAM_CHAT_ID: no puedo avisar", file=sys.stderr, flush=True)
