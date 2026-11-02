@@ -215,8 +215,13 @@ def test_sin_entradas_no_se_anexa_nada(tmp_path, monkeypatch):
     import pensar
 
     # Un encabezado sin líneas debajo invitaría a inventar recuerdos.
-    # Sin entradas: el carácter y el rol técnico, nada del estante.
+    # Sin entradas: el carácter y el rol técnico, nada del estante. Desde el 1-nov va también la ficha
+    # «QUIÉN ES Y CÓMO ESTÁ HOY» (estado vivo de la mente): eso no es el estante, así que se aísla.
+    monkeypatch.setattr(pensar, "_estado_vivo", lambda: "")
     assert pensar.instrucciones_con_indice([]) == f"{pensar.caracter()}\n\n{pensar.rol_tecnico()}"
+    monkeypatch.setattr(pensar, "_estado_vivo", lambda: "ficha de prueba")
+    con_ficha = pensar.instrucciones_con_indice([])
+    assert "ficha de prueba" in con_ficha and pensar.ENCABEZADO_INDICE not in con_ficha
 
 
 # — El encierro de la CLI —
