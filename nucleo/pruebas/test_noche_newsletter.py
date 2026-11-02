@@ -75,6 +75,12 @@ def test_una_contradiccion_de_la_noche_llega_al_resumen_que_va_a_telegram():
         assert "Esto cambia lo que creías: «Pro $35» choca con «Pro $25»" in resumen
 
 
+def test_si_la_boveda_no_esta_montada_el_reporte_lo_dice():
+    import noche
+    assert "no está montada" in noche.mensaje_newsletter("bóveda no disponible")
+    assert noche.mensaje_newsletter("x: 1 ok").startswith("Newsletter (de noche): x: 1 ok")
+
+
 if __name__ == "__main__":
     fallos = 0
     for nombre, f in sorted(globals().items()):

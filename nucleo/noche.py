@@ -345,6 +345,14 @@ def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400, presupuesto_
     return "; ".join(resumen)
 
 
+def mensaje_newsletter(resumen: str) -> str:
+    """Lo que el reporte de Telegram dice de la bóveda. Antes, si ORGANIC no estaba montado el reporte
+    callaba y nadie se enteraba de que la bóveda llevaba días sin correr (B6)."""
+    if resumen == "bóveda no disponible":
+        return "⚠ La bóveda no está montada (¿se desconectó ORGANIC?): esta noche no corrieron la newsletter, el catálogo ni el descubridor."
+    return f"Newsletter (de noche): {resumen}. Detalle en mente/mundo/newsletter/."
+
+
 def enviar_reporte_de_la_noche(cambios: list[tuple[str | None, str]], extra: str = "") -> None:
     """POST a `/telegram/avisar` (nunca en proceso: `noche.py` corre aparte
     del servidor) con el resumen de esta corrida. `urgente: true` porque la
@@ -465,7 +473,7 @@ def correr(hoy: date | None = None) -> None:
     except Exception as error:  # noqa: BLE001 — la newsletter nunca tumba la noche
         resumen_newsletter = f"error {type(error).__name__}"
     print(f"[noche] newsletter={resumen_newsletter}")
-    enviar_reporte_de_la_noche(cambios, extra=f"Newsletter (de noche): {resumen_newsletter}. Detalle en mente/mundo/newsletter/." if resumen_newsletter != "bóveda no disponible" else "")
+    enviar_reporte_de_la_noche(cambios, extra=mensaje_newsletter(resumen_newsletter))
 
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")
