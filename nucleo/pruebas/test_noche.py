@@ -393,10 +393,10 @@ def test_enviar_reporte_de_la_noche_no_revienta_si_falla_el_post(tmp_path, monke
 
 def test_correr_manda_el_reporte_de_la_noche(tmp_path, monkeypatch):
     """Integración de punta a punta de `correr()`: sin bóveda git, no hay
-    cambios que reportar y el mensaje es «Anoche no toqué nada»."""
+    cambios que reportar y el mensaje (que sale a las 11) es «Anoche no toqué nada»."""
     noche, _, _ = _arrancar(tmp_path, monkeypatch)
     enviados = []
-    monkeypatch.setattr(noche, "enviar_reporte_de_la_noche", lambda cambios, extra="": enviados.append(cambios))
+    monkeypatch.setattr(noche, "guardar_reporte_de_la_noche", lambda cambios, resumen="": enviados.append(cambios))
     monkeypatch.setattr(noche, "recalcular_vectores", lambda: 0)
 
     noche.correr(date.today())

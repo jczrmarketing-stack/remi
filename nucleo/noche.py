@@ -371,6 +371,34 @@ def enviar_reporte_de_la_noche(cambios: list[tuple[str | None, str]], extra: str
         print(f"[noche] no pude mandar el reporte de la noche ({type(error).__name__}): {error}", file=sys.stderr, flush=True)
 
 
+def _lo_que_importa(resumen: str) -> str:
+    """De la corrida de la bóveda, al mensaje solo sube lo que cambia lo que JC creía; los conteos se quedan
+    en el detalle de Obsidian (JC: minimalismo con las notificaciones)."""
+    marca = "Esto cambia lo que creías:"
+    return resumen[resumen.index(marca):] if marca in resumen else ""
+
+
+def guardar_reporte_de_la_noche(cambios: list[tuple[str | None, str]], resumen_newsletter: str = "") -> None:
+    """Un solo mensaje diario, a las 11:00 (lo manda `newsletter.py --diaria --enviar`, que le pega este texto).
+    De noche solo se deja escrito. Si la bóveda no corrió o reventó, eso es una falla: avisa YA, no a las 11."""
+    if resumen_newsletter == "bóveda no disponible" or resumen_newsletter.startswith("error"):
+        enviar_reporte_de_la_noche(cambios, extra=mensaje_newsletter(resumen_newsletter))
+        return
+    texto = telegram.mensaje_reporte_noche(cambios)
+    importante = _lo_que_importa(resumen_newsletter)
+    if importante:
+        texto = f"{texto}\n{importante}"
+    import vida
+
+    carpeta = vida.MENTE / "mundo" / "newsletter"
+    try:
+        carpeta.mkdir(parents=True, exist_ok=True)
+        (carpeta / f"_mensaje-noche-{date.today().isoformat()}.txt").write_text(texto + "\n", encoding="utf-8")
+    except OSError as error:   # sin dónde dejarlo, mejor mandarlo ahora que perderlo
+        print(f"[noche] no pude dejar el reporte para las 11 ({error}); lo mando ahora", file=sys.stderr, flush=True)
+        enviar_reporte_de_la_noche(cambios, extra=mensaje_newsletter(resumen_newsletter))
+
+
 def cerrar_f13() -> dict[str, object]:
     """F1.3: regenera los mapas, pasa lo confirmado de la bandeja a `yo/` y
     escribe `uso.md` con las métricas. Cada parte falla sola, sin tumbar la noche."""
@@ -474,7 +502,7 @@ def correr(hoy: date | None = None) -> None:
     except Exception as error:  # noqa: BLE001 — la newsletter nunca tumba la noche
         resumen_newsletter = f"error {type(error).__name__}"
     print(f"[noche] newsletter={resumen_newsletter}")
-    enviar_reporte_de_la_noche(cambios, extra=mensaje_newsletter(resumen_newsletter))
+    guardar_reporte_de_la_noche(cambios, resumen_newsletter)
 
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")
