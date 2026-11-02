@@ -32,7 +32,8 @@ MAX_EXTRACTO = 110
 
 
 def _boveda() -> Path | None:
-    for candidata in (os.environ.get("REMI_BOVEDA"), "/Volumes/ORGANIC/boveda"):
+    import donde_boveda
+    for candidata in (os.environ.get("REMI_BOVEDA"), *donde_boveda.FIJAS):
         if candidata and Path(candidata).is_dir():
             return Path(candidata)
     return None

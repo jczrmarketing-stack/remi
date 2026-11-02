@@ -32,7 +32,9 @@ import vida
 _AQUI = Path(__file__).resolve().parent
 CASOS = _AQUI / "evaluacion" / "casos.jsonl"
 TIPOS_PUBLICOS = ("fuente", "repo", "investigacion", "campo")  # nunca yo/ ni negocio/ hacia APIs gratis
-BOVEDA = Path(os.environ.get("BOVEDA_RAIZ", "/Volumes/ORGANIC/boveda"))
+import donde_boveda  # noqa: E402
+
+BOVEDA = Path(os.environ.get("BOVEDA_RAIZ") or donde_boveda.ubicar() or donde_boveda.INTERNA)
 
 
 def _dir_eval() -> Path:

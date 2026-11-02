@@ -34,5 +34,5 @@ def test_si_la_boveda_fallo_avisa_ya(tmp_path, monkeypatch):
     enviados = _mente(monkeypatch, tmp_path)
     noche.guardar_reporte_de_la_noche([], "bóveda no disponible")
     noche.guardar_reporte_de_la_noche([], "error OSError")
-    assert len(enviados) == 2 and "no está montada" in enviados[0]
+    assert len(enviados) == 2 and "No encontré la bóveda" in enviados[0]
     assert not (tmp_path / "mundo").exists()

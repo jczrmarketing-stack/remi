@@ -49,7 +49,8 @@ def extraer_urls(texto: str) -> list[str]:
 
 
 def _boveda() -> Path | None:
-    for c in (os.environ.get("REMI_BOVEDA"), "/Volumes/ORGANIC/boveda"):
+    import donde_boveda
+    for c in (os.environ.get("REMI_BOVEDA"), *donde_boveda.FIJAS):
         if c and Path(c).is_dir():
             return Path(c)
     return None
@@ -136,7 +137,7 @@ def recibir_archivo(documento: dict, descargar: Callable[[str, Path], Path], avi
         return "Ese archivo pesa más de 40 MB; mándame un link o una versión más liviana."
     boveda = _boveda()
     if boveda is None:
-        return "No encuentro la bóveda (¿el disco ORGANIC está conectado?). Vuelve a mandarlo cuando esté."
+        return "No encuentro la bóveda (ni en ~/proyectos/boveda ni en ORGANIC). Vuelve a mandarlo cuando esté."
     ahora = ahora or datetime.now()
     seguro = re.sub(r"[^\w.-]+", "-", Path(nombre).stem)[:60] or "documento"
     destino = boveda / "00_inbox" / "_archivos" / f"{ahora:%Y%m%d-%H%M%S}-{seguro}{sufijo}"
@@ -174,7 +175,7 @@ def cerrar_auto(chat_id: int | str, avisar: Callable[[str], None], lanzar: Calla
         return
     boveda = _boveda()
     if boveda is None:
-        avisar("No encuentro la bóveda (¿el disco ORGANIC está conectado?). Tus links quedan guardados y los leo cuando vuelva.")
+        avisar("No encuentro la bóveda (ni en ~/proyectos/boveda ni en ORGANIC). Tus links quedan guardados y los leo cuando vuelva.")
         return
     archivo = _escribir_lote(boveda, "auto", links, ahora or datetime.now())
     estado.pop(clave)
@@ -233,7 +234,7 @@ def manejar(chat_id: int | str, texto: str, avisar: Callable[[str], None], lanza
             return "Todavía no hay links. Pega algunos o /cancelar."
         boveda = _boveda()
         if boveda is None:
-            return "No encuentro la bóveda (¿el disco ORGANIC está conectado?). Tus links siguen guardados; manda /listo cuando esté."
+            return "No encuentro la bóveda (ni en ~/proyectos/boveda ni en ORGANIC). Tus links siguen guardados; manda /listo cuando esté."
         archivo = _escribir_lote(boveda, "lote", links, ahora or datetime.now())
         estado.pop(clave)
         _guardar(estado)

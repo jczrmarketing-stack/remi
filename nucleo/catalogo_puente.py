@@ -63,7 +63,7 @@ def leer_video(video_id: str, correr=subprocess.run, raiz: Path | None = None) -
     raiz = raiz or afirmaciones_puente._raiz_boveda()
     python = None if raiz is None else raiz / ".venv" / "bin" / "python"
     if raiz is None or not python.exists():
-        return "La bóveda no está montada ahora (¿ORGANIC desconectado?): no puedo leer el video."
+        return "No encuentro la bóveda ahora: no puedo leer el video."
     try:
         r = correr([str(python), "youtube_catalogo.py", "--leer", video_id], cwd=raiz, capture_output=True, text=True, timeout=170)
     except subprocess.TimeoutExpired:

@@ -14,10 +14,8 @@ from pathlib import Path
 
 
 def _raiz_boveda() -> Path | None:
-    for c in (os.environ.get("BOVEDA_RAIZ"), "/Volumes/ORGANIC/boveda"):
-        if c and (Path(c) / "afirmaciones.py").exists():
-            return Path(c)
-    return None
+    import donde_boveda
+    return donde_boveda.ubicar(os.environ.get("BOVEDA_RAIZ"), marca="afirmaciones.py")
 
 
 def _modulo():

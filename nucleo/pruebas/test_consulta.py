@@ -115,7 +115,7 @@ def test_leer_video_corre_en_el_entorno_de_la_boveda_y_devuelve_la_ultima_linea(
     assert visto["cmd"][-3:] == ["youtube_catalogo.py", "--leer", "aaaaaaaaaaa"] and visto["cwd"] == tmp_path
     assert r.startswith("leído: nota para el video")
     sin = cp.leer_video("aaaaaaaaaaa", correr=correr, raiz=tmp_path / "no")
-    assert "no está montada" in sin
+    assert "No encuentro la bóveda" in sin
     def lento(cmd, **k): raise subprocess.TimeoutExpired(cmd, 170)
     assert "tiempo" in cp.leer_video("aaaaaaaaaaa", correr=lento, raiz=tmp_path)
 

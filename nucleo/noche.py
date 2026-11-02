@@ -282,7 +282,9 @@ def _url_avisar() -> str:
     return f"http://{config['host']}:{config['puerto']}/telegram/avisar"
 
 
-BOVEDA = Path("/Volumes/ORGANIC/boveda")
+import donde_boveda  # noqa: E402
+
+BOVEDA = donde_boveda.ubicar() or donde_boveda.INTERNA   # B3: disco interno primero; ORGANIC solo de respaldo
 
 
 def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400, presupuesto_s: int = 3000) -> str:
@@ -350,7 +352,7 @@ def mensaje_newsletter(resumen: str) -> str:
     """Lo que el reporte de Telegram dice de la bóveda. Antes, si ORGANIC no estaba montado el reporte
     callaba y nadie se enteraba de que la bóveda llevaba días sin correr (B6)."""
     if resumen == "bóveda no disponible":
-        return "⚠ La bóveda no está montada (¿se desconectó ORGANIC?): esta noche no corrieron la newsletter, el catálogo ni el descubridor."
+        return "⚠ No encontré la bóveda (ni en ~/proyectos/boveda ni en ORGANIC): esta noche no corrieron la newsletter, el catálogo ni el descubridor."
     return f"Newsletter (de noche): {resumen}. Detalle en mente/mundo/newsletter/."
 
 

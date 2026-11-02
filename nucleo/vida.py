@@ -32,7 +32,8 @@ PRESUPUESTO_HOOK = 2400  # ≈ 600 tokens
 
 
 def _boveda() -> Path | None:
-    for candidato in (os.environ.get("REMI_BOVEDA"), "/Volumes/ORGANIC/boveda", str(RAIZ.parent / "boveda")):
+    import donde_boveda
+    for candidato in (os.environ.get("REMI_BOVEDA"), *donde_boveda.FIJAS):
         if candidato and Path(candidato).is_dir():
             return Path(candidato)
     return None
