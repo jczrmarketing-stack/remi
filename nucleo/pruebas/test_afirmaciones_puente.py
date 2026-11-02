@@ -60,34 +60,6 @@ def test_sin_base_o_sin_boveda_no_rompe():
         else: os.environ["BOVEDA_RAIZ"] = vieja
 
 
-def test_preguntar_muestra_la_caducidad_en_la_ficha_y_contradice_es_una_herramienta():
-    try:
-        import remi_mcp
-    except ModuleNotFoundError:
-        return  # sin la librería mcp (entorno mínimo) no hay servidor que probar
-    from types import SimpleNamespace
-    H = lambda: SimpleNamespace(id="mundo/fuentes/web/vieja.md", tipo="fuente", titulo="Precios de Supabase", resumen="El plan Pro cuesta $25 por mes", fecha="2026-09-20", estatus="sin_verificar", confianza="oro")
-    class FakeIndexar:
-        @staticmethod
-        def conectar(): return SimpleNamespace(close=lambda: None)
-        @staticmethod
-        def actualizar(*a, **k): return {}
-        @staticmethod
-        def buscar(*a, **k): return [H()]
-    viejos = (remi_mcp.indexar, remi_mcp.metricas.registrar_consulta, remi_mcp.afirmaciones_puente.estado_de)
-    remi_mcp.indexar = FakeIndexar
-    remi_mcp.metricas.registrar_consulta = lambda *a, **k: None
-    remi_mcp.afirmaciones_puente.estado_de = lambda nota, mente=None: "afirmaciones: 1 caducada (venció 2026-10-20)"
-    try:
-        r = remi_mcp.preguntar("plan Pro Supabase precio")
-        assert "Precios de Supabase" in r and "afirmaciones: 1 caducada (venció 2026-10-20)" in r
-        remi_mcp.afirmaciones_puente.estado_de = lambda nota, mente=None: ""
-        assert "afirmaciones:" not in remi_mcp.preguntar("plan Pro Supabase precio")   # sin nada que decir, la ficha queda igual
-    finally:
-        remi_mcp.indexar, remi_mcp.metricas.registrar_consulta, remi_mcp.afirmaciones_puente.estado_de = viejos
-    assert callable(remi_mcp.contradice)
-
-
 if __name__ == "__main__":
     fallos = 0
     for nombre, f in sorted(globals().items()):

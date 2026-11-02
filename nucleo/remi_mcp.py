@@ -1,7 +1,7 @@
 """El cerebro vivo de Remi, como servidor MCP global (stdio).
 
 Cualquier sesión de Claude lo abre y sabe en qué está Juan Camilo sin que él
-se lo cuente de nuevo. Ocho herramientas, ninguna llama a un modelo de pago:
+se lo cuente de nuevo. Nueve herramientas, ninguna llama a un modelo de pago:
 
 - estado_vivo  — su vida hoy en ≤ ~1.500 tokens, con la edad del dato.
 - preguntar    — busca en el índice: resumen, fecha, estatus y confianza, sin el cuerpo.
@@ -9,6 +9,7 @@ se lo cuente de nuevo. Ocho herramientas, ninguna llama a un modelo de pago:
 - anotar       — deja algo en la bandeja o abre un supuesto.
 - supuestos    — lo que se dio por cierto y ya toca revisar.
 - contradice   — B2: ¿este dato choca con algo vigente en la mente?
+- leer_video   — B4: lee ahora un video del catálogo que `preguntar` sugirió (solo subtítulos).
 - anotar_leccion, buscar_lecciones — T8: la experiencia de los arreglos (absorbidas del MCP `memoria`, F1.4c).
 
 Los archivos viven en ~/proyectos/mente (git, legibles
@@ -19,9 +20,10 @@ from __future__ import annotations
 from mcp.server.mcpserver import MCPServer
 
 import afirmaciones_puente
+import catalogo_puente
+import consulta
 import indexar
 import memoria_mcp
-import metricas
 import vida
 
 servidor = MCPServer(
@@ -42,32 +44,7 @@ def estado_vivo() -> str:
 
 @servidor.tool(description="Busca en la mente de Remi (sin gastar modelo): devuelve resumen, fecha, estatus y confianza. Úsala antes de preguntarle algo a Juan Camilo; el cuerpo se pide con `leer`.")
 def preguntar(q: str) -> str:
-    conexion = indexar.conectar()
-    try:
-        # Una nota de hace un minuto ya tiene que salir; el resto de vectores los hace la noche.
-        indexar.actualizar(conexion, tope_vectores=5)
-        hallazgos = indexar.buscar(conexion, q)
-    finally:
-        conexion.close()
-    # Umbral honesto: lo que no comparte ni un término con la consulta queda marcado como
-    # «relacionado» (vino solo por vector) y se limita a 2. F1.5 pone reordenador y número.
-    terminos = vida._terminos(q)
-    exactos = [h for h in hallazgos if any(t in vida._slug(f"{h.titulo} {h.resumen}", 400) for t in terminos)]
-    parecidos = [h for h in hallazgos if h not in exactos][:2]
-    def _caducidad(id_nota: str) -> str:   # B2: lo que ya venció se ve en la misma ficha
-        e = afirmaciones_puente.estado_de(id_nota)
-        return f"\n{e}" if e else ""
-
-    texto = "\n".join(
-        f"[{h.id}] {h.tipo} · {h.fecha} · estatus: {h.estatus} · confianza: {h.confianza}\n{h.titulo}: {h.resumen}{_caducidad(h.id)}"
-        for h in exactos
-    )
-    if parecidos:
-        texto += ("\n" if texto else "") + "Relacionado, no exacto:\n" + "\n".join(f"[{h.id}] {h.tipo} · {h.titulo}" for h in parecidos)
-    metricas.registrar_consulta("mcp", "-", q, [h.id for h in exactos + parecidos], len(texto))
-    if not texto:
-        return f"No hay nada sobre «{q}» en la mente."
-    return texto
+    return consulta.responder(q, "mcp")
 
 
 @servidor.tool(description="El cuerpo completo de una nota, con el id entre corchetes que dio `preguntar`. Solo si el resumen no basta.")
@@ -87,6 +64,11 @@ def leer(id: str) -> str:
 ))
 def anotar(texto: str, tipo: str = "hecho", revisar_en_dias: int = 14, fuentes: str = "") -> str:
     return vida.anotar(texto, tipo, revisar_en_dias, fuentes)
+
+
+@servidor.tool(description="B4: lee ahora un video del catálogo de YouTube que `preguntar` sugirió (solo si tiene subtítulos; nunca usa Whisper). El id son los 11 caracteres que muestra `preguntar`. Después, `preguntar` ya trae su nota.")
+def leer_video(id: str) -> str:
+    return catalogo_puente.leer_video(id)
 
 
 @servidor.tool(description="B2: ¿esto que acabas de leer choca con algo que la mente tiene vigente (precio, versión, cifra de mercado)? Devuelve las afirmaciones que dicen otra cosa, con nota y fecha. Úsala antes de dar por cierto un dato que cambia con el tiempo.")

@@ -315,6 +315,7 @@ def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400, presupuesto_
                          ("Catálogo de YouTube (inventario, triaje, ingesta)", ["youtube_catalogo.py", "--noche"]),
                          ("Descubridor diario (busca en HN, Reddit, GitHub, arXiv, YouTube; fuentes nuevas a prueba)", ["descubrir.py", "--diario"]),
                          ("Afirmaciones (caducidad y contradicciones)", ["afirmaciones.py", "--noche"]),
+                         ("Tablero de la bóveda (Obsidian)", ["salud_boveda.py", "--tablero"]),
                          *(((("Juez semanal del criterio (Claude Max, muestra de 30)", ["juez.py"]),
                              ("Salud de fuentes (suben, bajan o se apagan solas)", ["salud_fuentes.py"]),
                              ("Semanal (tendencias y cambios, sin enviar)", ["newsletter.py", "--semanal"]))

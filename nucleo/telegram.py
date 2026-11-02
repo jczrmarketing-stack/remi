@@ -289,6 +289,14 @@ def _manejar_actualizacion(transporte: Transporte, actualizacion: dict) -> None:
         _enviar_etiqueta(transporte, chat_id, etiqueta)
         return
 
+    # B4: /p <pregunta> responde con la mente, sin modelo.
+    import consulta
+
+    consultada = consulta.manejar_comando(texto)
+    if consultada is not None:
+        transporte.enviar_mensaje(chat_id, consultada)
+        return
+
     # /info … /listo: recoger links para la bóveda (recoger.py). Mientras está
     # abierta, los mensajes no pasan por la charla normal.
     import recoger
