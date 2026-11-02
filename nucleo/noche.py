@@ -303,6 +303,7 @@ def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400, presupuesto_
     salida = carpeta / f"_noche-{date.today().isoformat()}.md"
     partes = [f"# Newsletter · corrida nocturna {datetime.now().strftime('%Y-%m-%d %H:%M')}", ""]
     resumen = []
+    choques: list[str] = []
     # Un solo presupuesto para TODA la corrida (antes cada paso tenía su propio tope de 40 min:
     # 8 pasos podían sumar más de 5 h). Los pasos reciben el fin como BOVEDA_PLAZO_FIN y paran
     # antes de pedir modelos; lo que no alcance queda para mañana.
@@ -313,6 +314,7 @@ def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400, presupuesto_
                          ("Diaria (sin enviar)", ["newsletter.py", "--diaria"]),
                          ("Catálogo de YouTube (inventario, triaje, ingesta)", ["youtube_catalogo.py", "--noche"]),
                          ("Descubridor diario (busca en HN, Reddit, GitHub, arXiv, YouTube; fuentes nuevas a prueba)", ["descubrir.py", "--diario"]),
+                         ("Afirmaciones (caducidad y contradicciones)", ["afirmaciones.py", "--noche"]),
                          *(((("Juez semanal del criterio (Claude Max, muestra de 30)", ["juez.py"]),
                              ("Salud de fuentes (suben, bajan o se apagan solas)", ["salud_fuentes.py"]),
                              ("Semanal (tendencias y cambios, sin enviar)", ["newsletter.py", "--semanal"]))
@@ -331,9 +333,15 @@ def correr_newsletter(boveda: Path = BOVEDA, timeout_s: int = 2400, presupuesto_
         except OSError as error:
             texto = f"(no corrió: {error})"
         partes += [f"## {titulo}", "", "```", texto[-12000:], "```", ""]
+        choques += [l.strip() for l in texto.splitlines() if l.startswith("CONTRADICE:")]
+        if titulo.startswith("Afirmaciones"):
+            resumen.append(f"{titulo}: {texto.splitlines()[0][:160] if texto else 'sin salida'}")
+            continue
         ok, falla = texto.count("\nOK ") + texto.startswith("OK "), texto.count("FALLA ")
         resumen.append(f"{titulo}: {ok} ok, {falla} fallan" if (ok or falla) else f"{titulo}: {texto.splitlines()[-1][:80] if texto else 'sin salida'}")
     salida.write_text("\n".join(partes), encoding="utf-8")
+    if choques:   # B2: una contradicción real tiene que llegar al teléfono, no quedarse en un archivo
+        resumen.append("Esto cambia lo que creías: " + " | ".join(c.removeprefix("CONTRADICE:").strip() for c in choques[:3]))
     return "; ".join(resumen)
 
 

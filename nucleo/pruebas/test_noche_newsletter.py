@@ -57,6 +57,24 @@ def test_presupuesto_total_corta_los_pasos_que_no_caben_y_pasa_el_plazo():
         assert "plazo=1" in archivo  # un epoch: el paso lo recibió
 
 
+def test_una_contradiccion_de_la_noche_llega_al_resumen_que_va_a_telegram():
+    import noche
+    import vida
+    with tempfile.TemporaryDirectory() as d:
+        boveda = Path(d) / "boveda"; (boveda / ".venv" / "bin").mkdir(parents=True)
+        (boveda / "newsletter.py").write_text("")
+        falso = boveda / ".venv" / "bin" / "python"
+        falso.write_text("#!/bin/sh\ncase \"$*\" in *afirmaciones*) echo 'afirmaciones: 118 en total'; echo 'CONTRADICE: «Pro $35» choca con «Pro $25»';; *) echo ok;; esac\n")
+        falso.chmod(falso.stat().st_mode | stat.S_IEXEC)
+        vieja, vida.MENTE = vida.MENTE, Path(d) / "mente"
+        try:
+            resumen = noche.correr_newsletter(boveda, timeout_s=20)
+        finally:
+            vida.MENTE = vieja
+        assert "Afirmaciones (caducidad y contradicciones): afirmaciones: 118 en total" in resumen
+        assert "Esto cambia lo que creías: «Pro $35» choca con «Pro $25»" in resumen
+
+
 if __name__ == "__main__":
     fallos = 0
     for nombre, f in sorted(globals().items()):

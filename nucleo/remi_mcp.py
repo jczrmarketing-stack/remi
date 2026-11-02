@@ -1,13 +1,14 @@
 """El cerebro vivo de Remi, como servidor MCP global (stdio).
 
 Cualquier sesión de Claude lo abre y sabe en qué está Juan Camilo sin que él
-se lo cuente de nuevo. Siete herramientas, ninguna llama a un modelo de pago:
+se lo cuente de nuevo. Ocho herramientas, ninguna llama a un modelo de pago:
 
 - estado_vivo  — su vida hoy en ≤ ~1.500 tokens, con la edad del dato.
 - preguntar    — busca en el índice: resumen, fecha, estatus y confianza, sin el cuerpo.
 - leer         — el cuerpo de una nota, por el id que dio `preguntar`.
 - anotar       — deja algo en la bandeja o abre un supuesto.
 - supuestos    — lo que se dio por cierto y ya toca revisar.
+- contradice   — B2: ¿este dato choca con algo vigente en la mente?
 - anotar_leccion, buscar_lecciones — T8: la experiencia de los arreglos (absorbidas del MCP `memoria`, F1.4c).
 
 Los archivos viven en ~/proyectos/mente (git, legibles
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 from mcp.server.mcpserver import MCPServer
 
+import afirmaciones_puente
 import indexar
 import memoria_mcp
 import metricas
@@ -52,8 +54,12 @@ def preguntar(q: str) -> str:
     terminos = vida._terminos(q)
     exactos = [h for h in hallazgos if any(t in vida._slug(f"{h.titulo} {h.resumen}", 400) for t in terminos)]
     parecidos = [h for h in hallazgos if h not in exactos][:2]
+    def _caducidad(id_nota: str) -> str:   # B2: lo que ya venció se ve en la misma ficha
+        e = afirmaciones_puente.estado_de(id_nota)
+        return f"\n{e}" if e else ""
+
     texto = "\n".join(
-        f"[{h.id}] {h.tipo} · {h.fecha} · estatus: {h.estatus} · confianza: {h.confianza}\n{h.titulo}: {h.resumen}"
+        f"[{h.id}] {h.tipo} · {h.fecha} · estatus: {h.estatus} · confianza: {h.confianza}\n{h.titulo}: {h.resumen}{_caducidad(h.id)}"
         for h in exactos
     )
     if parecidos:
@@ -81,6 +87,11 @@ def leer(id: str) -> str:
 ))
 def anotar(texto: str, tipo: str = "hecho", revisar_en_dias: int = 14, fuentes: str = "") -> str:
     return vida.anotar(texto, tipo, revisar_en_dias, fuentes)
+
+
+@servidor.tool(description="B2: ¿esto que acabas de leer choca con algo que la mente tiene vigente (precio, versión, cifra de mercado)? Devuelve las afirmaciones que dicen otra cosa, con nota y fecha. Úsala antes de dar por cierto un dato que cambia con el tiempo.")
+def contradice(texto: str) -> str:
+    return afirmaciones_puente.contradice(texto)
 
 
 @servidor.tool(description="Supuestos abiertos que ya toca confirmar o dar por rotos.")

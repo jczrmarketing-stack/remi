@@ -396,7 +396,7 @@ def test_correr_manda_el_reporte_de_la_noche(tmp_path, monkeypatch):
     cambios que reportar y el mensaje es «Anoche no toqué nada»."""
     noche, _, _ = _arrancar(tmp_path, monkeypatch)
     enviados = []
-    monkeypatch.setattr(noche, "enviar_reporte_de_la_noche", lambda cambios: enviados.append(cambios))
+    monkeypatch.setattr(noche, "enviar_reporte_de_la_noche", lambda cambios, extra="": enviados.append(cambios))
     monkeypatch.setattr(noche, "recalcular_vectores", lambda: 0)
 
     noche.correr(date.today())
