@@ -26,7 +26,7 @@ sys.path.insert(0, str(BOVEDA))
 
 MODELO = os.environ.get("EDITOR_MODELO", "sonnet")
 TOPE_SEG = 1500
-CANDIDATOS = 10
+CANDIDATOS = 12
 ACCIONES = {"hoy", "tener en cuenta", "solo saber"}
 _RUTAS_CLAUDE = ("~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude", "~/.claude/local/claude", "~/.npm-global/bin/claude")
 
@@ -71,7 +71,7 @@ def llamar_claude(sistema: str, mensaje: str, correr=None, binario: str | None =
     entorno = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")}
     comando = [binario, "-p", "--model", MODELO, "--output-format", "json", "--system-prompt", sistema,
                "--tools", "WebFetch,WebSearch", "--allowedTools", "WebFetch,WebSearch",
-               "--setting-sources", "", "--no-session-persistence", "--strict-mcp-config", "--max-turns", "30"]
+               "--setting-sources", "", "--no-session-persistence", "--strict-mcp-config", "--max-turns", "45"]
     r = (correr or subprocess.run)(comando, input=mensaje, capture_output=True, text=True, timeout=TOPE_SEG, env=entorno, cwd=str(AQUI))
     datos = json.loads(r.stdout or "{}")
     if datos.get("is_error"):
@@ -110,7 +110,7 @@ def correr(hoy: date | None = None, probar: bool = False, claude=None, publicar=
         with candado():                 # la agenda pone BOVEDA_ESPERAR_CANDADO: espera su turno
             newsletter.diaria(enviar_telegram=False)
     con = con or newsletter.abrir_bd()
-    candidatos = nn.del_dia(con, hoy, n=CANDIDATOS)
+    candidatos = nn.del_dia(con, hoy, n=CANDIDATOS, solo_con_fondo=False)   # el Editor lee la fuente si hace falta
     escritos: list[dict] | None = None
     if candidatos:
         try:
@@ -127,7 +127,7 @@ def correr(hoy: date | None = None, probar: bool = False, claude=None, publicar=
             if not probar:
                 import alertas
                 (avisar or alertas.enviar)(f"El Editor no pudo escribir la newsletter hoy ({type(exc).__name__}: {str(exc)[:150]}). Salió la versión automática.")
-    temas = escritos if escritos is not None else nn.elegir(candidatos)
+    temas = escritos if escritos is not None else nn.elegir([c for c in candidatos if c["con_fondo"]])   # la automática: solo con fondo
     if probar:
         return nn.mensaje(temas, hoy, con_notion=False)
     publicadas = (publicar or nn.publicar)(con, temas, hoy)

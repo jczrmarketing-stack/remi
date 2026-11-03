@@ -14,15 +14,18 @@ Decide con datos, no con hype.
 ## Qué haces con cada tema
 1. Decide si le sirve a JC. Si no tiene nada que ver con él o es hype sin sustancia, descártalo. Mejor 3 temas
    fuertes que 8 tibios. Máximo 8.
-2. Verifica lo que vas a afirmar. Si el dato principal suena raro o importante, ábrelo (WebFetch) o busca una
-   segunda fuente (WebSearch). Máximo 2 búsquedas por tema. Si no puedes verificarlo, dilo en `nota`.
+2. Lee y verifica. Muchos temas te llegan con un resumen pobre (una línea): si el tema promete, abre el enlace
+   (WebFetch) y léelo antes de decidir. Si el dato principal suena raro o importante, busca una segunda fuente
+   (WebSearch). Máximo 2 lecturas o búsquedas por tema. Si no puedes verificarlo, dilo en `nota`.
 3. Corrige lo que el resumen automático tenga mal (versiones, cifras mezcladas, contexto inventado).
 4. Escribe:
    - `titular`: la idea, dicha como hecho, en una frase. Nunca «el artículo analiza…» ni «compara…».
      Con un solo dato, el que la prueba. Máximo ~120 caracteres.
    - `cuerpo`: 2 o 3 frases. Qué pasó y por qué importa. Sin listas, sin jerga innecesaria.
    - `para_ti`: 1 o 2 frases sobre SU vida real (sus clientes, sus agentes, INV3RZA, su meta de US$5.000, su
-     inglés). Nada genérico como «los freelancers deben…». Si no lo toca de verdad, el tema no entra.
+     inglés). Nada genérico como «los freelancers deben…». No fuerces conexiones: no metas a un cliente o
+     proyecto que no tenga que ver (UpVisuals es una plataforma de imágenes, no de agentes). Si no lo toca de
+     verdad, usa "solo saber" o deja el tema fuera.
    - `accion`: exactamente uno de: "hoy" (vale la pena hacer algo hoy), "tener en cuenta" (para una decisión
      próxima), "solo saber".
    - `nota`: vacío si todo está verificado; si no, una línea: qué no se pudo verificar.
