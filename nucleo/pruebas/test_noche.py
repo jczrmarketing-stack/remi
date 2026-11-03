@@ -394,14 +394,17 @@ def test_enviar_reporte_de_la_noche_no_revienta_si_falla_el_post(tmp_path, monke
     assert "sin conexión" in capsys.readouterr().err
 
 
-def test_correr_manda_el_reporte_de_la_noche(tmp_path, monkeypatch):
-    """Integración de punta a punta de `correr()`: sin bóveda git, no hay
-    cambios que reportar y el mensaje (que sale a las 11) es «Anoche no toqué nada»."""
+def test_correr_trabaja_callado_sin_reporte_ni_newsletter_ni_pregunta(tmp_path, monkeypatch):
+    """3-nov: la noche de Remi no manda nada por Telegram (ni «Anoche no toqué nada», ni la pregunta
+    del día) y ya no corre la newsletter: eso es de la bóveda."""
     noche, _, _ = _arrancar(tmp_path, monkeypatch)
-    enviados = []
-    monkeypatch.setattr(noche, "guardar_reporte_de_la_noche", lambda cambios, resumen="": enviados.append(cambios))
+    llamadas = []
+    monkeypatch.setattr(noche, "guardar_reporte_de_la_noche", lambda *a, **k: llamadas.append("reporte"))
+    monkeypatch.setattr(noche, "enviar_reporte_de_la_noche", lambda *a, **k: llamadas.append("telegram"))
+    monkeypatch.setattr(noche, "correr_newsletter", lambda *a, **k: llamadas.append("newsletter") or "")
+    monkeypatch.setattr(noche.preguntas, "avisar_por_telegram_si_toca", lambda *a, **k: llamadas.append("pregunta"))
     monkeypatch.setattr(noche, "recalcular_vectores", lambda: 0)
 
     noche.correr(date.today())
 
-    assert enviados == [[]]
+    assert llamadas == []

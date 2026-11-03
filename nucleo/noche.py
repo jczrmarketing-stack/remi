@@ -475,14 +475,8 @@ def correr(hoy: date | None = None) -> None:
     cambios = diff_de_la_noche(referencia)
     print(f"[noche] reporte libros_cambiados={len(cambios)}")
 
-    # T3.6: la pregunta pendiente más vieja, por Telegram — una vez al día
-    # como mucho (preguntas.py ya cuida eso).
-    conexion = db.conectar()
-    try:
-        preguntada = preguntas.avisar_por_telegram_si_toca(conexion, arranque)
-    finally:
-        conexion.close()
-    print(f"[noche] pregunta por telegram={'sí' if preguntada else 'no'}")
+    # T3.6 (apagado el 3-nov): la «pregunta del día» por Telegram. JC: de Remi solo la newsletter.
+    # Las preguntas siguen en la base y se ven en la ventanita.
 
     # T8.4: la nota de las sesiones de hace 48 h, revisada contra lo que
     # pasó después.
@@ -501,16 +495,18 @@ def correr(hoy: date | None = None) -> None:
 
     print(f"[noche] estado_crm={estado_crm.refrescar()}")
     print(f"[noche] f13={cerrar_f13()}")
-    try:
-        resumen_newsletter = correr_newsletter()
-    except Exception as error:  # noqa: BLE001 — la newsletter nunca tumba la noche
-        resumen_newsletter = f"error {type(error).__name__}"
-    print(f"[noche] newsletter={resumen_newsletter}")
-    guardar_reporte_de_la_noche(cambios, resumen_newsletter)
+    # 3-nov: la newsletter ya no corre aquí (la hace la noche de la bóveda, que es una herramienta) y la
+    # noche de Remi no manda reporte: trabaja callada. Lo que cambió queda en los libros y en el log.
+    print(f"[noche] libros cambiados={len(cambios)} (sin reporte por Telegram)")
 
     fin = datetime.now(timezone.utc)
     print(f"[noche] termina {fin.isoformat()} duracion_s={(fin - arranque).total_seconds():.1f}")
 
 
 if __name__ == "__main__":
-    correr()
+    try:
+        correr()
+    except Exception as error:  # noqa: BLE001 — si la noche se cae, que llegue por el bot de alertas
+        import alertas
+        alertas.enviar(f"La noche de Remi se cayó: {type(error).__name__}: {str(error)[:200]}")
+        raise

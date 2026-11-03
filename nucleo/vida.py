@@ -331,8 +331,8 @@ def anotar(texto: str, tipo: str = "hecho", revisar_en_dias: int = 14, fuentes: 
         (MENTE / "bandeja").mkdir(parents=True, exist_ok=True)
         with open(MENTE / "bandeja" / "por-confirmar.md", "a", encoding="utf-8") as f:
             f.write(f"- [ ] {texto} · dicho por Claude el {hoy}\n")
-        avisado = _avisar_telegram(f"¿Guardo esto en tu perfil? «{texto}». Márcalo en bandeja/por-confirmar.md (Obsidian) o dime sí/no.")
-        return "Queda por confirmar en bandeja/por-confirmar.md" + (" y te lo pregunté por Telegram." if avisado else ". No pude avisar por Telegram: confírmalo en Obsidian.")
+        # 3-nov: ya no se pregunta por Telegram (JC: de Remi solo la newsletter). Queda en la bandeja.
+        return "Queda por confirmar en bandeja/por-confirmar.md (Obsidian)."
     carpeta = MENTE / TIPOS_CON_DESTINO[tipo]
     carpeta.mkdir(parents=True, exist_ok=True)
     if tipo == "resultado":

@@ -60,7 +60,8 @@ if [[ "$HORA_BOGOTA" == "07:30" && "$(cat "$MARCA_DOCTOR" 2>/dev/null)" != "$HOY
     cuerpo="$(python3 -c 'import json, sys; print(json.dumps({"texto": sys.argv[1]}))' \
       "Doctor de Remi, $HOY_BOGOTA:
 $fallas_doctor")"
-    curl -s -f --max-time 5 -X POST "${URL%/salud}/telegram/avisar" \
-      -H 'Content-Type: application/json' -d "$cuerpo" >/dev/null 2>&1 || true
+    # 3-nov: las fallas van al bot de alertas de INV3RZA, no al chat de Remi
+    "$(dirname "${BASH_SOURCE[0]}")/../nucleo/.venv/bin/python" "$(dirname "${BASH_SOURCE[0]}")/../nucleo/alertas.py" "Doctor de Remi, $HOY_BOGOTA:
+$fallas_doctor" >/dev/null 2>&1 || python3 "$(dirname "${BASH_SOURCE[0]}")/../nucleo/alertas.py" "Doctor de Remi: $fallas_doctor" >/dev/null 2>&1 || true
   fi
 fi
