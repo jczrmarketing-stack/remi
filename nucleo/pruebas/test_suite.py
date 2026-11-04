@@ -17,7 +17,7 @@ AGENTES = {"remi": {"id": "remi", "piso": None, "estado": "trabajando"},
 
 
 def _armar(**k):
-    base = dict(hoy=date(2026, 11, 3), ficha=FICHA, boveda={"leyendo": False, "agenda": {}}, temas=([], ""), agentes=AGENTES, cobros=[], pisos_publicados={})
+    base = dict(hoy=date(2026, 11, 3), ficha=FICHA, boveda={"leyendo": False, "agenda": {}}, temas=([], ""), agentes=AGENTES, cobros=[], pisos_publicados={}, cajones={}, norte={})
     base.update(k)
     return suite.armar(**base)
 

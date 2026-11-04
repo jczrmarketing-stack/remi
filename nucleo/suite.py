@@ -123,7 +123,9 @@ def _hora(iso: str | None) -> str:
 
 def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict | None = None,
           boveda: dict | None = None, temas: tuple[list[dict], str] | None = None, agentes: dict | None = None,
-          cobros: list[list[str]] | None = None, pisos_publicados: dict | None = None) -> dict:
+          cobros: list[list[str]] | None = None, pisos_publicados: dict | None = None,
+          cajones: dict | None = None, norte: dict | None = None) -> dict:
+    import suite_rutas  # aquí y no arriba: suite_rutas importa este módulo
     hoy = hoy or date.today()
     ficha = ficha if ficha is not None else leer_ficha()
     boveda = boveda if boveda is not None else boveda_en_vivo(hoy=hoy)
@@ -156,6 +158,23 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
             vivos = cobros if cobros is not None else cobros_de_remi()
             if vivos:
                 entra = [{"titulo": "Entregas y cobros", "fuente": "de Remi", "filas": vivos}] + [e for e in entra if e.get("titulo") != "Entregas y cobros"]
+        ideas = suite_rutas.leer_cajon(pid) if cajones is None else (cajones.get(pid) or [])
+        if ideas:  # lo que llegó desde otros pisos (POST /suite/guardar), las más nuevas primero
+            previa = next((e for e in entra if e.get("titulo") == "Ideas guardadas"), None)
+            nueva = {"titulo": "Ideas guardadas", "fuente": "desde otros pisos", "filas": ideas}
+            entra = [nueva if e is previa else e for e in entra] if previa else entra + [nueva]
+        if pid == "direccion":
+            n = suite_rutas.leer_norte() if norte is None else norte
+            tu_norte = suite_rutas.lista_tu_norte(n)
+            if tu_norte:
+                entra = [tu_norte] + [e for e in entra if e.get("titulo") != "Tu Norte"]
+            if n.get("completo"):
+                paso = {"titulo": "Tu Norte está escrito.", "contexto": "Revísalo con Remi y cambia lo que no suene a ti. Está en mente/negocio/norte.md.", "accion": "Revisar el Norte con Remi"}
+            else:
+                hechas = sum(1 for p in n.get("preguntas") or [] if p.get("respuesta"))
+                if hechas:
+                    paso = {**paso, "contexto": f"Vas en la pregunta {hechas + 1} de 6. Sigue donde quedaste.", "accion": "Seguir con el Norte"}
+                paso["ruta"] = "/d/direccion/norte"
         if pid == "ingenieria":
             ag = boveda.get("agenda") or {}
             filas = [[n, f"{'Hoy' if (ag.get(k) or {}).get('hecho') == hoy.isoformat() else 'Última'} {_hora((ag.get(k) or {}).get('ultima'))}".strip()]

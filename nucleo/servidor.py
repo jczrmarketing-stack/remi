@@ -50,6 +50,7 @@ import notion
 import notion_avisos
 import pensar
 import suite
+import suite_rutas
 import agentes_estado
 import plata
 import analisis_camino
@@ -160,6 +161,7 @@ app.include_router(notion.router)
 app.include_router(notion_avisos.router)
 app.include_router(analisis_camino.router)
 app.include_router(calendario.router)
+app.include_router(suite_rutas.router)  # /suite/guardar y /suite/norte
 app.include_router(calibracion.router)
 app.include_router(plata.router)
 app.include_router(reloj.router)
