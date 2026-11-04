@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS consumo_claude (
     tokens_salida INTEGER NOT NULL DEFAULT 0,
     ok INTEGER NOT NULL DEFAULT 0,
     modelo TEXT,
-    error TEXT
+    error TEXT,
+    pedido TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_consumo_claude_fecha ON consumo_claude(fecha);
 """
@@ -46,6 +47,18 @@ def _ruta(ruta: Path | None) -> Path:
     import db
 
     return db.ruta_db()
+
+
+def _abrir(ruta: Path | None) -> sqlite3.Connection:
+    """Abre la base con la tabla al día. Una tabla de antes del Bloque 1 no
+    tiene la columna `pedido`: se agrega sin tocar sus filas."""
+    conexion = sqlite3.connect(_ruta(ruta), timeout=ESPERA_SEG)
+    conexion.executescript(ESQUEMA)
+    columnas = {fila[1] for fila in conexion.execute("PRAGMA table_info(consumo_claude)")}
+    if "pedido" not in columnas:
+        conexion.execute("ALTER TABLE consumo_claude ADD COLUMN pedido TEXT")
+    conexion.execute("CREATE INDEX IF NOT EXISTS idx_consumo_claude_pedido ON consumo_claude(pedido)")
+    return conexion
 
 
 def _entero(valor: Any) -> int:
@@ -99,8 +112,9 @@ def registrar(
     error: str | None = None,
     ruta: Path | None = None,
     ahora: datetime | None = None,
+    pedido: str | None = None,
 ) -> None:
-    """Guarda una fila. `salida` es el stdout de la CLI (o su `result` ya
+    """Guarda una fila. `pedido` es el id del pedido de la fábrica, si lo hay. `salida` es el stdout de la CLI (o su `result` ya
     leído). `error` explica un fallo que no dejó salida (timeout, sin CLI).
     Nunca levanta una excepción."""
     try:
@@ -126,13 +140,13 @@ def registrar(
             1 if ok else 0,
             modelo,
             None if ok else str(error)[:200],
+            pedido,
         )
-        conexion = sqlite3.connect(_ruta(ruta), timeout=ESPERA_SEG)
+        conexion = _abrir(ruta)
         try:
-            conexion.executescript(ESQUEMA)
             conexion.execute(
-                "INSERT INTO consumo_claude (agente, fecha, duracion_ms, tokens_entrada, tokens_salida, ok, modelo, error)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO consumo_claude (agente, fecha, duracion_ms, tokens_entrada, tokens_salida, ok, modelo, error, pedido)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 fila,
             )
             conexion.commit()
@@ -143,6 +157,25 @@ def registrar(
             print(f"[consumo] no pude registrar: {type(exc).__name__}: {exc}", file=sys.stderr)
         except Exception:  # noqa: BLE001
             pass
+
+
+def tokens_del_pedido(pedido: str, ruta: Path | None = None) -> int:
+    """Entrada + salida de todas las llamadas de un pedido. Es lo que mide el
+    tope por pedido de la fábrica. Sin base todavía, 0."""
+    try:
+        if not _ruta(ruta).exists():
+            return 0
+        conexion = _abrir(ruta)
+        try:
+            fila = conexion.execute(
+                "SELECT COALESCE(SUM(tokens_entrada + tokens_salida), 0) FROM consumo_claude WHERE pedido = ?",
+                (pedido,),
+            ).fetchone()
+        finally:
+            conexion.close()
+    except sqlite3.Error:
+        return 0
+    return int(fila[0])
 
 
 # — Verlo: `python3 nucleo/consumo.py --semana` —
@@ -176,6 +209,28 @@ def resumen_semana(ruta: Path | None = None, dias: int = DIAS_DE_LA_SEMANA, ahor
     return [dict(f) for f in filas]
 
 
+def resumen_por_pedido(ruta: Path | None = None, dias: int = DIAS_DE_LA_SEMANA, ahora: datetime | None = None) -> list[dict[str, Any]]:
+    """Tokens por pedido de la fábrica en los últimos `dias` días, el más caro primero."""
+    desde = ((ahora or datetime.now(timezone.utc)) - timedelta(days=dias)).isoformat()
+    try:
+        if not _ruta(ruta).exists():
+            return []
+        conexion = _abrir(ruta)
+        conexion.row_factory = sqlite3.Row
+        try:
+            filas = conexion.execute(
+                "SELECT pedido, COUNT(*) AS llamadas, SUM(tokens_entrada + tokens_salida) AS tokens"
+                " FROM consumo_claude WHERE fecha >= ? AND pedido IS NOT NULL GROUP BY pedido"
+                " ORDER BY tokens DESC, pedido",
+                (desde,),
+            ).fetchall()
+        finally:
+            conexion.close()
+    except sqlite3.Error:
+        return []
+    return [dict(f) for f in filas]
+
+
 def _miles(n: int) -> str:
     return f"{n:,}".replace(",", ".")
 
@@ -185,7 +240,7 @@ def _tiempo(ms: int) -> str:
     return f"{minutos} min {segundos:02d} s" if minutos else f"{segundos} s"
 
 
-def texto_semana(resumen: list[dict[str, Any]]) -> str:
+def texto_semana(resumen: list[dict[str, Any]], por_pedido: list[dict[str, Any]] | None = None) -> str:
     if not resumen:
         return "Nada registrado en los últimos 7 días."
     ancho = max(len("agente"), *(len(r["agente"]) for r in resumen))
@@ -202,7 +257,13 @@ def texto_semana(resumen: list[dict[str, Any]]) -> str:
         f"{'total':<{ancho}}  {total['llamadas']:>8}  {total['fallos']:>6}  {_miles(total['tokens_entrada']):>12}"
         f"  {_miles(total['tokens_salida']):>10}  {_tiempo(total['duracion_ms']):>10}"
     )
-    return "Consumo de `claude -p` · últimos 7 días\n\n" + "\n".join(lineas)
+    texto = "Consumo de `claude -p` · últimos 7 días\n\n" + "\n".join(lineas)
+    if por_pedido:
+        ancho_p = max(len("pedido"), *(len(p["pedido"]) for p in por_pedido))
+        filas = [f"{'pedido':<{ancho_p}}  {'llamadas':>8}  {'tokens':>12}"]
+        filas += [f"{p['pedido']:<{ancho_p}}  {p['llamadas']:>8}  {_miles(p['tokens'] or 0):>12}" for p in por_pedido]
+        texto += "\n\npor pedido\n" + "\n".join(filas)
+    return texto
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -214,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.semana:
         parser.print_help()
         return 2
-    print(texto_semana(resumen_semana()))
+    print(texto_semana(resumen_semana(), resumen_por_pedido()))
     return 0
 
 
