@@ -355,10 +355,17 @@ def avisar_por_telegram(texto: str) -> None:
 def correr(corrida: Corrida, llamar: Llamador = llamar_claude, avisar: Avisador | None = None) -> Corrida:
     """tarea → bóveda → spec → builder → revisor → (lección) → aviso. Cada
     paso deja el estado en `corrida`, para que el panel lo vea mientras
-    avanza. `avisar` solo lo pasa la API: las pruebas no avisan."""
+    avanza. `avisar` solo lo pasa la API: las pruebas no avisan. Además le
+    cuenta a la Suite qué hacen el Programador y el Revisor."""
+    import agentes_estado
+    agentes_estado.avisar("programador", "trabajando", f"Programando: {corrida.tarea[:70]}")
     try:
         return _correr(corrida, llamar)
     finally:
+        fin = {"aprobado": "aprobado", "rechazado": "rechazado por el Revisor", "fallo": "no terminó"}.get(corrida.estado, corrida.estado)
+        agentes_estado.avisar("programador", "esperando", "", ultimo=f"{corrida.tarea[:60]} ({fin})")
+        if corrida.estado in ("aprobado", "rechazado"):
+            agentes_estado.avisar("revisor", "esperando", "", ultimo=f"{corrida.tarea[:60]} ({fin})")
         if avisar is not None and corrida.estado in AVISOS_DE_FIN:
             try:
                 avisar(AVISOS_DE_FIN[corrida.estado])
@@ -388,6 +395,8 @@ def _correr(corrida: Corrida, llamar: Llamador) -> Corrida:
         corrida.cambio, corrida.tokens = cambio.texto, corrida.tokens + cambio.tokens_entrada + cambio.tokens_salida
 
         corrida.estado = "revisor"
+        import agentes_estado
+        agentes_estado.avisar("revisor", "trabajando", f"Revisando: {corrida.tarea[:60]}")
         revision = llamar(
             "revisor",
             _mensaje(corrida.tarea, boveda, ("Spec", spec.texto), ("Cambio", cambio.texto)),

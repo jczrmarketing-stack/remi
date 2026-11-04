@@ -50,6 +50,7 @@ import notion
 import notion_avisos
 import pensar
 import suite
+import agentes_estado
 import plata
 import analisis_camino
 import calibracion
@@ -444,7 +445,11 @@ Emisor = Callable[[str], None]
 def recibir_mensaje(mensaje: MensajeEntrante) -> RespuestaMensaje:
     """Lo que decís no siempre es una tarea. El clasificador (sin IA) decide
     si enfría en la Bandeja, si abre un bloque o si cierra el que estaba."""
-    return _atender(mensaje, None)
+    agentes_estado.avisar("remi", "trabajando", "Respondiéndote")
+    try:
+        return _atender(mensaje, None)
+    finally:
+        agentes_estado.avisar("remi", "esperando", "", ultimo=f"Te respondió a las {datetime.now().strftime('%-H:%M')}")
 
 
 @app.post("/mensaje/stream")

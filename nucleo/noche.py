@@ -447,6 +447,20 @@ def cerrar_f13() -> dict[str, object]:
 
 
 def correr(hoy: date | None = None) -> None:
+    """La noche de Remi, contada a la Suite: trabajando mientras ordena, esperando al terminar."""
+    import agentes_estado
+    agentes_estado.avisar("remi", "trabajando", "La noche: ordenando tu memoria")
+    ok = False
+    try:
+        _correr_noche(hoy)
+        ok = True
+    finally:
+        cuando = hoy or date.today()
+        agentes_estado.avisar("remi", "esperando" if ok else "error", "" if ok else "La noche se cayó; el bot de alertas ya avisó",
+                              ultimo=f"Noche del {cuando.day}-{cuando.month:02d}" if ok else None)
+
+
+def _correr_noche(hoy: date | None = None) -> None:
     arranque = datetime.now(timezone.utc)
     print(f"[noche] arranca {arranque.isoformat()}")
     referencia = _head_git()

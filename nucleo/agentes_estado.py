@@ -64,3 +64,11 @@ def vivo(agente: str, ficha: dict, ahora: datetime | None = None) -> dict:
         estado = {**estado, "estado": "error", "ahora": "Dejó de reportar mientras trabajaba"}
     return {**salida, "estado": estado.get("estado", "esperando"), "ahora": estado.get("ahora", ""),
             "ultimo": estado.get("ultimo", ""), "en": estado.get("en")}
+
+
+def avisar(agente: str, estado: str, ahora: str = "", ultimo: str | None = None) -> None:
+    """Como reportar(), pero nunca rompe al que llama: el estado de la Suite es un extra."""
+    try:
+        reportar(agente, estado, ahora, ultimo)
+    except Exception:  # noqa: BLE001
+        pass

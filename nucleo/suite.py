@@ -93,6 +93,27 @@ def boveda_en_vivo(raiz: Path | None = None, hoy: date | None = None) -> dict:
     return salida
 
 
+def cobros_de_remi() -> list[list[str]]:
+    """Las entregas y cobros que Remi lleva en remi.db (lo que le dices: «Alfonso pagó 2.000»).
+    Vacío si todavía no hay ninguna: entonces manda lo escrito en la ficha."""
+    try:
+        import db
+        import entregas
+        conexion = db.conectar()
+        try:
+            filas = entregas.listar_entregas(conexion)
+        finally:
+            conexion.close()
+    except Exception:  # noqa: BLE001
+        return []
+    nombre = {"camino": "En camino", "entregada": "Entregada, por cobrar", "pagada": "Pagada"}
+    salida = []
+    for e in sorted(filas, key=lambda e: (e.estado == "pagada", str(e.fecha)))[:6]:
+        monto = f" · US${e.monto:,.0f}".replace(",", ".") if e.monto else ""
+        salida.append([e.cliente, f"{nombre.get(e.estado, e.estado)}{monto}"])
+    return salida
+
+
 def _hora(iso: str | None) -> str:
     try:
         return datetime.fromisoformat(iso).strftime("%-H:%M") if iso else ""
@@ -101,7 +122,8 @@ def _hora(iso: str | None) -> str:
 
 
 def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict | None = None,
-          boveda: dict | None = None, temas: tuple[list[dict], str] | None = None, agentes: dict | None = None) -> dict:
+          boveda: dict | None = None, temas: tuple[list[dict], str] | None = None, agentes: dict | None = None,
+          cobros: list[list[str]] | None = None) -> dict:
     hoy = hoy or date.today()
     ficha = ficha if ficha is not None else leer_ficha()
     boveda = boveda if boveda is not None else boveda_en_vivo(hoy=hoy)
@@ -130,6 +152,10 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
                     *([["Videos calificados", f"{boveda['calificados']:,}".replace(",", ".")]] if boveda.get("calificados") is not None else []),
                 ]},
             ]
+        if pid == "ventas":
+            vivos = cobros if cobros is not None else cobros_de_remi()
+            if vivos:
+                entra = [{"titulo": "Entregas y cobros", "fuente": "de Remi", "filas": vivos}] + [e for e in entra if e.get("titulo") != "Entregas y cobros"]
         if pid == "ingenieria":
             ag = boveda.get("agenda") or {}
             filas = [[n, f"{'Hoy' if (ag.get(k) or {}).get('hecho') == hoy.isoformat() else 'Última'} {_hora((ag.get(k) or {}).get('ultima'))}".strip()]

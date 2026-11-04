@@ -17,7 +17,7 @@ AGENTES = {"remi": {"id": "remi", "piso": None, "estado": "trabajando"},
 
 
 def _armar(**k):
-    base = dict(hoy=date(2026, 11, 3), ficha=FICHA, boveda={"leyendo": False, "agenda": {}}, temas=([], ""), agentes=AGENTES)
+    base = dict(hoy=date(2026, 11, 3), ficha=FICHA, boveda={"leyendo": False, "agenda": {}}, temas=([], ""), agentes=AGENTES, cobros=[])
     base.update(k)
     return suite.armar(**base)
 
@@ -90,3 +90,10 @@ def test_catalogo_tiene_remi_y_formas_validas():
 def test_bloqueo_de_youtube_se_dice_con_la_hora():
     p = next(p for p in _armar(boveda={"leyendo": False, "agenda": {}, "enfriando_hasta": "17:30"})["pisos"] if p["id"] == "inteligencia")
     assert p["entra"][1]["filas"][0] == ["YouTube", "YouTube bloqueó; vuelve a las 17:30"]
+
+
+def test_cobros_de_remi_mandan_sobre_la_ficha():
+    p = next(p for p in _armar(cobros=[["Alfonso", "Pagada · US$2.000"]])["pisos"] if p["id"] == "ventas")
+    assert p["entra"][0] == {"titulo": "Entregas y cobros", "fuente": "de Remi", "filas": [["Alfonso", "Pagada · US$2.000"]]}
+    p = next(p for p in _armar()["pisos"] if p["id"] == "ventas")
+    assert p["entra"][0]["filas"] == [["UpVisuals", "US$2.000"]]
