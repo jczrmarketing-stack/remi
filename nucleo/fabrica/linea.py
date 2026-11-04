@@ -1,11 +1,13 @@
 """La línea de la fábrica (Bloque 1): código determinista que mueve un pedido.
 
-pedir:   expediente + worktree → Planificador → spec → aviso. Pausa.
-aprobar: Tester (sus tests deben fallar) → Constructor → verificador (1 vuelve,
-         2 para) → Revisor una pasada (solo `alto` vuelve) → máx. 2 vueltas →
-         commit con autor de la fábrica → push → PR en borrador → aviso.
-Antes de cada agente se mira el tope de tokens del pedido. `no_puedo` y
-`necesito_dato` detienen y mandan el motivo. Un pedido a la vez (candado).
+pedir:     expediente + worktree → Planificador → spec → aviso. Pausa.
+responder: si el Planificador preguntó, la respuesta entra al Contexto y se replanea.
+aprobar:   Tester (sus tests deben FALLAR, rc 1) → Constructor → verificador y los
+           tests del Tester (deben PASAR) → Revisor (solo `alto` vuelve) → máx. 2
+           vueltas → commit con autor de la fábrica → push → PR en borrador → aviso.
+           Un reintento retoma donde paró: sin repetir el Tester ni el commit.
+Antes de cada agente se mira el tope de tokens del pedido. `no_puedo`,
+`necesito_dato` y el límite de Max detienen y avisan. Un pedido a la vez.
 Todo lo de afuera vive en `Mundo`, para probar sin CLI ni red.
 """
 
@@ -17,9 +19,10 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
+import coding
 import consumo
 from fabrica import agentes, expediente
 from fabrica.agentes import Rol, Salida
@@ -45,15 +48,21 @@ class Mundo:
     llamar: Callable[..., Salida]
     verificar: Callable[[Path, str], tuple[int, str]]
     sh: Callable[[list[str], Path], tuple[int, str]]
+    probar: Callable[[list[str], Path], tuple[int, str]]
     avisar: Callable[[str], Any]
     raiz_repo: Path
     lecciones: Callable[[str], str] = field(default=_sin_lecciones)
     tokens: Callable[[str], int] = field(default=consumo.tokens_del_pedido)
 
 
-def _sh_real(args: list[str], cwd: Path) -> tuple[int, str]:
-    hecho = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=1800)
+def _sh_real(args: list[str], cwd: Path, entorno: dict[str, str] | None = None) -> tuple[int, str]:
+    hecho = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=1800, env=entorno)
     return hecho.returncode, (hecho.stdout + hecho.stderr).strip()
+
+
+def _probar_real(tests: list[str], cwd: Path) -> tuple[int, str]:
+    """Los tests del Tester son código escrito por un agente: corren sin credenciales."""
+    return _sh_real([agentes.FABRICA_PY, "-m", "pytest", *tests, "-q"], cwd, agentes.entorno_encerrado(dict(os.environ)))
 
 
 # Un worktree de pedido no trae node_modules: panel y ventanita solo se revisan
@@ -68,7 +77,7 @@ def revisiones_para(archivos: list[str]) -> list[str]:
 
 
 def _verificar_real(cwd: Path, base: str) -> tuple[int, str]:
-    entorno = {**os.environ, "VERIFICAR_BASE": base, "VERIFICAR_PYTHON": agentes.FABRICA_PY}
+    entorno = {**agentes.entorno_encerrado(dict(os.environ)), "VERIFICAR_BASE": base, "VERIFICAR_PYTHON": agentes.FABRICA_PY}
     _sh_real(["git", "add", "-A"], cwd)
     _, cambiados = _sh_real(["git", "diff", "--cached", "--name-only", base], cwd)
     hecho = subprocess.run(["scripts/verificar.sh", *revisiones_para(cambiados.splitlines())], cwd=cwd,
@@ -80,8 +89,6 @@ def _verificar_real(cwd: Path, base: str) -> tuple[int, str]:
 
 def _lecciones_reales(tarea: str) -> str:
     try:
-        import coding
-
         return coding.bloque_de_experiencia(coding.lecciones_para(tarea))
     except Exception:  # noqa: BLE001 — sin bóveda, la línea sigue
         return ""
@@ -101,8 +108,8 @@ def _repo_principal() -> Path:
 
 
 def mundo_real() -> Mundo:
-    return Mundo(llamar=agentes.llamar, verificar=_verificar_real, sh=_sh_real, avisar=_avisar_real,
-                 raiz_repo=_repo_principal(), lecciones=_lecciones_reales)
+    return Mundo(llamar=agentes.llamar, verificar=_verificar_real, sh=_sh_real, probar=_probar_real,
+                 avisar=_avisar_real, raiz_repo=_repo_principal(), lecciones=_lecciones_reales)
 
 
 def orden(sub: str, id_: str) -> str:
@@ -190,50 +197,109 @@ def _texto_hallazgos(hallazgos: list[dict[str, Any]]) -> str:
     return "\n".join(f"- [{h.get('nivel')}] {h.get('archivo')}:{h.get('linea')} — {h.get('texto')}" for h in hallazgos)
 
 
+def _tests_seguros(tests: list[str]) -> bool:
+    """Solo rutas relativas dentro del worktree: nada de `..`, rutas absolutas ni banderas de pytest."""
+    return bool(tests) and all(
+        t and not t.startswith("-") and not PurePosixPath(t).is_absolute() and ".." not in PurePosixPath(t).parts
+        for t in tests)
+
+
 def _detener(mundo: Mundo, id_: str, motivo: str) -> None:
     agentes.anotar_evento(id_, {"rol": "linea", "tipo": "parada", "texto": motivo})
     mundo.avisar(f"Pedido {id_} en pausa.\n{motivo}")
 
 
+@contextmanager
+def _paradas(mundo: Mundo, id_: str, como_seguir: str) -> Iterator[None]:
+    try:
+        yield
+    except Parada as parada:
+        _detener(mundo, id_, f"{parada}\n\nPara seguir: {como_seguir}")
+    except coding.LimiteDeMax:
+        _detener(mundo, id_, f"Max llegó a su límite de uso. Cuando se renueve: {como_seguir}")
+
+
 # — La línea —
+
+def _planear(mundo: Mundo, id_: str) -> None:
+    datos = expediente.leer(id_)
+    meta, idea = datos["meta"], datos["secciones"]["Contexto"]
+    wt = worktree(mundo.raiz_repo, id_)
+    if not wt.exists():
+        rc, salida = mundo.sh(["git", "worktree", "add", str(wt), "-b", meta["rama"], meta["base"]], mundo.raiz_repo)
+        if rc != 0:
+            raise Parada(f"No pude crear el worktree: {salida[-300:]}")
+    agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "spec"})
+    plan = _agente(mundo, id_, "planificador", _mensaje(idea, mundo.lecciones(idea)), wt)
+    expediente.escribir_seccion(id_, "Spec", _texto_spec(plan.datos))
+    expediente.cambiar(id_, toca=list(plan.datos.get("toca") or []),
+                       riesgo=plan.datos.get("riesgo") or "bajo", estado="spec")
+    mundo.avisar(f"Spec lista para «{idea.splitlines()[0][:80]}»:\n\n{_texto_spec(plan.datos)}\n\n"
+                 f"Si te sirve:\n{orden('aprobar', id_)}")
+
 
 def pedir(idea: str, base: str = "main", mundo: Mundo | None = None, repo: str = "remi") -> str:
     mundo = mundo or mundo_real()
     with candado():
         id_ = expediente.crear(idea, repo, base)
-        try:
-            meta = expediente.leer(id_)["meta"]
-            wt = worktree(mundo.raiz_repo, id_)
-            rc, salida = mundo.sh(["git", "worktree", "add", str(wt), "-b", meta["rama"], base], mundo.raiz_repo)
-            if rc != 0:
-                raise Parada(f"No pude crear el worktree: {salida[-300:]}")
-            agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "spec"})
-            plan = _agente(mundo, id_, "planificador", _mensaje(idea, mundo.lecciones(idea)), wt)
-            expediente.escribir_seccion(id_, "Spec", _texto_spec(plan.datos))
-            expediente.cambiar(id_, toca=list(plan.datos.get("toca") or []),
-                               riesgo=plan.datos.get("riesgo") or "bajo", estado="spec")
-            mundo.avisar(f"Spec lista para «{idea}»:\n\n{_texto_spec(plan.datos)}\n\n"
-                         f"Si te sirve:\n{orden('aprobar', id_)}")
-        except Parada as parada:
-            _detener(mundo, id_, str(parada))
+        with _paradas(mundo, id_, f"{orden('responder', id_)} \"<tu respuesta>\""):
+            _planear(mundo, id_)
     return id_
+
+
+def responder(id_: str, respuesta: str, mundo: Mundo | None = None) -> str:
+    """El Planificador preguntó (o se cortó): la respuesta entra al Contexto y se replanea."""
+    mundo = mundo or mundo_real()
+    expediente.leer(id_)  # KeyError si no existe
+    with candado():
+        datos = expediente.leer(id_)
+        if datos["meta"]["estado"] not in ("idea", "spec"):
+            raise ValueError(f"El pedido {id_} ya pasó la spec (está en «{datos['meta']['estado']}»).")
+        if respuesta.strip():
+            contexto = f"{datos['secciones']['Contexto']}\n\nRespuesta de Juan Camilo: {respuesta.strip()}"
+            expediente.escribir_seccion(id_, "Contexto", contexto)
+        with _paradas(mundo, id_, f"{orden('responder', id_)} \"<tu respuesta>\""):
+            _planear(mundo, id_)
+    return str(expediente.leer(id_)["meta"]["estado"])
 
 
 APROBABLES = ("spec", "aprobado", "construyendo", "revisando")
 
 
 def aprobar(id_: str, mundo: Mundo | None = None) -> str:
-    """Corre del Tester al PR. Devuelve el estado donde quedó el pedido."""
+    """Corre del Tester al PR, o retoma donde paró. Devuelve el estado donde quedó el pedido."""
     mundo = mundo or mundo_real()
-    meta = expediente.leer(id_)["meta"]
-    if meta["estado"] not in APROBABLES:
-        raise ValueError(f"El pedido {id_} está en «{meta['estado']}»: no hay nada que aprobar.")
+    expediente.leer(id_)  # KeyError si no existe
     with candado():
-        try:
+        estado = expediente.leer(id_)["meta"]["estado"]
+        if estado not in APROBABLES:
+            raise ValueError(f"El pedido {id_} está en «{estado}»: no hay nada que aprobar.")
+        with _paradas(mundo, id_, orden("aprobar", id_)):
             _construir(mundo, id_)
-        except Parada as parada:
-            _detener(mundo, id_, str(parada))
     return str(expediente.leer(id_)["meta"]["estado"])
+
+
+def _tests_del_expediente(texto: str) -> list[str]:
+    for linea in texto.splitlines():
+        if linea.startswith("Archivos: "):
+            return [t.strip() for t in linea[len("Archivos: "):].split(",") if t.strip()]
+    return []
+
+
+def _probar_antes(mundo: Mundo, id_: str, idea: str, spec: str, lecciones: str, wt: Path) -> list[str]:
+    agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "tests"})
+    pruebas = _agente(mundo, id_, "tester", _mensaje(idea, lecciones, ("Spec", spec)), wt)
+    tests = [str(t) for t in pruebas.datos.get("tests") or []]
+    if not _tests_seguros(tests):
+        raise Parada(f"Tester (necesito_dato): los tests deben ser rutas dentro del worktree; dejó {tests or 'ninguno'}.")
+    rc, salida = mundo.probar(tests, wt)
+    expediente.escribir_seccion(id_, "Tests", f"{pruebas.datos.get('resumen', '')}\n\nArchivos: {', '.join(tests)}\n\n"
+                                              f"Antes de construir:\n```\n{salida[-1500:]}\n```")
+    if rc == 0:
+        raise Parada("Tester (necesito_dato): los tests ya pasan antes de construir; no prueban el cambio.")
+    if rc != 1:
+        raise Parada(f"Tester (no_puedo): los tests no se pudieron correr (pytest salió {rc}).\n{salida[-500:]}")
+    return tests
 
 
 def _construir(mundo: Mundo, id_: str) -> None:
@@ -242,70 +308,45 @@ def _construir(mundo: Mundo, id_: str) -> None:
     idea, spec, base, rama = secciones["Contexto"], secciones["Spec"], str(meta["base"]), str(meta["rama"])
     wt = worktree(mundo.raiz_repo, id_)
     lecciones = mundo.lecciones(idea)
-    tope_vueltas = int(agentes.config()["vueltas"])
-    if meta["estado"] == "spec":
+    estado = meta["estado"]
+    if estado == "spec":
         expediente.cambiar_estado(id_, "aprobado")
         expediente.escribir_seccion(id_, "Decisión", f"Spec aprobada el {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC.")
+        estado = "aprobado"
 
-    agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "tests"})
-    pruebas = _agente(mundo, id_, "tester", _mensaje(idea, lecciones, ("Spec", spec)), wt)
-    tests = [str(t) for t in pruebas.datos.get("tests") or []]
-    if not tests:
-        raise Parada("Tester (necesito_dato): no dejó tests que correr.")
-    rc, salida = mundo.sh([agentes.FABRICA_PY, "-m", "pytest", *tests, "-q"], wt)
-    expediente.escribir_seccion(id_, "Tests", f"{pruebas.datos.get('resumen', '')}\n\nArchivos: {', '.join(tests)}\n\n"
-                                              f"Antes de construir:\n```\n{salida[-1500:]}\n```")
-    if rc == 0:
-        raise Parada("Tester (necesito_dato): los tests ya pasan antes de construir; no prueban el cambio.")
+    if estado == "aprobado":
+        tests = _probar_antes(mundo, id_, idea, spec, lecciones, wt)
+        nota = ("", "")
+    else:
+        # Reintento tras una parada: el código del Constructor ya está en el worktree,
+        # así que no se repite el Tester (sus tests ya pasarían) y las vueltas cuentan de nuevo.
+        tests = _tests_del_expediente(secciones["Tests"])
+        if not _tests_seguros(tests):
+            raise Parada("No encuentro los tests del Tester en el expediente.")
+        expediente.cambiar(id_, vueltas=0)
+        anterior = secciones["Revisión"] if estado == "revisando" else secciones["Escáneres"]
+        nota = ("Lo que quedó pendiente en el intento anterior", anterior[-4000:])
 
-    modelo = agentes.config()["modelos"]["constructor_alto"] if meta.get("riesgo") == "alto" else None
-    vueltas = int(meta.get("vueltas") or 0)
-    nota = ("", "")
-    hallazgos: list[dict[str, Any]] = []
-    while True:
-        expediente.cambiar_estado(id_, "construyendo")
-        agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "construir", "vuelta": vueltas})
-        obra = _agente(mundo, id_, "constructor",
-                       _mensaje(idea, lecciones, ("Spec", spec), ("Tests", ", ".join(tests)), nota), wt, modelo)
-        expediente.escribir_seccion(id_, "Construcción", f"{obra.datos.get('resumen', '')}\n\n"
-                                                         f"Archivos: {', '.join(obra.datos.get('archivos') or [])}")
-        agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "verificar"})
-        rc, informe = mundo.verificar(wt, base)
-        expediente.escribir_seccion(id_, "Escáneres", f"Verificador: salida {rc}\n\n{informe[-3000:]}")
-        if rc == 2:
-            raise Parada("El verificador no pudo correr completo: falta herramienta. Mira .verificar/ultimo.md.")
-        if rc != 0:
-            if vueltas >= tope_vueltas:
-                raise Parada(f"Después de {vueltas} vueltas el verificador sigue sin pasar.")
-            vueltas += 1
-            expediente.cambiar(id_, vueltas=vueltas)
-            nota = ("Informe del verificador (arréglalo primero)", informe[-4000:])
-            continue
-        expediente.cambiar_estado(id_, "revisando")
-        mundo.sh(["git", "add", "-A"], wt)
-        _, diff = mundo.sh(["git", "diff", "--cached", base], wt)
-        revision = _agente(mundo, id_, "revisor", _mensaje(idea, "", ("Spec", spec), ("Diff", f"```diff\n{diff}\n```")), wt)
-        hallazgos = list(revision.datos.get("hallazgos") or [])
-        expediente.escribir_seccion(id_, "Revisión", _texto_hallazgos(hallazgos))
-        altos = [h for h in hallazgos if h.get("nivel") == "alto"]
-        if not altos:
-            break
-        if vueltas >= tope_vueltas:
-            raise Parada(f"Después de {vueltas} vueltas el Revisor sigue con hallazgos altos:\n{_texto_hallazgos(altos)}")
-        vueltas += 1
-        expediente.cambiar(id_, vueltas=vueltas)
-        nota = ("Hallazgos altos del Revisor (arréglalos primero)", _texto_hallazgos(altos))
+    _, ya_hecho = mundo.sh(["git", "log", "--oneline", f"{base}..HEAD"], wt)
+    if estado == "revisando" and ya_hecho.strip():
+        hallazgos_txt = secciones["Revisión"]  # paró en el push o el PR: el commit ya existe
+    else:
+        hallazgos_txt = _texto_hallazgos(_vueltas(mundo, id_, idea, spec, base, lecciones, tests, wt, nota,
+                                                  meta.get("riesgo") == "alto"))
+        _, ya_hecho = mundo.sh(["git", "log", "--oneline", f"{base}..HEAD"], wt)
 
     agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "pr"})
-    mundo.sh(["git", "add", "-A"], wt)
-    rc, salida = mundo.sh(["git", *AUTOR, "commit", "-m", f"Fábrica: {idea.splitlines()[0][:60]}\n\nPedido {id_}."], wt)
-    if rc != 0:
-        raise Parada(f"No pude hacer el commit: {salida[-300:]}")
+    if not ya_hecho.strip():
+        mundo.sh(["git", "add", "-A"], wt)
+        rc, salida = mundo.sh(["git", *AUTOR, "commit", "-m", f"Fábrica: {idea.splitlines()[0][:60]}\n\nPedido {id_}."], wt)
+        if rc != 0:
+            raise Parada(f"No pude hacer el commit: {salida[-300:]}")
     rc, salida = mundo.sh(["git", "push", "-u", "origin", rama], wt)
     if rc != 0:
         raise Parada(f"El push no salió (el gancho pre-push corre el verificador): {salida[-500:]}")
+    vueltas = expediente.leer(id_)["meta"].get("vueltas", 0)
     cuerpo = (f"## Pedido\n\n{idea}\n\n## Spec\n\n{spec}\n\n## Tests\n\n{', '.join(tests)}\n\n"
-              f"## Revisión\n\n{_texto_hallazgos(hallazgos)}\n\n"
+              f"## Revisión\n\n{hallazgos_txt}\n\n"
               f"Vueltas: {vueltas} · Tokens: {mundo.tokens(id_):,}".replace(",", ".") + f"\n\n{PIE_PR}")
     rc, salida = mundo.sh(["gh", "pr", "create", "--draft", "--base", base, "--head", rama,
                            "--title", f"Fábrica: {idea.splitlines()[0][:60]}", "--body", cuerpo], wt)
@@ -315,3 +356,49 @@ def _construir(mundo: Mundo, id_: str) -> None:
     expediente.cambiar_estado(id_, "pr")
     agentes.anotar_evento(id_, {"rol": "linea", "tipo": "fin", "texto": url})
     mundo.avisar(f"PR en borrador para «{idea.splitlines()[0][:60]}»: {url}\nNada se fusiona sin ti.")
+
+
+def _vueltas(mundo: Mundo, id_: str, idea: str, spec: str, base: str, lecciones: str, tests: list[str], wt: Path,
+             nota: tuple[str, str], alto: bool) -> list[dict[str, Any]]:
+    """Constructor → verificador + tests del Tester → Revisor, hasta que pase o se acaben las 2 vueltas."""
+    modelo = agentes.config()["modelos"]["constructor_alto"] if alto else None
+    tope = int(agentes.config()["vueltas"])
+    vueltas = 0
+    while True:
+        expediente.cambiar_estado(id_, "construyendo")
+        agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "construir", "vuelta": vueltas})
+        obra = _agente(mundo, id_, "constructor",
+                       _mensaje(idea, lecciones, ("Spec", spec), ("Tests", ", ".join(tests)), nota), wt, modelo)
+        expediente.escribir_seccion(id_, "Construcción", f"{obra.datos.get('resumen', '')}\n\n"
+                                                         f"Archivos: {', '.join(obra.datos.get('archivos') or [])}")
+        agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "verificar"})
+        rc, informe = mundo.verificar(wt, base)
+        rc_tests, salida_tests = mundo.probar(tests, wt)
+        expediente.escribir_seccion(id_, "Escáneres", f"Verificador: salida {rc}\n\n{informe[-3000:]}\n\n"
+                                                      f"Tests del Tester: salida {rc_tests}\n```\n{salida_tests[-1000:]}\n```")
+        if rc == 2:
+            raise Parada("El verificador no pudo correr completo: falta herramienta. Mira .verificar/ultimo.md.")
+        if rc != 0 or rc_tests != 0:
+            if vueltas >= tope:
+                raise Parada(f"Después de {vueltas} vueltas el verificador o los tests del Tester siguen sin pasar.")
+            vueltas += 1
+            expediente.cambiar(id_, vueltas=vueltas)
+            nota = ("Informe del verificador y de los tests (arréglalo primero)",
+                    f"{informe[-3000:]}\n\nTests del Tester (salida {rc_tests}):\n{salida_tests[-1000:]}")
+            continue
+        expediente.cambiar_estado(id_, "revisando")
+        mundo.sh(["git", "add", "-A"], wt)
+        rc_diff, diff = mundo.sh(["git", "diff", "--cached", base], wt)
+        if rc_diff != 0:
+            raise Parada(f"No pude sacar el diff para el Revisor: {diff[-300:]}")
+        revision = _agente(mundo, id_, "revisor", _mensaje(idea, "", ("Spec", spec), ("Diff", f"```diff\n{diff}\n```")), wt)
+        hallazgos = list(revision.datos.get("hallazgos") or [])
+        expediente.escribir_seccion(id_, "Revisión", _texto_hallazgos(hallazgos))
+        altos = [h for h in hallazgos if h.get("nivel") == "alto"]
+        if not altos:
+            return hallazgos
+        if vueltas >= tope:
+            raise Parada(f"Después de {vueltas} vueltas el Revisor sigue con hallazgos altos:\n{_texto_hallazgos(altos)}")
+        vueltas += 1
+        expediente.cambiar(id_, vueltas=vueltas)
+        nota = ("Hallazgos altos del Revisor (arréglalos primero)", _texto_hallazgos(altos))

@@ -44,3 +44,14 @@ def test_ocupada_sale_1(monkeypatch, capsys):
     monkeypatch.setattr(linea, "pedir", ocupada)
     assert cli.main(["pedir", "Otro"]) == 1
     assert "Ya hay un pedido corriendo." in capsys.readouterr().err
+
+
+def test_responder_pasa_la_respuesta(monkeypatch, capsys):
+    visto = {}
+    def responder(id_, texto, mundo=None):
+        visto.update(id=id_, texto=texto)
+        return "spec"
+    monkeypatch.setattr(linea, "responder", responder)
+    assert cli.main(["responder", "20261104-1200-x", "Sí, main."]) == 0
+    assert visto == {"id": "20261104-1200-x", "texto": "Sí, main."}
+    assert "spec" in capsys.readouterr().out

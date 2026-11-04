@@ -1,4 +1,4 @@
-"""python3 -m fabrica pedir "<idea>" [--base rama] | aprobar <id> | ver [<id>]
+"""python3 -m fabrica pedir "<idea>" [--base rama] | responder <id> "<respuesta>" | aprobar <id> | ver [<id>]
 
 Se corre desde `nucleo/` con el venv del núcleo.
 """
@@ -16,6 +16,9 @@ def main(argv: list[str] | None = None, mundo: linea.Mundo | None = None) -> int
     p_pedir = sub.add_parser("pedir", help="crea el pedido y corre el Planificador")
     p_pedir.add_argument("idea")
     p_pedir.add_argument("--base", default="main", help="rama de partida (main por defecto)")
+    p_responder = sub.add_parser("responder", help="contesta las preguntas del Planificador y rehace la spec")
+    p_responder.add_argument("id")
+    p_responder.add_argument("respuesta", nargs="?", default="")
     p_aprobar = sub.add_parser("aprobar", help="aprueba la spec y corre hasta el PR")
     p_aprobar.add_argument("id")
     p_ver = sub.add_parser("ver", help="lista los pedidos o muestra uno")
@@ -26,6 +29,8 @@ def main(argv: list[str] | None = None, mundo: linea.Mundo | None = None) -> int
             id_ = linea.pedir(args.idea, args.base, mundo)
             datos = expediente.leer(id_)
             print(f"Pedido {id_} · {datos['meta']['estado']}\n\n{datos['secciones']['Spec']}")
+        elif args.orden == "responder":
+            print(f"Pedido {args.id} · {linea.responder(args.id, args.respuesta, mundo)}")
         elif args.orden == "aprobar":
             print(f"Pedido {args.id} · {linea.aprobar(args.id, mundo)}")
         elif args.id:

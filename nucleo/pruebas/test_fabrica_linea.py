@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+import coding
+
 from fabrica import agentes, expediente, linea
 from fabrica.agentes import Salida
 
@@ -15,7 +17,7 @@ LIMPIO = Salida("hecho", "revisado", {"hallazgos": []})
 
 
 class MundoFalso:
-    def __init__(self, raiz, salidas=None, verificar=(0, "todo pasa"), pytest_rc=1, tokens=0):
+    def __init__(self, raiz, salidas=None, verificar=(0, "todo pasa"), pytest_rc=1, tokens=0, pytest_despues=0, push_rc=None):
         self.raiz = raiz
         self.salidas = {"planificador": [SPEC], "tester": [TESTS], "constructor": [CONSTRUIDO], "revisor": [LIMPIO],
                         **(salidas or {})}
@@ -25,25 +27,41 @@ class MundoFalso:
         self.resultado_verificar = verificar
         self.pytest_rc = pytest_rc
         self.gastado = tokens
+        self.pytest_despues = pytest_despues
+        self.push_rc = list(push_rc or [0])
+        self.commits = 0
 
     def llamar(self, rol, mensaje, cwd, pedido, modelo=None):
         self.llamadas.append((rol, modelo))
         cola = self.salidas[rol]
-        return cola.pop(0) if len(cola) > 1 else cola[0]
+        salida = cola.pop(0) if len(cola) > 1 else cola[0]
+        if isinstance(salida, Exception):
+            raise salida
+        return salida
 
     def verificar(self, cwd, base):
         return self.resultado_verificar
 
+    def probar(self, args, cwd):
+        self.comandos.append(["pytest", *args])
+        rc = self.pytest_rc if "constructor" not in self.roles() else self.pytest_despues
+        return rc, f"pytest salió {rc}"
+
     def sh(self, args, cwd):
         self.comandos.append(list(args))
-        if "pytest" in args:
-            return self.pytest_rc, "1 failed"
+        if "commit" in args:
+            self.commits += 1
+        if args[:2] == ["git", "log"]:
+            return 0, "abc123 Fábrica: Arreglar X" if self.commits else ""
+        if args[:2] == ["git", "push"]:
+            rc = self.push_rc.pop(0) if len(self.push_rc) > 1 else self.push_rc[0]
+            return rc, "" if rc == 0 else "rechazado"
         if args[:3] == ["gh", "pr", "create"]:
             return 0, "https://github.com/jczrmarketing-stack/remi/pull/9"
         return 0, ""
 
     def mundo(self):
-        return linea.Mundo(llamar=self.llamar, verificar=self.verificar, sh=self.sh, avisar=self.avisos.append,
+        return linea.Mundo(llamar=self.llamar, verificar=self.verificar, sh=self.sh, probar=self.probar, avisar=self.avisos.append,
                            raiz_repo=self.raiz, lecciones=lambda tarea: "", tokens=lambda pedido: self.gastado)
 
     def roles(self):
@@ -196,3 +214,70 @@ def test_verificador_sin_apps_corre_solo_python_y_seguridad():
 
 def test_verificador_con_apps_corre_todo():
     assert linea.revisiones_para(["nucleo/x.py", "apps/panel/src/app/page.tsx"]) == ["--todo"]
+
+
+# — Arreglos de la revisión final (4-nov) —
+
+def test_reintento_despues_de_las_vueltas_retoma_sin_tester(tmp_path):
+    falso = MundoFalso(tmp_path, verificar=(1, "no pasa"))
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    linea.aprobar(id_, falso.mundo())
+    assert expediente.leer(id_)["meta"]["estado"] == "construyendo"
+    falso.resultado_verificar = (0, "pasa")
+    assert linea.aprobar(id_, falso.mundo()) == "pr"
+    assert falso.roles().count("tester") == 1
+
+
+def test_reintento_despues_de_un_push_fallido_no_repite_el_commit(tmp_path):
+    falso = MundoFalso(tmp_path, push_rc=[1, 0])
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    assert linea.aprobar(id_, falso.mundo()) == "revisando"
+    assert linea.aprobar(id_, falso.mundo()) == "pr"
+    assert falso.commits == 1
+    assert falso.roles().count("constructor") == 1
+
+
+def test_responder_al_planificador_rehace_la_spec(tmp_path):
+    pregunta = Salida("necesito_dato", "falta saber algo", {"spec": "", "escenarios": [], "preguntas": ["¿Base main?"],
+                                                            "toca": [], "riesgo": "bajo"})
+    falso = MundoFalso(tmp_path, {"planificador": [pregunta, SPEC]})
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    assert expediente.leer(id_)["meta"]["estado"] == "idea"
+    (tmp_path / ".worktrees" / f"pedido-{id_}").mkdir(parents=True)
+    assert linea.responder(id_, "Sí, main.", falso.mundo()) == "spec"
+    assert "Sí, main." in expediente.leer(id_)["secciones"]["Contexto"]
+    assert sum(1 for c in falso.comandos if c[:3] == ["git", "worktree", "add"]) == 1
+    assert f"aprobar {id_}" in falso.avisos[-1]
+
+
+def test_limite_de_max_detiene_con_aviso_sin_traceback(tmp_path):
+    falso = MundoFalso(tmp_path, {"tester": [coding.LimiteDeMax("tester")]})
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    assert linea.aprobar(id_, falso.mundo()) == "aprobado"
+    assert "límite" in falso.avisos[-1]
+    assert _eventos(id_)[-1]["tipo"] == "parada"
+
+
+def test_tests_que_no_se_pueden_correr_paran(tmp_path):
+    falso = MundoFalso(tmp_path, pytest_rc=4)
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    linea.aprobar(id_, falso.mundo())
+    assert "constructor" not in falso.roles()
+    assert "no se pudieron correr" in falso.avisos[-1]
+
+
+@pytest.mark.parametrize("ruta", ["../fuera/test_x.py", "/etc/test_x.py", "--basetemp=/Users", "-p"])
+def test_tests_fuera_del_worktree_paran(tmp_path, ruta):
+    falso = MundoFalso(tmp_path, {"tester": [Salida("hecho", "t", {"tests": [ruta], "resumen": ""})]})
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    linea.aprobar(id_, falso.mundo())
+    assert not any("pytest" in c for c in falso.comandos)
+    assert "constructor" not in falso.roles()
+
+
+def test_tests_que_siguen_fallando_despues_de_construir_cuentan_vuelta(tmp_path):
+    falso = MundoFalso(tmp_path, pytest_despues=1)
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    linea.aprobar(id_, falso.mundo())
+    assert falso.roles().count("constructor") == 3
+    assert not any(c[:3] == ["gh", "pr", "create"] for c in falso.comandos)

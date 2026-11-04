@@ -119,3 +119,29 @@ def test_llamar_pasa_worktree_y_portero_en_el_entorno(tmp_path, pedido):
     assert grabado["env"]["FABRICA_PORTERO"].endswith("fabrica/portero/portero.py")
     assert grabado["stdin"].endswith("mira")
     assert grabado["comando"][grabado["comando"].index("--model") + 1] == "sonnet"
+
+
+def test_entorno_de_los_agentes_no_puede_empujar(monkeypatch):
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/tmp/agente.sock")
+    monkeypatch.setenv("GH_TOKEN", "x")
+    entorno = agentes.entorno_encerrado({"SSH_AUTH_SOCK": "/tmp/agente.sock", "GH_TOKEN": "x", "HOME": "/Users/x"})
+    assert "SSH_AUTH_SOCK" not in entorno and "GH_TOKEN" not in entorno
+    assert entorno["GIT_SSH_COMMAND"] == "false"
+    claves = {entorno[f"GIT_CONFIG_KEY_{i}"]: entorno[f"GIT_CONFIG_VALUE_{i}"] for i in range(int(entorno["GIT_CONFIG_COUNT"]))}
+    assert claves["credential.helper"] == ""
+    assert claves["remote.origin.pushurl"].startswith("fabrica-sin-push")
+    assert entorno["HOME"] == "/Users/x"
+
+
+def test_llamar_usa_el_entorno_encerrado(tmp_path, pedido, monkeypatch):
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/tmp/agente.sock")
+    grabado: dict = {}
+    agentes.llamar("tester", "haz", tmp_path, pedido,
+                   ejecutar=_falso([_resultado({"estado": "hecho", "motivo": "m", "tests": [], "resumen": ""})], grabado))
+    assert "SSH_AUTH_SOCK" not in grabado["env"]
+
+
+def test_settings_del_portero_prende_el_sandbox():
+    settings = json.loads(agentes.SETTINGS.read_text())
+    assert settings["sandbox"]["enabled"] is True
+    assert settings["hooks"]["PreToolUse"]

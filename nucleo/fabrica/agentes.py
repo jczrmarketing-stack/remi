@@ -2,8 +2,12 @@
 
 Una sola función, `llamar`, corre `claude -p` con la sesión de Max:
 - `--json-schema`: cada salida trae campos fijos (`estado`, `motivo` y los del rol).
-- `--settings fabrica/portero/settings.json`: el Portero niega push, borrados,
-  despliegues y escrituras fuera del worktree (probado con la CLI real el 4-nov).
+- `--settings fabrica/portero/settings.json`: el hook del Portero niega en Bash y
+  en Edit/Write push, borrados, despliegues y escrituras fuera del worktree, y el
+  sandbox de Claude Code encierra lo que corre por Bash (pytest incluido): sin
+  escritura fuera del worktree ni red (probado con la CLI real el 4-nov).
+- `entorno_encerrado`: sin credenciales de git ni gh, y `pushurl` inválido, por si
+  un test escrito por un agente intenta empujar desde fuera del sandbox.
 - `--output-format stream-json --verbose`: cada evento (texto, herramienta,
   resultado) va a `fabrica/pedidos/<id>/eventos.jsonl` para verlo en el panel.
 Prefijo fijo primero (instrucciones del rol + CLAUDE.md del worktree) y el
@@ -15,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -48,6 +53,21 @@ EN_LA_SUITE: dict[Rol, str] = {"planificador": "programador", "tester": "program
 
 Ejecutar = Callable[[list[str], str, Path, dict[str, str]], Iterator[str]]
 """(comando, stdin, cwd, entorno) → líneas de stdout. Se inyecta en pruebas."""
+
+
+CREDENCIALES = ("SSH_AUTH_SOCK", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GIT_ASKPASS", "SSH_ASKPASS")
+
+
+def entorno_encerrado(base: dict[str, str]) -> dict[str, str]:
+    """El entorno de todo lo que corre código escrito por un agente (agentes,
+    pytest de la línea, verificador): git no puede autenticarse ni empujar."""
+    entorno = {k: v for k, v in base.items() if k not in CREDENCIALES and not k.startswith("GIT_CONFIG_")}
+    config = {"credential.helper": "", "remote.origin.pushurl": "fabrica-sin-push://la-linea-empuja"}
+    entorno["GIT_CONFIG_COUNT"] = str(len(config))
+    for i, (clave, valor) in enumerate(config.items()):
+        entorno[f"GIT_CONFIG_KEY_{i}"], entorno[f"GIT_CONFIG_VALUE_{i}"] = clave, valor
+    entorno.update(GIT_SSH_COMMAND="false", GIT_TERMINAL_PROMPT="0", GH_CONFIG_DIR=str(Path(tempfile.gettempdir()) / "fabrica-sin-gh"))
+    return entorno
 
 
 @dataclass
@@ -225,7 +245,7 @@ def llamar(rol: Rol, mensaje: str, cwd: Path, pedido: str, modelo: str | None = 
            ejecutar: Ejecutar | None = None) -> Salida:
     """Corre un agente sobre el worktree `cwd`. Nunca levanta salvo `LimiteDeMax`."""
     modelo = modelo or config()["modelos"][rol]
-    entorno = pensar._entorno(pensar.MODOS["inteligente"] if modelo == "opus" else None)
+    entorno = entorno_encerrado(pensar._entorno(pensar.MODOS["inteligente"] if modelo == "opus" else None))
     entorno.update(FABRICA_WORKTREE=str(cwd), FABRICA_PORTERO=str(PORTERO), FABRICA_PY=FABRICA_PY)
     suite = EN_LA_SUITE[rol]
     agentes_estado.avisar(suite, "trabajando", ahora=f"{rol.capitalize()}: empezando")
