@@ -108,3 +108,9 @@ def test_lo_que_publica_un_agente_manda_en_su_piso(tmp_path, monkeypatch):
     p = next(p for p in _armar(pisos_publicados=pub)["pisos"] if p["id"] == "ventas")
     assert p["paso"]["titulo"] == "Mandar el cobro"
     assert [e["titulo"] for e in p["entra"]] == ["Cobros", "Seguimiento"] and p["entra"][0]["fuente"] == "del Vendedor"
+
+
+def test_temas_con_formato_real_del_editor():
+    temas = [{"tema": "Falla de PHP", "para_ti": "revisa", "accion": "tener en cuenta"}]
+    p = next(p for p in _armar(temas=(temas, "2026-11-04"))["pisos"] if p["id"] == "inteligencia")
+    assert p["paso"]["titulo"] == "Falla de PHP" and p["entra"][0]["filas"] == [["Falla de PHP", "Tener en cuenta"]]

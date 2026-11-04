@@ -31,6 +31,11 @@ PISOS = [  # id, nombre, para qué sirve, color
     ("ingenieria", "Ingeniería", "Lo que construye y mantiene todo.", "#3D7BFF"),
     ("administracion", "Administración", "Dinero, trámites y facturas.", "#BF5AF2"),
 ]
+def _titulo(t: dict) -> str:
+    """El Editor guarda el titular en «tema» (formato de newsletter_notion); «titular» queda por compatibilidad."""
+    return str(t.get("titular") or t.get("tema") or t.get("linea") or "").strip()
+
+
 ACCION_TEMA = {"hoy": "Hoy", "tener en cuenta": "Tener en cuenta", "solo saber": "Solo saber"}
 
 
@@ -143,10 +148,10 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
         if pid == "inteligencia":
             if temas:
                 primero = next((t for t in temas if t.get("accion") == "hoy"), temas[0])
-                paso = {"titulo": primero.get("titular", ""), "contexto": ("Para ti: " + primero["para_ti"]) if primero.get("para_ti") else "", "accion": "Leer en Notion"}
+                paso = {"titulo": _titulo(primero), "contexto": ("Para ti: " + primero["para_ti"]) if primero.get("para_ti") else "", "accion": "Leer en Notion"}
             entra = [
                 {"titulo": "Temas del Editor", "fuente": f"del {fecha_temas}" if fecha_temas and fecha_temas != hoy.isoformat() else "de hoy",
-                 "filas": [[t.get("titular", ""), ACCION_TEMA.get(t.get("accion", ""), "")] for t in temas[:5]],
+                 "filas": [[_titulo(t), ACCION_TEMA.get(t.get("accion", ""), "")] for t in temas[:5]],
                  "vacio": "El Editor publica a las 11:00."},
                 {"titulo": "La bóveda", "fuente": "en vivo", "filas": [
                     ["YouTube", "Leyendo ahora" if boveda.get("leyendo") else (f"YouTube bloqueó; vuelve a las {boveda['enfriando_hasta']}" if boveda.get("enfriando_hasta") else "En pausa")],
