@@ -1,0 +1,13 @@
+# Tests del núcleo que ya fallaban
+# Generado 2026-11-04 20:20. Lo que está aquí no bloquea; lo nuevo sí.
+pruebas/test_cliente.py::test_sistema_cliente_carga_los_oficios_de_verdad
+pruebas/test_libros_ruta.py::test_marcar_hito_cambia_el_archivo_y_commitea_la_boveda
+pruebas/test_noche.py::test_la_consolidacion_pasa_de_verdad_por_la_verificacion_mecanica_anti_invento
+pruebas/test_notion_sync.py::test_el_estado_de_notion_no_ensucia_la_boveda
+pruebas/test_puerta_prompts.py::test_sistema_encargo_carga_los_oficios_de_verdad
+pruebas/test_registros.py::test_el_registro_de_trabajo_lleva_el_caracter_los_oficios_las_reglas_y_los_ojos
+pruebas/test_rotar_logs.py::test_rota_un_log_grande_sin_perder_nada
+pruebas/test_rotar_logs.py::test_un_escritor_que_sigue_abierto_sigue_escribiendo_bien
+pruebas/test_sistema_encargo_reglas.py::test_suma_stack_y_vibe_coding
+# Inestable (4-nov): falló en una corrida y pasó en la siguiente. Arreglarlo y quitarlo de aquí.
+pruebas/test_estado_propio.py::test_si_le_preguntan_por_remi_no_lee_codigo

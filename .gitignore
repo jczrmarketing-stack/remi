@@ -42,3 +42,6 @@ nucleo/recoleccion.json*
 
 # Estado en vivo de los agentes (lo escriben ellos, lo lee la Suite)
 estado/
+
+# El verificador deja aquí su último resumen (scripts/verificar.py)
+.verificar/

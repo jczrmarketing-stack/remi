@@ -1,0 +1,51 @@
+# El verificador de INV3RZA en cada PR (scripts/verificar.py). Lo mismo que corre en el Mac,
+# sin gastar tokens: secretos, tests, tipos, código peligroso y dependencias.
+name: verificar
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Python del núcleo (sin kokoro ni soundfile, que son de audio y pesan gigas)
+        run: |
+          uv venv -p 3.12 "$RUNNER_TEMP/nucleo"
+          python3 - <<'PY' > "$RUNNER_TEMP/deps.txt"
+          import tomllib
+          d = tomllib.load(open("nucleo/pyproject.toml", "rb"))
+          deps = d["project"]["dependencies"] + d.get("dependency-groups", {}).get("dev", [])
+          print("\n".join(x for x in deps if not x.startswith(("kokoro", "soundfile"))))
+          PY
+          uv pip install -p "$RUNNER_TEMP/nucleo" -r "$RUNNER_TEMP/deps.txt"
+          echo "VERIFICAR_PYTHON=$RUNNER_TEMP/nucleo/bin/python" >> "$GITHUB_ENV"
+      - name: Dependencias del panel y la ventanita
+        run: |
+          (cd apps/ventanita && npm ci --no-audit --no-fund)
+          (cd apps/panel && npm install --no-audit --no-fund)
+      - name: Herramientas (gitleaks, osv-scanner, semgrep)
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz | tar xz -C "$RUNNER_TEMP/bin" gitleaks
+          curl -sSL -o "$RUNNER_TEMP/bin/osv-scanner" https://github.com/google/osv-scanner/releases/download/v2.2.2/osv-scanner_linux_amd64
+          chmod +x "$RUNNER_TEMP/bin/osv-scanner"
+          uv tool install semgrep
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Verificar
+        env:
+          VERIFICAR_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 scripts/verificar.py --todo
+      - name: Resumen
+        if: always()
+        run: cat .verificar/ultimo.md >> "$GITHUB_STEP_SUMMARY" || true
