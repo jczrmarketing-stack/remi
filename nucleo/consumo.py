@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -143,3 +143,80 @@ def registrar(
             print(f"[consumo] no pude registrar: {type(exc).__name__}: {exc}", file=sys.stderr)
         except Exception:  # noqa: BLE001
             pass
+
+
+# — Verlo: `python3 nucleo/consumo.py --semana` —
+
+DIAS_DE_LA_SEMANA = 7
+
+
+def resumen_semana(ruta: Path | None = None, dias: int = DIAS_DE_LA_SEMANA, ahora: datetime | None = None) -> list[dict[str, Any]]:
+    """El total por agente de los últimos `dias` días, el que más gastó primero.
+    Sin base o sin tabla todavía, lista vacía: no hay nada que mostrar, no un error."""
+    desde = ((ahora or datetime.now(timezone.utc)) - timedelta(days=dias)).isoformat()
+    try:
+        destino = _ruta(ruta)
+        if not destino.exists():
+            return []
+        conexion = sqlite3.connect(destino, timeout=ESPERA_SEG)
+        conexion.row_factory = sqlite3.Row
+        try:
+            filas = conexion.execute(
+                "SELECT agente, COUNT(*) AS llamadas, SUM(1 - ok) AS fallos,"
+                " SUM(tokens_entrada) AS tokens_entrada, SUM(tokens_salida) AS tokens_salida,"
+                " SUM(duracion_ms) AS duracion_ms"
+                " FROM consumo_claude WHERE fecha >= ? GROUP BY agente"
+                " ORDER BY SUM(tokens_entrada) + SUM(tokens_salida) DESC, agente",
+                (desde,),
+            ).fetchall()
+        finally:
+            conexion.close()
+    except sqlite3.Error:
+        return []
+    return [dict(f) for f in filas]
+
+
+def _miles(n: int) -> str:
+    return f"{n:,}".replace(",", ".")
+
+
+def _tiempo(ms: int) -> str:
+    minutos, segundos = divmod(round(ms / 1000), 60)
+    return f"{minutos} min {segundos:02d} s" if minutos else f"{segundos} s"
+
+
+def texto_semana(resumen: list[dict[str, Any]]) -> str:
+    if not resumen:
+        return "Nada registrado en los últimos 7 días."
+    ancho = max(len("agente"), *(len(r["agente"]) for r in resumen))
+    lineas = [f"{'agente':<{ancho}}  {'llamadas':>8}  {'fallos':>6}  {'entrada':>12}  {'salida':>10}  {'tiempo':>10}"]
+    total = {"llamadas": 0, "fallos": 0, "tokens_entrada": 0, "tokens_salida": 0, "duracion_ms": 0}
+    for r in resumen:
+        for clave in total:
+            total[clave] += r[clave] or 0
+        lineas.append(
+            f"{r['agente']:<{ancho}}  {r['llamadas']:>8}  {r['fallos'] or 0:>6}  {_miles(r['tokens_entrada'] or 0):>12}"
+            f"  {_miles(r['tokens_salida'] or 0):>10}  {_tiempo(r['duracion_ms'] or 0):>10}"
+        )
+    lineas.append(
+        f"{'total':<{ancho}}  {total['llamadas']:>8}  {total['fallos']:>6}  {_miles(total['tokens_entrada']):>12}"
+        f"  {_miles(total['tokens_salida']):>10}  {_tiempo(total['duracion_ms']):>10}"
+    )
+    return "Consumo de `claude -p` · últimos 7 días\n\n" + "\n".join(lineas)
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Consumo de claude -p por agente.")
+    parser.add_argument("--semana", action="store_true", help="total por agente en los últimos 7 días")
+    args = parser.parse_args(argv)
+    if not args.semana:
+        parser.print_help()
+        return 2
+    print(texto_semana(resumen_semana()))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
