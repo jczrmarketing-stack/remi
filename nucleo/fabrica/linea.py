@@ -80,9 +80,21 @@ def _avisar_real(texto: str) -> None:
     alertas.enviar(f"Fábrica · {texto}")
 
 
+def _repo_principal() -> Path:
+    """El checkout principal (padre de `.git`), para que los worktrees de los
+    pedidos no queden anidados dentro del worktree desde donde corre la fábrica."""
+    rc, salida = _sh_real(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], expediente.REPO)
+    return Path(salida).parent if rc == 0 and salida else expediente.REPO
+
+
 def mundo_real() -> Mundo:
     return Mundo(llamar=agentes.llamar, verificar=_verificar_real, sh=_sh_real, avisar=_avisar_real,
-                 raiz_repo=expediente.REPO, lecciones=_lecciones_reales)
+                 raiz_repo=_repo_principal(), lecciones=_lecciones_reales)
+
+
+def orden(sub: str, id_: str) -> str:
+    """Cómo se corre la fábrica desde la terminal, con las rutas de verdad."""
+    return f"cd {expediente.REPO / 'nucleo'} && {agentes.FABRICA_PY} -m fabrica {sub} {id_}"
 
 
 # — Candado: un pedido a la vez —
@@ -188,7 +200,7 @@ def pedir(idea: str, base: str = "main", mundo: Mundo | None = None, repo: str =
             expediente.cambiar(id_, toca=list(plan.datos.get("toca") or []),
                                riesgo=plan.datos.get("riesgo") or "bajo", estado="spec")
             mundo.avisar(f"Spec lista para «{idea}»:\n\n{_texto_spec(plan.datos)}\n\n"
-                         f"Si te sirve: python3 -m fabrica aprobar {id_}")
+                         f"Si te sirve:\n{orden('aprobar', id_)}")
         except Parada as parada:
             _detener(mundo, id_, str(parada))
     return id_
