@@ -45,3 +45,6 @@ estado/
 
 # El verificador deja aquí su último resumen (scripts/verificar.py)
 .verificar/
+
+# Espacio de trabajo de superpowers (ledger y paquetes de revisión)
+.superpowers/
