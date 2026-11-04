@@ -1,0 +1,29 @@
+# Dependencias con fallas conocidas que ya estaban
+# Generado 2026-11-04 16:30. Lo que está aquí no bloquea; lo nuevo sí.
+@vitest/mocker@5.0.2 GHSA-qxg6-89mg-rqv8
+@vitest/mocker@5.0.2 GHSA-xp26-3454-mjgp
+certifi@2026.7.22 GHSA-6q48-6c7w-9gw2
+certifi@2026.7.22 PYSEC-2026-4320
+filelock@4.0.6 GHSA-567q-5qvw-pf92
+filelock@4.0.6 GHSA-6627-m3xw-93mp
+filelock@4.0.6 GHSA-69hj-f68j-2879
+filelock@4.0.6 GHSA-8mx5-7m5m-r77g
+filelock@4.0.6 GHSA-9c4x-gm8v-wgc4
+filelock@4.0.6 GHSA-9j6q-wvj5-jgjg
+filelock@4.0.6 GHSA-9vhv-jxww-xfm5
+filelock@4.0.6 GHSA-cwqr-hh33-gh44
+filelock@4.0.6 GHSA-fj95-fr6c-h845
+filelock@4.0.6 GHSA-fq56-3cx3-fjxp
+filelock@4.0.6 GHSA-j8f7-rjxc-mr56
+filelock@4.0.6 GHSA-m462-7rxw-wvpg
+filelock@4.0.6 GHSA-rfpc-qcw5-3pc4
+filelock@4.0.6 GHSA-v4x8-3wr5-3wq8
+opentelemetry-api@1.45.0 GHSA-xcq7-p3pf-p88h
+setuptools@84.0.0 GHSA-xmj3-9gf7-h52w
+source-map-js@1.2.1 GHSA-68fv-2mgg-jv7q
+vite@8.3.1 GHSA-587h-7wmj-h5pm
+vite@8.3.1 GHSA-698v-4r3x-3vcv
+vite@8.3.1 GHSA-9jrq-w75r-8gcw
+vite@8.3.1 GHSA-r825-w8mm-5pxw
+vite@8.3.1 GHSA-rq7h-c2jc-7f22
+vite@8.3.1 GHSA-vfpm-58rq-9qcg

@@ -1,5 +1,5 @@
 # Errores de mypy que ya existían (sin número de línea)
-# Generado 2026-11-04 20:20. Lo que está aquí no bloquea; lo nuevo sí.
+# Generado 2026-11-04 16:29. Lo que está aquí no bloquea; lo nuevo sí.
 catalogo_puente.py: Item "None" of "Path | None" has no attribute "exists"  [union-attr]
 noche.py: Need type annotation for "confirmadas" (hint: "confirmadas: list[<type>] = ...")  [var-annotated]
 noche.py: Need type annotation for "quedan" (hint: "quedan: list[<type>] = ...")  [var-annotated]

@@ -1,8 +1,3 @@
 # Tests de agentes que ya fallaban
-# Generado 2026-11-04 20:20. Lo que está aquí no bloquea; lo nuevo sí.
-clasificador/test_clasificador.py::test_memo_sin_claude_ni_notion_queda_automatico_en_markdown
-clasificador/test_clasificador.py::test_publicar_notion_arma_la_pagina
-editor/test_editor.py::test_corrida_con_editor_publica_y_manda_estilo_jarvis
-editor/test_editor.py::test_leer_respuesta_valida_ids_y_normaliza
-editor/test_editor.py::test_reporta_su_estado_a_la_suite
-editor/test_editor.py::test_si_el_editor_falla_sale_la_version_automatica_y_avisa
+# Generado 2026-11-04 16:29. Lo que está aquí no bloquea; lo nuevo sí.
+
