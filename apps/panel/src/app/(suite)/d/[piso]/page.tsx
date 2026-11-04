@@ -17,7 +17,7 @@ function Paso({ piso }: { piso: PisoSuite }) {
   const [resp, setResp] = useState("");
   const [luego, setLuego] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const { titulo, contexto, accion } = piso.paso;
+  const { titulo, contexto, accion, ruta } = piso.paso;
   async function actuar() {
     setEnviando(true);
     try {
@@ -35,7 +35,9 @@ function Paso({ piso }: { piso: PisoSuite }) {
       <h2>{titulo}</h2>
       {contexto ? <p>{contexto}</p> : null}
       <div className="su-acc">
-        {accion === "Leer en Notion" ? (
+        {ruta && accion ? (
+          <Link className="su-btn" href={ruta}>{accion}</Link>
+        ) : accion === "Leer en Notion" ? (
           <a className="su-btn" href={NOTION_NEWSLETTER} target="_blank" rel="noreferrer">Leer en Notion</a>
         ) : accion ? (
           <button className="su-btn" type="button" onClick={actuar} disabled={enviando}>{enviando ? "Enviando a Remi…" : accion}</button>
@@ -90,7 +92,7 @@ export default function PaginaPiso() {
           </section>
           <section className="su-en" aria-label="Lo que entra">
             {piso.entra.map((l) => (
-              <Lista key={l.titulo} lista={l} />
+              <Lista key={l.titulo} lista={l} mandarDesde={piso.id === "inteligencia" && l.titulo === "Temas del Editor" ? "Inteligencia" : undefined} />
             ))}
           </section>
           {piso.id === "ingenieria" ? (

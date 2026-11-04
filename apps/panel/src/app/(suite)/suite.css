@@ -87,6 +87,24 @@
 .su-cargando{margin-top:120px;font-size:17px;color:var(--su-gris)}
 .su-sh-trab{animation:su-flota 3.2s ease-in-out infinite}
 @keyframes su-flota{50%{transform:translateY(-4px)}}
+/* Mandar un tema a otro piso (4-nov): texto discreto al final de la fila, se despliega en línea */
+.su-en li.su-tema{flex-wrap:wrap;align-items:baseline;gap:4px 20px}
+.su-en li.su-tema .t{color:inherit;text-align:left;flex:1 1 0;min-width:0;max-width:none}
+.su-mandar{border:0;background:none;padding:0;font:inherit;font-size:15px;color:var(--su-gris-2);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;cursor:pointer;flex:none}
+.su-mandar:hover{color:var(--su-tinta)}
+.su-mandar:disabled{opacity:.5;cursor:default}
+.su-destinos{flex-basis:100%;font-size:15px;color:var(--su-gris)}
+.su-en li .su-destinos span{color:inherit;text-align:left;max-width:none}
+.su-destinos .su-mandar{color:var(--su-tinta)}
+.su-guardado{flex-basis:100%;margin:0;font-size:15px;color:var(--su-gris)}
+/* El Norte guiado: una pregunta por pantalla */
+.su-avance{height:3px;margin-top:28px;max-width:900px;border-radius:999px;background:#D8D9DE;overflow:hidden}
+.su-avance i{display:block;height:100%;background:var(--su-tinta);transition:width .3s ease}
+.su-pregunta{margin-top:44px;display:flex;flex-direction:column;gap:20px;max-width:900px}
+.su-pregunta small{font-size:15px;color:var(--su-gris)}
+.su-pregunta h1{margin:0;font-size:52px;font-weight:700;line-height:1.05;letter-spacing:-.035em}
+.su-area{width:100%;max-width:760px;min-height:180px;border:0;border-radius:14px;padding:18px 20px;background:#fff;color:var(--su-tinta);font:inherit;font-size:19px;line-height:1.5;resize:vertical}
+.su-area::placeholder{color:#98989F}
 @media (max-width:900px){
   .su{padding:20px 16px 48px}
   .su-paso{margin-top:32px}.su-paso h2{font-size:40px}.su-paso p{font-size:17px}
@@ -96,6 +114,7 @@
   .su-mini-remi{padding:16px 18px}.su-mini-remi form{width:100%;margin-left:0}
   .su-fila{grid-template-columns:1fr auto;gap:4px 12px;padding:12px 18px}.su-fila .p{grid-column:1;text-align:left;font-size:13px}.su-fila .g{grid-row:1/span 2;grid-column:2}
   .su-techo{padding-left:0}
+  .su-pregunta{margin-top:32px}.su-pregunta h1{font-size:34px}.su-area{font-size:17px}
   .su-piso{grid-template-columns:1fr;padding:20px}.su-piso .nombre{padding:0}.su-piso .tu{justify-self:start;text-align:left}
 }
-@media (prefers-reduced-motion:reduce){.su-sh-trab{animation:none}}
+@media (prefers-reduced-motion:reduce){.su-sh-trab{animation:none}.su-avance i{transition:none}}

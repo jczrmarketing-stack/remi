@@ -243,11 +243,20 @@ export type EstadoAgente = "trabajando" | "esperando" | "durmiendo" | "error" | 
 export type FormaAgente = "orbe" | "tri" | "glifo" | "cuadro" | "rombo" | "media" | "hex" | "pildora";
 export type AgenteSuite = { id: string; nombre: string; piso: string | null; forma: FormaAgente; existe: boolean; hace: string; estado: EstadoAgente; ahora: string; ultimo: string };
 export type ListaSuite = { titulo: string; fuente: string; filas: [string, string][]; vacio?: string };
-export type PisoSuite = { id: string; nombre: string; para: string; color: string; paso: { titulo?: string; contexto?: string; accion?: string }; luz: boolean; agentes: AgenteSuite[]; entra: ListaSuite[] };
+export type PisoSuite = { id: string; nombre: string; para: string; color: string; paso: { titulo?: string; contexto?: string; accion?: string; ruta?: string }; luz: boolean; agentes: AgenteSuite[]; entra: ListaSuite[] };
 export type Suite = { fecha: string; foco: { titulo: string; contexto: string; tarea_id?: string }; norte: { actual?: number; escalon?: number; meta?: number }; remi: AgenteSuite; pisos: PisoSuite[] };
+
+// El Norte guiado (nucleo/suite_rutas.py): seis preguntas, una por pantalla; `siguiente` es donde retomar.
+export type NorteSuite = { existe: boolean; preguntas: { n: number; pregunta: string; respuesta: string }[]; completo: boolean; siguiente: number | null; estatus: "borrador" | "confirmado" };
 
 export const nucleo = {
   suite: () => pedir<Suite>("/suite"),
+  // Manda una idea al cajón de otro piso; llega a su lista «Ideas guardadas».
+  suiteGuardar: (piso: string, texto: string, fuente: string) =>
+    pedir<{ ok: boolean; piso: string; nombre: string; linea: string }>("/suite/guardar", { method: "POST", body: JSON.stringify({ piso, texto, fuente }) }),
+  norte: () => pedir<NorteSuite>("/suite/norte"),
+  guardarNorte: (n: number, respuesta: string) =>
+    pedir<NorteSuite>("/suite/norte", { method: "POST", body: JSON.stringify({ n, respuesta }) }),
 
   salud: () => pedir<Salud>("/salud"),
   // Un núcleo que todavía no tiene esta ruta (B2) responde 404: null, no
