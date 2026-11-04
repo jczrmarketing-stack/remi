@@ -186,3 +186,13 @@ def test_aprobar_un_pedido_ya_en_pr_no_corre_nada(tmp_path):
     with pytest.raises(ValueError):
         linea.aprobar(id_, falso.mundo())
     assert len(falso.llamadas) == antes
+
+
+def test_verificador_sin_apps_corre_solo_python_y_seguridad():
+    args = linea.revisiones_para(["nucleo/x.py", "nucleo/pruebas/test_x.py"])
+    assert args[0] == "--solo"
+    assert set(args[1:]) == {"secretos", "tests_nucleo", "tipos_nucleo", "tests_agentes", "codigo_peligroso", "dependencias"}
+
+
+def test_verificador_con_apps_corre_todo():
+    assert linea.revisiones_para(["nucleo/x.py", "apps/panel/src/app/page.tsx"]) == ["--todo"]

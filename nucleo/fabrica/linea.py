@@ -56,10 +56,23 @@ def _sh_real(args: list[str], cwd: Path) -> tuple[int, str]:
     return hecho.returncode, (hecho.stdout + hecho.stderr).strip()
 
 
+# Un worktree de pedido no trae node_modules: panel y ventanita solo se revisan
+# si el cambio los toca (y entonces el verificador avisa que falta `npm install`).
+SIN_APPS = ("secretos", "tests_nucleo", "tipos_nucleo", "tests_agentes", "codigo_peligroso", "dependencias")
+
+
+def revisiones_para(archivos: list[str]) -> list[str]:
+    if any(a.startswith("apps/") for a in archivos):
+        return ["--todo"]
+    return ["--solo", *SIN_APPS]
+
+
 def _verificar_real(cwd: Path, base: str) -> tuple[int, str]:
     entorno = {**os.environ, "VERIFICAR_BASE": base, "VERIFICAR_PYTHON": agentes.FABRICA_PY}
-    hecho = subprocess.run(["scripts/verificar.sh", "--todo"], cwd=cwd, capture_output=True, text=True,
-                           timeout=1800, env=entorno)
+    _sh_real(["git", "add", "-A"], cwd)
+    _, cambiados = _sh_real(["git", "diff", "--cached", "--name-only", base], cwd)
+    hecho = subprocess.run(["scripts/verificar.sh", *revisiones_para(cambiados.splitlines())], cwd=cwd,
+                           capture_output=True, text=True, timeout=1800, env=entorno)
     informe = cwd / ".verificar" / "ultimo.md"
     texto = informe.read_text(encoding="utf-8") if informe.is_file() else (hecho.stdout + hecho.stderr)[-4000:]
     return hecho.returncode, texto
