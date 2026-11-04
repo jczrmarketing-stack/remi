@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -76,6 +77,19 @@ def para_el_editor(candidatos: list[dict]) -> list[dict]:
              "formato": c["formato"], "enlace": c["enlace"]} for c in candidatos]
 
 
+def _registrar_consumo(correr, modelo: str, segundos: float, salida=None, returncode: int = 0, error: str | None = None) -> None:
+    """Anota la llamada en `consumo_claude` (nucleo/consumo.py). Solo con la CLI real: las pruebas inyectan `correr` y no escriben en la base. Nunca rompe al agente."""
+    if correr is not None:
+        return
+    try:
+        if str(NUCLEO) not in sys.path:
+            sys.path.append(str(NUCLEO))
+        import consumo
+        consumo.registrar("editor", modelo, segundos, salida, returncode, error)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def llamar_claude(sistema: str, mensaje: str, correr=None, binario: str | None = None) -> str | None:
     binario = binario or binario_claude()
     if not binario:
@@ -84,7 +98,16 @@ def llamar_claude(sistema: str, mensaje: str, correr=None, binario: str | None =
     comando = [binario, "-p", "--model", MODELO, "--output-format", "json", "--system-prompt", sistema,
                "--tools", "WebFetch,WebSearch", "--allowedTools", "WebFetch,WebSearch",
                "--setting-sources", "", "--no-session-persistence", "--strict-mcp-config", "--max-turns", "45"]
-    r = (correr or subprocess.run)(comando, input=mensaje, capture_output=True, text=True, timeout=TOPE_SEG, env=entorno, cwd=str(AQUI))
+    inicio = time.perf_counter()
+    try:
+        r = (correr or subprocess.run)(comando, input=mensaje, capture_output=True, text=True, timeout=TOPE_SEG, env=entorno, cwd=str(AQUI))
+    except subprocess.TimeoutExpired:
+        _registrar_consumo(correr, MODELO, time.perf_counter() - inicio, error="timeout")
+        raise
+    except OSError as exc:
+        _registrar_consumo(correr, MODELO, 0, error=f"{type(exc).__name__}: {exc}")
+        raise
+    _registrar_consumo(correr, MODELO, time.perf_counter() - inicio, getattr(r, "stdout", None), getattr(r, "returncode", 0))
     datos = json.loads(r.stdout or "{}")
     if datos.get("is_error"):
         raise RuntimeError(f"la CLI avisó un error: {str(datos.get('result'))[:200]}")

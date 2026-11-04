@@ -26,6 +26,7 @@ from typing import Any, Generator, Callable
 import httpx
 
 import concreto
+import consumo
 import db
 import gasto
 import libros
@@ -1805,6 +1806,7 @@ def _una_llamada_claude(
     instrucciones: str,
     indice: list[db.EntradaIndice],
     buscar: bool = False,
+    agente: str = "pensar",
 ) -> Pensado | None:
     nombre_modelo = m.modelo
     timeout = m.techo_segundos
@@ -1829,14 +1831,18 @@ def _una_llamada_claude(
             libros = marca.read_text().split() if marca.exists() else []
     except FileNotFoundError:
         print(f"[claude] no encontré `{BINARIO}` en el PATH: sigo sin IA", file=sys.stderr)
+        consumo.registrar(agente, nombre_modelo, 0, error="sin CLI")
         return None
     except subprocess.TimeoutExpired:
         print(f"[claude] {nombre_modelo} tardó más de {timeout:.0f} s", file=sys.stderr)
+        consumo.registrar(agente, nombre_modelo, time.perf_counter() - arranque, error="timeout")
         return None
     except OSError as error:
         print(f"[claude] no pude correr la CLI ({error}): sigo sin IA", file=sys.stderr)
+        consumo.registrar(agente, nombre_modelo, 0, error=f"OSError: {error}")
         return None
 
+    consumo.registrar(agente, nombre_modelo, time.perf_counter() - arranque, terminado.stdout, terminado.returncode)
     if terminado.returncode != 0:
         print(
             f"[claude] la CLI terminó en {terminado.returncode}: sigo sin IA",
@@ -1889,9 +1895,11 @@ def _deltas_claude(
             )
         except FileNotFoundError:
             print(f"[claude] no encontré `{BINARIO}` en el PATH: sigo sin IA", file=sys.stderr)
+            consumo.registrar("pensar", nombre_modelo, 0, error="sin CLI")
             return None
         except OSError as error:
             print(f"[claude] no pude correr la CLI ({error}): sigo sin IA", file=sys.stderr)
+            consumo.registrar("pensar", nombre_modelo, 0, error=f"OSError: {error}")
             return None
         vencido = threading.Event()
 
@@ -1936,6 +1944,12 @@ def _deltas_claude(
             reloj.cancel()
         libros = marca.read_text().split() if marca.exists() else []
 
+    # El corte del consumidor (GeneratorExit) no pasa por acá: lo que se
+    # leyó se pierde igual que el resultado, no es una llamada completa.
+    consumo.registrar(
+        "pensar", nombre_modelo, time.perf_counter() - arranque, datos,
+        proceso.returncode, "timeout" if vencido.is_set() else None,
+    )
     if vencido.is_set():
         print(f"[claude] {nombre_modelo} tardó más de {timeout:.0f} s", file=sys.stderr)
         return None

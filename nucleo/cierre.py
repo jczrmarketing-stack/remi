@@ -73,7 +73,9 @@ def redactar_error(charla: str, titulo_libro: str) -> dict[str, str] | None:
     """Las cinco secciones del error, o None si no se pudo sacar nada real."""
     pedido = f"Proyecto: {titulo_libro}\n\n{charla}"[-8000:]
     try:
-        pensado = pensar._una_llamada_claude(pensar.MODOS["rapido"], pedido, INSTRUCCIONES_ERROR, [])
+        pensado = pensar._una_llamada_claude(
+            pensar.MODOS["rapido"], pedido, INSTRUCCIONES_ERROR, [], agente="cierre"
+        )
     except Exception as error:  # noqa: BLE001 — sin Haiku, no hay lección esta vez
         print(f"[cierre] error: Haiku no contestó ({type(error).__name__})", file=sys.stderr)
         return None

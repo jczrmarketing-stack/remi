@@ -30,6 +30,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import consumo
 import db
 import experiencia
 import pensar
@@ -243,6 +244,7 @@ def llamar_claude(etapa: Etapa, mensaje: str) -> Respuesta | None:
     `pensar._entorno`, que borra las claves de API: nunca se factura aparte."""
     mano = MANOS[etapa]
     entorno = pensar._entorno(pensar.MODOS["inteligente"] if mano.modelo == "opus" else None)
+    arranque = time.perf_counter()
     try:
         terminado = subprocess.run(
             _comando(mano),
@@ -255,10 +257,13 @@ def llamar_claude(etapa: Etapa, mensaje: str) -> Respuesta | None:
         )
     except FileNotFoundError:
         print(f"[coding] no encontré `{pensar.BINARIO}` en el PATH", file=sys.stderr)
+        consumo.registrar("coding", mano.modelo, 0, error="sin CLI")
         return None
     except subprocess.TimeoutExpired:
         print(f"[coding] {etapa} tardó más de {mano.techo_segundos:.0f} s", file=sys.stderr)
+        consumo.registrar("coding", mano.modelo, time.perf_counter() - arranque, error="timeout")
         return None
+    consumo.registrar("coding", mano.modelo, time.perf_counter() - arranque, terminado.stdout, terminado.returncode)
     salida = terminado.stdout + terminado.stderr
     if pensar.PATRON_LIMITE_ALCANZADO.search(salida):
         raise LimiteDeMax(etapa)
