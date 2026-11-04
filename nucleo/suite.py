@@ -174,7 +174,7 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
                 hechas = sum(1 for p in n.get("preguntas") or [] if p.get("respuesta"))
                 if hechas:
                     paso = {**paso, "contexto": f"Vas en la pregunta {hechas + 1} de 6. Sigue donde quedaste.", "accion": "Seguir con el Norte"}
-                paso["ruta"] = "/d/direccion/norte"
+                paso["ruta"] = "/norte"
         if pid == "ingenieria":
             ag = boveda.get("agenda") or {}
             filas = [[n, f"{'Hoy' if (ag.get(k) or {}).get('hecho') == hoy.isoformat() else 'Última'} {_hora((ag.get(k) or {}).get('ultima'))}".strip()]

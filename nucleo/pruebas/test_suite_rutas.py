@@ -101,14 +101,14 @@ def test_norte_valida(cliente):
 
 def test_direccion_sin_norte_lleva_al_flujo(mente):
     d = _armar()["direccion"]
-    assert d["paso"]["ruta"] == "/d/direccion/norte" and d["paso"]["accion"] == "Empezar con Remi"
+    assert d["paso"]["ruta"] == "/norte" and d["paso"]["accion"] == "Empezar con Remi"
     assert all(e["titulo"] != "Tu Norte" for e in d["entra"])
 
 
 def test_direccion_con_norte_a_medias_y_completo(mente):
     suite_rutas.guardar_norte(1, "A dueños de negocios pequeños")
     d = _armar()["direccion"]
-    assert d["paso"]["ruta"] == "/d/direccion/norte" and "pregunta 2 de 6" in d["paso"]["contexto"]
+    assert d["paso"]["ruta"] == "/norte" and "pregunta 2 de 6" in d["paso"]["contexto"]
     assert d["entra"][0]["titulo"] == "Tu Norte" and d["entra"][0]["filas"] == [["A dueños de negocios pequeños", "A quién"]]
     for n in range(2, 7):
         suite_rutas.guardar_norte(n, "x " * 80)
