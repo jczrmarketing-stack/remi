@@ -1,0 +1,100 @@
+/* INV3RZA Suite (3-nov): estilo Aurora limpio. Fondo claro con una sola luz suave del color del piso,
+   un bloque oscuro por pantalla (la oficina o el edificio), sin tarjetas de colores ni etiquetas en píldora.
+   Este archivo solo vive en las rutas de la Suite: las leyes y tokens de Remi siguen intactos en la ventanita. */
+.su{--su-fondo:#EEF0F3;--su-tinta:#1C1C1E;--su-gris:#6E6E73;--su-gris-2:#48484A;--su-torre:#141416;--su-torre-2:#232327;--su-linea:#26262A;--su-claro:#F5F5F7;--su-claro-2:#8E8E93;
+  position:relative;overflow:hidden;min-height:100vh;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest,system-ui,sans-serif;padding:36px 56px 72px;box-sizing:border-box}
+.su *{box-sizing:border-box}
+.su a{color:inherit}
+.su-luz-fondo{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none;opacity:.32;width:640px;height:480px;right:-120px;top:-80px}
+.su-marco{position:relative;max-width:1328px;margin:0 auto}
+.su-top{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.su-volver{display:inline-flex;align-items:center;gap:6px;font-size:15px;color:#55555C;text-decoration:none;padding:6px 0}
+.su-marca{font-weight:800;font-size:19px;letter-spacing:-.03em;text-decoration:none}
+.su-marca span{display:inline-block;transform:scaleX(-1)}
+.su-fecha{font-size:15px;color:#55555C}
+.su :focus-visible{outline:3px solid var(--su-tinta);outline-offset:3px;border-radius:6px}
+.su-oscuro :focus-visible{outline-color:var(--su-claro)}
+.su-tit{margin-top:28px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.su-tit h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.su-tit p{margin:0;font-size:16px;color:var(--su-gris)}
+.su-paso{margin-top:44px;display:flex;flex-direction:column;gap:18px;max-width:900px}
+.su-paso h2{margin:0;font-size:68px;font-weight:700;line-height:1;letter-spacing:-.04em}
+.su-paso p{margin:0;font-size:20px;line-height:1.45;color:var(--su-gris-2);max-width:52ch}
+.su-acc{display:flex;gap:20px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.su-btn{border:0;border-radius:999px;padding:17px 28px;background:var(--su-tinta);color:var(--su-claro);font:inherit;font-weight:600;font-size:17px;cursor:pointer;text-decoration:none;display:inline-block}
+.su-btn:hover{background:#000}
+.su-btn:disabled{opacity:.6;cursor:default}
+.su-no{border:0;background:none;color:var(--su-gris);font:inherit;font-size:17px;cursor:pointer;padding:17px 4px}
+.su-respuesta{font-size:17px;line-height:1.5;color:var(--su-gris-2);max-width:60ch;white-space:pre-wrap}
+.su-norte{display:flex;align-items:center;gap:16px;font-size:17px;color:var(--su-gris-2);margin-top:6px;flex-wrap:wrap}
+.su-norte .barra{width:220px;height:6px;border-radius:999px;background:#D8D9DE;overflow:hidden}
+.su-norte .barra i{display:block;height:100%;background:var(--su-tinta)}
+.su-oscuro{position:relative;background:var(--su-torre);color:var(--su-claro);border-radius:10px;overflow:hidden}
+.su-of{margin-top:52px;padding:30px 36px 34px}
+.su-of-luz{position:absolute;inset:0;pointer-events:none;background:radial-gradient(520px 200px at 22% 100%,color-mix(in srgb,var(--c) 30%,transparent),transparent 70%)}
+.su-of h3{position:relative;margin:0 0 24px;font-size:15px;font-weight:500;color:var(--su-claro-2)}
+.su-gente{position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:40px}
+.su-ag{display:grid;grid-template-columns:64px 1fr;gap:4px 18px;align-items:start}
+.su-ag>svg{grid-row:span 5}
+.su-ag b{font-size:18px;font-weight:600}
+.su-ag .est{font-size:14px;color:var(--su-claro-2)}
+.su-ag .est.error{color:#FF6B6B}
+.su-ag .ult{font-size:15px;color:#D1D1D6;line-height:1.4;margin-top:6px}
+.su-ag form{margin-top:12px}
+.su-in{width:100%;border:0;border-radius:14px;padding:13px 15px;background:var(--su-torre-2);color:var(--su-claro);font:inherit;font-size:15px}
+.su-in::placeholder{color:#7C7C82}
+.su-ag .resp{margin-top:10px;font-size:14px;line-height:1.45;color:#D1D1D6;white-space:pre-wrap}
+.su-ag .crear{margin-top:10px;font-size:15px;color:var(--su-claro);text-decoration:none;border-bottom:1.5px solid #48484A;justify-self:start;padding-bottom:2px}
+.su-en{margin-top:44px;display:grid;grid-template-columns:1fr 1fr;gap:56px}
+.su-en h3{margin:0 0 10px;font-size:15px;font-weight:500;color:var(--su-gris);display:flex;justify-content:space-between;gap:12px}
+.su-en h3 span{font-size:13px;color:#98989F}
+.su-en ul{list-style:none;margin:0;padding:0}
+.su-en li{display:flex;justify-content:space-between;gap:20px;padding:11px 0;font-size:18px;line-height:1.35}
+.su-en li span{color:var(--su-gris);text-align:right;flex:none;max-width:45%}
+.su-en .vacio{font-size:18px;line-height:1.45;color:var(--su-gris);margin:6px 0 0;max-width:40ch}
+.su-mini{margin-top:52px}
+.su-mini-remi{display:flex;align-items:center;gap:16px;padding:22px 32px;box-shadow:inset 0 -1px 0 var(--su-linea);flex-wrap:wrap}
+.su-mini-remi b{font-size:17px;font-weight:600}
+.su-mini-remi em{font-style:normal;color:var(--su-claro-2);font-size:15px;display:block}
+.su-mini-remi form{margin-left:auto;width:380px;max-width:100%}
+.su-mini-remi .resp{flex-basis:100%;font-size:15px;color:#D1D1D6;line-height:1.5;white-space:pre-wrap}
+.su-fila{position:relative;display:grid;grid-template-columns:200px 1fr auto;align-items:center;gap:24px;padding:14px 32px;color:var(--su-claro);text-decoration:none}
+.su-fila+.su-fila{box-shadow:inset 0 1px 0 #222226}
+.su-fila:hover{background:#1B1B1F}
+.su-fila .n{font-size:16px;font-weight:600}
+.su-fila .g{display:flex;gap:10px;align-items:center}
+.su-fila .p{font-size:15px;color:#A1A1A6;text-align:right}
+.su-fila-luz{position:absolute;inset:0;pointer-events:none;background:radial-gradient(300px 60px at 20% 100%,color-mix(in srgb,var(--c) 30%,transparent),transparent 70%)}
+.su-techo{display:flex;align-items:flex-end;gap:18px;padding:0 0 14px 236px;margin-top:48px}
+.su-techo b{font-size:20px;font-weight:700;display:block}
+.su-techo span{font-size:15px;color:#55555C;display:block;max-width:52ch}
+.su-torre{border-radius:10px 10px 0 0}
+.su-piso{position:relative;display:grid;grid-template-columns:236px 1fr 250px;align-items:center;min-height:150px;padding:0 36px 0 0;color:var(--su-claro);text-decoration:none}
+.su-piso+.su-piso{box-shadow:inset 0 1px 0 var(--su-linea)}
+.su-piso:hover{background:#18181B}
+.su-piso-luz{position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 140px at 35% 100%,color-mix(in srgb,var(--c) 34%,transparent),transparent 70%)}
+.su-piso .nombre{position:relative;padding:0 28px 0 32px}
+.su-piso h2{margin:0;font-size:21px;font-weight:600;letter-spacing:-.015em}
+.su-piso .nombre p{margin:6px 0 0;font-size:14px;line-height:1.4;color:var(--su-claro-2)}
+.su-piso .gente{position:relative;display:flex;gap:40px;align-items:flex-start;padding:22px 0;flex-wrap:wrap}
+.su-piso .ag{display:flex;flex-direction:column;align-items:center;gap:8px;width:118px;text-align:center}
+.su-piso .ag b{font-size:14px;font-weight:600}
+.su-piso .ag em{font-style:normal;font-size:12.5px;line-height:1.35;color:var(--su-claro-2)}
+.su-piso .tu{position:relative;justify-self:end;text-align:right;font-size:16px;font-weight:500}
+.su-piso .tu small{display:block;font-size:13px;color:#6E6E73;margin-bottom:6px;font-weight:400}
+.su-suelo{height:28px;background:#0A0A0B}
+.su-cargando{margin-top:120px;font-size:17px;color:var(--su-gris)}
+.su-sh-trab{animation:su-flota 3.2s ease-in-out infinite}
+@keyframes su-flota{50%{transform:translateY(-4px)}}
+@media (max-width:900px){
+  .su{padding:20px 16px 48px}
+  .su-paso{margin-top:32px}.su-paso h2{font-size:40px}.su-paso p{font-size:17px}
+  .su-acc{flex-direction:column;align-items:stretch;gap:4px}.su-btn{min-height:52px;text-align:center}
+  .su-en{grid-template-columns:1fr;gap:32px}
+  .su-of{padding:24px 20px}
+  .su-mini-remi{padding:16px 18px}.su-mini-remi form{width:100%;margin-left:0}
+  .su-fila{grid-template-columns:1fr auto;gap:4px 12px;padding:12px 18px}.su-fila .p{grid-column:1;text-align:left;font-size:13px}.su-fila .g{grid-row:1/span 2;grid-column:2}
+  .su-techo{padding-left:0}
+  .su-piso{grid-template-columns:1fr;padding:20px}.su-piso .nombre{padding:0}.su-piso .tu{justify-self:start;text-align:left}
+}
+@media (prefers-reduced-motion:reduce){.su-sh-trab{animation:none}}

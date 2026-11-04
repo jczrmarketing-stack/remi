@@ -238,7 +238,17 @@ export type CorridaCoding = {
   segundos: number | null;
 };
 
+// INV3RZA Suite (nucleo/suite.py): el inicio, el edificio y los 7 pisos.
+export type EstadoAgente = "trabajando" | "esperando" | "durmiendo" | "error" | "por_crear";
+export type FormaAgente = "orbe" | "tri" | "glifo" | "cuadro" | "rombo" | "media" | "hex" | "pildora";
+export type AgenteSuite = { id: string; nombre: string; piso: string | null; forma: FormaAgente; existe: boolean; hace: string; estado: EstadoAgente; ahora: string; ultimo: string };
+export type ListaSuite = { titulo: string; fuente: string; filas: [string, string][]; vacio?: string };
+export type PisoSuite = { id: string; nombre: string; para: string; color: string; paso: { titulo?: string; contexto?: string; accion?: string }; luz: boolean; agentes: AgenteSuite[]; entra: ListaSuite[] };
+export type Suite = { fecha: string; foco: { titulo: string; contexto: string; tarea_id?: string }; norte: { actual?: number; escalon?: number; meta?: number }; remi: AgenteSuite; pisos: PisoSuite[] };
+
 export const nucleo = {
+  suite: () => pedir<Suite>("/suite"),
+
   salud: () => pedir<Salud>("/salud"),
   // Un núcleo que todavía no tiene esta ruta (B2) responde 404: null, no
   // una excepción que tumbe toda la pantalla de Hoy.

@@ -4,8 +4,8 @@ import { PreferenciasProvider } from "@/hooks/PreferenciasContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Panel de Remi",
-  description: "Hoy, Proyectos, Metas y Bandeja — el panel de Remi.",
+  title: "INV3RZA Suite",
+  description: "El edificio de INV3RZA: tu paso de hoy y lo que hace cada agente.",
   manifest: "/manifest.json",
   // iOS ignora los íconos del manifest al "Añadir a inicio": necesita este
   // link con el mismo ícono ya aprobado, en PNG (revisión R4.58, 3-oct).
@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
         />
       </head>
       <body>

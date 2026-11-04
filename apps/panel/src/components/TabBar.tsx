@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { Bot, Inbox, LineChart, Target } from "lucide-react";
 
 const VISTAS = [
-  { href: "/", etiqueta: "Hoy", Icono: Bot },
+  { href: "/hoy", etiqueta: "Hoy", Icono: Bot },
   { href: "/proyectos", etiqueta: "Proyectos", Icono: LineChart },
   { href: "/metas", etiqueta: "Metas", Icono: Target },
   { href: "/bandeja", etiqueta: "Bandeja", Icono: Inbox },
@@ -18,7 +18,7 @@ export function TabBar() {
   return (
     <nav aria-label="Vistas" className="tabbar">
       {VISTAS.map(({ href, etiqueta, Icono }) => {
-        const activa = href === "/" ? ruta === "/" : ruta === href || ruta.startsWith(`${href}/`);
+        const activa = ruta === href || ruta.startsWith(`${href}/`);
         return (
           <Link key={href} href={href} aria-current={activa ? "page" : "false"} aria-label={etiqueta}>
             <Icono size={22} strokeWidth={1.75} aria-hidden />
