@@ -85,3 +85,8 @@ def test_catalogo_tiene_remi_y_formas_validas():
     cat = agentes_estado.catalogo()
     assert cat["remi"]["existe"] is True
     assert {a["forma"] for a in cat.values()} <= {"orbe", "tri", "glifo", "cuadro", "rombo", "media", "hex", "pildora"}
+
+
+def test_bloqueo_de_youtube_se_dice_con_la_hora():
+    p = next(p for p in _armar(boveda={"leyendo": False, "agenda": {}, "enfriando_hasta": "17:30"})["pisos"] if p["id"] == "inteligencia")
+    assert p["entra"][1]["filas"][0] == ["YouTube", "YouTube bloqueó; vuelve a las 17:30"]

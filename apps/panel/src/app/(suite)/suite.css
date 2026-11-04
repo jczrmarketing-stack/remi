@@ -22,6 +22,7 @@
 .su-paso p{margin:0;font-size:20px;line-height:1.45;color:var(--su-gris-2);max-width:52ch}
 .su-acc{display:flex;gap:20px;align-items:center;margin-top:8px;flex-wrap:wrap}
 .su-btn{border:0;border-radius:999px;padding:17px 28px;background:var(--su-tinta);color:var(--su-claro);font:inherit;font-weight:600;font-size:17px;cursor:pointer;text-decoration:none;display:inline-block}
+.su a.su-btn{color:var(--su-claro)}
 .su-btn:hover{background:#000}
 .su-btn:disabled{opacity:.6;cursor:default}
 .su-no{border:0;background:none;color:var(--su-gris);font:inherit;font-size:17px;cursor:pointer;padding:17px 4px}

@@ -64,9 +64,15 @@ def temas_del_editor(hoy: date, carpeta: Path | None = None) -> tuple[list[dict]
 
 def boveda_en_vivo(raiz: Path | None = None, hoy: date | None = None) -> dict:
     raiz = raiz or donde_boveda.ubicar()
-    salida = {"leyendo": False, "calificados": None, "leidos_hoy": None, "agenda": {}}
+    salida = {"leyendo": False, "calificados": None, "leidos_hoy": None, "agenda": {}, "enfriando_hasta": None}
     if raiz is None:
         return salida
+    try:   # YouTube bloqueó la IP: la ingesta espera sola (youtube_catalogo.py, 1 h → 24 h)
+        hasta = json.loads((raiz / "cache" / "youtube" / "enfriar.json").read_text(encoding="utf-8")).get("hasta")
+        if hasta and hasta > datetime.now().timestamp():
+            salida["enfriando_hasta"] = datetime.fromtimestamp(hasta).strftime("%-H:%M")
+    except (OSError, ValueError, AttributeError):
+        pass
     try:
         salida["leyendo"] = subprocess.run(["pgrep", "-f", "youtube_catalogo.py --continuo"], capture_output=True, timeout=3).returncode == 0
     except (OSError, subprocess.SubprocessError):
@@ -119,7 +125,7 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
                  "filas": [[t.get("titular", ""), ACCION_TEMA.get(t.get("accion", ""), "")] for t in temas[:5]],
                  "vacio": "El Editor publica a las 11:00."},
                 {"titulo": "La bóveda", "fuente": "en vivo", "filas": [
-                    ["YouTube", "Leyendo ahora" if boveda.get("leyendo") else "En pausa"],
+                    ["YouTube", "Leyendo ahora" if boveda.get("leyendo") else (f"YouTube bloqueó; vuelve a las {boveda['enfriando_hasta']}" if boveda.get("enfriando_hasta") else "En pausa")],
                     *([["Videos leídos hoy", str(boveda["leidos_hoy"])]] if boveda.get("leidos_hoy") is not None else []),
                     *([["Videos calificados", f"{boveda['calificados']:,}".replace(",", ".")]] if boveda.get("calificados") is not None else []),
                 ]},
