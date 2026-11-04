@@ -1,0 +1,16 @@
+{
+  "$comment": "Quién trabaja en cada piso del edificio INV3RZA. existe=false: el agente está propuesto y se crea con el Programador. forma: orbe|tri|glifo|cuadro|rombo|media|hex|pildora. El estado en vivo lo escribe cada agente en estado/agentes/<id>.json (nucleo/agentes_estado.py).",
+  "remi": {"nombre": "Remi", "piso": null, "forma": "orbe", "existe": true, "hace": "Tu Jarvis. Sube y baja por todos los pisos."},
+  "estratega": {"nombre": "Estratega", "piso": "direccion", "forma": "hex", "existe": false, "hace": "Leerá la bóveda y te dirá si pivotar o ajustar."},
+  "editor": {"nombre": "Editor", "piso": "inteligencia", "forma": "glifo", "existe": true, "hace": "Elige y escribe los temas del día a las 11:00."},
+  "clasificador": {"nombre": "Clasificador", "piso": "inteligencia", "forma": "rombo", "existe": false, "hace": "Ordenará la bóveda y conectará ideas entre sí."},
+  "ofertista": {"nombre": "Ofertista", "piso": "oferta", "forma": "media", "existe": false, "hace": "Probará versiones de la oferta contra lo que dice la bóveda."},
+  "creativo": {"nombre": "Creativo", "piso": "marketing", "forma": "pildora", "existe": false, "hace": "Escribirá guiones y piezas."},
+  "distribucion": {"nombre": "Distribución", "piso": "marketing", "forma": "tri", "existe": false, "hace": "Buscará creadores y medirá qué funciona."},
+  "vendedor": {"nombre": "Vendedor", "piso": "ventas", "forma": "cuadro", "existe": false, "hace": "Seguirá cada conversación hasta el pago."},
+  "cobros": {"nombre": "Cobros", "piso": "ventas", "forma": "orbe", "existe": false, "hace": "Te recordará lo que falta por cobrar."},
+  "programador": {"nombre": "Programador", "piso": "ingenieria", "forma": "tri", "existe": true, "hace": "Construye lo que le pidas."},
+  "revisor": {"nombre": "Revisor", "piso": "ingenieria", "forma": "cuadro", "existe": true, "hace": "Revisa cada cambio del Programador antes de guardarlo."},
+  "contador": {"nombre": "Contador", "piso": "administracion", "forma": "hex", "existe": false, "hace": "Llevará ingresos, gastos y lo que se debe."},
+  "tramites": {"nombre": "Trámites", "piso": "administracion", "forma": "rombo", "existe": false, "hace": "Avisará fechas de la LLC antes de que venzan."}
+}

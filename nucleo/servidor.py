@@ -49,6 +49,7 @@ import mensaje_cliente
 import notion
 import notion_avisos
 import pensar
+import suite
 import plata
 import analisis_camino
 import calibracion
@@ -1576,6 +1577,22 @@ def listar_hoy() -> list[TareaConHistorial]:
     finally:
         conexion.close()
 
+
+
+@app.get("/suite")
+def suite_inv3rza() -> dict:
+    """INV3RZA Suite: el inicio, el edificio y los 7 pisos en una respuesta (suite.py).
+    El foco sale de la primera tarea de hoy si hay; si no, del foco escrito en la ficha."""
+    foco = None
+    conexion = db.conectar()
+    try:
+        tareas = db.listar_tareas_hoy(conexion, hoy_en_bogota())
+        if tareas:
+            t = tareas[0]
+            foco = {"titulo": t.titulo, "contexto": f"Paso mínimo: {t.paso_minimo}" if t.paso_minimo else "", "tarea_id": str(t.id)}
+    finally:
+        conexion.close()
+    return suite.armar(foco_de_hoy=foco, hoy=hoy_en_bogota())
 
 class Vencimiento(BaseModel):
     titulo: str
