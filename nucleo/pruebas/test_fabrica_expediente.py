@@ -65,3 +65,11 @@ def test_dos_pedidos_iguales_el_mismo_minuto_no_chocan(tmp_path):
     a = expediente.crear("Misma idea", "remi", "main", raiz=tmp_path)
     b = expediente.crear("Misma idea", "remi", "main", raiz=tmp_path)
     assert a != b
+
+
+def test_un_id_con_puntos_no_sale_de_la_carpeta(tmp_path):
+    (tmp_path / "fuera").mkdir()
+    (tmp_path / "pedidos").mkdir()
+    (tmp_path / "fuera" / "expediente.md").write_text("---\npedido: x\n---\n")
+    with pytest.raises(KeyError):
+        expediente.leer("../fuera", raiz=tmp_path / "pedidos")

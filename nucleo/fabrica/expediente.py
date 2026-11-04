@@ -78,9 +78,13 @@ def crear(idea: str, repo: str, base: str, raiz: Path | None = None) -> str:
     return id_
 
 
+ID_VALIDO = re.compile(r"\d{8}-\d{4}-[a-z0-9-]+")
+
+
 def leer(id_: str, raiz: Path | None = None) -> dict[str, Any]:
+    """KeyError si no existe o si el id no tiene la forma de un pedido (nada de `../`)."""
     ruta = carpeta(id_, raiz) / "expediente.md"
-    if not ruta.is_file():
+    if not ID_VALIDO.fullmatch(id_) or not ruta.is_file():
         raise KeyError(id_)
     texto = ruta.read_text(encoding="utf-8")
     _, cabeza, cuerpo = texto.split("---\n", 2)
