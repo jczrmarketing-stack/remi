@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La línea · mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Mockup del piso Ingeniería con «La línea» (Bloque 1, 4-nov). Marco: estilo de la Suite (suite.css).
+   Dentro de la línea: tokens Noche de design/tokens.json, copiados aquí solo para el mockup;
+   en el código salen de las variables del DS. */
+:root{
+  /* Suite (apps/panel/src/app/(suite)/suite.css) */
+  --su-fondo:#EEF0F3;--su-tinta:#1C1C1E;--su-gris:#6E6E73;--su-gris-2:#48484A;--su-claro-2:#8E8E93;--piso:#3D7BFF;
+  /* DS Remi · Noche */
+  --ground:#151112;--surface:#1d1718;--surface-2:#26201f;--line:#3a302d;--ink:#f3ebdd;--ink-muted:#a89d8f;--ink-faint:#6b6058;
+  --luz:#fff2c9;--brasa:#ff8a3d;--on-brasa:#1a0a00;--pensar:#c9a0ff;--baja:#6f6660;
+  --glow-brasa:0 0 14px rgba(255,138,61,.45);
+  --display:"Instrument Serif",Georgia,serif;--sans:"Geist",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest,system-ui,sans-serif}
+.su{position:relative;overflow:hidden;min-height:100vh;padding:36px 56px 72px}
+.su-luz-fondo{position:absolute;border-radius:50%;filter:blur(120px);opacity:.32;width:640px;height:480px;right:-120px;top:-80px;background:var(--piso);pointer-events:none}
+.su-marco{position:relative;max-width:1328px;margin:0 auto}
+.su-top{display:flex;justify-content:space-between;align-items:center}
+.su-volver{font-size:15px;color:#55555C;text-decoration:none}
+.su-marca{font-weight:800;font-size:19px;letter-spacing:-.03em}.su-marca span{display:inline-block;transform:scaleX(-1)}
+.su-tit{margin-top:28px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.su-tit h1{margin:0;font-size:22px;font-weight:600}.su-tit p{margin:0;font-size:16px;color:var(--su-gris)}
+.su-paso{margin-top:44px;display:flex;flex-direction:column;gap:18px;max-width:900px}
+.su-paso h2{margin:0;font-size:68px;font-weight:700;line-height:1;letter-spacing:-.04em}
+.su-paso p{margin:0;font-size:20px;line-height:1.45;color:var(--su-gris-2);max-width:52ch}
+
+/* — La línea (bloque oscuro del piso, tokens Noche) — */
+.linea{position:relative;margin-top:52px;background:var(--ground);color:var(--ink);border-radius:10px;overflow:hidden;font-family:var(--sans)}
+.linea-luz{position:absolute;inset:0;pointer-events:none;background:radial-gradient(520px 200px at 22% 100%,color-mix(in srgb,var(--piso) 22%,transparent),transparent 70%)}
+.cab{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding:28px 36px 0;flex-wrap:wrap}
+.cab h3{margin:0;font:500 15px Onest,sans-serif;color:var(--ink-muted)}
+.cab .idea{margin:8px 0 0;font:600 20px/1.3 Onest,sans-serif;color:var(--ink)}
+.cab .id{font:500 12px/16px var(--mono);letter-spacing:.04em;color:var(--ink-muted);margin-top:6px}
+.gasto{min-width:260px;text-align:right}
+.gasto .n{font:500 12px/16px var(--mono);letter-spacing:.04em;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.gasto .n b{color:var(--ink);font-weight:500}
+.barra{margin-top:8px;height:6px;border-radius:999px;background:var(--line);overflow:hidden}
+.barra i{display:block;height:100%;width:14%;background:var(--ink-muted)}
+
+/* Estaciones */
+.estaciones{position:relative;list-style:none;margin:28px 0 0;padding:0 36px;display:grid;grid-template-columns:repeat(5,1fr);gap:0}
+.estaciones li{position:relative}
+.estaciones li::before{content:"";position:absolute;top:21px;left:calc(50% + 26px);right:calc(-50% + 26px);height:1px;background:var(--line)}
+.estaciones li:last-child::before{display:none}
+.estaciones li.hecha::before{background:var(--ink-faint)}
+.est{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:0 6px 22px;text-align:center;border-radius:8px}
+.est:focus-visible{outline:2px solid #ffd27a;outline-offset:2px}
+.punto{width:42px;height:42px;border-radius:999px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;transition:border-color 150ms var(--ease),background 150ms var(--ease)}
+.punto svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.hecha .punto{color:var(--luz);border-color:var(--ink-faint)}
+.activa .punto{color:var(--on-brasa);background:var(--brasa);border-color:var(--brasa);box-shadow:var(--glow-brasa)}
+.por-venir .punto{color:var(--ink-faint)}
+.est .nom{font:600 14px/20px var(--sans);color:var(--ink)}
+.por-venir .est .nom{color:var(--ink-muted)}
+.est .det{font:500 12px/16px var(--mono);letter-spacing:.04em;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.activa .est .det{color:var(--brasa)}
+.est[aria-pressed="true"] .nom{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
+
+/* Lo que pasa en la estación elegida */
+.vivo{position:relative;border-top:1px solid var(--line);padding:24px 36px 32px}
+.vivo-cab{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap}
+.vivo-cab b{font:600 16px/24px var(--sans)}
+.vivo-cab span{font:500 12px/16px var(--mono);letter-spacing:.04em;color:var(--ink-muted)}
+.vivo-cab .en-vivo{color:var(--pensar)}
+.cuatro{margin-top:18px;display:grid;grid-template-columns:1fr 1.25fr 1.25fr 1fr;gap:16px}
+.caja{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:16px;min-width:0}
+.caja h4{margin:0 0 12px;font:600 11px/16px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted)}
+.caja ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.ve li{font:400 13px/20px var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ve li small{color:var(--ink-muted);font-size:12px}
+.hace li{display:grid;grid-template-columns:44px 1fr;gap:8px;font:400 13px/20px var(--mono)}
+.hace li time{color:var(--ink-faint);font-size:12px;font-variant-numeric:tabular-nums}
+.hace li code{color:var(--ink);overflow-wrap:anywhere}
+.hace li .res{grid-column:2;color:var(--ink-muted);font-size:12px;line-height:16px}
+.hace li.ahora code{color:var(--brasa)}
+.piensa p{margin:0 0 10px;font:400 14px/20px var(--sans);color:var(--ink)}
+.piensa p:last-child{color:var(--pensar)}
+.porque p{margin:0 0 10px;font:400 14px/20px var(--sans);color:var(--ink)}
+.porque .esc{font:400 13px/20px var(--mono);color:var(--ink-muted);margin:0;padding-left:0;list-style:none}
+.porque .esc li{margin-bottom:6px}
+.voz{margin:20px 0 0;font:italic 400 24px/26px var(--display);color:var(--ink)}
+
+/* Lo que entra (estilo Suite) */
+.su-en{margin-top:44px;display:grid;grid-template-columns:1fr 1fr;gap:56px}
+.su-en h3{margin:0 0 10px;font-size:15px;font-weight:500;color:var(--su-gris);display:flex;justify-content:space-between}
+.su-en h3 span{font-size:13px;color:#98989F}
+.su-en ul{list-style:none;margin:0;padding:0}
+.su-en li{display:flex;justify-content:space-between;gap:20px;padding:11px 0;font-size:18px;line-height:1.35}
+.su-en li span{color:var(--su-gris);text-align:right;flex:none}
+
+/* El edificio: la fila de Ingeniería con el pedido activo */
+.nota{margin-top:56px;font-size:15px;color:var(--su-gris)}
+.torre{margin-top:12px;background:#141416;color:#F5F5F7;border-radius:10px;overflow:hidden}
+.piso{position:relative;display:grid;grid-template-columns:236px 1fr 250px;align-items:center;min-height:150px;padding:0 36px 0 0}
+.piso-luz{position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 140px at 35% 100%,color-mix(in srgb,var(--piso) 34%,transparent),transparent 70%)}
+.piso .nombre{position:relative;padding:0 28px 0 32px}
+.piso h2{margin:0;font-size:21px;font-weight:600}
+.piso .nombre p{margin:6px 0 0;font-size:14px;color:var(--su-claro-2)}
+.piso .mini{position:relative;display:flex;align-items:center;gap:0;padding:22px 0}
+.mini .m{display:flex;flex-direction:column;align-items:center;gap:8px;width:96px;text-align:center}
+.mini .m i{display:block;width:14px;height:14px;border-radius:999px;border:1px solid #48484A;background:#232327}
+.mini .m.h i{background:var(--luz);border-color:var(--luz)}
+.mini .m.a i{background:var(--brasa);border-color:var(--brasa);box-shadow:var(--glow-brasa)}
+.mini .m b{font-size:13px;font-weight:600}
+.mini .m em{font-style:normal;font-size:12.5px;color:var(--su-claro-2)}
+.mini .r{flex:none;width:28px;height:1px;background:#48484A;margin-bottom:24px}
+.piso .tu{position:relative;justify-self:end;text-align:right;font-size:16px;font-weight:500}
+.piso .tu small{display:block;font-size:13px;color:#6E6E73;margin-bottom:6px;font-weight:400}
+
+@media (max-width:900px){
+  .su{padding:20px 16px 48px}.su-paso h2{font-size:40px}.su-paso p{font-size:17px}
+  .cab,.vivo{padding-left:20px;padding-right:20px}.gasto{text-align:left;min-width:0;width:100%}
+  .estaciones{padding:0 8px}.est .det{display:none}.punto{width:36px;height:36px}.estaciones li::before{top:18px;left:calc(50% + 22px);right:calc(-50% + 22px)}
+  .cuatro{grid-template-columns:1fr}.su-en{grid-template-columns:1fr;gap:32px}
+  .piso{grid-template-columns:1fr;padding:20px}.piso .nombre{padding:0}.piso .tu{justify-self:start;text-align:left}.mini .m{width:64px}.mini .r{width:12px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="su">
+  <div class="su-luz-fondo" aria-hidden="true"></div>
+  <div class="su-marco">
+    <header class="su-top">
+      <a class="su-volver" href="#">‹ Edificio</a>
+      <span class="su-marca">INV<span>E</span>RZA</span>
+    </header>
+
+    <div class="su-tit"><h1>Ingeniería</h1><p>Lo que construye y mantiene todo.</p></div>
+
+    <section class="su-paso" aria-label="Tu paso">
+      <h2>Nada que hacer: la línea trabaja.</h2>
+      <p>Te aviso cuando haya un PR en borrador. Nada se fusiona sin ti.</p>
+    </section>
+
+    <section class="linea" aria-label="La línea">
+      <div class="linea-luz" aria-hidden="true"></div>
+      <div class="cab">
+        <div>
+          <h3>La línea</h3>
+          <p class="idea">Arreglar test_notion_sync: el estado de Notion no ensucia la bóveda</p>
+          <div class="id">20261110-0914-arreglar-test-notion-sy · base fabrica/bloque-1</div>
+        </div>
+        <div class="gasto" aria-label="Tokens del pedido">
+          <div class="n"><b>412.380</b> de 3.000.000 tokens</div>
+          <div class="barra"><i></i></div>
+        </div>
+      </div>
+
+      <ol class="estaciones" aria-label="Estaciones del pedido">
+        <li class="hecha"><button class="est" data-e="spec" aria-pressed="false">
+          <span class="punto"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="nom">Spec</span><span class="det">Planificador · 4'</span></button></li>
+        <li class="hecha"><button class="est" data-e="tests" aria-pressed="false">
+          <span class="punto"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="nom">Tests</span><span class="det">Tester · 6'</span></button></li>
+        <li class="activa"><button class="est" data-e="construir" aria-pressed="true">
+          <span class="punto"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/></svg></span>
+          <span class="nom">Construir</span><span class="det">vuelta 1/2 · 11'</span></button></li>
+        <li class="por-venir"><button class="est" data-e="verificar" aria-pressed="false" disabled>
+          <span class="punto"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+          <span class="nom">Verificar</span><span class="det">verificador</span></button></li>
+        <li class="por-venir"><button class="est" data-e="pr" aria-pressed="false" disabled>
+          <span class="punto"><svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7M6 9v12"/></svg></span>
+          <span class="nom">PR</span><span class="det">borrador</span></button></li>
+      </ol>
+
+      <section class="vivo" aria-live="polite">
+        <div class="vivo-cab"><b id="v-tit">Constructor · vuelta 1/2</b><span id="v-est" class="en-vivo">en vivo · cada 2 s</span></div>
+        <div class="cuatro">
+          <div class="caja ve"><h4>Qué ve</h4><ul id="v-ve"></ul></div>
+          <div class="caja hace"><h4>Qué hace</h4><ul id="v-hace"></ul></div>
+          <div class="caja piensa"><h4>Qué piensa</h4><div id="v-piensa"></div></div>
+          <div class="caja porque"><h4>Por qué</h4><div id="v-porque"></div></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="su-en" aria-label="Lo que entra">
+      <div>
+        <h3>Pedidos de la fábrica <span>de fabrica/pedidos</span></h3>
+        <ul>
+          <li>Arreglar test_notion_sync<span>construyendo</span></li>
+          <li>Tests de oficios en worktree<span>PR en borrador</span></li>
+          <li>Etapa en el consumo de coding.py<span>spec, espera tu sí</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Horario automático <span>de la agenda</span></h3>
+        <ul>
+          <li>La bóveda trabaja de noche<span>Hoy 03:00</span></li>
+          <li>Newsletter de las 11:00<span>Hoy 11:00</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <p class="nota">Y así se ve la fila de Ingeniería en el edificio mientras corre un pedido:</p>
+    <div class="torre">
+      <div class="piso">
+        <div class="piso-luz" aria-hidden="true"></div>
+        <div class="nombre"><h2>Ingeniería</h2><p>Lo que construye y mantiene todo.</p></div>
+        <div class="mini" aria-label="Estaciones">
+          <div class="m h"><i></i><b>Spec</b><em>hecha</em></div><span class="r"></span>
+          <div class="m h"><i></i><b>Tests</b><em>hechos</em></div><span class="r"></span>
+          <div class="m a"><i></i><b>Construir</b><em>vuelta 1/2</em></div><span class="r"></span>
+          <div class="m"><i></i><b>Verificar</b><em>después</em></div><span class="r"></span>
+          <div class="m"><i></i><b>PR</b><em>después</em></div>
+        </div>
+        <div class="tu"><small>El pedido</small>test_notion_sync</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// Datos de ejemplo con la forma de GET /fabrica/pedidos/<id>/eventos. Al tocar una estación hecha se ve su registro.
+const ESTACIONES = {
+  spec: {
+    tit: "Planificador · hecho", est: "registro",
+    ve: [["nucleo/pruebas/test_notion_sync.py", ":212"], ["nucleo/notion_sync.py", ""], ["docs/MAPA.md", ""]],
+    hace: [["09:14", "Read docs/MAPA.md", ""], ["09:15", "Grep conocimiento/.gitignore", "3 coincidencias"], ["09:16", "Read nucleo/notion_sync.py", "184 líneas"]],
+    piensa: ["El test asume que conocimiento/ existe; en un worktree no viaja con git.", "Lo mínimo: que el test cree su carpeta en tmp_path y no dependa del disco."],
+    porque: { spec: "El test lee conocimiento/.gitignore del repo real. Debe usar una carpeta temporal propia.", esc: ["cuando el repo no trae conocimiento/ entonces el test pasa igual", "cuando Notion escribe su estado entonces no aparece en la bóveda"], motivo: "Spec lista: 2 escenarios, riesgo bajo." }
+  },
+  tests: {
+    tit: "Tester · hecho", est: "registro",
+    ve: [["nucleo/pruebas/test_notion_sync.py", ""], ["nucleo/pruebas/conftest.py", ""]],
+    hace: [["09:19", "pytest pruebas/test_notion_sync.py -q", "1 failed: FileNotFoundError"], ["09:22", "Edit test_notion_sync.py", "+18 −4"], ["09:24", "pytest pruebas/test_notion_sync.py -q", "2 failed (esperado)"]],
+    piensa: ["El test que ya falla cuenta para el primer escenario.", "Agrego uno para el segundo: el estado de Notion fuera de la bóveda."],
+    porque: { spec: "Un test por escenario, y deben fallar antes de construir.", esc: ["test_el_estado_de_notion_no_ensucia_la_boveda", "test_sin_conocimiento_en_el_worktree"], motivo: "Fallan los dos antes de construir, como debe ser." }
+  },
+  construir: {
+    tit: "Constructor · vuelta 1/2", est: "en vivo · cada 2 s",
+    ve: [["nucleo/notion_sync.py", ":96"], ["nucleo/pruebas/test_notion_sync.py", ""], ["nucleo/donde_boveda.py", ""]],
+    hace: [["09:27", "Read nucleo/notion_sync.py", "184 líneas"], ["09:31", "Edit nucleo/notion_sync.py", "+6 −2"], ["09:33", "pytest pruebas/test_notion_sync.py -q", "1 passed, 1 failed"], ["09:34", "Edit nucleo/donde_boveda.py", "escribiendo…", true]],
+    piensa: ["La ruta del estado sale de donde_boveda; el test la sobrescribe con monkeypatch.", "Falta que el estado de Notion vaya a su propio archivo, no a la carpeta de la bóveda."],
+    porque: { spec: "Que los tests pasen con el cambio más pequeño que cumpla la spec.", esc: ["cuando el repo no trae conocimiento/ entonces el test pasa igual", "cuando Notion escribe su estado entonces no aparece en la bóveda"], motivo: "" }
+  }
+};
+function li(html){const e=document.createElement("li");e.innerHTML=html;return e}
+function esc(t){return t.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c])}
+function pintar(k){
+  const d=ESTACIONES[k]; if(!d) return;
+  document.getElementById("v-tit").textContent=d.tit;
+  const est=document.getElementById("v-est"); est.textContent=d.est; est.className=k==="construir"?"en-vivo":"";
+  const ve=document.getElementById("v-ve"); ve.replaceChildren(...d.ve.map(([r,l])=>li(`${esc(r)}<small>${esc(l)}</small>`)));
+  const hace=document.getElementById("v-hace"); hace.replaceChildren(...d.hace.map(([t,c,r,a])=>{const e=li(`<time>${t}</time><code>${esc(c)}</code><span class="res">${esc(r)}</span>`); if(a) e.className="ahora"; return e}));
+  document.getElementById("v-piensa").innerHTML=d.piensa.map(p=>`<p>${esc(p)}</p>`).join("");
+  document.getElementById("v-porque").innerHTML=`<p>${esc(d.porque.spec)}</p><ul class="esc">${d.porque.esc.map(e=>`<li>${esc(e)}</li>`).join("")}</ul>`+(d.porque.motivo?`<p style="margin-top:10px;color:var(--ink-muted)">${esc(d.porque.motivo)}</p>`:"");
+  document.querySelectorAll(".est").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.e===k)));
+}
+document.querySelectorAll(".est").forEach(b=>b.addEventListener("click",()=>pintar(b.dataset.e)));
+pintar("construir");
+</script>
+</body>
+</html>
