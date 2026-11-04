@@ -3,7 +3,7 @@
   "remi": {"nombre": "Remi", "piso": null, "forma": "orbe", "existe": true, "hace": "Tu Jarvis. Sube y baja por todos los pisos."},
   "estratega": {"nombre": "Estratega", "piso": "direccion", "forma": "hex", "existe": false, "hace": "Leerá la bóveda y te dirá si pivotar o ajustar."},
   "editor": {"nombre": "Editor", "piso": "inteligencia", "forma": "glifo", "existe": true, "hace": "Elige y escribe los temas del día a las 11:00."},
-  "clasificador": {"nombre": "Clasificador", "piso": "inteligencia", "forma": "rombo", "existe": false, "hace": "Ordenará la bóveda y conectará ideas entre sí."},
+  "clasificador": {"nombre": "Clasificador", "piso": "inteligencia", "forma": "rombo", "existe": true, "hace": "Ordenará la bóveda y conectará ideas entre sí."},
   "ofertista": {"nombre": "Ofertista", "piso": "oferta", "forma": "media", "existe": false, "hace": "Probará versiones de la oferta contra lo que dice la bóveda."},
   "creativo": {"nombre": "Creativo", "piso": "marketing", "forma": "pildora", "existe": false, "hace": "Escribirá guiones y piezas."},
   "distribucion": {"nombre": "Distribución", "piso": "marketing", "forma": "tri", "existe": false, "hace": "Buscará creadores y medirá qué funciona."},
