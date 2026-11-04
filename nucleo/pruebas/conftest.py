@@ -154,3 +154,4 @@ def _estado_de_agentes_aparte(tmp_path_factory, monkeypatch):
     """La Suite: ninguna prueba escribe el estado real de los agentes (estado/agentes/)."""
     import agentes_estado
     monkeypatch.setattr(agentes_estado, "RAIZ", tmp_path_factory.mktemp("agentes"))
+    monkeypatch.setattr(agentes_estado, "PISOS_RAIZ", tmp_path_factory.mktemp("pisos"))

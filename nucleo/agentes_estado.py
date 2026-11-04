@@ -16,6 +16,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 RAIZ = Path(os.environ.get("REMI_ESTADO_AGENTES") or Path(__file__).resolve().parent.parent / "estado" / "agentes")
+# Lo que cada agente le dice a su piso (tu paso, listas de «lo que entra»). Lo lee suite.py.
+PISOS_RAIZ = Path(os.environ.get("REMI_ESTADO_PISOS") or Path(__file__).resolve().parent.parent / "estado" / "pisos")
 CATALOGO = Path(__file__).resolve().parent.parent / "config" / "agentes.json"
 ESTADOS = ("trabajando", "esperando", "durmiendo", "error")
 VENCE_TRABAJANDO = timedelta(hours=6)
@@ -72,3 +74,38 @@ def avisar(agente: str, estado: str, ahora: str = "", ultimo: str | None = None)
         reportar(agente, estado, ahora, ultimo)
     except Exception:  # noqa: BLE001
         pass
+
+
+def publicar_piso(piso: str, agente: str, paso: dict | None = None, entra: list[dict] | None = None) -> None:
+    """Un agente le cuenta a su piso de la Suite tu paso y/o listas de «lo que entra».
+
+    Contrato (estado/pisos/<piso>.json, uno por piso, lo pueden escribir varios agentes):
+      {"paso": {"titulo", "contexto", "accion"} | ausente,
+       "entra": {"<titulo de la lista>": {"titulo", "fuente", "filas": [[a, b], ...], "vacio"?}},
+       "por": {"paso": "<agente>", "<titulo>": "<agente>"}, "en": iso}
+    Una lista con el mismo título reemplaza a la de la ficha. paso=None deja el paso que había.
+    """
+    PISOS_RAIZ.mkdir(parents=True, exist_ok=True)
+    ruta = PISOS_RAIZ / f"{piso}.json"
+    try:
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        datos = {}
+    datos.setdefault("entra", {})
+    datos.setdefault("por", {})
+    if paso is not None:
+        datos["paso"], datos["por"]["paso"] = paso, agente
+    for lista in entra or []:
+        datos["entra"][lista["titulo"]] = lista
+        datos["por"][lista["titulo"]] = agente
+    datos["en"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    tmp = PISOS_RAIZ / f".{piso}.{os.getpid()}.tmp"
+    tmp.write_text(json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, ruta)
+
+
+def leer_piso(piso: str) -> dict:
+    try:
+        return json.loads((PISOS_RAIZ / f"{piso}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}

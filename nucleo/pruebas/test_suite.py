@@ -17,7 +17,7 @@ AGENTES = {"remi": {"id": "remi", "piso": None, "estado": "trabajando"},
 
 
 def _armar(**k):
-    base = dict(hoy=date(2026, 11, 3), ficha=FICHA, boveda={"leyendo": False, "agenda": {}}, temas=([], ""), agentes=AGENTES, cobros=[])
+    base = dict(hoy=date(2026, 11, 3), ficha=FICHA, boveda={"leyendo": False, "agenda": {}}, temas=([], ""), agentes=AGENTES, cobros=[], pisos_publicados={})
     base.update(k)
     return suite.armar(**base)
 
@@ -97,3 +97,14 @@ def test_cobros_de_remi_mandan_sobre_la_ficha():
     assert p["entra"][0] == {"titulo": "Entregas y cobros", "fuente": "de Remi", "filas": [["Alfonso", "Pagada · US$2.000"]]}
     p = next(p for p in _armar()["pisos"] if p["id"] == "ventas")
     assert p["entra"][0]["filas"] == [["UpVisuals", "US$2.000"]]
+
+
+def test_lo_que_publica_un_agente_manda_en_su_piso(tmp_path, monkeypatch):
+    monkeypatch.setattr(agentes_estado, "PISOS_RAIZ", tmp_path)
+    agentes_estado.publicar_piso("ventas", "vendedor", paso={"titulo": "Mandar el cobro", "contexto": "", "accion": "Ver borrador"},
+                                 entra=[{"titulo": "Cobros", "fuente": "del Vendedor", "filas": [["Alfonso", "Borrador listo"]]}])
+    agentes_estado.publicar_piso("ventas", "otro", entra=[{"titulo": "Seguimiento", "fuente": "", "filas": []}])
+    pub = {"ventas": agentes_estado.leer_piso("ventas")}
+    p = next(p for p in _armar(pisos_publicados=pub)["pisos"] if p["id"] == "ventas")
+    assert p["paso"]["titulo"] == "Mandar el cobro"
+    assert [e["titulo"] for e in p["entra"]] == ["Cobros", "Seguimiento"] and p["entra"][0]["fuente"] == "del Vendedor"

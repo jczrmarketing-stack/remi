@@ -123,7 +123,7 @@ def _hora(iso: str | None) -> str:
 
 def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict | None = None,
           boveda: dict | None = None, temas: tuple[list[dict], str] | None = None, agentes: dict | None = None,
-          cobros: list[list[str]] | None = None) -> dict:
+          cobros: list[list[str]] | None = None, pisos_publicados: dict | None = None) -> dict:
     hoy = hoy or date.today()
     ficha = ficha if ficha is not None else leer_ficha()
     boveda = boveda if boveda is not None else boveda_en_vivo(hoy=hoy)
@@ -161,6 +161,11 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
             filas = [[n, f"{'Hoy' if (ag.get(k) or {}).get('hecho') == hoy.isoformat() else 'Última'} {_hora((ag.get(k) or {}).get('ultima'))}".strip()]
                      for k, n in (("noche", "La bóveda trabaja de noche"), ("diaria", "Newsletter de las 11:00"), ("salud", "Revisión de salud"), ("semanal", "Resumen del domingo")) if (ag.get(k) or {}).get("ultima")]
             entra.append({"titulo": "Horario automático", "fuente": "de la agenda", "filas": filas, "vacio": "La agenda no ha corrido todavía."})
+        publicado = agentes_estado.leer_piso(pid) if pisos_publicados is None else (pisos_publicados.get(pid) or {})
+        if publicado.get("paso"):
+            paso = dict(publicado["paso"])
+        for titulo, lista in (publicado.get("entra") or {}).items():
+            entra = [e for e in entra if e.get("titulo") != titulo] + [lista]
         gente = [a for a in agentes.values() if a.get("piso") == pid]
         luz = any(a["estado"] == "trabajando" for a in gente) or (pid == "inteligencia" and bool(boveda.get("leyendo")))
         pisos.append({"id": pid, "nombre": nombre, "para": para, "color": color, "paso": paso, "luz": luz, "agentes": gente, "entra": entra})
