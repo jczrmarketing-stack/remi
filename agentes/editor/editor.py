@@ -23,6 +23,18 @@ AQUI = Path(__file__).resolve().parent
 BOVEDA = Path(os.environ.get("BOVEDA_RAIZ") or Path.home() / "proyectos" / "boveda")
 MENTE = Path(os.environ.get("REMI_MENTE") or Path.home() / "proyectos" / "mente")
 sys.path.insert(0, str(BOVEDA))
+NUCLEO = Path(__file__).resolve().parents[2] / "nucleo"
+
+
+def _reportar(estado: str, ahora: str = "", ultimo: str | None = None) -> None:
+    """Le cuenta a la Suite qué hace el Editor (estado/agentes/editor.json). Nunca rompe la newsletter."""
+    try:
+        if str(NUCLEO) not in sys.path:
+            sys.path.append(str(NUCLEO))
+        import agentes_estado
+        agentes_estado.reportar("editor", estado, ahora, ultimo)
+    except Exception:  # noqa: BLE001
+        pass
 
 MODELO = os.environ.get("EDITOR_MODELO", "sonnet")
 TOPE_SEG = 1500
@@ -102,10 +114,22 @@ def leer_respuesta(texto: str, candidatos: list[dict]) -> list[dict]:
 
 
 def correr(hoy: date | None = None, probar: bool = False, claude=None, publicar=None, enviar=None, avisar=None, preparar=True, con=None) -> str:
+    hoy = hoy or date.today()
+    if not probar:
+        _reportar("trabajando", "Eligiendo los temas de hoy")
+    try:
+        texto = _correr(hoy, probar, claude, publicar, enviar, avisar, preparar, con)
+    except Exception as exc:
+        if not probar:
+            _reportar("error", f"Se cayó: {type(exc).__name__}")
+        raise
+    return texto
+
+
+def _correr(hoy, probar, claude, publicar, enviar, avisar, preparar, con) -> str:
     import newsletter
     import newsletter_notion as nn
     from boveda import candado
-    hoy = hoy or date.today()
     if preparar:
         with candado():                 # la agenda pone BOVEDA_ESPERAR_CANDADO: espera su turno
             newsletter.diaria(enviar_telegram=False)
@@ -131,6 +155,8 @@ def correr(hoy: date | None = None, probar: bool = False, claude=None, publicar=
     if probar:
         return nn.mensaje(temas, hoy, con_notion=False)
     publicadas = (publicar or nn.publicar)(con, temas, hoy)
+    _reportar("durmiendo", "Vuelve mañana a las 11:00",
+              ultimo=f"{'Eligió' if escritos is not None else 'Salió la automática con'} {len(temas)} temas el {hoy.day}-{hoy.month:02d}")
     texto = newsletter.mensaje_unico(nn.mensaje(temas, hoy, con_notion=bool(publicadas) or bool(nn.token())), hoy)
     if not (enviar or newsletter.enviar)(texto):
         print("no pude mandar el mensaje por Telegram (¿núcleo apagado?)", file=sys.stderr)

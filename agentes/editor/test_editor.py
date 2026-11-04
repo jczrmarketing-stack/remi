@@ -11,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.environ.setdefault("BOVEDA_SIN_LOG", "1")
+os.environ.setdefault("REMI_ESTADO_AGENTES", tempfile.mkdtemp())   # la Suite: nunca el estado real
 import editor  # noqa: E402
 
 HOY = date(2026, 11, 3)
@@ -62,6 +63,12 @@ def test_si_el_editor_falla_sale_la_version_automatica_y_avisa():
     texto = editor.correr(HOY, claude=falla, publicar=lambda con, temas, hoy: 0, enviar=lambda t: enviados.append(t) or True,
                           avisar=avisos.append, preparar=False, con=_bd())
     assert len(avisos) == 1 and "versión automática" in avisos[0] and enviados and "Google pierde" in texto
+
+
+def test_reporta_su_estado_a_la_suite():
+    editor.correr(HOY, claude=lambda s, m: RESPUESTA, publicar=lambda con, temas, hoy: len(temas), enviar=lambda t: True, preparar=False, con=_bd())
+    estado = json.loads((Path(os.environ["REMI_ESTADO_AGENTES"]) / "editor.json").read_text(encoding="utf-8"))
+    assert estado["estado"] == "durmiendo" and "temas" in estado["ultimo"]
 
 
 def test_encuentra_la_cli_fuera_del_path():
