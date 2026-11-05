@@ -51,11 +51,11 @@ def test_sistema_cliente_trae_las_cuatro_partes_y_el_guardarrail():
 
 def test_sistema_cliente_carga_los_oficios_de_verdad():
     texto = pensar.sistema_cliente()
-    # Contenido real de remi-mente/oficios/clientes.md.
+    # Contenido real o su reemplazo de pruebas/datos/oficios/clientes.md.
     assert "Remi NUNCA envía nada" in texto
-    # Contenido real de remi-mente/oficios/mi-voz.md.
+    # Contenido real o su reemplazo de pruebas/datos/oficios/mi-voz.md.
     assert "Formal de más" in texto
-    # Contenido real de remi-mente/oficios/proyectos-sop.md.
+    # Contenido real o su reemplazo de pruebas/datos/oficios/proyectos-sop.md.
     assert "proyecto propio" in texto.lower() or "cliente nuevo" in texto.lower()
 
 

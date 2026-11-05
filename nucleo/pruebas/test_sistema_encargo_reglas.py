@@ -19,7 +19,7 @@ def test_suma_stack_y_vibe_coding(monkeypatch):
     monkeypatch.setattr(precarga, "proyecto_activo", lambda: None)
     texto = pensar.sistema_encargo()
 
-    # Contenido real de remi-mente/oficios/stack.md.
+    # Contenido real o su reemplazo de pruebas/datos/oficios/stack.md.
     assert "## Oficio: stack" in texto
 
 
