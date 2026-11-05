@@ -1,7 +1,6 @@
 # Tests del núcleo que ya fallaban
 # Generado 2026-11-04 16:29. Lo que está aquí no bloquea; lo nuevo sí.
 pruebas/test_cliente.py::test_sistema_cliente_carga_los_oficios_de_verdad
-pruebas/test_notion_sync.py::test_el_estado_de_notion_no_ensucia_la_boveda
 pruebas/test_puerta_prompts.py::test_sistema_encargo_carga_los_oficios_de_verdad
 pruebas/test_registros.py::test_el_registro_de_trabajo_lleva_el_caracter_los_oficios_las_reglas_y_los_ojos
 pruebas/test_sistema_encargo_reglas.py::test_suma_stack_y_vibe_coding
