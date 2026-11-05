@@ -160,3 +160,16 @@ def test_sin_avisador_no_avisa(tmp_path, monkeypatch):
     monkeypatch.setattr(coding.experiencia.vectores, "asociar", lambda *a, **k: [])
     monkeypatch.setattr(coding.telegram, "avisar", lambda *a: (_ for _ in ()).throw(AssertionError("avisó")))
     coding.correr(coding.Corrida(id="6", tarea="x"), _llamador({"veredicto": "aprobado", "motivo": "", "leccion": None}, []))
+
+
+def test_llamar_claude_registra_la_etapa_en_el_consumo(tmp_path, monkeypatch):
+    _servidor, coding = _arrancar(tmp_path, monkeypatch)
+    registros = []
+    monkeypatch.setattr(coding.consumo, "registrar", lambda agente, *a, **k: registros.append(agente))
+    salida = json.dumps({"result": "ok", "usage": {"input_tokens": 1, "output_tokens": 1}})
+    monkeypatch.setattr(
+        coding.subprocess, "run", lambda *a, **k: coding.subprocess.CompletedProcess(a, 0, salida, "")
+    )
+    for etapa in ("spec", "builder", "revisor"):
+        coding.llamar_claude(etapa, "x")
+    assert registros == ["coding-spec", "coding-builder", "coding-revisor"]
