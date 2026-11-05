@@ -357,18 +357,25 @@ def test_experiencia_actualiza_veces_en_una_corrida_posterior(monkeypatch, tmp_p
 
 
 def test_el_estado_de_notion_no_ensucia_la_boveda(monkeypatch, tmp_path):
-    """`.notion-estado.json` es estado de máquina: con el .gitignore real de
-    la bóveda, una sincronización deja `git status` limpio y el archivo en
-    disco (antes doctor.sh fallaba por «bóveda git limpia»)."""
-    from pathlib import Path
-
+    """`ARCHIVO_ESTADO` es estado de máquina: con un .gitignore que solo trae
+    su regla (armado aquí, sin depender de la máquina), una sincronización
+    deja `git status` limpio y el archivo en la raíz de la bóveda."""
     _configurar(monkeypatch, tmp_path)
     boveda = _boveda(tmp_path, monkeypatch)
-    gitignore_real = Path(__file__).resolve().parents[2] / "conocimiento" / ".gitignore"
-    (boveda / ".gitignore").write_text(gitignore_real.read_text())
+    (boveda / ".gitignore").write_text(f"/{notion_sync.ARCHIVO_ESTADO}\n")
     _libro(boveda, "upvisuals.md", "upvisuals")  # commitea el .gitignore y el libro
 
     notion_sync.sincronizar(cliente=NotionFalso())
 
-    assert (boveda / ".notion-estado.json").exists()
+    assert (boveda / notion_sync.ARCHIVO_ESTADO).exists()
     assert _git(boveda, "status", "--porcelain").stdout == ""
+
+
+def test_el_estado_de_notion_se_escribe_junto_a_proyectos(monkeypatch, tmp_path):
+    _configurar(monkeypatch, tmp_path)
+    _boveda(tmp_path, monkeypatch)
+
+    ruta = notion_sync._ruta_cache()
+
+    assert ruta.name == notion_sync.ARCHIVO_ESTADO
+    assert ruta.parent == notion_sync.libros.carpeta().parent

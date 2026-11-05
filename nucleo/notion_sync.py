@@ -76,8 +76,11 @@ def _id_de_proyecto(tema: str) -> UUID:
     return uuid5(NAMESPACE_URL, f"remi:proyecto:{tema or 'sin-proyecto'}")
 
 
+ARCHIVO_ESTADO = ".notion-estado.json"
+
+
 def _ruta_cache() -> Path:
-    return libros.carpeta().parent / ".notion-estado.json"
+    return libros.carpeta().parent / ARCHIVO_ESTADO
 
 
 def _cache_leer() -> dict[str, Any]:
