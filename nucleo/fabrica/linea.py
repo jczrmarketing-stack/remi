@@ -95,8 +95,14 @@ def _lecciones_reales(tarea: str) -> str:
 
 
 def _avisar_real(texto: str) -> None:
+    """Al bot de alertas. Corriendo desde un worktree, el `nucleo/.env` con el chat de
+    Juan Camilo está en el checkout principal: se toma de ahí si no hay otro."""
     import alertas
 
+    if not os.environ.get("ALERTAS_CHAT_ID"):
+        chat = alertas._env(_repo_principal() / "nucleo" / ".env").get("TELEGRAM_CHAT_ID", "")
+        if chat:
+            os.environ["ALERTAS_CHAT_ID"] = chat
     alertas.enviar(f"Fábrica · {texto}")
 
 

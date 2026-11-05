@@ -281,3 +281,15 @@ def test_tests_que_siguen_fallando_despues_de_construir_cuentan_vuelta(tmp_path)
     linea.aprobar(id_, falso.mundo())
     assert falso.roles().count("constructor") == 3
     assert not any(c[:3] == ["gh", "pr", "create"] for c in falso.comandos)
+
+
+def test_el_aviso_usa_el_chat_del_checkout_principal(tmp_path, monkeypatch):
+    import alertas
+    (tmp_path / "nucleo").mkdir()
+    (tmp_path / "nucleo" / ".env").write_text("TELEGRAM_CHAT_ID=12345\n")
+    monkeypatch.setattr(linea, "_repo_principal", lambda: tmp_path)
+    monkeypatch.delenv("ALERTAS_CHAT_ID", raising=False)
+    visto = {}
+    monkeypatch.setattr(alertas, "enviar", lambda texto, post=None: visto.update(chat=__import__("os").environ.get("ALERTAS_CHAT_ID"), texto=texto))
+    linea._avisar_real("hola")
+    assert visto == {"chat": "12345", "texto": "Fábrica · hola"}
