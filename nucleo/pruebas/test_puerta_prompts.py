@@ -34,10 +34,10 @@ def test_sistema_encargo_trae_las_seis_partes() -> None:
 
 def test_sistema_encargo_carga_los_oficios_de_verdad(monkeypatch) -> None:
     texto = pensar.sistema_encargo()
-    # Contenido real de remi-mente/oficios/prompting.md — si esto no está,
+    # Contenido real o su reemplazo de pruebas/datos/oficios/prompting.md — si esto no está,
     # el oficio no se cargó, solo el encargo.md genérico.
     assert "Un objetivo por prompt" in texto
-    # Contenido real de remi-mente/oficios/claude-code.md.
+    # Contenido real o su reemplazo de pruebas/datos/oficios/claude-code.md.
     assert "Plan mode (Shift+Tab)" in texto
 
 

@@ -11,6 +11,7 @@ from uuid import uuid4
 import db
 import pensar
 import precarga
+import sembrar_conocimiento
 import trabajo
 
 LIBRO_CON_REGLAS = """---
@@ -31,7 +32,8 @@ def test_el_registro_de_trabajo_lleva_el_caracter_los_oficios_las_reglas_y_los_o
     carpeta = tmp_path / "proyectos"
     carpeta.mkdir()
     (carpeta / "malik.md").write_text(LIBRO_CON_REGLAS)
-    (tmp_path / "oficios").symlink_to(Path(__file__).resolve().parent.parent.parent / "conocimiento" / "oficios")
+    # Los oficios de la copia de la corrida, leídos antes de pisar REMI_CONOCIMIENTO.
+    (tmp_path / "oficios").symlink_to(sembrar_conocimiento.carpeta_oficios())
     monkeypatch.setenv("REMI_CONOCIMIENTO", str(carpeta))
     monkeypatch.setattr(precarga, "proyecto_activo", lambda: ("malik", "ultimo_tocado"))
     monkeypatch.setattr(precarga, "resumen_nivel2", lambda tema: "Malik: resumen.")
