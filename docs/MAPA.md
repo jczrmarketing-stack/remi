@@ -153,7 +153,7 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 
 ## fabrica/portero
 
-- `fabrica/portero/portero.py` · 95 l. · El Portero de la fábrica (Bloque 1): hook PreToolUse de cada agente, 0 tokens. · decidir, main
+- `fabrica/portero/portero.py` · 103 l. · El Portero de la fábrica (Bloque 1): hook PreToolUse de cada agente, 0 tokens. · decidir, main
 
 ## nucleo
 
@@ -241,10 +241,11 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 ## nucleo/fabrica
 
 - `nucleo/fabrica/__init__.py` · 5 l. · La fábrica de software de INV3RZA (Bloque 1): un pedido entra y sale un PR en borrador.
-- `nucleo/fabrica/__main__.py` · 57 l. · python3 -m fabrica pedir "<idea>" [--base rama] | responder <id> "<respuesta>" | aprobar < · main
-- `nucleo/fabrica/agentes.py` · 284 l. · Los agentes de la línea (Bloque 1): Planificador, Tester, Constructor y Revisor. · entorno_encerrado, Salida, config, comando, eventos_de, anotar_evento …
-- `nucleo/fabrica/expediente.py` · 142 l. · El expediente de un pedido (SOP de la Fábrica, Bloque 1). · carpeta, crear, leer, escribir_seccion, cambiar, cambiar_estado …
-- `nucleo/fabrica/linea.py` · 405 l. · La línea de la fábrica (Bloque 1): código determinista que mueve un pedido. · Ocupada, Parada, Mundo, revisiones_para, mundo_real, orden …
+- `nucleo/fabrica/__main__.py` · 77 l. · python3 -m fabrica pedir "<idea>" [--base rama] | responder <id> "<respuesta>" | aprobar < · main
+- `nucleo/fabrica/agentes.py` · 294 l. · Los agentes de la línea (Bloque 1): Planificador, Tester, Constructor y Revisor. · entorno_encerrado, Salida, config, comando, eventos_de, anotar_evento …
+- `nucleo/fabrica/cola.py` · 65 l. · La cola de la fábrica en SQLite (mejora 4, 6-nov): un espejo del expediente. · reflejar, listar
+- `nucleo/fabrica/expediente.py` · 148 l. · El expediente de un pedido (SOP de la Fábrica, Bloque 1). · carpeta, crear, leer, escribir_seccion, cambiar, cambiar_estado …
+- `nucleo/fabrica/linea.py` · 603 l. · La línea de la fábrica (Bloque 1): código determinista que mueve un pedido. · Ocupada, Parada, Mundo, revisiones_para, mundo_real, orden_pedir …
 - `nucleo/fabrica/rutas.py` · 54 l. · Rutas de la fábrica para el piso Ingeniería del panel (4402). · pedidos, pedido, eventos
 
 ## scripts
@@ -272,4 +273,4 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 
 - `vendor/kokoro/tts_kokoro.py` · 67 l. · Prueba de humo del TTS de Remi: genera un wav por cada una de las cuatro · main
 
-236 archivos de código; 157 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).
+237 archivos de código; 159 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).

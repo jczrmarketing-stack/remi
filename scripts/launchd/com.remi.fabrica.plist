@@ -2,7 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- La noche de la fábrica (mejora 4, 6-nov): 2:30, antes de la noche de Remi (4:00) y de la bóveda.
      Un pedido por corrida: lo aprobado con «aprobar <id> --de-noche», o planear lo encolado.
-     Instalar (una vez, después de unir fabrica/bloque-1 a la rama del checkout principal):
+     Corre desde la casa de la fábrica (.worktrees/fabrica, rama fabrica/casa = main), no desde el checkout principal,
+     que puede estar en otra rama. Ponerla al día: git -C ~/proyectos/remi/.worktrees/fabrica pull --ff-only origin main
+     Instalar (una vez):
        cp scripts/launchd/com.remi.fabrica.plist ~/Library/LaunchAgents/
        launchctl load ~/Library/LaunchAgents/com.remi.fabrica.plist
      Apagar: launchctl unload ~/Library/LaunchAgents/com.remi.fabrica.plist -->
@@ -11,7 +13,7 @@
 <key>Label</key>
 <string>com.remi.fabrica</string>
 <key>WorkingDirectory</key>
-<string>/Users/juancamilo/proyectos/remi/nucleo</string>
+<string>/Users/juancamilo/proyectos/remi/.worktrees/fabrica/nucleo</string>
 <key>ProgramArguments</key>
 <array>
 <string>/Users/juancamilo/proyectos/remi/nucleo/.venv/bin/python</string>

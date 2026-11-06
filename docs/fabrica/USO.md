@@ -14,8 +14,14 @@
 7. **Portero**: impide tocar `main`, hacer `push --force`, borrar o desplegar.
 8. Sale un **PR en borrador** y te llega el aviso al bot de alertas. Nada se fusiona sin ti.
 
+## Dónde vive
+La fábrica corre desde su casa, `~/proyectos/remi/.worktrees/fabrica` (rama `fabrica/casa`, igual a `main`). El checkout principal puede estar en otra rama sin afectarla. Para ponerla al día:
+```bash
+git -C ~/proyectos/remi/.worktrees/fabrica pull --ff-only origin main
+```
+
 ## Los 4 comandos
-Desde `nucleo/`, con el venv del núcleo (`.venv/bin/python`):
+Desde `~/proyectos/remi/.worktrees/fabrica/nucleo`, con el venv del núcleo (`~/proyectos/remi/nucleo/.venv/bin/python`):
 
 ```bash
 python3 -m fabrica pedir "arreglar el test inestable de test_estado_propio"
@@ -55,4 +61,4 @@ La noche (`python3 -m fabrica noche`, launchd a las 2:30 con `scripts/launchd/co
 Un proyecto completo (nuevo o heredado de un cliente) sigue las puertas del SOP: `docs/fabrica/SOP.md`. Siempre empieza por la Puerta 0, el diagnóstico de heredar o construir. La fábrica entra en la Puerta 4, con los pedidos.
 
 ## Estado
-Bloque 1, en la rama `fabrica/bloque-1`, con las mejoras del 6-nov. PRs en borrador esperando tu revisión: #2, #3 y #4. Se une a `main` cuando 3 pedidos reales terminen en un PR que pase el verificador y la revisión, y Juan Camilo apruebe al menos uno sin cambios. Plan completo: `docs/fabrica/PLAN.md`.
+Bloque 1 terminado el 6-nov: unido a `main` con las mejoras, y el PR #4 aprobado sin cambios. Quedan en borrador #2 y #3. Se une a `main` cuando 3 pedidos reales terminen en un PR que pase el verificador y la revisión, y Juan Camilo apruebe al menos uno sin cambios. Plan completo: `docs/fabrica/PLAN.md`.
