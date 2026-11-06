@@ -1,4 +1,4 @@
-# Mapa del repo Remi · 2026-11-04
+# Mapa del repo Remi · 2026-11-06
 
 Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar con grep; abre solo el archivo que necesites. Se regenera con `python3 scripts/mapa.py`.
 
@@ -226,7 +226,7 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `nucleo/simulacion.py` · 69 l. · R4.4 (PLAN-FINAL.md): simulación de seis meses, sembrada con `numpy` · Bandas, Frecuencia, ResultadoSimulacion, simular, kelly_tope
 - `nucleo/suite.py` · 199 l. · La Suite de INV3RZA (3-nov): todo lo que pintan el inicio, el edificio y los 7 pisos, en u · leer_ficha, temas_del_editor, boveda_en_vivo, cobros_de_remi, armar
 - `nucleo/suite_rutas.py` · 194 l. · Suite de INV3RZA (4-nov): lo que el panel escribe en la mente desde los pisos. · mente, guardar_en_cajon, leer_cajon, leer_norte, guardar_norte, lista_tu_norte …
-- `nucleo/telegram.py` · 509 l. · Telegram (Biblia Parte IV): el teléfono — avisos y charla corta. · es_privado, para_el_telefono, token, chat_id_configurado, Transporte, ClienteBotAPI …
+- `nucleo/telegram.py` · 511 l. · Telegram (Biblia Parte IV): el teléfono — avisos y charla corta. · es_privado, para_el_telefono, token, chat_id_configurado, Transporte, ClienteBotAPI …
 - `nucleo/temas.py` · 81 l. · A qué libro pertenece una idea (Biblia v3.7: `Idea.tema`). · tema_de_texto
 - `nucleo/trabajo.py` · 712 l. · Las herramientas avisan solas. Remi no espera una palabra clave. · es_ruta_de_pruebas, es_carpeta_de_proyecto, es_cuanto, cuanto_le_meti, minutos_esta_semana, minutos_totales …
 - `nucleo/tts.py` · 140 l. · Voz de Remi, local y sin clave: Kokoro-82M en CPU. · Voz, lang_code, elegir_voz, resolver_voz, precalentar, sintetizar
