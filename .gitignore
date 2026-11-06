@@ -45,3 +45,10 @@ estado/
 
 # El verificador deja aquí su último resumen (scripts/verificar.py)
 .verificar/
+
+# Espacio de trabajo de superpowers (ledger y paquetes de revisión)
+.superpowers/
+
+# La fábrica: expedientes y eventos por pedido (el registro durable es el PR y la traza)
+fabrica/pedidos/
+.worktrees/

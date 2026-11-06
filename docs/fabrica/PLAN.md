@@ -27,6 +27,8 @@ Mejoras del 6-nov (investigación «mejor software factory», bóveda: Risco 4hz
 4. Cola con estados en SQLite (la misma base que `consumo.py`): pedido → spec → construyendo → revisar → listo/parado. Disparo de noche por launchd, un pedido a la vez.
 5. Revisor con otro modelo cuando el cambio toque auth, dinero o migraciones; el resto, mismo modelo en sesión limpia. Los hallazgos se contrastan con el código real y se ordenan por gravedad antes de volver al Constructor.
 
+Estado (6-nov): construido en `fabrica/bloque-1` con las 5 mejoras (a5bdce4, 7ecea94, 228def6, 256e5b5, fdda36c). Tres pedidos reales en PR en borrador: #2 (test_notion_sync), #3 (cuatro tests de oficios) y #4 (Telegram no bajaba documentos: `descargar_archivo` vivía en el Protocol; 366.044 tokens, 0 vueltas, 1 oculto que pasa). Falta para el «listo cuando»: que Juan Camilo apruebe al menos uno sin cambios; después se une `fabrica/bloque-1` a `main` y se instala el plist de la noche.
+
 ## Bloque 2 · Gerente de cuenta y Administrador (17–23 nov)
 Expediente del cliente en `mente/negocio/clientes/<cliente>.md` (etapa, alcance, cobros, documentos, últimos mensajes).
 Gerente de cuenta: entrada por Evolution API (solo conversaciones existentes, número aparte; correo y Fiverr pegados a mano en Telegram); redacta con el filtro (reconozco, hecho, propuesta); fuera de alcance → propone cotizar; borrador a la cola por Telegram; nunca envía; avance de los viernes.

@@ -1,0 +1,16 @@
+{
+  "$comment": "Topes de la fábrica (Bloque 1, plan del 4-nov). El tope de tokens por pedido es entrada + salida, medido en nucleo/consumo.py; se ajusta con lo que se mida.",
+  "tope_tokens_pedido": 3000000,
+  "turnos": 30,
+  "vueltas": 2,
+  "segundos_por_agente": 1200,
+  "modelos": {
+    "planificador": "opus",
+    "tester": "sonnet",
+    "constructor": "sonnet",
+    "constructor_alto": "opus",
+    "revisor": "sonnet",
+    "revisor_alto": "sonnet"
+  },
+  "$comment_revisor_alto": "Mejora 5 (6-nov): con riesgo alto construye opus y revisa otro modelo, para que no se corrija a sí mismo. Si quedan iguales, la línea toma el otro."
+}

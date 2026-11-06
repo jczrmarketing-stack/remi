@@ -151,6 +151,10 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `apps/ventanita/src-tauri/src/main.rs` · 7 l.
 - `apps/ventanita/src-tauri/src/voz.rs` · 1542 l. · AvisoSilencio, Grabacion, EstadoGrabacion, matar_si_hay_grabacion, iniciar_escucha, activar_corte_por_silencio …
 
+## fabrica/portero
+
+- `fabrica/portero/portero.py` · 95 l. · El Portero de la fábrica (Bloque 1): hook PreToolUse de cada agente, 0 tokens. · decidir, main
+
 ## nucleo
 
 - `nucleo/accesibilidad.py` · 60 l. · B10.2 (PLAN-FINAL.md): accesibilidad de macOS — la app activa y el · VentanaActiva, leer_ventana_activa_macos
@@ -175,7 +179,7 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `nucleo/concreto.py` · 80 l. · Si piden un prompt, el prompt sale primero. · pide_prompt, entrega_primero, concreto_primero
 - `nucleo/conexiones.py` · 224 l. · Conexiones (Panel → Ajustes): llaves y tokens, nunca su valor completo. · NombreInvalido, Prueba, Conexion, estado, guardar, probar …
 - `nucleo/consulta.py` · 70 l. · Una sola manera de preguntarle a la mente, para el MCP (`preguntar`) y para Telegram (`/p` · responder, manejar_comando
-- `nucleo/consumo.py` · 223 l. · Registro de consumo de `claude -p` (Bloque 0 de la fábrica). · registrar, resumen_semana, texto_semana, main
+- `nucleo/consumo.py` · 284 l. · Registro de consumo de `claude -p` (Bloque 0 de la fábrica). · registrar, tokens_del_pedido, resumen_semana, resumen_por_pedido, texto_semana, main
 - `nucleo/correcciones.py` · 162 l. · Aprender de las correcciones (Biblia Parte VI): Remi propone, nunca guarda solo. · es_correccion, es_confirmacion, oficio_destino, proponer_regla, proponer, revisar_confirmacion …
 - `nucleo/db.py` · 1598 l. · SQLite: fuente de verdad de Remi. remi.db nunca va al repo (ver .gitignore). · ruta_db, inicializar_esquema, conectar, crear_tarea, actualizar_paso_minimo, actualizar_estado_tarea …
 - `nucleo/donde_boveda.py` · 22 l. · Dónde está la bóveda (B3, 2-nov). Antes había 7 copias de «/Volumes/ORGANIC/boveda» escrit · ubicar
@@ -222,7 +226,7 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `nucleo/semana.py` · 105 l. · GET /semana (Forma D, T4.2): las cinco preguntas del panel «Semana» · Cerrado, Aplazado, IdeaDestacada, Semana, calcular, ver_semana
 - `nucleo/sembrar_conocimiento.py` · 204 l. · Mete las fichas de conocimiento/proyectos/*.md en el estante. · Ficha, carpeta, carpeta_oficios, leer_ficha, nivel_de, sembrar …
 - `nucleo/sembrar_memoria.py` · 79 l. · Pone en el estante lo que Remi tiene que saber desde el primer día. · sembrar
-- `nucleo/servidor.py` · 2502 l. · FastAPI local. El bind en 127.0.0.1 no protege del origen: por acá no pueden · problema_de_aislamiento, ciclo_de_vida, recortar_voz, sin_markdown, para_hablar, frase_remi …
+- `nucleo/servidor.py` · 2504 l. · FastAPI local. El bind en 127.0.0.1 no protege del origen: por acá no pueden · problema_de_aislamiento, ciclo_de_vida, recortar_voz, sin_markdown, para_hablar, frase_remi …
 - `nucleo/simulacion.py` · 69 l. · R4.4 (PLAN-FINAL.md): simulación de seis meses, sembrada con `numpy` · Bandas, Frecuencia, ResultadoSimulacion, simular, kelly_tope
 - `nucleo/suite.py` · 199 l. · La Suite de INV3RZA (3-nov): todo lo que pintan el inicio, el edificio y los 7 pisos, en u · leer_ficha, temas_del_editor, boveda_en_vivo, cobros_de_remi, armar
 - `nucleo/suite_rutas.py` · 194 l. · Suite de INV3RZA (4-nov): lo que el panel escribe en la mente desde los pisos. · mente, guardar_en_cajon, leer_cajon, leer_norte, guardar_norte, lista_tu_norte …
@@ -233,6 +237,15 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `nucleo/vectores.py` · 275 l. · Vectores locales de la bóveda (ARQUITECTURA-CEREBRO §3 / Biblia Parte IV·B). · Nota, preparar, firma_modelo, notas, embed, embed_consulta …
 - `nucleo/vida.py` · 384 l. · La mente de Juan Camilo como archivos: quién es, su negocio, supuestos, bandeja y búsqueda · construir_estado, buscar, buscar_indice, fichas_para_contexto, anotar, agregar
 - `nucleo/voseo.py` · 167 l. · De vos a tú, sin modelo. · voseo_a_tu
+
+## nucleo/fabrica
+
+- `nucleo/fabrica/__init__.py` · 5 l. · La fábrica de software de INV3RZA (Bloque 1): un pedido entra y sale un PR en borrador.
+- `nucleo/fabrica/__main__.py` · 57 l. · python3 -m fabrica pedir "<idea>" [--base rama] | responder <id> "<respuesta>" | aprobar < · main
+- `nucleo/fabrica/agentes.py` · 284 l. · Los agentes de la línea (Bloque 1): Planificador, Tester, Constructor y Revisor. · entorno_encerrado, Salida, config, comando, eventos_de, anotar_evento …
+- `nucleo/fabrica/expediente.py` · 142 l. · El expediente de un pedido (SOP de la Fábrica, Bloque 1). · carpeta, crear, leer, escribir_seccion, cambiar, cambiar_estado …
+- `nucleo/fabrica/linea.py` · 405 l. · La línea de la fábrica (Bloque 1): código determinista que mueve un pedido. · Ocupada, Parada, Mundo, revisiones_para, mundo_real, orden …
+- `nucleo/fabrica/rutas.py` · 54 l. · Rutas de la fábrica para el piso Ingeniería del panel (4402). · pedidos, pedido, eventos
 
 ## scripts
 
@@ -259,4 +272,4 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 
 - `vendor/kokoro/tts_kokoro.py` · 67 l. · Prueba de humo del TTS de Remi: genera un wav por cada una de las cuatro · main
 
-229 archivos de código; 150 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).
+236 archivos de código; 157 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).

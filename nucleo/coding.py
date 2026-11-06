@@ -257,13 +257,13 @@ def llamar_claude(etapa: Etapa, mensaje: str) -> Respuesta | None:
         )
     except FileNotFoundError:
         print(f"[coding] no encontré `{pensar.BINARIO}` en el PATH", file=sys.stderr)
-        consumo.registrar("coding", mano.modelo, 0, error="sin CLI")
+        consumo.registrar(f"coding-{etapa}", mano.modelo, 0, error="sin CLI")
         return None
     except subprocess.TimeoutExpired:
         print(f"[coding] {etapa} tardó más de {mano.techo_segundos:.0f} s", file=sys.stderr)
-        consumo.registrar("coding", mano.modelo, time.perf_counter() - arranque, error="timeout")
+        consumo.registrar(f"coding-{etapa}", mano.modelo, time.perf_counter() - arranque, error="timeout")
         return None
-    consumo.registrar("coding", mano.modelo, time.perf_counter() - arranque, terminado.stdout, terminado.returncode)
+    consumo.registrar(f"coding-{etapa}", mano.modelo, time.perf_counter() - arranque, terminado.stdout, terminado.returncode)
     salida = terminado.stdout + terminado.stderr
     if pensar.PATRON_LIMITE_ALCANZADO.search(salida):
         raise LimiteDeMax(etapa)
