@@ -59,7 +59,7 @@ def test_responder_pasa_la_respuesta(monkeypatch, capsys):
 
 def test_encolar_cola_aprobar_de_noche_y_noche(tmp_path, capsys):
     from fabrica import __main__ as cli
-    from pruebas.test_fabrica_linea import MundoFalso
+    from test_fabrica_linea import MundoFalso
 
     falso = MundoFalso(tmp_path)
     assert cli.main(["encolar", "Arreglar X"], falso.mundo()) == 0

@@ -473,3 +473,13 @@ def test_las_comas_de_la_spec_sobreviven_en_el_pr(tmp_path):
     linea.aprobar(id_, falso.mundo())
     cuerpo = next(c for c in falso.comandos if c[:3] == ["gh", "pr", "create"])[-1]
     assert "Cambiar X, Y y Z" in cuerpo and "Tokens: 1.234.567" in cuerpo
+
+
+def test_con_base_origin_main_el_pr_va_contra_main(tmp_path):
+    """6-nov: el main local puede quedar atrás; la fábrica parte de origin/main y abre el PR contra main."""
+    falso = MundoFalso(tmp_path)
+    id_ = linea.pedir("Arreglar X", "origin/main", falso.mundo())
+    linea.aprobar(id_, falso.mundo())
+    pr = next(c for c in falso.comandos if c[:3] == ["gh", "pr", "create"])
+    assert pr[pr.index("--base") + 1] == "main"
+    assert ["git", "worktree", "add", str(linea.worktree(tmp_path, id_)), "-b", f"fabrica/pedido-{id_}", "origin/main"] in falso.comandos

@@ -3,7 +3,7 @@
 import pytest
 
 from fabrica import cola, expediente, linea
-from pruebas.test_fabrica_linea import MundoFalso
+from test_fabrica_linea import MundoFalso
 
 
 @pytest.fixture(autouse=True)

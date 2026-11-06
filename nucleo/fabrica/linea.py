@@ -532,7 +532,7 @@ def _construir(mundo: Mundo, id_: str) -> None:
               f"Escenarios ocultos: {oculto_txt}\n\n{controles}\n\n"
               f"## Revisión\n\n{hallazgos_txt}\n\n"
               f"Vueltas: {vueltas} · Tokens: {_miles(mundo.tokens(id_))}\n\n{PIE_PR}")
-    rc, salida = mundo.sh(["gh", "pr", "create", "--draft", "--base", base, "--head", rama,
+    rc, salida = mundo.sh(["gh", "pr", "create", "--draft", "--base", base.removeprefix("origin/"), "--head", rama,
                            "--title", f"Fábrica: {idea.splitlines()[0][:60]}", "--body", cuerpo], wt)
     if rc != 0:
         raise Parada(f"No pude abrir el PR: {salida[-300:]}")
