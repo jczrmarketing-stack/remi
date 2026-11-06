@@ -120,18 +120,7 @@ class Transporte(Protocol):
 
     def obtener_actualizaciones(self, offset: int | None) -> list[dict]: ...
 
-    def descargar_archivo(self, file_id: str, destino: Path) -> Path:
-        """Baja un documento que Juan Camilo mandó al bot (getFile + /file/bot…)."""
-        r = self._http_envios.get(f"{self._base}/getFile", params={"file_id": file_id})
-        r.raise_for_status()
-        ruta_remota = r.json()["result"]["file_path"]
-        destino.parent.mkdir(parents=True, exist_ok=True)
-        with self._http_envios.stream("GET", f"{self._archivos}/{ruta_remota}") as flujo:
-            flujo.raise_for_status()
-            with open(destino, "wb") as f:
-                for trozo in flujo.iter_bytes():
-                    f.write(trozo)
-        return destino
+    def descargar_archivo(self, file_id: str, destino: Path) -> Path: ...
 
     def enviar_mensaje(self, chat_id: int | str, texto: str) -> None: ...
 
@@ -162,6 +151,19 @@ class ClienteBotAPI:
         respuesta = self._http.get(f"{self._base}/getUpdates", params=parametros)
         respuesta.raise_for_status()
         return respuesta.json().get("result", [])
+
+    def descargar_archivo(self, file_id: str, destino: Path) -> Path:
+        """Baja un documento que Juan Camilo mandó al bot (getFile + /file/bot…)."""
+        r = self._http_envios.get(f"{self._base}/getFile", params={"file_id": file_id})
+        r.raise_for_status()
+        ruta_remota = r.json()["result"]["file_path"]
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        with self._http_envios.stream("GET", f"{self._archivos}/{ruta_remota}") as flujo:
+            flujo.raise_for_status()
+            with open(destino, "wb") as f:
+                for trozo in flujo.iter_bytes():
+                    f.write(trozo)
+        return destino
 
     def enviar_mensaje(self, chat_id: int | str, texto: str) -> None:
         # Con un token real en nucleo/.env, una prueba que llegue hasta acá

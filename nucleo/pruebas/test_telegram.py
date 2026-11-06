@@ -488,3 +488,66 @@ def test_el_token_no_se_escribe_en_el_log(capsys, monkeypatch):
     assert "falló getUpdates" in salida
     assert token not in salida
     assert "/bot<oculto>/getUpdates" in salida
+
+
+# --- descargar_archivo en ClienteBotAPI (getFile + /file/bot<token>/<ruta>) ---
+
+def _cliente_simulado(handler):
+    import httpx
+
+    cliente = telegram.ClienteBotAPI("TOK")
+    cliente._http_envios = httpx.Client(transport=httpx.MockTransport(handler))
+    return cliente
+
+
+def test_descargar_archivo_baja_los_bytes_y_crea_la_carpeta(tmp_path):
+    import httpx
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/botTOK/getFile":
+            return httpx.Response(200, json={"ok": True, "result": {"file_path": "documents/x.pdf"}})
+        if req.url.path == "/file/botTOK/documents/x.pdf":
+            return httpx.Response(200, content=b"%PDF-bytes")
+        return httpx.Response(404)
+
+    destino = tmp_path / "sub" / "dir" / "x.pdf"
+    devuelto = _cliente_simulado(handler).descargar_archivo("abc", destino)
+    assert devuelto == destino
+    assert destino.read_bytes() == b"%PDF-bytes"
+
+
+def test_descargar_archivo_pide_getfile_y_luego_la_ruta_del_archivo(tmp_path):
+    import httpx
+
+    vistas: list[httpx.Request] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        vistas.append(req)
+        if req.url.path.endswith("/getFile"):
+            return httpx.Response(200, json={"result": {"file_path": "documents/x.pdf"}})
+        return httpx.Response(200, content=b"1")
+
+    _cliente_simulado(handler).descargar_archivo("abc", tmp_path / "x.pdf")
+    assert [r.url.path for r in vistas] == ["/botTOK/getFile", "/file/botTOK/documents/x.pdf"]
+    assert vistas[0].url.params["file_id"] == "abc"
+
+
+def test_descargar_archivo_con_getfile_roto_lanza_y_no_crea_el_archivo(tmp_path):
+    import httpx
+    import pytest
+
+    cliente = _cliente_simulado(lambda req: httpx.Response(500))
+    destino = tmp_path / "x.pdf"
+    with pytest.raises(httpx.HTTPStatusError):
+        cliente.descargar_archivo("abc", destino)
+    assert not destino.exists()
+
+
+def test_transporte_solo_declara_la_firma_y_el_cliente_tiene_la_suya():
+    import inspect
+
+    fuente = inspect.getsource(telegram.Transporte.descargar_archivo)
+    assert "self._" not in fuente
+    assert fuente.strip().endswith("...")
+    assert hasattr(telegram.ClienteBotAPI, "descargar_archivo")
+    assert telegram.ClienteBotAPI.descargar_archivo is not telegram.Transporte.descargar_archivo
