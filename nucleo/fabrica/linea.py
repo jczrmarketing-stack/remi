@@ -216,6 +216,64 @@ def _texto_hallazgos(hallazgos: list[dict[str, Any]]) -> str:
     return "\n".join(f"- [{h.get('nivel')}] {h.get('archivo')}:{h.get('linea')} — {h.get('texto')}" for h in hallazgos)
 
 
+def _miles(n: int) -> str:
+    """3.000.000, como se escribe en español; solo el número (antes se cambiaban todas las comas del PR)."""
+    return f"{n:,}".replace(",", ".")
+
+
+GRAVEDAD = {"alto": 0, "medio": 1, "bajo": 2}
+
+
+def _contrastar(hallazgos: list[dict[str, Any]], wt: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Mejora 5 (6-nov): un hallazgo cuenta solo si cita un archivo que existe y una línea que está en él.
+    Los que quedan se ordenan por gravedad; los otros se listan aparte, nunca vuelven al Constructor."""
+    validos: list[dict[str, Any]] = []
+    descartados: list[dict[str, Any]] = []
+    for h in hallazgos:
+        ruta = wt / str(h.get("archivo") or "")
+        try:
+            total = len(ruta.read_text(encoding="utf-8", errors="replace").splitlines()) if ruta.is_file() else -1
+        except OSError:
+            total = -1
+        linea_ = int(h.get("linea") or 0)
+        (validos if total >= 0 and 0 <= linea_ <= max(total, 1) else descartados).append(h)
+    return sorted(validos, key=lambda h: GRAVEDAD.get(str(h.get("nivel")), 3)), descartados
+
+
+def _texto_revision(validos: list[dict[str, Any]], descartados: list[dict[str, Any]]) -> str:
+    texto = _texto_hallazgos(validos)
+    if descartados:
+        texto += "\n\nDescartados (citan código que no existe):\n" + "\n".join(
+            f"- [{h.get('nivel')}] {h.get('archivo')}:{h.get('linea')} — {h.get('texto')}" for h in descartados)
+    return texto
+
+
+def modelo_revisor(alto: bool) -> str:
+    modelos = agentes.config()["modelos"]
+    if not alto:
+        return str(modelos["revisor"])
+    revisor, constructor = str(modelos.get("revisor_alto") or modelos["revisor"]), str(modelos["constructor_alto"])
+    return revisor if revisor != constructor else ("sonnet" if constructor == "opus" else "opus")
+
+
+def _controles(mundo: Mundo, id_: str, base: str, wt: Path, tests: list[str], ocultos: list[str], alto: bool) -> str:
+    """Mejora 1 (6-nov): cada control con su resultado; el que no corrió se dice."""
+    _, cambiados = mundo.sh(["git", "diff", "--name-only", base, "HEAD"], wt)
+    revisiones = revisiones_para(cambiados.splitlines())
+    modo = revisiones[0] + (" " + ", ".join(revisiones[1:]) if len(revisiones) > 1 else "")
+    revision = expediente.leer(id_)["secciones"]["Revisión"].split("\n\nDescartados")[0]
+    cuenta = {n: revision.count(f"- [{n}]") for n in GRAVEDAD}
+    descartados = expediente.leer(id_)["secciones"]["Revisión"].count("\n- [") - sum(cuenta.values())
+    oculto_txt = (f"{len(ocultos)}, pasan ({', '.join(ocultos)})" if ocultos else "ninguno (este control no corrió)")
+    lineas = [f"- Verificador ({modo}): salida 0, PASA",
+              f"- Tests del Tester: {', '.join(tests)}, pasan",
+              f"- Escenarios ocultos: {oculto_txt}",
+              f"- Revisor ({modelo_revisor(alto)}): {sum(cuenta.values())} hallazgos "
+              f"({cuenta['alto']} altos, {cuenta['medio']} medios, {cuenta['bajo']} bajos)"
+              + (f", {descartados} descartados por citar código que no existe" if descartados > 0 else "")]
+    return "## Controles\n\n" + "\n".join(lineas)
+
+
 def _tests_seguros(tests: list[str]) -> bool:
     """Solo rutas relativas dentro del worktree: nada de `..`, rutas absolutas ni banderas de pytest."""
     return bool(tests) and all(
@@ -405,8 +463,8 @@ def _construir(mundo: Mundo, id_: str) -> None:
     if estado == "revisando" and ya_hecho.strip():
         hallazgos_txt = secciones["Revisión"]  # paró en el push o el PR: el commit ya existe
     else:
-        hallazgos_txt = _texto_hallazgos(_vueltas(mundo, id_, idea, spec, base, lecciones, tests, wt, nota,
-                                                  meta.get("riesgo") == "alto", ocultos))
+        _vueltas(mundo, id_, idea, spec, base, lecciones, tests, wt, nota, meta.get("riesgo") == "alto", ocultos)
+        hallazgos_txt = expediente.leer(id_)["secciones"]["Revisión"]
         _poner_ocultos(id_, wt, ocultos)   # pasaron: desde ahora son tests del repo y van en el PR
         _, ya_hecho = mundo.sh(["git", "log", "--oneline", f"{base}..HEAD"], wt)
 
@@ -421,10 +479,11 @@ def _construir(mundo: Mundo, id_: str) -> None:
         raise Parada(f"El push no salió (el gancho pre-push corre el verificador): {salida[-500:]}")
     vueltas = expediente.leer(id_)["meta"].get("vueltas", 0)
     oculto_txt = (f"{len(ocultos)}, pasan ({', '.join(ocultos)})" if ocultos else "ninguno (este control no corrió)")
+    controles = _controles(mundo, id_, base, wt, tests, ocultos, meta.get("riesgo") == "alto")
     cuerpo = (f"## Pedido\n\n{idea}\n\n## Spec\n\n{spec}\n\n## Tests\n\n{', '.join(tests)}\n\n"
-              f"Escenarios ocultos: {oculto_txt}\n\n"
+              f"Escenarios ocultos: {oculto_txt}\n\n{controles}\n\n"
               f"## Revisión\n\n{hallazgos_txt}\n\n"
-              f"Vueltas: {vueltas} · Tokens: {mundo.tokens(id_):,}".replace(",", ".") + f"\n\n{PIE_PR}")
+              f"Vueltas: {vueltas} · Tokens: {_miles(mundo.tokens(id_))}\n\n{PIE_PR}")
     rc, salida = mundo.sh(["gh", "pr", "create", "--draft", "--base", base, "--head", rama,
                            "--title", f"Fábrica: {idea.splitlines()[0][:60]}", "--body", cuerpo], wt)
     if rc != 0:
@@ -481,9 +540,10 @@ def _vueltas(mundo: Mundo, id_: str, idea: str, spec: str, base: str, lecciones:
         rc_diff, diff = mundo.sh(["git", "diff", "--cached", base], wt)
         if rc_diff != 0:
             raise Parada(f"No pude sacar el diff para el Revisor: {diff[-300:]}")
-        revision = _agente(mundo, id_, "revisor", _mensaje(idea, "", ("Spec", spec), ("Diff", f"```diff\n{diff}\n```")), wt)
-        hallazgos = list(revision.datos.get("hallazgos") or [])
-        expediente.escribir_seccion(id_, "Revisión", _texto_hallazgos(hallazgos))
+        revision = _agente(mundo, id_, "revisor", _mensaje(idea, "", ("Spec", spec), ("Diff", f"```diff\n{diff}\n```")), wt,
+                           modelo_revisor(alto))
+        hallazgos, descartados = _contrastar(list(revision.datos.get("hallazgos") or []), wt)
+        expediente.escribir_seccion(id_, "Revisión", _texto_revision(hallazgos, descartados))
         altos = [h for h in hallazgos if h.get("nivel") == "alto"]
         if not altos:
             return hallazgos

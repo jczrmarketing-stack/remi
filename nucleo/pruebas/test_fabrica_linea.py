@@ -73,6 +73,13 @@ def pedidos(tmp_path, monkeypatch):
     monkeypatch.setattr(expediente, "RAIZ", tmp_path / "pedidos")
 
 
+def _archivo(raiz, id_, rel, lineas):
+    """El Revisor solo cuenta lo que existe: el archivo que cita tiene que estar en el worktree."""
+    ruta = linea.worktree(raiz, id_) / rel
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_text("".join(f"x = {i}\n" for i in range(lineas)))
+
+
 def _eventos(id_):
     ruta = expediente.carpeta(id_) / "eventos.jsonl"
     return [json.loads(l) for l in ruta.read_text().splitlines()] if ruta.exists() else []
@@ -146,6 +153,7 @@ def test_hallazgo_alto_devuelve_al_constructor(tmp_path):
     alto = Salida("hecho", "revisado", {"hallazgos": [{"nivel": "alto", "archivo": "nucleo/x.py", "linea": 3, "texto": "rompe A"}]})
     falso = MundoFalso(tmp_path, {"revisor": [alto, LIMPIO]})
     id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    _archivo(tmp_path, id_, "nucleo/x.py", 5)
     assert linea.aprobar(id_, falso.mundo()) == "pr"
     assert falso.roles().count("constructor") == 2
     assert expediente.leer(id_)["meta"]["vueltas"] == 1
@@ -155,6 +163,7 @@ def test_hallazgo_medio_no_devuelve(tmp_path):
     medio = Salida("hecho", "revisado", {"hallazgos": [{"nivel": "medio", "archivo": "nucleo/x.py", "linea": 3, "texto": "nombre raro"}]})
     falso = MundoFalso(tmp_path, {"revisor": [medio]})
     id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    _archivo(tmp_path, id_, "nucleo/x.py", 5)
     assert linea.aprobar(id_, falso.mundo()) == "pr"
     assert falso.roles().count("constructor") == 1
     assert "nombre raro" in expediente.leer(id_)["secciones"]["Revisión"]
@@ -404,3 +413,63 @@ def test_sin_ocultos_el_pr_dice_que_ese_control_no_corrio(tmp_path):
     linea.aprobar(id_, falso.mundo())
     cuerpo = next(c for c in falso.comandos if c[:3] == ["gh", "pr", "create"])[-1]
     assert "Escenarios ocultos: ninguno (este control no corrió)" in cuerpo
+
+
+
+# — Mejoras 1 y 5 (6-nov): controles visibles y hallazgos contrastados —
+
+def _hallazgo(nivel, archivo, linea_, texto):
+    return {"nivel": nivel, "archivo": archivo, "linea": linea_, "texto": texto}
+
+
+def test_hallazgo_alto_sobre_codigo_que_no_existe_se_descarta_y_no_devuelve(tmp_path):
+    inventado = Salida("hecho", "revisado", {"hallazgos": [_hallazgo("alto", "nucleo/no_existe.py", 3, "rompe todo"),
+                                                           _hallazgo("alto", "nucleo/x.py", 99, "línea fuera del archivo")]})
+    falso = MundoFalso(tmp_path, {"revisor": [inventado]})
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    _archivo(tmp_path, id_, "nucleo/x.py", 5)
+    assert linea.aprobar(id_, falso.mundo()) == "pr"
+    assert falso.roles().count("constructor") == 1
+    revision = expediente.leer(id_)["secciones"]["Revisión"]
+    assert "Descartados (citan código que no existe)" in revision and "nucleo/no_existe.py:3" in revision
+
+
+def test_hallazgos_ordenados_por_gravedad(tmp_path):
+    revuelto = Salida("hecho", "revisado", {"hallazgos": [_hallazgo("bajo", "nucleo/x.py", 1, "estilo"),
+                                                          _hallazgo("medio", "nucleo/x.py", 2, "nombre raro")]})
+    falso = MundoFalso(tmp_path, {"revisor": [revuelto]})
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    _archivo(tmp_path, id_, "nucleo/x.py", 5)
+    linea.aprobar(id_, falso.mundo())
+    revision = expediente.leer(id_)["secciones"]["Revisión"]
+    assert revision.index("[medio]") < revision.index("[bajo]")
+
+
+def test_riesgo_alto_revisa_un_modelo_distinto_al_que_construye(tmp_path):
+    alto = Salida("hecho", "spec", {**SPEC.datos, "riesgo": "alto"})
+    falso = MundoFalso(tmp_path, {"planificador": [alto]})
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    linea.aprobar(id_, falso.mundo())
+    modelos = dict(falso.llamadas)
+    assert modelos["revisor"] and modelos["revisor"] != modelos["constructor"]
+
+
+def test_el_pr_lista_cada_control_y_su_resultado(tmp_path):
+    falso = MundoFalso(tmp_path)
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    linea.aprobar(id_, falso.mundo())
+    cuerpo = next(c for c in falso.comandos if c[:3] == ["gh", "pr", "create"])[-1]
+    controles = cuerpo[cuerpo.index("## Controles"):]
+    for linea_ in ("Verificador (--solo secretos, tests_nucleo", "salida 0", "Tests del Tester: nucleo/pruebas/test_x.py, pasan",
+                   "Escenarios ocultos: ninguno (este control no corrió)", "Revisor (sonnet): 0 hallazgos"):
+        assert linea_ in controles, linea_
+
+
+def test_las_comas_de_la_spec_sobreviven_en_el_pr(tmp_path):
+    """Antes, el formato de los tokens cambiaba todas las comas del cuerpo por puntos."""
+    con_comas = Salida("hecho", "spec", {**SPEC.datos, "spec": "Cambiar X, Y y Z"})
+    falso = MundoFalso(tmp_path, {"planificador": [con_comas]}, tokens=1234567)
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    linea.aprobar(id_, falso.mundo())
+    cuerpo = next(c for c in falso.comandos if c[:3] == ["gh", "pr", "create"])[-1]
+    assert "Cambiar X, Y y Z" in cuerpo and "Tokens: 1.234.567" in cuerpo

@@ -9,6 +9,8 @@
     "tester": "sonnet",
     "constructor": "sonnet",
     "constructor_alto": "opus",
-    "revisor": "sonnet"
-  }
+    "revisor": "sonnet",
+    "revisor_alto": "sonnet"
+  },
+  "$comment_revisor_alto": "Mejora 5 (6-nov): con riesgo alto construye opus y revisa otro modelo, para que no se corrija a sí mismo. Si quedan iguales, la línea toma el otro."
 }
