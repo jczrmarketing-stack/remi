@@ -55,4 +55,4 @@ La noche (`python3 -m fabrica noche`, launchd a las 2:30 con `scripts/launchd/co
 Un proyecto completo (nuevo o heredado de un cliente) sigue las puertas del SOP: `docs/fabrica/SOP.md`. Siempre empieza por la Puerta 0, el diagnóstico de heredar o construir. La fábrica entra en la Puerta 4, con los pedidos.
 
 ## Estado
-Bloque 1, en la rama `fabrica/bloque-1`. Se une a `main` cuando 3 pedidos reales terminen en un PR que pase el verificador y la revisión, y Juan Camilo apruebe al menos uno sin cambios. Plan completo: `docs/fabrica/PLAN.md`.
+Bloque 1, en la rama `fabrica/bloque-1`, con las mejoras del 6-nov. PRs en borrador esperando tu revisión: #2, #3 y #4. Se une a `main` cuando 3 pedidos reales terminen en un PR que pase el verificador y la revisión, y Juan Camilo apruebe al menos uno sin cambios. Plan completo: `docs/fabrica/PLAN.md`.
