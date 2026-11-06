@@ -20,6 +20,12 @@ Listo cuando: el verificador corre solo en GitHub y se sabe de qué bolsa sale e
 Expediente `fabrica/pedidos/<id>/expediente.md` con secciones por agente. Planificador (spec de 5 líneas con escenarios «cuando… entonces…», máx. 3 preguntas) → Tester (tests que fallan antes de construir) → Constructor (worktree aparte, método Superpowers) → verificador (si falla vuelve al Constructor, máx. 2 vueltas) → Revisor (`/revisar` en sesión nueva, solo spec + diff) → Portero (hooks: nada en main, sin push --force, sin borrar, sin desplegar) → aviso en el mensaje de las 11 o al bot de alertas. Base: `nucleo/coding.py`.
 Prueba real: los 6 tests rotos de agentes (Clasificador y Editor) y el test inestable de `test_estado_propio`.
 Listo cuando: 3 pedidos reales terminan en PR que pasa verificador y /revisar, y Juan Camilo aprueba al menos uno sin cambios. Se mide: % de PRs aprobados sin cambios y tokens por PR.
+Mejoras del 6-nov (investigación «mejor software factory», bóveda: Risco 4hzSdtikHNs y p6nnqerea7w, indydevdan haUfb1ievTE, Cole Medin eecUhBpTz_g; informe en `.workflow/scratch/investigacion-software-factory-2026-11-06.md`). Lección central: pasar los tests no basta; 4.500 tests en verde dieron un Frankenstein.
+1. Compuertas tipadas: cada estación deja su sección del expediente como JSON validado (`--json-schema`) y una función en código decide si pasa. Un control que no corrió queda visible, nunca se da por bueno.
+2. La spec dice «cómo se demuestra»: qué podrá hacer el usuario, condiciones de partida, resultado esperado y qué evidencia queda. El Tester escribe además 2–3 escenarios ocultos que el Constructor no lee; el verificador los corre al final.
+3. `fabrica/REGLAS.md` + `fabrica/mission.md` con alcance y fuera de alcance. El Planificador puede responder «no puedo / fuera de alcance / partir en dos» en vez de inventar.
+4. Cola con estados en SQLite (la misma base que `consumo.py`): pedido → spec → construyendo → revisar → listo/parado. Disparo de noche por launchd, un pedido a la vez.
+5. Revisor con otro modelo cuando el cambio toque auth, dinero o migraciones; el resto, mismo modelo en sesión limpia. Los hallazgos se contrastan con el código real y se ordenan por gravedad antes de volver al Constructor.
 
 ## Bloque 2 · Gerente de cuenta y Administrador (17–23 nov)
 Expediente del cliente en `mente/negocio/clientes/<cliente>.md` (etapa, alcance, cobros, documentos, últimos mensajes).
@@ -40,5 +46,6 @@ Crecimiento → Reactivador → Cronista, Guionista y Adaptador → Cotizador y 
 ## Decisiones pendientes de Juan Camilo
 - Unir y subir la rama del verificador (frena Bloque 0).
 - Constructor que escribe en worktree en vez de solo proponer diff (frena Bloque 1).
+- Qué segundo modelo revisa auth, dinero y migraciones: Sonnet por Max, o Codex/API (frena la mejora 5 del Bloque 1).
 - Número de WhatsApp para Evolution API (frena Bloque 2).
 - Aprobar el diseño de la línea (frena Bloque 3).
