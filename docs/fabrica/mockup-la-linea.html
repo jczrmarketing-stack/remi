@@ -3,19 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>La línea · mockup</title>
+<title>La línea · mockup v2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* Mockup del piso Ingeniería con «La línea» (Bloque 1, 4-nov). Marco: estilo de la Suite (suite.css).
-   Dentro de la línea: tokens Noche de design/tokens.json, copiados aquí solo para el mockup;
-   en el código salen de las variables del DS. */
+/* Mockup v2 del piso Ingeniería con «La línea» (diseño B, elegido el 4-nov; v2 del 6-nov).
+   v2 suma lo que la fábrica ganó el 6-nov: estación Revisar, tests ocultos, bloqueos de permisos,
+   la cola de la noche y el estado «PR espera tu revisión». Datos: el pedido real del PR #4.
+   Marco: estilo de la Suite (suite.css). Dentro de la línea: tokens Noche de design/tokens.json,
+   copiados aquí solo para el mockup; en el código salen de las variables del DS. */
 :root{
   /* Suite (apps/panel/src/app/(suite)/suite.css) */
   --su-fondo:#EEF0F3;--su-tinta:#1C1C1E;--su-gris:#6E6E73;--su-gris-2:#48484A;--su-claro-2:#8E8E93;--piso:#3D7BFF;
   /* DS Remi · Noche */
   --ground:#151112;--surface:#1d1718;--surface-2:#26201f;--line:#3a302d;--ink:#f3ebdd;--ink-muted:#a89d8f;--ink-faint:#6b6058;
-  --luz:#fff2c9;--brasa:#ff8a3d;--on-brasa:#1a0a00;--pensar:#c9a0ff;--baja:#6f6660;
+  --luz:#fff2c9;--brasa:#ff8a3d;--on-brasa:#1a0a00;--pensar:#c9a0ff;--baja:#6f6660;--focus-ring:#ffd27a;
   --glow-brasa:0 0 14px rgba(255,138,61,.45);
   --display:"Instrument Serif",Georgia,serif;--sans:"Geist",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,Menlo,monospace;
   --ease:cubic-bezier(.2,.8,.2,1);
@@ -25,6 +27,14 @@ body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest
 .su{position:relative;overflow:hidden;min-height:100vh;padding:36px 56px 72px}
 .su-luz-fondo{position:absolute;border-radius:50%;filter:blur(120px);opacity:.32;width:640px;height:480px;right:-120px;top:-80px;background:var(--piso);pointer-events:none}
 .su-marco{position:relative;max-width:1328px;margin:0 auto}
+
+/* Control del mockup: no va en el panel */
+.mk{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:28px;padding:10px 14px;border:1px dashed #98989F;border-radius:10px;font-size:14px;color:var(--su-gris)}
+.mk b{font-weight:600;color:var(--su-tinta)}
+.mk button{all:unset;cursor:pointer;padding:6px 12px;border-radius:999px;border:1px solid #C7C7CC;color:var(--su-tinta);font-size:14px}
+.mk button[aria-pressed="true"]{background:var(--su-tinta);border-color:var(--su-tinta);color:#F5F5F7}
+.mk button:focus-visible{outline:2px solid var(--piso);outline-offset:2px}
+
 .su-top{display:flex;justify-content:space-between;align-items:center}
 .su-volver{font-size:15px;color:#55555C;text-decoration:none}
 .su-marca{font-weight:800;font-size:19px;letter-spacing:-.03em}.su-marca span{display:inline-block;transform:scaleX(-1)}
@@ -33,6 +43,8 @@ body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest
 .su-paso{margin-top:44px;display:flex;flex-direction:column;gap:18px;max-width:900px}
 .su-paso h2{margin:0;font-size:68px;font-weight:700;line-height:1;letter-spacing:-.04em}
 .su-paso p{margin:0;font-size:20px;line-height:1.45;color:var(--su-gris-2);max-width:52ch}
+.su-paso a{align-self:flex-start;font-size:17px;font-weight:600;color:var(--su-tinta);text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:2px}
+[hidden]{display:none!important}
 
 /* — La línea (bloque oscuro del piso, tokens Noche) — */
 .linea{position:relative;margin-top:52px;background:var(--ground);color:var(--ink);border-radius:10px;overflow:hidden;font-family:var(--sans)}
@@ -40,21 +52,23 @@ body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest
 .cab{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding:28px 36px 0;flex-wrap:wrap}
 .cab h3{margin:0;font:500 15px Onest,sans-serif;color:var(--ink-muted)}
 .cab .idea{margin:8px 0 0;font:600 20px/1.3 Onest,sans-serif;color:var(--ink)}
-.cab .id{font:500 12px/16px var(--mono);letter-spacing:.04em;color:var(--ink-muted);margin-top:6px}
+.cab .id{font:500 12px/16px var(--mono);letter-spacing:.04em;color:var(--ink-muted);margin-top:6px;overflow-wrap:anywhere}
 .gasto{min-width:260px;text-align:right}
 .gasto .n{font:500 12px/16px var(--mono);letter-spacing:.04em;color:var(--ink-muted);font-variant-numeric:tabular-nums}
 .gasto .n b{color:var(--ink);font-weight:500}
 .barra{margin-top:8px;height:6px;border-radius:999px;background:var(--line);overflow:hidden}
-.barra i{display:block;height:100%;width:14%;background:var(--ink-muted)}
+.barra i{display:block;height:100%;width:12%;background:var(--ink-muted);transition:width 250ms var(--ease)}
+.gasto .t{margin-top:8px;font:500 12px/16px var(--mono);letter-spacing:.04em;color:var(--ink-muted);font-variant-numeric:tabular-nums}
 
 /* Estaciones */
-.estaciones{position:relative;list-style:none;margin:28px 0 0;padding:0 36px;display:grid;grid-template-columns:repeat(5,1fr);gap:0}
+.estaciones{position:relative;list-style:none;margin:28px 0 0;padding:0 36px;display:grid;grid-template-columns:repeat(6,1fr);gap:0}
 .estaciones li{position:relative}
 .estaciones li::before{content:"";position:absolute;top:21px;left:calc(50% + 26px);right:calc(-50% + 26px);height:1px;background:var(--line)}
 .estaciones li:last-child::before{display:none}
 .estaciones li.hecha::before{background:var(--ink-faint)}
 .est{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:0 6px 22px;text-align:center;border-radius:8px}
-.est:focus-visible{outline:2px solid #ffd27a;outline-offset:2px}
+.est:disabled{cursor:default}
+.est:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 .punto{width:42px;height:42px;border-radius:999px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;transition:border-color 150ms var(--ease),background 150ms var(--ease)}
 .punto svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .hecha .punto{color:var(--luz);border-color:var(--ink-faint)}
@@ -78,21 +92,29 @@ body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest
 .caja ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .ve li{font:400 13px/20px var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ve li small{color:var(--ink-muted);font-size:12px}
+.ve li.oculto{color:var(--ink-muted)}
 .hace li{display:grid;grid-template-columns:44px 1fr;gap:8px;font:400 13px/20px var(--mono)}
 .hace li time{color:var(--ink-faint);font-size:12px;font-variant-numeric:tabular-nums}
 .hace li code{color:var(--ink);overflow-wrap:anywhere}
 .hace li .res{grid-column:2;color:var(--ink-muted);font-size:12px;line-height:16px}
 .hace li.ahora code{color:var(--brasa)}
+.hace li.ok code::before{content:"✓ ";color:var(--luz)}
+.hace li.negado code{color:var(--ink-muted)}
+.hace li.negado .res::before{content:"negado · ";color:var(--brasa)}
 .piensa p{margin:0 0 10px;font:400 14px/20px var(--sans);color:var(--ink)}
 .piensa p:last-child{color:var(--pensar)}
+.piensa p.sin-ia,.piensa p.sin-ia:last-child{color:var(--ink-muted)}
 .porque p{margin:0 0 10px;font:400 14px/20px var(--sans);color:var(--ink)}
 .porque .esc{font:400 13px/20px var(--mono);color:var(--ink-muted);margin:0;padding-left:0;list-style:none}
-.porque .esc li{margin-bottom:6px}
-.voz{margin:20px 0 0;font:italic 400 24px/26px var(--display);color:var(--ink)}
+.porque .esc li{margin-bottom:6px;overflow-wrap:anywhere}
+.porque .esc li.h{border-left:2px solid var(--baja);padding-left:8px;color:var(--ink)}
+.porque .esc li.h small{display:block;color:var(--ink-muted);font-size:12px}
+.porque .mot{margin-top:10px;color:var(--ink-muted)}
+.voz{margin:20px 0 0;font:italic 400 24px/28px var(--display);color:var(--ink)}
 
 /* Lo que entra (estilo Suite) */
 .su-en{margin-top:44px;display:grid;grid-template-columns:1fr 1fr;gap:56px}
-.su-en h3{margin:0 0 10px;font-size:15px;font-weight:500;color:var(--su-gris);display:flex;justify-content:space-between}
+.su-en h3{margin:0 0 10px;font-size:15px;font-weight:500;color:var(--su-gris);display:flex;justify-content:space-between;gap:12px}
 .su-en h3 span{font-size:13px;color:#98989F}
 .su-en ul{list-style:none;margin:0;padding:0}
 .su-en li{display:flex;justify-content:space-between;gap:20px;padding:11px 0;font-size:18px;line-height:1.35}
@@ -107,22 +129,24 @@ body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest
 .piso h2{margin:0;font-size:21px;font-weight:600}
 .piso .nombre p{margin:6px 0 0;font-size:14px;color:var(--su-claro-2)}
 .piso .mini{position:relative;display:flex;align-items:center;gap:0;padding:22px 0}
-.mini .m{display:flex;flex-direction:column;align-items:center;gap:8px;width:96px;text-align:center}
+.mini .m{display:flex;flex-direction:column;align-items:center;gap:8px;width:88px;text-align:center}
 .mini .m i{display:block;width:14px;height:14px;border-radius:999px;border:1px solid #48484A;background:#232327}
 .mini .m.h i{background:var(--luz);border-color:var(--luz)}
 .mini .m.a i{background:var(--brasa);border-color:var(--brasa);box-shadow:var(--glow-brasa)}
 .mini .m b{font-size:13px;font-weight:600}
 .mini .m em{font-style:normal;font-size:12.5px;color:var(--su-claro-2)}
-.mini .r{flex:none;width:28px;height:1px;background:#48484A;margin-bottom:24px}
+.mini .r{flex:none;width:20px;height:1px;background:#48484A;margin-bottom:24px}
 .piso .tu{position:relative;justify-self:end;text-align:right;font-size:16px;font-weight:500}
 .piso .tu small{display:block;font-size:13px;color:#6E6E73;margin-bottom:6px;font-weight:400}
 
 @media (max-width:900px){
   .su{padding:20px 16px 48px}.su-paso h2{font-size:40px}.su-paso p{font-size:17px}
   .cab,.vivo{padding-left:20px;padding-right:20px}.gasto{text-align:left;min-width:0;width:100%}
-  .estaciones{padding:0 8px}.est .det{display:none}.punto{width:36px;height:36px}.estaciones li::before{top:18px;left:calc(50% + 22px);right:calc(-50% + 22px)}
-  .cuatro{grid-template-columns:1fr}.su-en{grid-template-columns:1fr;gap:32px}
-  .piso{grid-template-columns:1fr;padding:20px}.piso .nombre{padding:0}.piso .tu{justify-self:start;text-align:left}.mini .m{width:64px}.mini .r{width:12px}
+  .estaciones{padding:0 4px}.est{padding:0 2px 18px}.est .det{display:none}.est .nom{font-size:12px;line-height:16px}
+  .punto{width:34px;height:34px}.punto svg{width:16px;height:16px}.estaciones li::before{top:17px;left:calc(50% + 20px);right:calc(-50% + 20px)}
+  .cuatro{grid-template-columns:1fr}.su-en{grid-template-columns:1fr;gap:32px}.su-en li{font-size:16px}
+  .piso{grid-template-columns:1fr;padding:20px}.piso .nombre{padding:0}.piso .tu{justify-self:start;text-align:left}
+  .mini{flex-wrap:wrap;row-gap:12px}.mini .m{width:52px}.mini .m b{font-size:11px}.mini .m em{display:none}.mini .r{width:4px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -131,6 +155,12 @@ body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest
 <main class="su">
   <div class="su-luz-fondo" aria-hidden="true"></div>
   <div class="su-marco">
+    <div class="mk" role="group" aria-label="Control del mockup">
+      <b>Solo en el mockup:</b> el pedido real del PR #4 (6-nov), visto
+      <button type="button" data-m="vivo" aria-pressed="true">a las 07:46 · verificando</button>
+      <button type="button" data-m="fin" aria-pressed="false">a las 07:50 · terminado</button>
+    </div>
+
     <header class="su-top">
       <a class="su-volver" href="#">‹ Edificio</a>
       <span class="su-marca">INV<span>E</span>RZA</span>
@@ -139,8 +169,9 @@ body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest
     <div class="su-tit"><h1>Ingeniería</h1><p>Lo que construye y mantiene todo.</p></div>
 
     <section class="su-paso" aria-label="Tu paso">
-      <h2>Nada que hacer: la línea trabaja.</h2>
-      <p>Te aviso cuando haya un PR en borrador. Nada se fusiona sin ti.</p>
+      <h2 id="paso-tit">Nada que hacer: la línea trabaja.</h2>
+      <p id="paso-txt">Te aviso cuando haya un PR en borrador. Nada se fusiona sin ti.</p>
+      <a id="paso-link" href="#" hidden>Abrir el PR #4 en GitHub ›</a>
     </section>
 
     <section class="linea" aria-label="La línea">
@@ -148,58 +179,65 @@ body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest
       <div class="cab">
         <div>
           <h3>La línea</h3>
-          <p class="idea">Arreglar test_notion_sync: el estado de Notion no ensucia la bóveda</p>
-          <div class="id">20261110-0914-arreglar-test-notion-sy · base fabrica/bloque-1</div>
+          <p class="idea">Mandar un documento al bot de Telegram revienta</p>
+          <div class="id">20261106-1242-mandar-un-documento-al-b · base origin/main · riesgo bajo</div>
         </div>
-        <div class="gasto" aria-label="Tokens del pedido">
-          <div class="n"><b>412.380</b> de 3.000.000 tokens</div>
-          <div class="barra"><i></i></div>
+        <div class="gasto" aria-label="Tokens y tiempo del pedido">
+          <div class="n"><b id="tok">318.720</b> de 3.000.000 tokens</div>
+          <div class="barra"><i id="tok-barra"></i></div>
+          <div class="t" id="tiempo">lleva 4 min de trabajo</div>
         </div>
       </div>
 
       <ol class="estaciones" aria-label="Estaciones del pedido">
-        <li class="hecha"><button class="est" data-e="spec" aria-pressed="false">
-          <span class="punto"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
-          <span class="nom">Spec</span><span class="det">Planificador · 4'</span></button></li>
-        <li class="hecha"><button class="est" data-e="tests" aria-pressed="false">
-          <span class="punto"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
-          <span class="nom">Tests</span><span class="det">Tester · 6'</span></button></li>
-        <li class="activa"><button class="est" data-e="construir" aria-pressed="true">
+        <li data-e="spec"><button class="est" data-e="spec" aria-pressed="false">
+          <span class="punto"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>
+          <span class="nom">Spec</span><span class="det">Planificador · 21 s</span></button></li>
+        <li data-e="tests"><button class="est" data-e="tests" aria-pressed="false">
+          <span class="punto"><svg viewBox="0 0 24 24"><path d="M9 2v6l-5 9a3 3 0 0 0 2.6 4.5h10.8A3 3 0 0 0 20 17l-5-9V2M8 2h8M7 15h10"/></svg></span>
+          <span class="nom">Tests</span><span class="det">Tester · 48 s</span></button></li>
+        <li data-e="construir"><button class="est" data-e="construir" aria-pressed="false">
           <span class="punto"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/></svg></span>
-          <span class="nom">Construir</span><span class="det">vuelta 1/2 · 11'</span></button></li>
-        <li class="por-venir"><button class="est" data-e="verificar" aria-pressed="false" disabled>
-          <span class="punto"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
-          <span class="nom">Verificar</span><span class="det">verificador</span></button></li>
-        <li class="por-venir"><button class="est" data-e="pr" aria-pressed="false" disabled>
+          <span class="nom">Construir</span><span class="det">vuelta 1/2 · 22 s</span></button></li>
+        <li data-e="verificar"><button class="est" data-e="verificar" aria-pressed="false">
+          <span class="punto"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>
+          <span class="nom">Verificar</span><span class="det" data-det-vivo="1 min · corriendo" data-det-fin="verificador · 2 min">1 min · corriendo</span></button></li>
+        <li data-e="revisar"><button class="est" data-e="revisar" aria-pressed="false">
+          <span class="punto"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
+          <span class="nom">Revisar</span><span class="det" data-det-vivo="después" data-det-fin="Revisor · 6 s">después</span></button></li>
+        <li data-e="pr"><button class="est" data-e="pr" aria-pressed="false">
           <span class="punto"><svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7M6 9v12"/></svg></span>
-          <span class="nom">PR</span><span class="det">borrador</span></button></li>
+          <span class="nom">PR</span><span class="det" data-det-vivo="después" data-det-fin="borrador · 3 min">después</span></button></li>
       </ol>
 
       <section class="vivo" aria-live="polite">
-        <div class="vivo-cab"><b id="v-tit">Constructor · vuelta 1/2</b><span id="v-est" class="en-vivo">en vivo · cada 2 s</span></div>
+        <div class="vivo-cab"><b id="v-tit"></b><span id="v-est"></span></div>
         <div class="cuatro">
           <div class="caja ve"><h4>Qué ve</h4><ul id="v-ve"></ul></div>
           <div class="caja hace"><h4>Qué hace</h4><ul id="v-hace"></ul></div>
           <div class="caja piensa"><h4>Qué piensa</h4><div id="v-piensa"></div></div>
           <div class="caja porque"><h4>Por qué</h4><div id="v-porque"></div></div>
         </div>
+        <p class="voz" id="voz" hidden>Solo esto: leer el PR. Diez minutos.</p>
       </section>
     </section>
 
     <section class="su-en" aria-label="Lo que entra">
       <div>
-        <h3>Pedidos de la fábrica <span>de fabrica/pedidos</span></h3>
+        <h3>Pedidos de la fábrica <span>de la cola</span></h3>
         <ul>
-          <li>Arreglar test_notion_sync<span>construyendo</span></li>
-          <li>Tests de oficios en worktree<span>PR en borrador</span></li>
-          <li>Etapa en el consumo de coding.py<span>spec, espera tu sí</span></li>
+          <li id="fila-4">Telegram no bajaba documentos<span>verificando</span></li>
+          <li>3 pedidos de mypy<span>de noche, sin spec</span></li>
+          <li>Tests de oficios en worktree<span>PR #3 en borrador</span></li>
+          <li>test_notion_sync<span>PR #2 en borrador</span></li>
         </ul>
       </div>
       <div>
         <h3>Horario automático <span>de la agenda</span></h3>
         <ul>
-          <li>La bóveda trabaja de noche<span>Hoy 03:00</span></li>
-          <li>Newsletter de las 11:00<span>Hoy 11:00</span></li>
+          <li>La fábrica, un pedido por noche<span>02:30</span></li>
+          <li>La bóveda trabaja de noche<span>04:00</span></li>
+          <li>Newsletter<span>11:00</span></li>
         </ul>
       </div>
     </section>
@@ -209,58 +247,110 @@ body{margin:0;background:var(--su-fondo);color:var(--su-tinta);font-family:Onest
       <div class="piso">
         <div class="piso-luz" aria-hidden="true"></div>
         <div class="nombre"><h2>Ingeniería</h2><p>Lo que construye y mantiene todo.</p></div>
-        <div class="mini" aria-label="Estaciones">
-          <div class="m h"><i></i><b>Spec</b><em>hecha</em></div><span class="r"></span>
-          <div class="m h"><i></i><b>Tests</b><em>hechos</em></div><span class="r"></span>
-          <div class="m a"><i></i><b>Construir</b><em>vuelta 1/2</em></div><span class="r"></span>
-          <div class="m"><i></i><b>Verificar</b><em>después</em></div><span class="r"></span>
-          <div class="m"><i></i><b>PR</b><em>después</em></div>
-        </div>
-        <div class="tu"><small>El pedido</small>test_notion_sync</div>
+        <div class="mini" aria-label="Estaciones" id="mini"></div>
+        <div class="tu"><small id="tu-small">El pedido</small><span id="tu-txt">Telegram no bajaba documentos</span></div>
       </div>
     </div>
   </div>
 </main>
 
 <script>
-// Datos de ejemplo con la forma de GET /fabrica/pedidos/<id>/eventos. Al tocar una estación hecha se ve su registro.
+// Datos reales del pedido 20261106-1242 (PR #4): fabrica/pedidos/<id>/eventos.jsonl y expediente.md.
+// Horas en Medellín. En el panel salen de GET /fabrica/pedidos/<id> y /eventos?desde=N, cada 2 s.
+const ORDEN = ["spec","tests","construir","verificar","revisar","pr"];
+const NOMBRE = {spec:"Spec",tests:"Tests",construir:"Construir",verificar:"Verificar",revisar:"Revisar",pr:"PR"};
 const ESTACIONES = {
   spec: {
-    tit: "Planificador · hecho", est: "registro",
-    ve: [["nucleo/pruebas/test_notion_sync.py", ":212"], ["nucleo/notion_sync.py", ""], ["docs/MAPA.md", ""]],
-    hace: [["09:14", "Read docs/MAPA.md", ""], ["09:15", "Grep conocimiento/.gitignore", "3 coincidencias"], ["09:16", "Read nucleo/notion_sync.py", "184 líneas"]],
-    piensa: ["El test asume que conocimiento/ existe; en un worktree no viaja con git.", "Lo mínimo: que el test cree su carpeta en tmp_path y no dependa del disco."],
-    porque: { spec: "El test lee conocimiento/.gitignore del repo real. Debe usar una carpeta temporal propia.", esc: ["cuando el repo no trae conocimiento/ entonces el test pasa igual", "cuando Notion escribe su estado entonces no aparece en la bóveda"], motivo: "Spec lista: 2 escenarios, riesgo bajo." }
+    tit: "Planificador · opus · hecho", est: "registro · 07:42",
+    ve: [["nucleo/telegram.py", ""], ["nucleo/telegram.py", ":117 class Transporte"], ["nucleo/telegram.py", ":123 descargar_archivo"]],
+    hace: [["07:42", "Read nucleo/telegram.py", ""], ["07:42", "Grep descargar_archivo|MockTransport|class Transporte", "telegram.py:117, :123"]],
+    piensa: ["El cuerpo de descargar_archivo quedó pegado dentro del Protocol Transporte (telegram.py:123-134).", "ClienteBotAPI no lo hereda: en producción da AttributeError."],
+    porque: { spec: "Mover el cuerpo a ClienteBotAPI y dejar en el Protocol solo la firma. Nada más cambia.", esc: ["cuando se llama descargar_archivo('abc', destino) entonces baja los bytes", "cuando getFile responde 500 entonces lanza y no deja archivo"], motivo: "Riesgo bajo, toca 2 archivos. Aprobaste la spec a las 07:44." }
   },
   tests: {
-    tit: "Tester · hecho", est: "registro",
-    ve: [["nucleo/pruebas/test_notion_sync.py", ""], ["nucleo/pruebas/conftest.py", ""]],
-    hace: [["09:19", "pytest pruebas/test_notion_sync.py -q", "1 failed: FileNotFoundError"], ["09:22", "Edit test_notion_sync.py", "+18 −4"], ["09:24", "pytest pruebas/test_notion_sync.py -q", "2 failed (esperado)"]],
-    piensa: ["El test que ya falla cuenta para el primer escenario.", "Agrego uno para el segundo: el estado de Notion fuera de la bóveda."],
-    porque: { spec: "Un test por escenario, y deben fallar antes de construir.", esc: ["test_el_estado_de_notion_no_ensucia_la_boveda", "test_sin_conocimiento_en_el_worktree"], motivo: "Fallan los dos antes de construir, como debe ser." }
+    tit: "Tester · sonnet · hecho", est: "registro · 07:44",
+    ve: [["nucleo/telegram.py", ":100"], ["nucleo/pruebas/test_telegram.py", ""], ["nucleo/pruebas/test_telegram_descarga_usuario.py", " · oculto", "oculto"]],
+    hace: [["07:44", "Grep ^def test|ClienteBotAPI", "test_telegram.py"], ["07:44", "cat >> test_telegram.py <<'EOF'", "el permiso no deja heredocs con comillas", "negado"], ["07:44", "Write test_telegram_descarga_usuario.py", "2 tests ocultos"], ["07:44", "Edit test_telegram.py", "+4 tests"], ["07:44", "pytest test_telegram.py", "6 fallan, 31 pasan (esperado)"]],
+    piensa: ["Uso Edit sobre el final del archivo.", "Los 6 tests nuevos fallan hoy: AttributeError en ClienteBotAPI y el cuerpo sigue dentro del Protocol."],
+    porque: { spec: "Un test por escenario, y deben fallar antes de construir. 2 quedan ocultos: el Constructor no los ve.", esc: ["test_descargar_archivo_baja_los_bytes_y_crea_la_carpeta", "test_descargar_archivo_pide_getfile_y_luego_la_ruta", "test_descargar_archivo_con_getfile_roto_lanza", "test_transporte_solo_declara_la_firma", "oculto · test_cliente_real_baja_un_documento_completo", "oculto · test_archivo_remoto_caido_no_deja_archivo"], motivo: "Fallan antes de construir, como debe ser." }
   },
   construir: {
-    tit: "Constructor · vuelta 1/2", est: "en vivo · cada 2 s",
-    ve: [["nucleo/notion_sync.py", ":96"], ["nucleo/pruebas/test_notion_sync.py", ""], ["nucleo/donde_boveda.py", ""]],
-    hace: [["09:27", "Read nucleo/notion_sync.py", "184 líneas"], ["09:31", "Edit nucleo/notion_sync.py", "+6 −2"], ["09:33", "pytest pruebas/test_notion_sync.py -q", "1 passed, 1 failed"], ["09:34", "Edit nucleo/donde_boveda.py", "escribiendo…", true]],
-    piensa: ["La ruta del estado sale de donde_boveda; el test la sobrescribe con monkeypatch.", "Falta que el estado de Notion vaya a su propio archivo, no a la carpeta de la bóveda."],
-    porque: { spec: "Que los tests pasen con el cambio más pequeño que cumpla la spec.", esc: ["cuando el repo no trae conocimiento/ entonces el test pasa igual", "cuando Notion escribe su estado entonces no aparece en la bóveda"], motivo: "" }
+    tit: "Constructor · sonnet · vuelta 1/2 · hecho", est: "registro · 07:44",
+    ve: [["nucleo/telegram.py", ":105"], ["nucleo/pruebas/test_telegram.py", ":480"]],
+    hace: [["07:44", "Read nucleo/telegram.py", ""], ["07:44", "Read test_telegram.py", "desde la línea 480"], ["07:45", "Edit nucleo/telegram.py", "quita el cuerpo del Protocol"], ["07:45", "Edit nucleo/telegram.py", "lo pone en ClienteBotAPI"], ["07:45", "pytest test_telegram.py", "35 pasan"], ["07:45", "mypy nucleo/telegram.py", "pide permiso", "negado"]],
+    piensa: ["Los tests ya existen. Ahora el cambio en el código.", "Los 35 tests de test_telegram.py pasan, incluidos los 4 de descargar_archivo."],
+    porque: { spec: "Que los tests pasen con el cambio más pequeño que cumpla la spec. No ve los ocultos.", esc: ["toca: nucleo/telegram.py", "para revertir: devolver el método al Protocol"], motivo: "Sin vueltas extra: pasó a la primera." }
+  },
+  verificar: {
+    tit: "Verificador · sin IA", est: "",
+    ve: [["nucleo/telegram.py", " · diff"], ["nucleo/pruebas/test_telegram.py", " · diff"], ["docs/MAPA.md", " · diff"], ["base df06481", ""]],
+    hace: {
+      vivo: [["07:45", "Secretos", "0 encontrados", "ok"], ["07:46", "Núcleo · tests", "1.198 pasan, 5 ya fallaban antes", "ok"], ["07:46", "Núcleo · tipos", "21 errores ya existían, ninguno nuevo", "ok"], ["07:46", "Agentes · tests", "corriendo…", "ahora"]],
+      fin: [["07:45", "Secretos", "0 encontrados", "ok"], ["07:46", "Núcleo · tests", "1.198 pasan, 5 ya fallaban antes", "ok"], ["07:46", "Núcleo · tipos", "21 errores ya existían, ninguno nuevo", "ok"], ["07:46", "Agentes · tests", "26 pasan", "ok"], ["07:47", "Código peligroso", "nada alto", "ok"], ["07:47", "Dependencias", "27 ya estaban, ninguna nueva", "ok"], ["07:47", "Tests ocultos", "los 2 pasan", "ok"]]
+    },
+    piensa: { vivo: ["Es código, no un modelo: no piensa ni gasta tokens.", "Compara contra la base. Solo cuenta lo que este cambio rompe."], fin: ["Es código, no un modelo: no piensa ni gasta tokens.", "PASA: nada nuevo falla y los 2 ocultos pasan."] },
+    porque: { spec: "Nada llega al PR si algo nuevo falla. Si falla, vuelve al Constructor con el informe, hasta 2 vueltas.", esc: ["salida 0 · pasa", "salida 1 · vuelve al Constructor", "salida 2 · falta una herramienta, se detiene"], motivo: "" }
+  },
+  revisar: {
+    tit: "Revisor · sonnet · hecho", est: "registro · 07:47",
+    ve: [["la spec", ""], ["el diff", " · 3 archivos"], ["nucleo/telegram.py", ":138"]],
+    hace: [["07:47", "Grep _base|_archivos|_http_envios", "telegram.py:138, :142"]],
+    piensa: ["El diff cumple la spec: movió el cuerpo a ClienteBotAPI sin cambios y dejó solo la firma en el Protocol."],
+    porque: { spec: "Una sola pasada contra la spec y el diff. Descarta hallazgos con archivo o línea que no existen.", hallazgos: [["bajo", "docs/MAPA.md:1", "Regenera la fecha y el conteo de líneas; la spec no lo pidió."]], motivo: "Un hallazgo bajo no devuelve el pedido. Solo uno alto lo devuelve." }
+  },
+  pr: {
+    tit: "La línea · sin IA · hecho", est: "registro · 07:50",
+    ve: [["rama fabrica/pedido-20261106-1242…", ""], ["base origin/main", ""]],
+    hace: [["07:47", "git commit · Fábrica INV3RZA", "1 commit"], ["07:47", "git push", "el gancho pre-push corre el verificador otra vez"], ["07:50", "gh pr create --draft", "PR #4"]],
+    piensa: ["Es código, no un modelo: commit, push y PR los hace la línea, nunca un agente."],
+    porque: { spec: "El PR lleva la spec, los escenarios, los controles y el hallazgo.", esc: ["nada se fusiona sin ti"], motivo: "366.044 tokens en total, 8 min de trabajo." }
   }
 };
-function li(html){const e=document.createElement("li");e.innerHTML=html;return e}
-function esc(t){return t.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c])}
+const MOMENTOS = {
+  vivo: { activa: "verificar", tok: "318.720", barra: "11%", tiempo: "lleva 4 min de trabajo", fila: "verificando", pasoTit: "Nada que hacer: la línea trabaja.", pasoTxt: "Te aviso cuando haya un PR en borrador. Nada se fusiona sin ti.", link: false, voz: false, tuSmall: "El pedido", est: "en vivo · cada 2 s" },
+  fin:  { activa: null, tok: "366.044", barra: "12%", tiempo: "8 min de trabajo · 0 vueltas extra", fila: "PR #4 espera tu revisión", pasoTit: "Un PR espera tu revisión.", pasoTxt: "El #4 pasó el verificador y la revisión. Tú decides si se une.", link: true, voz: true, tuSmall: "Espera tu revisión", est: "registro · 07:47" }
+};
+let momento = "vivo", elegida = "verificar";
+const $ = id => document.getElementById(id);
+function li(html, cls){const e=document.createElement("li");e.innerHTML=html;if(cls)e.className=cls;return e}
+function esc(t){return String(t).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c])}
+function por(v){return Array.isArray(v)?v:v[momento]}
+function estado(k){const m=MOMENTOS[momento];if(!m.activa)return"hecha";const i=ORDEN.indexOf(k),a=ORDEN.indexOf(m.activa);return i<a?"hecha":i===a?"activa":"por-venir"}
 function pintar(k){
-  const d=ESTACIONES[k]; if(!d) return;
-  document.getElementById("v-tit").textContent=d.tit;
-  const est=document.getElementById("v-est"); est.textContent=d.est; est.className=k==="construir"?"en-vivo":"";
-  const ve=document.getElementById("v-ve"); ve.replaceChildren(...d.ve.map(([r,l])=>li(`${esc(r)}<small>${esc(l)}</small>`)));
-  const hace=document.getElementById("v-hace"); hace.replaceChildren(...d.hace.map(([t,c,r,a])=>{const e=li(`<time>${t}</time><code>${esc(c)}</code><span class="res">${esc(r)}</span>`); if(a) e.className="ahora"; return e}));
-  document.getElementById("v-piensa").innerHTML=d.piensa.map(p=>`<p>${esc(p)}</p>`).join("");
-  document.getElementById("v-porque").innerHTML=`<p>${esc(d.porque.spec)}</p><ul class="esc">${d.porque.esc.map(e=>`<li>${esc(e)}</li>`).join("")}</ul>`+(d.porque.motivo?`<p style="margin-top:10px;color:var(--ink-muted)">${esc(d.porque.motivo)}</p>`:"");
+  const d=ESTACIONES[k], m=MOMENTOS[momento];
+  const vivo = k===m.activa;
+  $("v-tit").textContent = k==="verificar" ? d.tit + (vivo ? "" : " · pasa") : d.tit;
+  const est=$("v-est"); est.textContent = vivo ? m.est : (d.est || "registro · 07:47"); est.className = vivo ? "en-vivo" : "";
+  $("v-ve").replaceChildren(...d.ve.map(([r,l,c])=>li(`${esc(r)}<small>${esc(l)}</small>`, c)));
+  $("v-hace").replaceChildren(...por(d.hace).map(([t,c,r,cls])=>li(`<time>${t}</time><code>${esc(c)}</code><span class="res">${esc(r)}</span>`, cls)));
+  const pi = por(d.piensa);
+  const sinIA = /sin IA/.test(d.tit);   // verificador y línea: código, no un modelo; nunca en lavanda
+  $("v-piensa").innerHTML = pi.map(p=>`<p${sinIA?' class="sin-ia"':''}>${esc(p)}</p>`).join("");
+  let h = `<p>${esc(d.porque.spec)}</p>`;
+  if(d.porque.hallazgos) h += `<ul class="esc">${d.porque.hallazgos.map(([g,a,t])=>`<li class="h">[${g}] ${esc(a)}<small>${esc(t)}</small></li>`).join("")}</ul>`;
+  if(d.porque.esc) h += `<ul class="esc">${d.porque.esc.map(e=>`<li>${esc(e)}</li>`).join("")}</ul>`;
+  if(d.porque.motivo) h += `<p class="mot">${esc(d.porque.motivo)}</p>`;
+  $("v-porque").innerHTML = h;
+  elegida = k;
   document.querySelectorAll(".est").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.e===k)));
 }
+function ponerMomento(nuevo){
+  momento = nuevo; const m = MOMENTOS[nuevo];
+  document.querySelectorAll(".mk button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.m===nuevo)));
+  document.querySelectorAll(".estaciones li").forEach(li=>{
+    const s = estado(li.dataset.e); li.className = s;
+    const b = li.querySelector(".est"); b.disabled = s==="por-venir";
+    const det = li.querySelector(".det"); if(det.dataset.detVivo) det.textContent = nuevo==="vivo" ? det.dataset.detVivo : det.dataset.detFin;
+  });
+  $("tok").textContent = m.tok; $("tok-barra").style.width = m.barra; $("tiempo").textContent = m.tiempo;
+  $("paso-tit").textContent = m.pasoTit; $("paso-txt").textContent = m.pasoTxt; $("paso-link").hidden = !m.link;
+  $("voz").hidden = !m.voz; $("fila-4").lastChild.textContent = m.fila; $("tu-small").textContent = m.tuSmall;
+  $("mini").innerHTML = ORDEN.map((k,i)=>{const s=estado(k);const em=s==="hecha"?"hecho":s==="activa"?"ahora":"después";return `${i?'<span class="r"></span>':''}<div class="m ${s==="hecha"?"h":s==="activa"?"a":""}"><i></i><b>${NOMBRE[k]}</b><em>${em}</em></div>`}).join("");
+  pintar(m.activa || (estado(elegida)==="por-venir" ? "verificar" : elegida));
+}
 document.querySelectorAll(".est").forEach(b=>b.addEventListener("click",()=>pintar(b.dataset.e)));
-pintar("construir");
+document.querySelectorAll(".mk button").forEach(b=>b.addEventListener("click",()=>ponerMomento(b.dataset.m)));
+ponerMomento("vivo");
 </script>
 </body>
 </html>
