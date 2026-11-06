@@ -324,3 +324,83 @@ def test_la_spec_lleva_como_se_demuestra(tmp_path):
     id_ = linea.pedir("Arreglar X", "main", falso.mundo())
     spec = expediente.leer(id_)["secciones"]["Spec"]
     assert "Cómo se demuestra:\ncorre test_x y muestra B en la salida" in spec
+
+
+# — Mejora 2 (6-nov): escenarios ocultos que el Constructor no ve —
+
+OCULTO = "nucleo/pruebas/test_x_oculto.py"
+
+
+class MundoConOcultos(MundoFalso):
+    """El Tester deja un test visible y uno oculto en el worktree; el oculto pasa o falla según `ocultos`."""
+
+    def __init__(self, raiz, ocultos=(1, 0), oculto_antes=1, **kw):
+        super().__init__(raiz, **kw)
+        self.ocultos = list(ocultos)
+        self.oculto_antes = oculto_antes
+        self.visto_por_constructor: list[bool] = []
+        self.mensajes: list[str] = []
+        self.al_constructor: list[str] = []
+
+    def wt(self, pedido):
+        return linea.worktree(self.raiz, pedido)
+
+    def llamar(self, rol, mensaje, cwd, pedido, modelo=None):
+        self.mensajes.append(mensaje)
+        if rol == "tester":
+            (cwd / "nucleo" / "pruebas").mkdir(parents=True, exist_ok=True)
+            (cwd / "nucleo" / "pruebas" / "test_x.py").write_text("def test_a(): assert False\n")
+            (cwd / OCULTO).write_text("def test_oculto_b(): assert False  # secreto\n")
+            return Salida("hecho", "tests listos", {"tests": ["nucleo/pruebas/test_x.py"], "ocultos": [OCULTO], "resumen": "A y B"})
+        if rol == "constructor":
+            self.visto_por_constructor.append((cwd / OCULTO).exists())
+            self.al_constructor.append(mensaje)
+        return super().llamar(rol, mensaje, cwd, pedido, modelo)
+
+    def probar(self, args, cwd):
+        if args == [OCULTO]:
+            assert (cwd / OCULTO).exists(), "el oculto tiene que estar en el worktree mientras corre"
+            if "constructor" not in self.roles():
+                return self.oculto_antes, "1 failed"
+            rc = self.ocultos.pop(0) if len(self.ocultos) > 1 else self.ocultos[0]
+            return rc, ("FAILED nucleo/pruebas/test_x_oculto.py::test_oculto_b - AssertionError: secreto" if rc else "1 passed")
+        return super().probar(args, cwd)
+
+
+def test_el_constructor_nunca_ve_el_oculto_y_el_pr_lo_trae(tmp_path):
+    falso = MundoConOcultos(tmp_path, ocultos=[0])
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    (falso.wt(id_)).mkdir(parents=True, exist_ok=True)
+    assert linea.aprobar(id_, falso.mundo()) == "pr"
+    assert falso.visto_por_constructor == [False]
+    assert (falso.wt(id_) / OCULTO).exists()                       # vuelve al worktree antes del commit
+    assert "Ocultos: nucleo/pruebas/test_x_oculto.py" in expediente.leer(id_)["secciones"]["Tests"]
+    assert not any("secreto" in m for m in falso.mensajes)
+
+
+def test_si_el_oculto_falla_vuelve_al_constructor_solo_con_el_nombre(tmp_path):
+    falso = MundoConOcultos(tmp_path, ocultos=[1, 0], salidas={"constructor": [CONSTRUIDO, CONSTRUIDO]})
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    falso.wt(id_).mkdir(parents=True, exist_ok=True)
+    assert linea.aprobar(id_, falso.mundo()) == "pr"
+    assert falso.visto_por_constructor == [False, False]
+    segundo = falso.al_constructor[-1]
+    assert "test_oculto_b" in segundo and "secreto" not in segundo and "assert False" not in segundo
+    assert expediente.leer(id_)["meta"]["vueltas"] == 1
+
+
+def test_un_oculto_que_ya_pasa_antes_de_construir_no_prueba_nada(tmp_path):
+    falso = MundoConOcultos(tmp_path, oculto_antes=0)
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    falso.wt(id_).mkdir(parents=True, exist_ok=True)
+    linea.aprobar(id_, falso.mundo())
+    assert "constructor" not in falso.roles()
+    assert "ocultos ya pasan" in falso.avisos[-1]
+
+
+def test_sin_ocultos_el_pr_dice_que_ese_control_no_corrio(tmp_path):
+    falso = MundoFalso(tmp_path)
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    linea.aprobar(id_, falso.mundo())
+    cuerpo = next(c for c in falso.comandos if c[:3] == ["gh", "pr", "create"])[-1]
+    assert "Escenarios ocultos: ninguno (este control no corrió)" in cuerpo

@@ -14,6 +14,8 @@ Todo lo de afuera vive en `Mundo`, para probar sin CLI ni red.
 from __future__ import annotations
 
 import os
+import re
+import shutil
 import subprocess
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -296,27 +298,81 @@ def aprobar(id_: str, mundo: Mundo | None = None) -> str:
     return str(expediente.leer(id_)["meta"]["estado"])
 
 
-def _tests_del_expediente(texto: str) -> list[str]:
+def _tests_del_expediente(texto: str, prefijo: str = "Archivos: ") -> list[str]:
     for linea in texto.splitlines():
-        if linea.startswith("Archivos: "):
-            return [t.strip() for t in linea[len("Archivos: "):].split(",") if t.strip()]
+        if linea.startswith(prefijo):
+            return [t.strip() for t in linea[len(prefijo):].split(",") if t.strip() and t.strip() != "ninguno"]
     return []
 
 
-def _probar_antes(mundo: Mundo, id_: str, idea: str, spec: str, lecciones: str, wt: Path) -> list[str]:
+def _probar_antes(mundo: Mundo, id_: str, idea: str, spec: str, lecciones: str, wt: Path) -> tuple[list[str], list[str]]:
     agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "tests"})
     pruebas = _agente(mundo, id_, "tester", _mensaje(idea, lecciones, ("Spec", spec)), wt)
     tests = [str(t) for t in pruebas.datos.get("tests") or []]
+    ocultos = [str(t) for t in pruebas.datos.get("ocultos") or []]
     if not _tests_seguros(tests):
         raise Parada(f"Tester (necesito_dato): los tests deben ser rutas dentro del worktree; dejó {tests or 'ninguno'}.")
+    if ocultos and (not _tests_seguros(ocultos) or set(ocultos) & set(tests)):
+        raise Parada(f"Tester (necesito_dato): los ocultos deben ser archivos propios dentro del worktree; dejó {ocultos}.")
     rc, salida = mundo.probar(tests, wt)
-    expediente.escribir_seccion(id_, "Tests", f"{pruebas.datos.get('resumen', '')}\n\nArchivos: {', '.join(tests)}\n\n"
+    rc_oc, salida_oc = mundo.probar(ocultos, wt) if ocultos else (1, "")
+    expediente.escribir_seccion(id_, "Tests", f"{pruebas.datos.get('resumen', '')}\n\nArchivos: {', '.join(tests)}\n"
+                                              f"Ocultos: {', '.join(ocultos) or 'ninguno'}\n\n"
                                               f"Antes de construir:\n```\n{salida[-1500:]}\n```")
     if rc == 0:
         raise Parada("Tester (necesito_dato): los tests ya pasan antes de construir; no prueban el cambio.")
     if rc != 1:
         raise Parada(f"Tester (no_puedo): los tests no se pudieron correr (pytest salió {rc}).\n{salida[-500:]}")
-    return tests
+    if rc_oc == 0:
+        raise Parada("Tester (necesito_dato): los escenarios ocultos ya pasan antes de construir; no prueban el cambio.")
+    if rc_oc != 1:
+        raise Parada(f"Tester (no_puedo): los ocultos no se pudieron correr (pytest salió {rc_oc}).\n{salida_oc[-500:]}")
+    _esconder(id_, wt, ocultos)
+    return tests, ocultos
+
+
+# — Escenarios ocultos (mejora 2, 6-nov): el Constructor nunca los ve —
+# Viven en la carpeta del pedido (fuera del worktree, y el Portero niega leer fuera).
+# Entran al worktree solo mientras corren, y para siempre justo antes del commit.
+
+def _guardados(id_: str) -> Path:
+    return expediente.carpeta(id_) / "ocultos"
+
+
+def _esconder(id_: str, wt: Path, ocultos: list[str]) -> None:
+    for rel in ocultos:
+        origen, destino = wt / rel, _guardados(id_) / rel
+        if not origen.is_file():
+            raise Parada(f"Tester (no_puedo): dijo que escribió el oculto {rel}, pero no está en el worktree.")
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(origen), destino)
+
+
+def _poner_ocultos(id_: str, wt: Path, ocultos: list[str]) -> None:
+    for rel in ocultos:
+        guardado = _guardados(id_) / rel
+        if not guardado.is_file():
+            raise Parada(f"No encuentro el escenario oculto {rel} en la carpeta del pedido.")
+        (wt / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(guardado, wt / rel)
+
+
+def _quitar_ocultos(wt: Path, ocultos: list[str]) -> None:
+    for rel in ocultos:
+        (wt / rel).unlink(missing_ok=True)
+
+
+FALLA_PYTEST = re.compile(r"^(?:FAILED|ERROR)\s+(\S+)", re.M)
+
+
+def _probar_ocultos(mundo: Mundo, id_: str, wt: Path, ocultos: list[str]) -> tuple[int, list[str]]:
+    """Corre los ocultos y devuelve solo los nombres de los que fallan: ni su código ni su assert."""
+    _poner_ocultos(id_, wt, ocultos)
+    try:
+        rc, salida = mundo.probar(ocultos, wt)
+    finally:
+        _quitar_ocultos(wt, ocultos)
+    return rc, FALLA_PYTEST.findall(salida) or ([f"{len(ocultos)} archivo(s) oculto(s), salida {rc}"] if rc else [])
 
 
 def _construir(mundo: Mundo, id_: str) -> None:
@@ -332,12 +388,13 @@ def _construir(mundo: Mundo, id_: str) -> None:
         estado = "aprobado"
 
     if estado == "aprobado":
-        tests = _probar_antes(mundo, id_, idea, spec, lecciones, wt)
+        tests, ocultos = _probar_antes(mundo, id_, idea, spec, lecciones, wt)
         nota = ("", "")
     else:
         # Reintento tras una parada: el código del Constructor ya está en el worktree,
         # así que no se repite el Tester (sus tests ya pasarían) y las vueltas cuentan de nuevo.
         tests = _tests_del_expediente(secciones["Tests"])
+        ocultos = _tests_del_expediente(secciones["Tests"], "Ocultos: ")
         if not _tests_seguros(tests):
             raise Parada("No encuentro los tests del Tester en el expediente.")
         expediente.cambiar(id_, vueltas=0)
@@ -349,7 +406,8 @@ def _construir(mundo: Mundo, id_: str) -> None:
         hallazgos_txt = secciones["Revisión"]  # paró en el push o el PR: el commit ya existe
     else:
         hallazgos_txt = _texto_hallazgos(_vueltas(mundo, id_, idea, spec, base, lecciones, tests, wt, nota,
-                                                  meta.get("riesgo") == "alto"))
+                                                  meta.get("riesgo") == "alto", ocultos))
+        _poner_ocultos(id_, wt, ocultos)   # pasaron: desde ahora son tests del repo y van en el PR
         _, ya_hecho = mundo.sh(["git", "log", "--oneline", f"{base}..HEAD"], wt)
 
     agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "pr"})
@@ -362,7 +420,9 @@ def _construir(mundo: Mundo, id_: str) -> None:
     if rc != 0:
         raise Parada(f"El push no salió (el gancho pre-push corre el verificador): {salida[-500:]}")
     vueltas = expediente.leer(id_)["meta"].get("vueltas", 0)
+    oculto_txt = (f"{len(ocultos)}, pasan ({', '.join(ocultos)})" if ocultos else "ninguno (este control no corrió)")
     cuerpo = (f"## Pedido\n\n{idea}\n\n## Spec\n\n{spec}\n\n## Tests\n\n{', '.join(tests)}\n\n"
+              f"Escenarios ocultos: {oculto_txt}\n\n"
               f"## Revisión\n\n{hallazgos_txt}\n\n"
               f"Vueltas: {vueltas} · Tokens: {mundo.tokens(id_):,}".replace(",", ".") + f"\n\n{PIE_PR}")
     rc, salida = mundo.sh(["gh", "pr", "create", "--draft", "--base", base, "--head", rama,
@@ -376,7 +436,7 @@ def _construir(mundo: Mundo, id_: str) -> None:
 
 
 def _vueltas(mundo: Mundo, id_: str, idea: str, spec: str, base: str, lecciones: str, tests: list[str], wt: Path,
-             nota: tuple[str, str], alto: bool) -> list[dict[str, Any]]:
+             nota: tuple[str, str], alto: bool, ocultos: list[str] | None = None) -> list[dict[str, Any]]:
     """Constructor → verificador + tests del Tester → Revisor, hasta que pase o se acaben las 2 vueltas."""
     modelo = agentes.config()["modelos"]["constructor_alto"] if alto else None
     tope = int(agentes.config()["vueltas"])
@@ -403,6 +463,19 @@ def _vueltas(mundo: Mundo, id_: str, idea: str, spec: str, base: str, lecciones:
             nota = ("Informe del verificador y de los tests (arréglalo primero)",
                     f"{informe[-3000:]}\n\nTests del Tester (salida {rc_tests}):\n{salida_tests[-1000:]}")
             continue
+        if ocultos:
+            rc_oc, fallan = _probar_ocultos(mundo, id_, wt, ocultos)
+            escaneres = expediente.leer(id_)["secciones"]["Escáneres"]
+            expediente.escribir_seccion(id_, "Escáneres", f"{escaneres}\n\nEscenarios ocultos: salida {rc_oc}"
+                                                          + (f" · no se cumplen: {', '.join(fallan)}" if rc_oc else ""))
+            if rc_oc != 0:
+                if vueltas >= tope:
+                    raise Parada(f"Después de {vueltas} vueltas hay escenarios ocultos que no se cumplen: {', '.join(fallan)}")
+                vueltas += 1
+                expediente.cambiar(id_, vueltas=vueltas)
+                nota = ("Escenarios ocultos que no se cumplen (no los ves: vuelve a leer la spec y su «cómo se demuestra»)",
+                        "\n".join(f"- {f}" for f in fallan))
+                continue
         expediente.cambiar_estado(id_, "revisando")
         mundo.sh(["git", "add", "-A"], wt)
         rc_diff, diff = mundo.sh(["git", "diff", "--cached", base], wt)

@@ -105,7 +105,7 @@ ESQUEMAS: dict[Rol, dict[str, Any]] = {
         "como_se_demuestra": {"type": "string"},
         "partes": _lista(4),
     }, ESTADOS_PLANIFICADOR),
-    "tester": _esquema({"tests": _lista(), "resumen": {"type": "string"}}),
+    "tester": _esquema({"tests": _lista(), "ocultos": _lista(3), "resumen": {"type": "string"}}),
     "constructor": _esquema({"resumen": {"type": "string"}, "archivos": _lista()}),
     "revisor": _esquema({"hallazgos": {"type": "array", "items": {
         "type": "object",

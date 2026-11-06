@@ -63,8 +63,23 @@ def test_deja_escribir_dentro_del_worktree(tmp_path, ruta, monkeypatch):
     assert portero.decidir(escribir(ruta.format(wt=tmp_path), "Edit"), tmp_path) is None
 
 
-def test_lectura_siempre_pasa(tmp_path):
-    assert portero.decidir({"tool_name": "Read", "tool_input": {"file_path": "/etc/hosts"}}, tmp_path) is None
+def test_lectura_dentro_del_worktree_pasa(tmp_path):
+    (tmp_path / "nucleo").mkdir()
+    assert portero.decidir({"tool_name": "Read", "tool_input": {"file_path": str(tmp_path / "nucleo" / "x.py")}}, tmp_path) is None
+    assert portero.decidir({"tool_name": "Read", "tool_input": {"file_path": "nucleo/x.py"}, "cwd": str(tmp_path)}, tmp_path) is None
+    assert portero.decidir({"tool_name": "Grep", "tool_input": {"pattern": "x"}}, tmp_path) is None   # sin path = el cwd
+
+
+@pytest.mark.parametrize("evento", [
+    {"tool_name": "Read", "tool_input": {"file_path": "/etc/hosts"}},
+    {"tool_name": "Read", "tool_input": {"file_path": "../../nucleo/.env"}},
+    {"tool_name": "Grep", "tool_input": {"pattern": "TOKEN", "path": "/Users"}},
+    {"tool_name": "Glob", "tool_input": {"pattern": "**/*", "path": ".."}},
+])
+def test_lectura_fuera_del_worktree_se_niega(tmp_path, evento):
+    """6-nov: los escenarios ocultos del Tester y el nucleo/.env del checkout principal viven fuera del worktree."""
+    motivo = portero.decidir({**evento, "cwd": str(tmp_path)}, tmp_path)
+    assert motivo and "Solo se lee dentro del worktree" in motivo
 
 
 def test_main_imprime_deny_en_json(tmp_path, monkeypatch, capsys):

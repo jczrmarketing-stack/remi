@@ -3,7 +3,7 @@
 Lo carga `--settings fabrica/portero/settings.json`. Lee el evento del hook por
 stdin y, si la acción está prohibida, responde `permissionDecision: deny` con
 el motivo. Los agentes no hacen commit ni push (eso lo hace la línea), no
-borran, no despliegan y no escriben fuera del worktree de su pedido
+borran, no despliegan, y no leen ni escriben fuera del worktree de su pedido
 (`FABRICA_WORKTREE`). Sin esa variable, todo lo que escribe se niega.
 Solo stdlib: corre con el python3 del sistema.
 """
@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 ESCRIBEN = ("Edit", "Write", "MultiEdit", "NotebookEdit")
+LEEN = {"Read": "file_path", "Grep": "path", "Glob": "path"}
 
 PROHIBIDOS = (
     (re.compile(r"\bgit\s+(push|commit|merge|rebase|tag)\b"), "La línea hace commit y push, no el agente."),
@@ -64,6 +65,13 @@ def decidir(evento: dict, worktree: Path) -> str | None:
         for ruta in _rutas_que_toca(comando):
             if not _dentro(ruta, base, worktree):
                 return f"Fuera del worktree del pedido: {ruta}"
+        return None
+    if herramienta in LEEN:
+        # 6-nov: leer también queda dentro del worktree. Fuera viven los escenarios ocultos del Tester
+        # y el nucleo/.env del checkout principal. Sin ruta, Grep y Glob buscan en el cwd.
+        ruta = str(entrada.get(LEEN[herramienta]) or "")
+        if ruta and not _dentro(ruta, base, worktree):
+            return f"Solo se lee dentro del worktree del pedido: {ruta}"
         return None
     if herramienta in ESCRIBEN:
         ruta = str(entrada.get("file_path") or entrada.get("notebook_path") or "")
