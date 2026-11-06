@@ -13,8 +13,8 @@ Copia para la terminal del documento «Plan: fábrica, línea y Gerente de cuent
 
 ## Bloque 0 · La base (4–9 nov)
 Juan Camilo: instalar CLAUDE.md global, /revisar y /cerrar-fase; `brew install gitleaks semgrep osv-scanner`; instalar Superpowers; revisar en Settings → Usage de qué bolsa sale `claude -p`; decidir si se une la rama del verificador.
-Terminal: ajustar la línea base del verificador con la corrida del Mac; unir `fabrica/verificador` (con su OK) y dejar el CI en verde; registro de consumo por agente de cada `claude -p` en SQLite.
-Listo cuando: el verificador corre solo en GitHub y se sabe de qué bolsa sale el uso automático.
+Terminal: ajustar la línea base del verificador con la corrida del Mac; unir `fabrica/verificador` (hecho el 6-nov, en main); el verificador corre en el hook `pre-push` local y el CI de GitHub queda apagado a propósito para no gastar (se reactiva con `gh workflow enable verificar`); registro de consumo por agente de cada `claude -p` en SQLite.
+Listo cuando: el verificador corre solo en cada push, en el Mac, y se sabe de qué bolsa sale el uso automático.
 
 ## Bloque 1 · Fábrica v1 (10–16 nov)
 Expediente `fabrica/pedidos/<id>/expediente.md` con secciones por agente. Planificador (spec de 5 líneas con escenarios «cuando… entonces…», máx. 3 preguntas) → Tester (tests que fallan antes de construir) → Constructor (worktree aparte, método Superpowers) → verificador (si falla vuelve al Constructor, máx. 2 vueltas) → Revisor (`/revisar` en sesión nueva, solo spec + diff) → Portero (hooks: nada en main, sin push --force, sin borrar, sin desplegar) → aviso en el mensaje de las 11 o al bot de alertas. Base: `nucleo/coding.py`.
