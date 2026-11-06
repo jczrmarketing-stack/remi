@@ -55,3 +55,22 @@ def test_responder_pasa_la_respuesta(monkeypatch, capsys):
     assert cli.main(["responder", "20261104-1200-x", "Sí, main."]) == 0
     assert visto == {"id": "20261104-1200-x", "texto": "Sí, main."}
     assert "spec" in capsys.readouterr().out
+
+
+def test_encolar_cola_aprobar_de_noche_y_noche(tmp_path, capsys):
+    from fabrica import __main__ as cli
+    from pruebas.test_fabrica_linea import MundoFalso
+
+    falso = MundoFalso(tmp_path)
+    assert cli.main(["encolar", "Arreglar X"], falso.mundo()) == 0
+    id_ = capsys.readouterr().out.split()[1]
+    assert cli.main(["cola"], falso.mundo()) == 0
+    assert f"{id_} · idea · noche" in capsys.readouterr().out
+    assert cli.main(["noche"], falso.mundo()) == 0
+    assert f"Noche: planear {id_} · spec" in capsys.readouterr().out
+    assert cli.main(["aprobar", id_, "--de-noche"], falso.mundo()) == 0
+    assert "lo construye la próxima noche" in capsys.readouterr().out
+    assert cli.main(["noche"], falso.mundo()) == 0
+    assert f"Noche: aprobar {id_} · pr" in capsys.readouterr().out
+    assert cli.main(["noche"], falso.mundo()) == 0
+    assert "Nada para la noche." in capsys.readouterr().out

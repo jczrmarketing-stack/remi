@@ -22,7 +22,7 @@ RAIZ = Path(os.environ.get("FABRICA_PEDIDOS") or REPO / "fabrica" / "pedidos")
 ESTADOS = ("idea", "spec", "aprobado", "construyendo", "revisando", "pr", "cerrado")
 RIESGOS = ("bajo", "medio", "alto")
 SECCIONES = ("Contexto", "Spec", "Tests", "Construcción", "Escáneres", "Revisión", "Fuera de tarea", "Decisión")
-CAMPOS = ("pedido", "repo", "rama", "base", "estado", "toca", "riesgo", "vueltas", "creado")
+CAMPOS = ("pedido", "repo", "rama", "base", "estado", "toca", "riesgo", "vueltas", "creado", "noche")
 
 
 def _raiz(raiz: Path | None) -> Path:
@@ -62,6 +62,12 @@ def _escribir(id_: str, meta: dict[str, Any], secciones: dict[str, str], raiz: P
     tmp = destino.with_name(f".expediente.{os.getpid()}.tmp")
     tmp.write_text("\n".join(lineas), encoding="utf-8")
     os.replace(tmp, destino)
+    try:  # el espejo en SQLite (mejora 4): mejor esfuerzo, nunca frena el expediente
+        from fabrica import cola
+
+        cola.reflejar(meta, (secciones.get("Contexto") or "").strip().split("\n")[0])
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def crear(idea: str, repo: str, base: str, raiz: Path | None = None) -> str:
@@ -73,7 +79,7 @@ def crear(idea: str, repo: str, base: str, raiz: Path | None = None) -> str:
         id_ = f"{base_id}-{n}"
     carpeta(id_, raiz).mkdir(parents=True)
     meta = {"pedido": id_, "repo": repo, "rama": f"fabrica/pedido-{id_}", "base": base, "estado": "idea",
-            "toca": [], "riesgo": "bajo", "vueltas": 0, "creado": ahora.isoformat()}
+            "toca": [], "riesgo": "bajo", "vueltas": 0, "creado": ahora.isoformat(), "noche": 0}
     _escribir(id_, meta, {"Contexto": idea.strip()}, raiz)
     return id_
 

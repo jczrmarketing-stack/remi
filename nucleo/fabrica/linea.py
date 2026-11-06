@@ -312,7 +312,8 @@ def _planear(mundo: Mundo, id_: str) -> None:
     expediente.cambiar(id_, toca=list(plan.datos.get("toca") or []),
                        riesgo=plan.datos.get("riesgo") or "bajo", estado="spec")
     mundo.avisar(f"Spec lista para «{idea.splitlines()[0][:80]}»:\n\n{_texto_spec(plan.datos)}\n\n"
-                 f"Si te sirve:\n{orden('aprobar', id_)}")
+                 f"Si te sirve, ahora:\n{orden('aprobar', id_)}\n\nO para que la construya la noche:\n"
+                 f"{orden('aprobar', id_)} --de-noche")
 
 
 def pedir(idea: str, base: str = "main", mundo: Mundo | None = None, repo: str = "remi") -> str:
@@ -341,6 +342,53 @@ def responder(id_: str, respuesta: str, mundo: Mundo | None = None) -> str:
 
 
 APROBABLES = ("spec", "aprobado", "construyendo", "revisando")
+
+
+# — La noche (mejora 4, 6-nov): un pedido por corrida, solo lo que Juan Camilo dejó para la noche —
+
+def encolar(idea: str, base: str = "main", repo: str = "remi") -> str:
+    """Deja el pedido en la cola sin gastar: la noche corre el Planificador."""
+    id_ = expediente.crear(idea, repo, base)
+    expediente.cambiar(id_, noche=1)
+    return id_
+
+
+def aprobar_de_noche(id_: str) -> str:
+    """Aprueba la spec sin construir: la próxima noche lo lleva al PR."""
+    estado = expediente.leer(id_)["meta"]["estado"]
+    if estado != "spec":
+        raise ValueError(f"El pedido {id_} está en «{estado}»: solo se deja para la noche una spec lista.")
+    expediente.cambiar(id_, estado="aprobado", noche=1)
+    expediente.escribir_seccion(id_, "Decisión", f"Spec aprobada el {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC, "
+                                                 "para construirla de noche.")
+    return "aprobado"
+
+
+def siguiente_de_noche() -> tuple[str, str]:
+    """Primero lo aprobado (o lo que paró a medias); si no hay, planear lo encolado. Lo más viejo primero."""
+    pedidos = sorted((m for m in expediente.listar() if int(m.get("noche") or 0)), key=lambda m: str(m.get("creado", "")))
+    for meta in pedidos:
+        if meta["estado"] in ("aprobado", "construyendo", "revisando"):
+            return "aprobar", str(meta["pedido"])
+    for meta in pedidos:
+        if meta["estado"] == "idea":
+            return "planear", str(meta["pedido"])
+    return "nada", ""
+
+
+def noche(mundo: Mundo | None = None) -> tuple[str, str]:
+    accion, id_ = siguiente_de_noche()
+    if accion == "nada":
+        return accion, id_
+    mundo = mundo or mundo_real()
+    with candado():
+        if accion == "aprobar":
+            with _paradas(mundo, id_, orden("aprobar", id_)):
+                _construir(mundo, id_)
+        else:
+            with _paradas(mundo, id_, f"{orden('responder', id_)} \"<tu respuesta>\""):
+                _planear(mundo, id_)
+    return accion, id_
 
 
 def aprobar(id_: str, mundo: Mundo | None = None) -> str:

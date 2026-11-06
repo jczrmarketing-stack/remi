@@ -26,6 +26,21 @@ python3 -m fabrica ver [<id>]                       # lista los pedidos o muestr
 
 `pedir` acepta `--base <rama>` si no se parte de `main`. Si algo para a medias, `aprobar` retoma donde quedó.
 
+## De noche (sin gastar tu día)
+```bash
+python3 -m fabrica encolar "arreglar el test de X"    # la noche corre el Planificador
+python3 -m fabrica aprobar <id> --de-noche            # apruebas la spec; la noche la lleva al PR
+python3 -m fabrica cola                               # qué hay y en qué estado
+```
+La noche (`python3 -m fabrica noche`, launchd a las 2:30 con `scripts/launchd/com.remi.fabrica.plist`) toma **un** pedido por corrida: primero lo aprobado, después planear lo encolado. Lo que no marcaste para la noche no lo toca.
+
+## Qué garantiza cada PR (mejoras del 6-nov)
+- **Reglas y misión** (`fabrica/REGLAS.md`, `fabrica/mission.md`): el Planificador puede decir `fuera_de_alcance` o `partir` en vez de inventar.
+- **Cómo se demuestra**: toda spec dice qué evidencia prueba que está hecho.
+- **Escenarios ocultos**: el Tester escribe tests aparte que el Constructor nunca ve; si fallan, solo recibe sus nombres.
+- **Controles**: el PR lista cada control y su resultado; el que no corrió lo dice.
+- **Revisión contrastada**: un hallazgo que cita código que no existe se descarta; con riesgo alto revisa un modelo distinto al que construyó.
+
 ## Un buen pedido
 - **Una cosa.** «Arreglar los 6 tests rotos del Clasificador», no «mejorar los agentes».
 - **Dónde.** El archivo o el test, si lo sabes.
