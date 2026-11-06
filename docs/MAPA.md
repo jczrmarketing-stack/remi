@@ -17,6 +17,7 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 
 ## apps/panel
 
+- `apps/panel/next-env.d.ts` · 7 l.
 - `apps/panel/playwright.config.ts` · 58 l.
 - `apps/panel/src/bionica.ts` · 49 l. · largoAncla, TrozoBionico, partirBionica, perillasBionica
 - `apps/panel/src/config.ts` · 6 l. · URL_NUCLEO, PUERTO_PANEL
@@ -24,8 +25,8 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `apps/panel/src/app/layout.tsx` · 36 l. · metadata, viewport, RootLayout
 - `apps/panel/src/app/(suite)/layout.tsx` · 7 l. · LayoutSuite
 - `apps/panel/src/app/(suite)/page.tsx` · 103 l. · Inicio
-- `apps/panel/src/app/(suite)/d/[piso]/page.tsx` · 108 l. · PaginaPiso
-- `apps/panel/src/app/(suite)/edificio/page.tsx` · 60 l. · Edificio
+- `apps/panel/src/app/(suite)/d/[piso]/page.tsx` · 115 l. · PaginaPiso
+- `apps/panel/src/app/(suite)/edificio/page.tsx` · 65 l. · Edificio
 - `apps/panel/src/app/(suite)/norte/page.tsx` · 97 l. · PaginaNorte
 - `apps/panel/src/app/ajustes/page.tsx` · 119 l. · PaginaAjustes
 - `apps/panel/src/app/bandeja/page.tsx` · 169 l. · PaginaBandeja
@@ -55,6 +56,7 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `apps/panel/src/components/TabBar.tsx` · 32 l. · TabBar
 - `apps/panel/src/components/Tramo.tsx` · 33 l. · Tramo
 - `apps/panel/src/components/suite/Agente.tsx` · 59 l. · Agente, ESTADO_TEXTO
+- `apps/panel/src/components/suite/Linea.tsx` · 325 l. · Linea, LineaMini
 - `apps/panel/src/components/suite/Lista.tsx` · 35 l. · Lista
 - `apps/panel/src/components/suite/Mandar.tsx` · 76 l. · Mandar
 - `apps/panel/src/components/suite/Marco.tsx` · 41 l. · Marca, fechaLarga, Marco
@@ -64,7 +66,7 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `apps/panel/src/lib/formato.ts` · 114 l. · formatoHora, horaDeISO, fechaCorta, venceTexto, diaDelInstante, enFrase …
 - `apps/panel/src/lib/hoy.ts` · 139 l. · BloqueAbierto, Propuesta, DatosHoy, proponer, cargarHoy, minutosDesde …
 - `apps/panel/src/lib/lider.ts` · 61 l. · Escalon, liderDe, escalonDe, ordenDelLider, hitoDe, recorridoDe …
-- `apps/panel/src/lib/nucleo.ts` · 425 l. · NucleoApagado, TareaConHistorial, Salud, IdeaBandeja, CerradoPor, Hito …
+- `apps/panel/src/lib/nucleo.ts` · 438 l. · NucleoApagado, TareaConHistorial, Salud, IdeaBandeja, CerradoPor, Hito …
 - `apps/panel/src/lib/proyecto.ts` · 68 l. · enlaceObsidian, datosDe, ultimaCobradaDe, PartesDelEstado, partesDelEstado, tonoDeFase
 - `apps/panel/tests/ajustes.spec.ts` · 32 l.
 - `apps/panel/tests/bandeja.spec.ts` · 79 l.
@@ -228,7 +230,7 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 - `nucleo/sembrar_memoria.py` · 79 l. · Pone en el estante lo que Remi tiene que saber desde el primer día. · sembrar
 - `nucleo/servidor.py` · 2504 l. · FastAPI local. El bind en 127.0.0.1 no protege del origen: por acá no pueden · problema_de_aislamiento, ciclo_de_vida, recortar_voz, sin_markdown, para_hablar, frase_remi …
 - `nucleo/simulacion.py` · 69 l. · R4.4 (PLAN-FINAL.md): simulación de seis meses, sembrada con `numpy` · Bandas, Frecuencia, ResultadoSimulacion, simular, kelly_tope
-- `nucleo/suite.py` · 199 l. · La Suite de INV3RZA (3-nov): todo lo que pintan el inicio, el edificio y los 7 pisos, en u · leer_ficha, temas_del_editor, boveda_en_vivo, cobros_de_remi, armar
+- `nucleo/suite.py` · 221 l. · La Suite de INV3RZA (3-nov): todo lo que pintan el inicio, el edificio y los 7 pisos, en u · leer_ficha, temas_del_editor, boveda_en_vivo, cobros_de_remi, armar
 - `nucleo/suite_rutas.py` · 194 l. · Suite de INV3RZA (4-nov): lo que el panel escribe en la mente desde los pisos. · mente, guardar_en_cajon, leer_cajon, leer_norte, guardar_norte, lista_tu_norte …
 - `nucleo/telegram.py` · 511 l. · Telegram (Biblia Parte IV): el teléfono — avisos y charla corta. · es_privado, para_el_telefono, token, chat_id_configurado, Transporte, ClienteBotAPI …
 - `nucleo/temas.py` · 81 l. · A qué libro pertenece una idea (Biblia v3.7: `Idea.tema`). · tema_de_texto
@@ -241,12 +243,13 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 ## nucleo/fabrica
 
 - `nucleo/fabrica/__init__.py` · 5 l. · La fábrica de software de INV3RZA (Bloque 1): un pedido entra y sale un PR en borrador.
-- `nucleo/fabrica/__main__.py` · 77 l. · python3 -m fabrica pedir "<idea>" [--base rama] | responder <id> "<respuesta>" | aprobar < · main
+- `nucleo/fabrica/__main__.py` · 81 l. · python3 -m fabrica pedir "<idea>" [--base rama] | responder <id> "<respuesta>" | aprobar < · main
 - `nucleo/fabrica/agentes.py` · 294 l. · Los agentes de la línea (Bloque 1): Planificador, Tester, Constructor y Revisor. · entorno_encerrado, Salida, config, comando, eventos_de, anotar_evento …
 - `nucleo/fabrica/cola.py` · 65 l. · La cola de la fábrica en SQLite (mejora 4, 6-nov): un espejo del expediente. · reflejar, listar
-- `nucleo/fabrica/expediente.py` · 148 l. · El expediente de un pedido (SOP de la Fábrica, Bloque 1). · carpeta, crear, leer, escribir_seccion, cambiar, cambiar_estado …
+- `nucleo/fabrica/expediente.py` · 167 l. · El expediente de un pedido (SOP de la Fábrica, Bloque 1). · repo_principal, carpeta, crear, leer, escribir_seccion, cambiar …
 - `nucleo/fabrica/linea.py` · 603 l. · La línea de la fábrica (Bloque 1): código determinista que mueve un pedido. · Ocupada, Parada, Mundo, revisiones_para, mundo_real, orden_pedir …
 - `nucleo/fabrica/rutas.py` · 54 l. · Rutas de la fábrica para el piso Ingeniería del panel (4402). · pedidos, pedido, eventos
+- `nucleo/fabrica/vitrina.py` · 184 l. · Lo que el piso Ingeniería de la Suite muestra de la fábrica (6-nov). · corriendo, eventos, pr_url, estacion_actual, estaciones, idea …
 
 ## scripts
 
@@ -273,4 +276,4 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 
 - `vendor/kokoro/tts_kokoro.py` · 67 l. · Prueba de humo del TTS de Remi: genera un wav por cada una de las cuatro · main
 
-237 archivos de código; 159 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).
+240 archivos de código; 160 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).

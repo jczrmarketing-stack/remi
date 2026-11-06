@@ -2,6 +2,7 @@
 // El edificio: cada piso es un departamento. Donde hay luz, hay trabajo en curso.
 import Link from "next/link";
 import { Agente, ESTADO_TEXTO } from "@/components/suite/Agente";
+import { LineaMini } from "@/components/suite/Linea";
 import { Marco } from "@/components/suite/Marco";
 import { Apagado } from "@/components/Apagado";
 import { useCargaNucleo } from "@/hooks/useCargaNucleo";
@@ -35,15 +36,19 @@ export default function Edificio() {
                   <h2>{p.nombre}</h2>
                   <p>{p.para}</p>
                 </div>
-                <div className="gente">
-                  {p.agentes.map((a) => (
-                    <div className="ag" key={a.id}>
-                      <Agente forma={a.forma} color={p.color} estado={a.estado} />
-                      <b>{a.nombre}</b>
-                      <em>{a.ahora || ESTADO_TEXTO[a.estado]}</em>
-                    </div>
-                  ))}
-                </div>
+                {p.linea ? (
+                  <LineaMini linea={p.linea} />
+                ) : (
+                  <div className="gente">
+                    {p.agentes.map((a) => (
+                      <div className="ag" key={a.id}>
+                        <Agente forma={a.forma} color={p.color} estado={a.estado} />
+                        <b>{a.nombre}</b>
+                        <em>{a.ahora || ESTADO_TEXTO[a.estado]}</em>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="tu">
                   <small>Tu paso</small>
                   {p.paso.titulo?.replace(/\.$/, "")}

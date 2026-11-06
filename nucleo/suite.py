@@ -126,10 +126,19 @@ def _hora(iso: str | None) -> str:
         return ""
 
 
+def _fabrica() -> dict:
+    """Lo de la fábrica para Ingeniería (fabrica/vitrina.py). Nunca tumba la Suite."""
+    try:
+        from fabrica import vitrina
+        return vitrina.piso()
+    except Exception:  # noqa: BLE001 — la Suite se pinta igual sin la fábrica
+        return {}
+
+
 def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict | None = None,
           boveda: dict | None = None, temas: tuple[list[dict], str] | None = None, agentes: dict | None = None,
           cobros: list[list[str]] | None = None, pisos_publicados: dict | None = None,
-          cajones: dict | None = None, norte: dict | None = None) -> dict:
+          cajones: dict | None = None, norte: dict | None = None, fabrica: dict | None = None) -> dict:
     import suite_rutas  # aquí y no arriba: suite_rutas importa este módulo
     hoy = hoy or date.today()
     ficha = ficha if ficha is not None else leer_ficha()
@@ -141,6 +150,7 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
     foco = foco_de_hoy or ficha.get("foco") or {"titulo": "", "contexto": ""}
 
     pisos = []
+    fab: dict = {}
     for pid, nombre, para, color in PISOS:
         datos = pisos_ficha.get(pid) or {}
         entra = [dict(e) for e in (datos.get("entra") or [])]
@@ -184,6 +194,11 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
             ag = boveda.get("agenda") or {}
             filas = [[n, f"{'Hoy' if (ag.get(k) or {}).get('hecho') == hoy.isoformat() else 'Última'} {_hora((ag.get(k) or {}).get('ultima'))}".strip()]
                      for k, n in (("noche", "La bóveda trabaja de noche"), ("diaria", "Newsletter de las 11:00"), ("salud", "Revisión de salud"), ("semanal", "Resumen del domingo")) if (ag.get(k) or {}).get("ultima")]
+            fab = fabrica if fabrica is not None else _fabrica()
+            if fab.get("horario"):
+                filas.insert(0, fab["horario"])
+            if fab.get("entra"):
+                entra.insert(0, fab["entra"])
             entra.append({"titulo": "Horario automático", "fuente": "de la agenda", "filas": filas, "vacio": "La agenda no ha corrido todavía."})
         publicado = agentes_estado.leer_piso(pid) if pisos_publicados is None else (pisos_publicados.get(pid) or {})
         if publicado.get("paso"):
@@ -192,7 +207,14 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
             entra = [e for e in entra if e.get("titulo") != titulo] + [lista]
         gente = [a for a in agentes.values() if a.get("piso") == pid]
         luz = any(a["estado"] == "trabajando" for a in gente) or (pid == "inteligencia" and bool(boveda.get("leyendo")))
-        pisos.append({"id": pid, "nombre": nombre, "para": para, "color": color, "paso": paso, "luz": luz, "agentes": gente, "entra": entra})
+        fila = {"id": pid, "nombre": nombre, "para": para, "color": color, "paso": paso, "luz": luz, "agentes": gente, "entra": entra}
+        if pid == "ingenieria":
+            if fab.get("paso"):
+                fila["paso"] = dict(fab["paso"])   # la línea va primero: es lo que pasa ahora
+            if fab.get("linea"):
+                fila["linea"] = fab["linea"]
+            fila["luz"] = luz or bool(fab.get("corriendo"))
+        pisos.append(fila)
 
     return {"fecha": hoy.isoformat(), "foco": foco, "norte": ficha.get("norte") or {},
             "remi": agentes.get("remi") or {}, "pisos": pisos}

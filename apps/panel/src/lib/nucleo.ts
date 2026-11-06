@@ -243,7 +243,16 @@ export type EstadoAgente = "trabajando" | "esperando" | "durmiendo" | "error" | 
 export type FormaAgente = "orbe" | "tri" | "glifo" | "cuadro" | "rombo" | "media" | "hex" | "pildora";
 export type AgenteSuite = { id: string; nombre: string; piso: string | null; forma: FormaAgente; existe: boolean; hace: string; estado: EstadoAgente; ahora: string; ultimo: string };
 export type ListaSuite = { titulo: string; fuente: string; filas: [string, string][]; vacio?: string };
-export type PisoSuite = { id: string; nombre: string; para: string; color: string; paso: { titulo?: string; contexto?: string; accion?: string; ruta?: string }; luz: boolean; agentes: AgenteSuite[]; entra: ListaSuite[] };
+export type PisoSuite = { id: string; nombre: string; para: string; color: string; paso: { titulo?: string; contexto?: string; accion?: string; ruta?: string }; luz: boolean; agentes: AgenteSuite[]; entra: ListaSuite[]; linea?: LineaSuite };
+
+// La fábrica en el piso Ingeniería (nucleo/fabrica/vitrina.py y fabrica/rutas.py).
+export type EstacionId = "spec" | "tests" | "construir" | "verificar" | "revisar" | "pr";
+export type EstadoEstacion = "hecha" | "activa" | "por_venir";
+export type EstadoPedido = "idea" | "spec" | "aprobado" | "construyendo" | "revisando" | "pr" | "cerrado";
+export type LineaSuite = { id: string; idea: string; estado: EstadoPedido; corriendo: boolean; pr: string; estaciones: { id: EstacionId; estado: EstadoEstacion }[] };
+export type MetaPedido = { pedido: string; repo: string; rama: string; base: string; estado: EstadoPedido; toca: string[]; riesgo: string; vueltas: number; creado: string; noche?: number };
+export type PedidoFabrica = { meta: MetaPedido; secciones: Record<string, string>; tokens: number; tope: number };
+export type EventoFabrica = { n: number; rol: string; tipo: "estacion" | "herramienta" | "resultado" | "texto" | "pensamiento" | "fin" | string; texto?: string; herramienta?: string; vuelta?: number; en: string };
 export type Suite = { fecha: string; foco: { titulo: string; contexto: string; tarea_id?: string }; norte: { actual?: number; escalon?: number; meta?: number }; remi: AgenteSuite; pisos: PisoSuite[] };
 
 // El Norte guiado (nucleo/suite_rutas.py): seis preguntas, una por pantalla; `siguiente` es donde retomar.
@@ -251,6 +260,10 @@ export type NorteSuite = { existe: boolean; preguntas: { n: number; pregunta: st
 
 export const nucleo = {
   suite: () => pedir<Suite>("/suite"),
+  fabricaPedido: (id: string) => pedir<PedidoFabrica>(`/fabrica/pedidos/${encodeURIComponent(id)}`),
+  // El panel lee cada 2 s mientras la línea corre; `siguiente` es desde dónde pedir la próxima vez.
+  fabricaEventos: (id: string, desde = 0) =>
+    pedir<{ eventos: EventoFabrica[]; siguiente: number }>(`/fabrica/pedidos/${encodeURIComponent(id)}/eventos?desde=${desde}`),
   // Manda una idea al cajón de otro piso; llega a su lista «Ideas guardadas».
   suiteGuardar: (piso: string, texto: string, fuente: string) =>
     pedir<{ ok: boolean; piso: string; nombre: string; linea: string }>("/suite/guardar", { method: "POST", body: JSON.stringify({ piso, texto, fuente }) }),

@@ -17,7 +17,26 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
-RAIZ = Path(os.environ.get("FABRICA_PEDIDOS") or REPO / "fabrica" / "pedidos")
+
+
+def repo_principal(repo: Path = REPO) -> Path:
+    """El checkout principal. Desde un worktree (la casa de la fábrica), `.git` es
+    un archivo que apunta a `<principal>/.git/worktrees/<nombre>`. Los expedientes
+    viven en el principal para que el núcleo que sirve el panel los vea, corra
+    desde donde corra la fábrica."""
+    git = repo / ".git"
+    try:
+        texto = git.read_text(encoding="utf-8").strip() if git.is_file() else ""
+    except OSError:
+        texto = ""
+    if texto.startswith("gitdir:"):
+        gitdir = Path(texto.split(":", 1)[1].strip())
+        if gitdir.parent.name == "worktrees" and gitdir.parent.parent.name == ".git":
+            return gitdir.parent.parent.parent
+    return repo
+
+
+RAIZ = Path(os.environ.get("FABRICA_PEDIDOS") or repo_principal() / "fabrica" / "pedidos")
 
 ESTADOS = ("idea", "spec", "aprobado", "construyendo", "revisando", "pr", "cerrado")
 RIESGOS = ("bajo", "medio", "alto")

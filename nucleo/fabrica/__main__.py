@@ -6,6 +6,7 @@ Se corre desde `nucleo/` con el venv del núcleo.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from fabrica import expediente, linea
@@ -31,6 +32,9 @@ def main(argv: list[str] | None = None, mundo: linea.Mundo | None = None) -> int
     p_ver = sub.add_parser("ver", help="lista los pedidos o muestra uno")
     p_ver.add_argument("id", nargs="?")
     args = parser.parse_args(argv)
+    # La fábrica corre desde su casa (un worktree): sin esto, el consumo y la cola
+    # irían a un remi.db suelto dentro del worktree y el panel vería 0 tokens.
+    os.environ.setdefault("REMI_DB_PATH", str(expediente.repo_principal() / "nucleo" / "remi.db"))
     try:
         if args.orden == "pedir":
             id_ = linea.pedir(args.idea, args.base, mundo)

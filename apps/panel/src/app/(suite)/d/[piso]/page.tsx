@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Agente, ESTADO_TEXTO } from "@/components/suite/Agente";
+import { Linea } from "@/components/suite/Linea";
 import { Lista } from "@/components/suite/Lista";
 import { Marco } from "@/components/suite/Marco";
 import { Pedir } from "@/components/suite/Pedir";
@@ -35,7 +36,9 @@ function Paso({ piso }: { piso: PisoSuite }) {
       <h2>{titulo}</h2>
       {contexto ? <p>{contexto}</p> : null}
       <div className="su-acc">
-        {ruta && accion ? (
+        {ruta && accion && /^https?:/.test(ruta) ? (
+          <a className="su-btn" href={ruta} target="_blank" rel="noreferrer">{accion}</a>
+        ) : ruta && accion ? (
           <Link className="su-btn" href={ruta}>{accion}</Link>
         ) : accion === "Leer en Notion" ? (
           <a className="su-btn" href={NOTION_NEWSLETTER} target="_blank" rel="noreferrer">Leer en Notion</a>
@@ -70,7 +73,10 @@ export default function PaginaPiso() {
             <h1>{piso.nombre}</h1>
             <p>{piso.para}</p>
           </div>
-          <Paso key={piso.id} piso={piso} />
+          <Paso key={`${piso.id}-${piso.paso.titulo ?? ""}`} piso={piso} />
+          {piso.linea ? (
+            <Linea linea={piso.linea} />
+          ) : (
           <section className="su-oscuro su-of" style={{ ["--c" as string]: piso.color }} aria-label="La oficina">
             {piso.luz ? <div className="su-of-luz" aria-hidden /> : null}
             <h3>La oficina</h3>
@@ -90,6 +96,7 @@ export default function PaginaPiso() {
               ))}
             </div>
           </section>
+          )}
           <section className="su-en" aria-label="Lo que entra">
             {piso.entra.map((l) => (
               <Lista key={l.titulo} lista={l} mandarDesde={piso.id === "inteligencia" && l.titulo === "Temas del Editor" ? "Inteligencia" : undefined} />
