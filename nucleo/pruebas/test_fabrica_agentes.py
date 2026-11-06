@@ -145,3 +145,22 @@ def test_settings_del_portero_prende_el_sandbox():
     settings = json.loads(agentes.SETTINGS.read_text())
     assert settings["sandbox"]["enabled"] is True
     assert settings["hooks"]["PreToolUse"]
+
+
+def test_el_planificador_puede_partir_o_decir_fuera_de_alcance():
+    esquema = agentes.ESQUEMAS["planificador"]
+    assert {"partir", "fuera_de_alcance"} <= set(esquema["properties"]["estado"]["enum"])
+    assert {"partes", "como_se_demuestra"} <= set(esquema["required"])
+    assert "partir" not in agentes.ESQUEMAS["constructor"]["properties"]["estado"]["enum"]
+
+
+def test_reglas_para_todos_y_mision_para_planificador_y_revisor(tmp_path):
+    for rol in agentes.ROLES:
+        sistema = agentes._sistema(rol, tmp_path)
+        assert "Reglas de la fábrica (más estrictas que el CLAUDE.md)" in sistema
+        assert ("Misión de la fábrica" in sistema) == (rol in ("planificador", "revisor"))
+
+
+def test_salida_partir_del_planificador_es_valida():
+    final = {"type": "result", "structured_output": {"estado": "partir", "motivo": "dos cosas", "partes": ["a", "b"]}}
+    assert agentes._salida_de(final).estado == "partir"

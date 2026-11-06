@@ -118,6 +118,11 @@ def mundo_real() -> Mundo:
                  avisar=_avisar_real, raiz_repo=_repo_principal(), lecciones=_lecciones_reales)
 
 
+def orden_pedir(idea: str) -> str:
+    texto = idea.replace('"', "'")
+    return f'cd {expediente.REPO / "nucleo"} && {agentes.FABRICA_PY} -m fabrica pedir "{texto}"'
+
+
 def orden(sub: str, id_: str) -> str:
     """Cómo se corre la fábrica desde la terminal, con las rutas de verdad."""
     return f"cd {expediente.REPO / 'nucleo'} && {agentes.FABRICA_PY} -m fabrica {sub} {id_}"
@@ -173,6 +178,10 @@ def _agente(mundo: Mundo, id_: str, rol: Rol, mensaje: str, cwd: Path, modelo: s
     if gastado >= tope:
         raise Parada(f"El pedido llegó a su tope de tokens ({gastado:,} de {tope:,}). Lo dejo aquí.".replace(",", "."))
     salida = mundo.llamar(rol, mensaje, cwd, id_, modelo)
+    if salida.estado == "partir":
+        partes = [str(p) for p in salida.datos.get("partes") or [] if str(p).strip()]
+        detalle = "\n".join(f"- {p}\n  {orden_pedir(p)}" for p in partes)
+        raise Parada(f"{rol.capitalize()} (partir): {salida.motivo}\nUn pedido por parte:\n{detalle}")
     if salida.estado != "hecho":
         preguntas = salida.datos.get("preguntas") or []
         detalle = "\n".join(f"- {p}" for p in preguntas)
@@ -192,6 +201,8 @@ def _texto_spec(datos: dict[str, Any]) -> str:
     partes = [str(datos.get("spec", "")).strip()]
     if datos.get("escenarios"):
         partes.append("Escenarios:\n" + "\n".join(f"- {e}" for e in datos["escenarios"]))
+    if str(datos.get("como_se_demuestra") or "").strip():
+        partes.append(f"Cómo se demuestra:\n{str(datos['como_se_demuestra']).strip()}")
     if datos.get("preguntas"):
         partes.append("Preguntas:\n" + "\n".join(f"- {p}" for p in datos["preguntas"]))
     return "\n\n".join(p for p in partes if p)

@@ -37,10 +37,15 @@ from fabrica import expediente
 Rol = Literal["planificador", "tester", "constructor", "revisor"]
 ROLES: tuple[Rol, ...] = ("planificador", "tester", "constructor", "revisor")
 ESTADOS = ("hecho", "no_puedo", "necesito_dato")
+# Mejora 3 (6-nov): solo el Planificador puede rechazar el pedido o partirlo.
+ESTADOS_PLANIFICADOR = (*ESTADOS, "fuera_de_alcance", "partir")
 
 REPO = expediente.REPO
 CONFIG = REPO / "config" / "fabrica.json"
 INSTRUCCIONES = REPO / "fabrica" / "agentes"
+REGLAS = REPO / "fabrica" / "REGLAS.md"
+MISION = REPO / "fabrica" / "mission.md"
+CON_MISION: tuple[str, ...] = ("planificador", "revisor")
 SETTINGS = REPO / "fabrica" / "portero" / "settings.json"
 PORTERO = REPO / "fabrica" / "portero" / "portero.py"
 FABRICA_PY = os.environ.get("FABRICA_PY") or "/Users/juancamilo/proyectos/remi/nucleo/.venv/bin/python"
@@ -85,8 +90,8 @@ def _lista(maximo: int | None = None) -> dict[str, Any]:
     return esquema
 
 
-def _esquema(propias: dict[str, Any]) -> dict[str, Any]:
-    propiedades = {"estado": {"type": "string", "enum": list(ESTADOS)}, "motivo": {"type": "string"}, **propias}
+def _esquema(propias: dict[str, Any], estados: tuple[str, ...] = ESTADOS) -> dict[str, Any]:
+    propiedades = {"estado": {"type": "string", "enum": list(estados)}, "motivo": {"type": "string"}, **propias}
     return {"type": "object", "properties": propiedades, "required": list(propiedades), "additionalProperties": False}
 
 
@@ -97,7 +102,9 @@ ESQUEMAS: dict[Rol, dict[str, Any]] = {
         "preguntas": _lista(3),
         "toca": _lista(),
         "riesgo": {"type": "string", "enum": list(expediente.RIESGOS)},
-    }),
+        "como_se_demuestra": {"type": "string"},
+        "partes": _lista(4),
+    }, ESTADOS_PLANIFICADOR),
     "tester": _esquema({"tests": _lista(), "resumen": {"type": "string"}}),
     "constructor": _esquema({"resumen": {"type": "string"}, "archivos": _lista()}),
     "revisor": _esquema({"hallazgos": {"type": "array", "items": {
@@ -121,7 +128,10 @@ def _herramientas(rol: Rol) -> str:
 
 def _sistema(rol: Rol, cwd: Path) -> str:
     partes = [(INSTRUCCIONES / "comun.md").read_text(encoding="utf-8").replace("{FABRICA_PY}", FABRICA_PY),
-              (INSTRUCCIONES / f"{rol}.md").read_text(encoding="utf-8")]
+              (INSTRUCCIONES / f"{rol}.md").read_text(encoding="utf-8"),
+              REGLAS.read_text(encoding="utf-8")]
+    if rol in CON_MISION:
+        partes.append(MISION.read_text(encoding="utf-8"))
     reglas = cwd / "CLAUDE.md"
     if reglas.is_file():
         partes.append("# CLAUDE.md del repo\n\n" + reglas.read_text(encoding="utf-8"))
@@ -236,7 +246,7 @@ def _salida_de(final: dict[str, Any] | None) -> Salida:
             estructura = json.loads(final.get("result") or "")
         except (TypeError, json.JSONDecodeError):
             estructura = None
-    if not isinstance(estructura, dict) or estructura.get("estado") not in ESTADOS:
+    if not isinstance(estructura, dict) or estructura.get("estado") not in ESTADOS_PLANIFICADOR:
         return Salida("no_puedo", "La CLI devolvió una salida fuera del esquema.")
     return Salida(str(estructura["estado"]), str(estructura.get("motivo", "")), estructura)
 

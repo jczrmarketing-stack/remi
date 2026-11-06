@@ -293,3 +293,34 @@ def test_el_aviso_usa_el_chat_del_checkout_principal(tmp_path, monkeypatch):
     monkeypatch.setattr(alertas, "enviar", lambda texto, post=None: visto.update(chat=__import__("os").environ.get("ALERTAS_CHAT_ID"), texto=texto))
     linea._avisar_real("hola")
     assert visto == {"chat": "12345", "texto": "Fábrica · hola"}
+
+
+# — Mejora 3 (6-nov): misión, reglas y «partir» —
+
+def test_partir_manda_un_pedido_por_parte_y_no_construye(tmp_path):
+    partir = Salida("partir", "son dos cambios", {"spec": "", "escenarios": [], "preguntas": [], "toca": [], "riesgo": "bajo",
+                                                 "como_se_demuestra": "", "partes": ["Arreglar A en x.py", "Arreglar B en y.py"]})
+    falso = MundoFalso(tmp_path, {"planificador": [partir]})
+    id_ = linea.pedir("Arreglar A y B", "main", falso.mundo())
+    aviso = falso.avisos[-1]
+    assert "son dos cambios" in aviso
+    assert 'pedir "Arreglar A en x.py"' in aviso and 'pedir "Arreglar B en y.py"' in aviso
+    assert expediente.leer(id_)["meta"]["estado"] == "idea"
+
+
+def test_fuera_de_alcance_lo_dice_y_para(tmp_path):
+    fuera = Salida("fuera_de_alcance", "es una pantalla nueva: va por mockup", {"spec": "", "escenarios": [], "preguntas": [],
+                   "toca": [], "riesgo": "bajo", "como_se_demuestra": "", "partes": []})
+    falso = MundoFalso(tmp_path, {"planificador": [fuera]})
+    id_ = linea.pedir("Hacer la pantalla de la línea", "main", falso.mundo())
+    assert "mockup" in falso.avisos[-1] and "fuera_de_alcance" in falso.avisos[-1]
+    assert expediente.leer(id_)["meta"]["estado"] == "idea"
+
+
+def test_la_spec_lleva_como_se_demuestra(tmp_path):
+    con_prueba = Salida("hecho", "spec lista", {**SPEC.datos, "como_se_demuestra": "corre test_x y muestra B en la salida",
+                                                 "partes": []})
+    falso = MundoFalso(tmp_path, {"planificador": [con_prueba]})
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    spec = expediente.leer(id_)["secciones"]["Spec"]
+    assert "Cómo se demuestra:\ncorre test_x y muestra B en la salida" in spec
