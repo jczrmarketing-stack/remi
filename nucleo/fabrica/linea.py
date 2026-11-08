@@ -303,6 +303,7 @@ def _planear(mundo: Mundo, id_: str) -> None:
     meta, idea = datos["meta"], datos["secciones"]["Contexto"]
     wt = worktree(mundo.raiz_repo, id_)
     if not wt.exists():
+        mundo.sh(["git", "fetch", "origin"], mundo.raiz_repo)   # sin red, parte de lo último que se bajó
         rc, salida = mundo.sh(["git", "worktree", "add", str(wt), "-b", meta["rama"], meta["base"]], mundo.raiz_repo)
         if rc != 0:
             raise Parada(f"No pude crear el worktree: {salida[-300:]}")
@@ -316,10 +317,16 @@ def _planear(mundo: Mundo, id_: str) -> None:
                  f"{orden('aprobar', id_)} --de-noche")
 
 
+def base_de_origen(base: str) -> str:
+    """`main` local puede ir atrás o divergido de GitHub (el 7-nov faltaban 741 commits y los
+    pedidos de mypy no encontraron su código): todo pedido parte de la rama remota."""
+    return base if base.startswith("origin/") else f"origin/{base}"
+
+
 def pedir(idea: str, base: str = "main", mundo: Mundo | None = None, repo: str = "remi") -> str:
     mundo = mundo or mundo_real()
     with candado():
-        id_ = expediente.crear(idea, repo, base)
+        id_ = expediente.crear(idea, repo, base_de_origen(base))
         with _paradas(mundo, id_, f"{orden('responder', id_)} \"<tu respuesta>\""):
             _planear(mundo, id_)
     return id_
@@ -348,7 +355,7 @@ APROBABLES = ("spec", "aprobado", "construyendo", "revisando")
 
 def encolar(idea: str, base: str = "main", repo: str = "remi") -> str:
     """Deja el pedido en la cola sin gastar: la noche corre el Planificador."""
-    id_ = expediente.crear(idea, repo, base)
+    id_ = expediente.crear(idea, repo, base_de_origen(base))
     expediente.cambiar(id_, noche=1)
     return id_
 
