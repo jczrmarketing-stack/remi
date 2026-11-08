@@ -107,7 +107,9 @@ def test_comando_trae_json_schema_settings_y_stream_json(tmp_path):
     assert tester[tester.index("--max-turns") + 1] == "30"
     permitidas = tester[tester.index("--allowedTools") + 1]
     assert "Edit" in permitidas and "Bash(" in permitidas and "pytest" in permitidas
+    assert "-m mypy:*" in permitidas   # las specs de tipos piden mypy de antes y después
     planificador = agentes.comando("planificador", "opus", tmp_path)
+    assert "-m mypy" not in planificador[planificador.index("--allowedTools") + 1]
     assert "Edit" not in planificador[planificador.index("--allowedTools") + 1]
 
 

@@ -17,7 +17,7 @@ def main(argv: list[str] | None = None, mundo: linea.Mundo | None = None) -> int
     sub = parser.add_subparsers(dest="orden", required=True)
     p_pedir = sub.add_parser("pedir", help="crea el pedido y corre el Planificador")
     p_pedir.add_argument("idea")
-    p_pedir.add_argument("--base", default="main", help="rama de partida (main por defecto)")
+    p_pedir.add_argument("--base", default="main", help="rama de partida (main por defecto; siempre se toma la de origin)")
     p_responder = sub.add_parser("responder", help="contesta las preguntas del Planificador y rehace la spec")
     p_responder.add_argument("id")
     p_responder.add_argument("respuesta", nargs="?", default="")

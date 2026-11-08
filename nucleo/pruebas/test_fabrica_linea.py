@@ -94,7 +94,8 @@ def test_pedir_deja_la_spec_y_espera(tmp_path):
     assert "cuando A entonces B" in datos["secciones"]["Spec"]
     assert falso.roles() == ["planificador"]
     assert f"aprobar {id_}" in falso.avisos[-1]
-    assert ["git", "worktree", "add", str(tmp_path / ".worktrees" / f"pedido-{id_}"), "-b", f"fabrica/pedido-{id_}", "main"] in falso.comandos
+    assert ["git", "worktree", "add", str(tmp_path / ".worktrees" / f"pedido-{id_}"), "-b", f"fabrica/pedido-{id_}", "origin/main"] in falso.comandos
+    assert ["git", "fetch", "origin"] in falso.comandos
 
 
 def test_tope_de_tokens_corta_el_pedido(tmp_path):
@@ -483,3 +484,12 @@ def test_con_base_origin_main_el_pr_va_contra_main(tmp_path):
     pr = next(c for c in falso.comandos if c[:3] == ["gh", "pr", "create"])
     assert pr[pr.index("--base") + 1] == "main"
     assert ["git", "worktree", "add", str(linea.worktree(tmp_path, id_)), "-b", f"fabrica/pedido-{id_}", "origin/main"] in falso.comandos
+
+
+def test_la_base_siempre_es_la_remota(tmp_path):
+    falso = MundoFalso(tmp_path)
+    """Un `main` local atrasado hizo que el Planificador no hallara el código (7-nov)."""
+    assert linea.base_de_origen("main") == "origin/main"
+    assert linea.base_de_origen("origin/main") == "origin/main"
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    assert expediente.leer(id_)["meta"]["base"] == "origin/main"
