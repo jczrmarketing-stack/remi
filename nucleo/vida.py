@@ -333,7 +333,9 @@ def anotar(texto: str, tipo: str = "hecho", revisar_en_dias: int = 14, fuentes: 
             f.write(f"- [ ] {texto} · dicho por Claude el {hoy}\n")
         # 3-nov: ya no se pregunta por Telegram (JC: de Remi solo la newsletter). Queda en la bandeja.
         return "Queda por confirmar en bandeja/por-confirmar.md (Obsidian)."
-    carpeta = MENTE / TIPOS_CON_DESTINO[tipo]
+    destino = TIPOS_CON_DESTINO[tipo]
+    assert destino is not None
+    carpeta = MENTE / destino
     carpeta.mkdir(parents=True, exist_ok=True)
     if tipo == "resultado":
         ruta = carpeta / f"{hoy}.md"

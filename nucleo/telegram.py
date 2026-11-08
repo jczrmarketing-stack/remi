@@ -247,9 +247,9 @@ def _manejar_boton(transporte: Transporte, consulta: dict) -> None:
 
 
 def _manejar_actualizacion(transporte: Transporte, actualizacion: dict) -> None:
-    consulta = actualizacion.get("callback_query")
-    if consulta:
-        _manejar_boton(transporte, consulta)
+    boton = actualizacion.get("callback_query")
+    if boton:
+        _manejar_boton(transporte, boton)
         return
     mensaje = actualizacion.get("message")
     if not mensaje:

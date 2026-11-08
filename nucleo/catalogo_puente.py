@@ -61,8 +61,10 @@ def leer_video(video_id: str, correr=subprocess.run, raiz: Path | None = None) -
     if not ID_VIDEO.fullmatch(video_id):
         return "Ese id de video no es válido: son 11 caracteres, como el que sale en `preguntar`."
     raiz = raiz or afirmaciones_puente._raiz_boveda()
-    python = None if raiz is None else raiz / ".venv" / "bin" / "python"
-    if raiz is None or not python.exists():
+    if raiz is None:
+        return "No encuentro la bóveda ahora: no puedo leer el video."
+    python = raiz / ".venv" / "bin" / "python"
+    if not python.exists():
         return "No encuentro la bóveda ahora: no puedo leer el video."
     try:
         r = correr([str(python), "youtube_catalogo.py", "--leer", video_id], cwd=raiz, capture_output=True, text=True, timeout=170)

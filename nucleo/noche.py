@@ -421,7 +421,8 @@ def cerrar_f13() -> dict[str, object]:
         ruta = vida.MENTE / "bandeja" / "por-confirmar.md"
         movidas = 0
         if ruta.exists():
-            quedan, confirmadas = [], []
+            quedan: list[str] = []
+            confirmadas: list[str] = []
             for linea in ruta.read_text(encoding="utf-8").splitlines():
                 (confirmadas if linea.startswith("- [x]") else quedan).append(linea)
             if confirmadas:
