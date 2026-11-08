@@ -1,4 +1,4 @@
-# Mapa del repo Remi · 2026-11-06
+# Mapa del repo Remi · 2026-11-07
 
 Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar con grep; abre solo el archivo que necesites. Se regenera con `python3 scripts/mapa.py`.
 
@@ -17,7 +17,6 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 
 ## apps/panel
 
-- `apps/panel/next-env.d.ts` · 7 l.
 - `apps/panel/playwright.config.ts` · 58 l.
 - `apps/panel/src/bionica.ts` · 49 l. · largoAncla, TrozoBionico, partirBionica, perillasBionica
 - `apps/panel/src/config.ts` · 6 l. · URL_NUCLEO, PUERTO_PANEL
@@ -276,4 +275,4 @@ Una línea por archivo: ruta · líneas · qué expone. Léelo antes de buscar c
 
 - `vendor/kokoro/tts_kokoro.py` · 67 l. · Prueba de humo del TTS de Remi: genera un wav por cada una de las cuatro · main
 
-240 archivos de código; 160 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).
+239 archivos de código; 161 archivos de pruebas en `nucleo/pruebas/` (correr: `cd nucleo && .venv/bin/python -m pytest -q`).

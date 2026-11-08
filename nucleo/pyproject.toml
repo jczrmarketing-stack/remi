@@ -24,7 +24,8 @@ dev = [
     "types-pyyaml>=6.0.12.20260906",
 ]
 
-# kokoro, soundfile y sqlite_vec no traen tipos; el resto del núcleo sigue estricto.
+# kokoro, soundfile y sqlite_vec no traen tipos; sentence_transformers es opcional (no instalado, se importa tarde);
+# afirmaciones vive en la bóveda (exacto, sin ".*", para que afirmaciones_puente siga revisado). El resto sigue estricto.
 [[tool.mypy.overrides]]
-module = ["kokoro.*", "soundfile.*", "sqlite_vec.*"]
+module = ["kokoro.*", "soundfile.*", "sqlite_vec.*", "sentence_transformers.*", "afirmaciones"]
 ignore_missing_imports = true
