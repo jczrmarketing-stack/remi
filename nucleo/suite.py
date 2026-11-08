@@ -15,6 +15,7 @@ import sqlite3
 import subprocess
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -69,7 +70,7 @@ def temas_del_editor(hoy: date, carpeta: Path | None = None) -> tuple[list[dict]
 
 def boveda_en_vivo(raiz: Path | None = None, hoy: date | None = None) -> dict:
     raiz = raiz or donde_boveda.ubicar()
-    salida = {"leyendo": False, "calificados": None, "leidos_hoy": None, "agenda": {}, "enfriando_hasta": None}
+    salida: dict[str, Any] = {"leyendo": False, "calificados": None, "leidos_hoy": None, "agenda": {}, "enfriando_hasta": None}
     if raiz is None:
         return salida
     try:   # YouTube bloqueó la IP: la ingesta espera sola (youtube_catalogo.py, 1 h → 24 h)
@@ -143,7 +144,9 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
     hoy = hoy or date.today()
     ficha = ficha if ficha is not None else leer_ficha()
     boveda = boveda if boveda is not None else boveda_en_vivo(hoy=hoy)
-    temas, fecha_temas = temas if temas is not None else temas_del_editor(hoy)
+    lista_temas: list[dict]
+    fecha_temas: str
+    lista_temas, fecha_temas = temas if temas is not None else temas_del_editor(hoy)
     if agentes is None:
         agentes = {k: agentes_estado.vivo(k, v) for k, v in agentes_estado.catalogo().items()}
     pisos_ficha = ficha.get("pisos") or {}
@@ -153,15 +156,15 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
     fab: dict = {}
     for pid, nombre, para, color in PISOS:
         datos = pisos_ficha.get(pid) or {}
-        entra = [dict(e) for e in (datos.get("entra") or [])]
-        paso = dict(datos.get("paso") or {})
+        entra: list[dict] = [dict(e) for e in (datos.get("entra") or [])]
+        paso: dict = dict(datos.get("paso") or {})
         if pid == "inteligencia":
-            if temas:
-                primero = next((t for t in temas if t.get("accion") == "hoy"), temas[0])
+            if lista_temas:
+                primero = next((t for t in lista_temas if t.get("accion") == "hoy"), lista_temas[0])
                 paso = {"titulo": _titulo(primero), "contexto": ("Para ti: " + primero["para_ti"]) if primero.get("para_ti") else "", "accion": "Leer en Notion"}
             entra = [
                 {"titulo": "Temas del Editor", "fuente": f"del {fecha_temas}" if fecha_temas and fecha_temas != hoy.isoformat() else "de hoy",
-                 "filas": [[_titulo(t), ACCION_TEMA.get(t.get("accion", ""), "")] for t in temas[:5]],
+                 "filas": [[_titulo(t), ACCION_TEMA.get(t.get("accion", ""), "")] for t in lista_temas[:5]],
                  "vacio": "El Editor publica a las 11:00."},
                 {"titulo": "La bóveda", "fuente": "en vivo", "filas": [
                     ["YouTube", "Leyendo ahora" if boveda.get("leyendo") else (f"YouTube bloqueó; vuelve a las {boveda['enfriando_hasta']}" if boveda.get("enfriando_hasta") else "En pausa")],
@@ -192,7 +195,7 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
                 paso["ruta"] = "/norte"
         if pid == "ingenieria":
             ag = boveda.get("agenda") or {}
-            filas = [[n, f"{'Hoy' if (ag.get(k) or {}).get('hecho') == hoy.isoformat() else 'Última'} {_hora((ag.get(k) or {}).get('ultima'))}".strip()]
+            filas: list[list[str]] = [[n, f"{'Hoy' if (ag.get(k) or {}).get('hecho') == hoy.isoformat() else 'Última'} {_hora((ag.get(k) or {}).get('ultima'))}".strip()]
                      for k, n in (("noche", "La bóveda trabaja de noche"), ("diaria", "Newsletter de las 11:00"), ("salud", "Revisión de salud"), ("semanal", "Resumen del domingo")) if (ag.get(k) or {}).get("ultima")]
             fab = fabrica if fabrica is not None else _fabrica()
             if fab.get("horario"):
@@ -207,7 +210,7 @@ def armar(foco_de_hoy: dict | None = None, hoy: date | None = None, ficha: dict 
             entra = [e for e in entra if e.get("titulo") != titulo] + [lista]
         gente = [a for a in agentes.values() if a.get("piso") == pid]
         luz = any(a["estado"] == "trabajando" for a in gente) or (pid == "inteligencia" and bool(boveda.get("leyendo")))
-        fila = {"id": pid, "nombre": nombre, "para": para, "color": color, "paso": paso, "luz": luz, "agentes": gente, "entra": entra}
+        fila: dict[str, Any] = {"id": pid, "nombre": nombre, "para": para, "color": color, "paso": paso, "luz": luz, "agentes": gente, "entra": entra}
         if pid == "ingenieria":
             if fab.get("paso"):
                 fila["paso"] = dict(fab["paso"])   # la línea va primero: es lo que pasa ahora
