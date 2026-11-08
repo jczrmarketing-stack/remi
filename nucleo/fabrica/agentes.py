@@ -122,7 +122,8 @@ def config() -> dict[str, Any]:
 
 def _herramientas(rol: Rol) -> str:
     if rol in ("tester", "constructor"):
-        return ",".join((*LECTURA, "Edit", "Write", f"Bash({FABRICA_PY} -m pytest:*)"))
+        # mypy solo lee y analiza: lo piden las specs de tipos como evidencia de antes y después.
+        return ",".join((*LECTURA, "Edit", "Write", f"Bash({FABRICA_PY} -m pytest:*)", f"Bash({FABRICA_PY} -m mypy:*)"))
     return ",".join(LECTURA)
 
 

@@ -10,3 +10,4 @@ Reglas de la fábrica (no se negocian):
   - `necesito_dato`: falta una decisión de Juan Camilo; la pregunta va en `motivo`.
 - Si dudas entre adivinar y preguntar, pregunta.
 - Para correr pruebas usa exactamente: `{FABRICA_PY} -m pytest <archivos> -q` (desde la raíz del worktree).
+- Para correr mypy usa exactamente: `{FABRICA_PY} -m mypy --config-file nucleo/pyproject.toml <archivos o nucleo>` (desde la raíz del worktree, sin `cd` ni `&&`: el comando compuesto pide aprobación y no corre).
