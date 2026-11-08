@@ -304,9 +304,15 @@ def _planear(mundo: Mundo, id_: str) -> None:
     wt = worktree(mundo.raiz_repo, id_)
     if not wt.exists():
         mundo.sh(["git", "fetch", "origin"], mundo.raiz_repo)   # sin red, parte de lo último que se bajó
-        rc, salida = mundo.sh(["git", "worktree", "add", str(wt), "-b", meta["rama"], meta["base"]], mundo.raiz_repo)
+        # La base se fija al commit exacto: si luego se une algo a origin/main mientras el pedido corre,
+        # su diff no debe mostrar eso como «borrado» (8-nov: pasó con los pedidos -14 y -5).
+        rc, punta = mundo.sh(["git", "rev-parse", "--verify", f"{meta['base']}^{{commit}}"], mundo.raiz_repo)
+        sha = punta.strip() if rc == 0 and re.fullmatch(r"[0-9a-f]{40}", punta.strip()) else ""
+        rc, salida = mundo.sh(["git", "worktree", "add", str(wt), "-b", meta["rama"], sha or meta["base"]], mundo.raiz_repo)
         if rc != 0:
             raise Parada(f"No pude crear el worktree: {salida[-300:]}")
+        if sha:
+            expediente.cambiar(id_, base_sha=sha)
     agentes.anotar_evento(id_, {"rol": "linea", "tipo": "estacion", "texto": "spec"})
     plan = _agente(mundo, id_, "planificador", _mensaje(idea, mundo.lecciones(idea)), wt)
     expediente.escribir_seccion(id_, "Spec", _texto_spec(plan.datos))
@@ -491,7 +497,8 @@ def _probar_ocultos(mundo: Mundo, id_: str, wt: Path, ocultos: list[str]) -> tup
 def _construir(mundo: Mundo, id_: str) -> None:
     datos = expediente.leer(id_)
     meta, secciones = datos["meta"], datos["secciones"]
-    idea, spec, base, rama = secciones["Contexto"], secciones["Spec"], str(meta["base"]), str(meta["rama"])
+    idea, spec, base_pr, rama = secciones["Contexto"], secciones["Spec"], str(meta["base"]), str(meta["rama"])
+    base = str(meta.get("base_sha") or base_pr)   # para comparar: el commit fijo; base_pr es solo el destino del PR
     wt = worktree(mundo.raiz_repo, id_)
     lecciones = mundo.lecciones(idea)
     estado = meta["estado"]
@@ -539,7 +546,7 @@ def _construir(mundo: Mundo, id_: str) -> None:
               f"Escenarios ocultos: {oculto_txt}\n\n{controles}\n\n"
               f"## Revisión\n\n{hallazgos_txt}\n\n"
               f"Vueltas: {vueltas} · Tokens: {_miles(mundo.tokens(id_))}\n\n{PIE_PR}")
-    rc, salida = mundo.sh(["gh", "pr", "create", "--draft", "--base", base.removeprefix("origin/"), "--head", rama,
+    rc, salida = mundo.sh(["gh", "pr", "create", "--draft", "--base", base_pr.removeprefix("origin/"), "--head", rama,
                            "--title", f"Fábrica: {idea.splitlines()[0][:60]}", "--body", cuerpo], wt)
     if rc != 0:
         raise Parada(f"No pude abrir el PR: {salida[-300:]}")
