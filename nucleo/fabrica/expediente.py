@@ -41,7 +41,7 @@ RAIZ = Path(os.environ.get("FABRICA_PEDIDOS") or repo_principal() / "fabrica" / 
 ESTADOS = ("idea", "spec", "aprobado", "construyendo", "revisando", "pr", "cerrado")
 RIESGOS = ("bajo", "medio", "alto")
 SECCIONES = ("Contexto", "Spec", "Tests", "Construcción", "Escáneres", "Revisión", "Fuera de tarea", "Decisión")
-CAMPOS = ("pedido", "repo", "rama", "base", "estado", "toca", "riesgo", "vueltas", "creado", "noche")
+CAMPOS = ("pedido", "repo", "rama", "base", "base_sha", "estado", "toca", "riesgo", "vueltas", "creado", "noche")
 
 
 def _raiz(raiz: Path | None) -> Path:

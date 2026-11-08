@@ -30,6 +30,7 @@ class MundoFalso:
         self.pytest_despues = pytest_despues
         self.push_rc = list(push_rc or [0])
         self.commits = 0
+        self.punta = ""   # lo que contesta `git rev-parse` (un commit de 40 hex); vacío = no responde
 
     def llamar(self, rol, mensaje, cwd, pedido, modelo=None):
         self.llamadas.append((rol, modelo))
@@ -58,6 +59,8 @@ class MundoFalso:
             return rc, "" if rc == 0 else "rechazado"
         if args[:3] == ["gh", "pr", "create"]:
             return 0, "https://github.com/jczrmarketing-stack/remi/pull/9"
+        if args[:2] == ["git", "rev-parse"] and self.punta:
+            return 0, self.punta
         return 0, ""
 
     def mundo(self):
@@ -493,3 +496,24 @@ def test_la_base_siempre_es_la_remota(tmp_path):
     assert linea.base_de_origen("origin/main") == "origin/main"
     id_ = linea.pedir("Arreglar X", "main", falso.mundo())
     assert expediente.leer(id_)["meta"]["base"] == "origin/main"
+
+
+def test_la_base_se_fija_al_commit_exacto_aunque_origin_main_avance(tmp_path):
+    """8-nov: se unió un PR mientras corría un pedido y su diff mostró lo recién unido como «borrado»."""
+    falso = MundoFalso(tmp_path)
+    falso.punta = "a" * 40
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    assert ["git", "worktree", "add", str(tmp_path / ".worktrees" / f"pedido-{id_}"), "-b", f"fabrica/pedido-{id_}", "a" * 40] in falso.comandos
+    meta = expediente.leer(id_)["meta"]
+    assert meta["base_sha"] == "a" * 40 and meta["base"] == "origin/main"
+    linea.aprobar(id_, falso.mundo())
+    diffs = [c for c in falso.comandos if c[:3] == ["git", "diff", "--cached"]]
+    assert diffs and all(c[-1] == "a" * 40 for c in diffs)           # compara contra el commit fijo
+    pr = next(c for c in falso.comandos if c[:3] == ["gh", "pr", "create"])
+    assert pr[pr.index("--base") + 1] == "main"                       # el PR sigue apuntando a la rama
+
+
+def test_sin_respuesta_de_git_la_base_queda_como_antes(tmp_path):
+    falso = MundoFalso(tmp_path)
+    id_ = linea.pedir("Arreglar X", "main", falso.mundo())
+    assert not expediente.leer(id_)["meta"]["base_sha"]
