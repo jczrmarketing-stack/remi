@@ -41,5 +41,34 @@ INV3RZA hace ingeniería inversa: se parte de lo que el producto necesita, no de
 - Cambiar costaría: reescribir el backend, migrar MySQL, volver a verificar OAuth y TikTok, y arriesgar la entrega de la Fase 1.
 - Decisión: **heredar**. La Fase 2 se construye dentro del backend actual. Supabase o Postgres se reevalúan solo para la Fase 3 (multi-cliente).
 
+## Puerta 4 · Cuatro pasos de la línea tomados de Archon (9-nov-2026)
+
+Origen: lectura de los flujos `split`, `triage`, `deliver` y `review` del pack SDLC de Archon (MIT; bóveda, `mundo/investigaciones/2026-11-09-*`). No se migra: Archon no trae escenarios ocultos, «cómo se demuestra» ni Portero, que son lo que mejor funciona aquí. Se toman cuatro ideas. Cada paso dice entradas, regla, qué sale y quién aprueba. **Estado: método aprobado el 9-nov; ninguno construido todavía.**
+
+**A. Partir un PRD en pedidos.**
+- Entra: una fase de la Biblia o un PRD/épica.
+- Regla: un pedido = una cosa, con su propio «listo cuando»; máximo 12 por tanda; solo se parte la fase actual y las siguientes quedan anotadas con la señal que las activa; no se duplica un pedido ya abierto.
+- Sale: lista de pedidos para `encolar`.
+- Aprueba: Juan Camilo aprueba la lista antes de encolar nada.
+- Ejemplo: la Fase 2 de UpVisuals sale como 6 a 10 pedidos, no como uno gigante.
+
+**B. Triage con rutas.**
+- Entra: un pedido nuevo.
+- Regla: el Planificador elige una ruta: `investigar` (solo lectura, devuelve un informe y ningún código), `planificar`, `entregar`, `partir` o `fuera_de_alcance`. Hoy ya existen las dos últimas; falta `investigar`.
+- Sale: la ruta en el expediente, con una línea de por qué.
+- Aprueba: Juan Camilo, siempre que la ruta no sea `entregar`.
+
+**C. Revisión con lentes y votación de bloqueantes.**
+- Entra: spec y diff.
+- Regla: el Revisor mira por lentes según el riesgo (código, tests, errores, contratos); riesgo alto sigue pidiendo otro modelo. Cada hallazgo **alto** lo juzgan 3 verificadores aparte, en contexto limpio, con la evidencia del código; con 2 votos en contra baja a `nota` (defecto previo) o `refutado` (no es real).
+- Sale: la sección Revisión del expediente con los hallazgos que sobreviven y los degradados con su razón.
+- Aprueba: Juan Camilo lee el PR, como hoy.
+- Ejemplo: pendiente, el primer pedido real que lo use. (El falso «alto» del 8-nov en el pedido `-14` no se habría salvado con votos: el diff sí borraba lo que decía; se curó fijando la base, `base_sha`.)
+- Costo: 3 llamadas pequeñas solo cuando hay hallazgos altos.
+
+**D. Revisor de solo lectura impuesto.** Ya está cumplido: el Revisor y el Planificador corren con `--tools Read,Grep,Glob` (`comando()` en `nucleo/fabrica/agentes.py`), así que el CLI les niega escribir; no depende del prompt. Los verificadores de C heredan lo mismo. Falta un test que fije el conjunto de herramientas del Revisor (hoy solo se prueba el del Planificador).
+
+**Qué se mide** al construir A a C: % de PRs aprobados sin cambios, tokens por PR y cuántos hallazgos altos terminan degradados.
+
 ## Estado
 La Puerta 0 hoy se corre en una sesión de Claude Code con esta guía. Cuando la fábrica soporte otros repos, pasa a ser una orden propia (agente de solo lectura más tu aprobación). La lista de puertas sigue el SOP de proyectos de la bóveda (`oficios/proyectos-sop.md`) y el plan de la fábrica (`docs/fabrica/PLAN.md`).
